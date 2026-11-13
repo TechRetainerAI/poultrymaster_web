@@ -15,6 +15,9 @@ import '../../../widgets/module_sidebar.dart';
 import '../../shared/business_dates.dart';
 import '../../shared/company_clock.dart';
 import '../batch_allocation_screen.dart';
+import '../batch_reconcile_screen.dart';
+import '../bird_reconciliation.dart';
+import '../bulk_flock_batch_screen.dart';
 import '../breed_picker.dart';
 import '../money/money_widgets.dart' show formSection, redCancelButton;
 import '../reports/report_format.dart';
@@ -23,6 +26,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, trackerDate
 import '../trackers/tracker_widgets.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
+import '../setup/setup_embed.dart';
 // ------------------------------------------------------------ rules
 
 /// batchTogglesFromStatus / batchStatusFromToggles (lib/utils/batch-status.ts).
@@ -120,6 +124,10 @@ class FlockBatchesScreen extends StatefulWidget {
 
 class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
   List<Map> _batches = [], _flocks = [], _opening = [], _suppliers = [], _accounts = [];
+
+  /// The server's bird accounting per batch (413): the one figure every page
+  /// agrees on. Empty before 413, so the local figure is used.
+  Map<int, Map> _recon = const {};
   bool _loading = true, _table = false;
   String _error = '';
   final _search = TextEditingController();
@@ -150,6 +158,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
       if (mounted) setState(() => _accounts = [for (final a in rowsOf(r)) if (a['isActive'] == true) a]);
     }).catchError((_) {});
     _loadBatches();
+    _loadRecon();
     _api.get('/api/Supplier', query: _ctx).then((r) {
       if (mounted) setState(() => _suppliers = rowsOf(r));
     }).catchError((_) {});
@@ -177,6 +186,11 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  Future<void> _loadRecon() async {
+    final m = await loadBatchReconciliation(widget.session, widget.company);
+    if (mounted) setState(() => _recon = m);
+  }
+
   Future<void> _loadFlocks() async {
     try {
       final r = await _api.get('/api/Flock', query: _ctx);
@@ -197,7 +211,17 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
 
   Map<int, num> get _allocated => consumedByBatch(_flocks, _opening);
 
-  num _unallocated(Map b) => unallocatedForBatch(tNum(b['numberOfBirds']), _allocated[tIntOrNull(b['batchId'])]);
+  Map? _row(Map b) => _recon[tIntOrNull(b['batchId'])];
+
+  num _unallocated(Map b) {
+    final pool = _row(b)?['unallocatedPool'];
+    return pool != null ? tNum(pool) : unallocatedForBatch(tNum(b['numberOfBirds']), _allocated[tIntOrNull(b['batchId'])]);
+  }
+
+  /// Birds sold from the batch: before placement + out of its flocks.
+  int _sold(Map b) => batchSoldOf(_row(b));
+
+  bool _needsReconcile(Map b) => batchNeedsReconcile(_row(b));
 
   // ------------------------------------------------------------ actions
 
@@ -216,27 +240,73 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
     );
     if (created == null || created == false) return;
     _loadBatches();
-    if (created is Map && (tIntOrNull(created['batchId']) ?? 0) > 0 && mounted) _justCreated(created);
+    _loadRecon();
+    if (created is FlockBatchCreated && (tIntOrNull(created.batch['batchId']) ?? 0) > 0 && mounted) {
+      _justCreated(created.batch, existing: created.existing);
+    }
   }
 
-  Future<void> _justCreated(Map b) async {
-    final go = await showDialog<bool>(
+  Future<void> _reconcile(Map b) async {
+    final posted = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => BatchReconcileScreen(
+        session: widget.session,
+        company: widget.company,
+        batchId: tIntOrNull(b['batchId']) ?? 0,
+        batchLabel: '${tStr(b['batchCode'])} ${tStr(b['batchName'])}'.trim(),
+        costPerBird: b['costPerChick'] == null ? null : tNum(b['costPerChick']),
+        source: isSetupEmbedded(context) ? 'Farm Setup' : 'Batch',
+      ),
+    ));
+    if (posted == true) {
+      _loadRecon();
+      _loadBatches();
+    }
+  }
+
+  Future<void> _bulk() async {
+    final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => BulkFlockBatchScreen(
+        session: widget.session,
+        company: widget.company,
+        existingCodes: [for (final b in _batches) tStr(b['batchCode'])],
+        suppliers: _suppliers,
+        cashAccounts: _accounts,
+        knownBreeds: _breeds,
+        currencySymbol: _fmt.symbol,
+      ),
+    ));
+    if (ok == true) _loadBatches();
+  }
+
+  Future<void> _justCreated(Map b, {bool existing = false}) async {
+    final go = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Batch ${tStr(b['batchCode'])} created successfully'),
-        content: Text('${loc(tNum(b['numberOfBirds']))} birds available. Divide them across your houses/pens now, '
-            'or come back to it whenever you are ready.'),
+        content: Text(existing
+            ? 'Next: add the flocks it was placed into (Flocks, Add Flock, "Existing flock"), then reconcile the birds '
+                'that never went into a flock: sold, died, culled, transferred or still waiting.'
+            : '${loc(tNum(b['numberOfBirds']))} birds available. Divide them across your houses/pens now, '
+                'or come back to it whenever you are ready.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("I'll Do This Later")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("I'll Do This Later")),
+          if (existing)
+            FilledButton(
+              key: const ValueKey('just-created-reconcile'),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.amber600)),
+              onPressed: () => Navigator.pop(ctx, 'reconcile'),
+              child: const Text('Reconcile Birds'),
+            ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => Navigator.pop(ctx, 'divide'),
             child: const Text('Divide Into Flocks'),
           ),
         ],
       ),
     );
-    if (go == true) _allocate(tIntOrNull(b['batchId']) ?? 0);
+    if (go == 'reconcile') _reconcile(b);
+    if (go == 'divide') _allocate(tIntOrNull(b['batchId']) ?? 0);
   }
 
   Future<void> _allocate(int batchId) async {
@@ -397,38 +467,49 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
     final activeBatches = _batches.where((b) => batchStatusOf(b) == 'active').length;
     final activeBirds = _flocks.where((f) => f['hasArrived'] == true && f['active'] == true).fold<num>(0, (s, f) => s + tNum(f['quantity']));
     final inactiveBirds = _flocks.where((f) => f['hasArrived'] == true && f['active'] != true).fold<num>(0, (s, f) => s + tNum(f['quantity']));
+    final soldBirds = _recon.values.fold<int>(0, (s, r) => s + batchSoldOf(r));
+    final embedded = isSetupEmbedded(context);
+    final tasks = SetupTaskBar(tasks: [
+      SetupTask(id: 'add', label: 'Add Flock Batch', icon: Icons.add, primary: true, onTap: () => _openForm()),
+      SetupTask(id: 'bulk', label: 'Add Multiple Batches', icon: Icons.inventory_2_outlined, onTap: _bulk),
+    ]);
 
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Flock Purchases (Batches)')),
+      appBar: embedded ? null : AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Flock Purchases (Batches)')),
       body: RefreshIndicator(
-        onRefresh: _loadBatches,
+        onRefresh: () async {
+          _loadRecon();
+          await _loadBatches();
+        },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
+          padding: EdgeInsets.fromLTRB(14, embedded ? 4 : 12, 14, 28),
           children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: TColors.green100, borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.flutter_dash, size: 20, color: Tone.fg(0xFF16A34A)),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Flock Purchases (Batches)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: TColors.slate900)),
-                  Text('Manage your bird flock batches', style: TextStyle(fontSize: 13, color: TColors.slate600)),
-                ]),
-              ),
-            ]),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
-              onPressed: () => _openForm(),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Flock Batch'),
-            ),
-            const SizedBox(height: 16),
-            if (!_loading && _batches.isNotEmpty) ...[
+            if (!embedded) ...[
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(color: TColors.green100, borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.flutter_dash, size: 20, color: Tone.fg(0xFF16A34A)),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Flock Purchases (Batches)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: TColors.slate900)),
+                    Text(
+                      'Each row is one purchase of birds — how many arrived, the breed, the supplier, what they cost and how much has been paid. '
+                      'The cards add up every batch. “Allocated” is how many of a batch\'s birds have been divided into flocks; '
+                      'the balance is what is still owed to the supplier.',
+                      style: TextStyle(fontSize: 13, color: TColors.slate600),
+                    ),
+                  ]),
+                ),
+              ]),
+              const SizedBox(height: 12),
+            ],
+            tasks,
+            SizedBox(height: embedded ? 4 : 16),
+            if (!embedded && !_loading && _batches.isNotEmpty) ...[
               _ScoreCard(
                 label: 'Total Purchase Price ($sym)',
                 value: fixed2(totalPrice),
@@ -495,8 +576,8 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
                     Container(
                       width: 64,
                       height: 64,
-                      decoration: const BoxDecoration(color: TColors.slate50, shape: BoxShape.circle),
-                      child: const Icon(Icons.flutter_dash, size: 32, color: TColors.slate400),
+                      decoration: BoxDecoration(color: TColors.amber50, borderRadius: BorderRadius.circular(16)),
+                      child: const Icon(Icons.flutter_dash, size: 32, color: TColors.amber600),
                     ),
                     const SizedBox(height: 14),
                     const Text('No flock batches found', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
@@ -525,7 +606,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
                 ]),
               ),
             if (!_loading && sorted.isNotEmpty) _pagination(sorted.length, page, totalPages, start),
-            if (!_loading && _batches.isNotEmpty) ...[
+            if (!embedded && !_loading && _batches.isNotEmpty) ...[
               const SizedBox(height: 14),
               LayoutBuilder(builder: (context, c) {
                 final w = (c.maxWidth - 12) / 2;
@@ -545,7 +626,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
                   tile('Total Birds', arrived, TColors.slate900),
                   tile('Total Active Birds', activeBirds, TColors.emerald600),
                   tile('Total Inactive Birds', inactiveBirds, TColors.slate600),
-                  tile('Total Birds Sold', 0, TColors.amber600),
+                  tile('Total Birds Sold', soldBirds, TColors.amber600),
                 ]);
               }),
             ],
@@ -570,11 +651,28 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
   Widget _card(Map b, int i) {
     final total = batchTotal(b);
     final owed = total - tNum(b['amountPaid']);
-    Widget kv(String l, String v, {Color? color}) => Wrap(spacing: 4, children: [
-          Text(l, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
-          Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: color)),
-        ]);
-    Widget action(String label, IconData icon, VoidCallback onTap, {Color? fg, Color? border}) => OutlinedButton.icon(
+    final balance = owed > 0 ? owed : 0;
+    final sym = _fmt.symbol;
+    // A grid cell: label left, value right, a line under the first four.
+    Widget cell(String l, Widget v, {bool line = true}) => Container(
+          padding: const EdgeInsets.only(bottom: 6),
+          decoration: line ? const BoxDecoration(border: Border(bottom: BorderSide(color: TColors.slate100))) : null,
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Flexible(child: Text(l, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, color: TColors.slate500))),
+            const SizedBox(width: 6),
+            Flexible(child: v),
+          ]),
+        );
+    Text val(String s, {Color? color, bool bold = false}) => Text(s,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 13, fontWeight: bold ? FontWeight.w600 : FontWeight.w500, color: color ?? TColors.slate900));
+    Widget pair(Widget a, Widget b) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: a), const SizedBox(width: 16), Expanded(child: b)]),
+        );
+    Widget action(String label, IconData icon, VoidCallback onTap, {Color? fg, Color? border, Key? key}) => OutlinedButton.icon(
+          key: key,
           style: OutlinedButton.styleFrom(
             backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
             foregroundColor: fg ?? TColors.slate800,
@@ -585,40 +683,76 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
           icon: Icon(icon, size: 16),
           label: Text(label),
         );
+    final needs = _needsReconcile(b);
     final actions = [
       if (owed > 0) action('Pay', Icons.account_balance_wallet_outlined, () => _pay(b), fg: TColors.emerald600, border: TColors.emerald200),
       if (_unallocated(b) > 0) action('Divide', Icons.call_split, () => _allocate(tIntOrNull(b['batchId']) ?? 0), fg: const Tone.fg(0xFF4F46E5), border: const Tone.line(0xFFC7D2FE)),
+      action('Reconcile', Icons.fact_check_outlined, () => _reconcile(b),
+          key: ValueKey('batch-reconcile-${b['batchId']}'), fg: needs ? TColors.amber700 : null, border: needs ? TColors.amber200 : null),
       action('Edit', Icons.edit_outlined, () => _openForm(tIntOrNull(b['batchId']))),
       if (_canDelete) action('Delete', Icons.delete_outline, () => _delete(b), fg: TColors.red600, border: TColors.red200),
     ];
+    final type = tStr(b['supplierType']);
+    final foreign = type.toLowerCase() == 'foreign';
     return _BatchCard(
       key: ValueKey('batch-${b['batchId']}'),
-      striped: i.isEven,
       onHeaderTap: () => _viewFlocks(b),
-      header: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(tStr(b['batchName']), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
-        const SizedBox(height: 4),
-        Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          TBadge(tStr(b['batchCode']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate800, border: TColors.slate200),
-          Text('${loc(tNum(b['numberOfBirds']))} birds', style: const TextStyle(color: TColors.slate600)),
-          Text(tStr(b['breed']), style: const TextStyle(color: TColors.slate500)),
-          _statusBadge(b),
-        ]),
+      header: Row(children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(color: TColors.amber50, borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.flutter_dash, size: 16, color: TColors.amber600),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(tStr(b['batchName']),
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate900)),
+            Text('${tStr(b['batchCode'])}${tStr(b['breed']).isNotEmpty ? ' · ${tStr(b['breed'])}' : ''}',
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        _statusBadge(b),
       ]),
       details: [
-        Row(children: [
-          Expanded(child: kv('Start', tStr(b['startDate']).isEmpty ? '—' : trackerDate(b['startDate']))),
-          Expanded(child: kv('Cost/Chick', fixed2(tNum(b['costPerChick'])))),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: TColors.slate50, borderRadius: BorderRadius.circular(8)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.people_outline, size: 14, color: TColors.slate400),
+              const SizedBox(width: 6),
+              Text('${loc(tNum(b['numberOfBirds']))} birds', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
+            ]),
+          ),
+          if (_sold(b) > 0)
+            Container(
+              key: ValueKey('batch-sold-${b['batchId']}'),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFFFF7ED), borderRadius: BorderRadius.circular(8)),
+              child: Text('${loc(_sold(b))} sold', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFFC2410C))),
+            ),
         ]),
+        const SizedBox(height: 10),
+        pair(cell('Start', val(tStr(b['startDate']).isEmpty ? '—' : trackerDate(b['startDate']))),
+            cell('Cost/Chick', val(fixed2(tNum(b['costPerChick']))))),
+        pair(cell('Total Cost', val(fixed2(total))), cell('Paid ($sym)', val(fixed2(tNum(b['amountPaid']))))),
+        pair(
+          cell('Balance ($sym)', val(fixed2(balance), bold: true, color: owed > 0 ? TColors.red600 : TColors.emerald700), line: false),
+          cell('Supplier', val(_supplierLabel(b)), line: false),
+        ),
         Row(children: [
-          Expanded(child: kv('Total Cost', fixed2(total))),
-          Expanded(child: kv('Amount Paid (${_fmt.symbol})', fixed2(tNum(b['amountPaid'])))),
+          const Text('Type', style: TextStyle(fontSize: 12, color: TColors.slate500)),
+          const SizedBox(width: 8),
+          if (type.isEmpty)
+            const Text('—', style: TextStyle(fontSize: 12, color: TColors.slate400))
+          else if (foreign)
+            TBadge(_cap(type), bg: const Tone.bg(0xFFFAF5FF), fg: const Tone.fg(0xFF6B21A8), border: const Tone.line(0xFFE9D5FF))
+          else
+            TBadge(_cap(type), bg: const Tone.bg(0xFFEFF6FF), fg: const Tone.fg(0xFF1E40AF), border: TColors.blue200),
         ]),
-        Row(children: [
-          Expanded(child: kv('Balance (${_fmt.symbol})', fixed2(owed > 0 ? owed : 0), color: owed > 0 ? TColors.red600 : TColors.emerald700)),
-          Expanded(child: kv('Supplier', _supplierLabel(b))),
-        ]),
-        kv('Type', tStr(b['supplierType']).isEmpty ? '—' : _cap(tStr(b['supplierType']))),
       ],
       actions: LayoutBuilder(builder: (context, c) {
         final w = (c.maxWidth - 8) / 2;
@@ -669,6 +803,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
               Text.rich(TextSpan(children: [
                 TextSpan(text: '${loc(_allocated[tIntOrNull(b['batchId'])] ?? 0)} allocated'),
                 if (_unallocated(b) > 0) TextSpan(text: ' · ${loc(_unallocated(b))} unallocated', style: const TextStyle(color: TColors.amber600)),
+                if (_sold(b) > 0) TextSpan(text: ' · ${loc(_sold(b))} sold', style: const TextStyle(color: Tone.fg(0xFFEA580C))),
               ]), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             ]),
             Row(children: [
@@ -695,6 +830,8 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
               if (batchTotal(b) - tNum(b['amountPaid']) > 0) icon('Pay balance', Icons.account_balance_wallet_outlined, () => _pay(b), color: TColors.emerald600),
               if (_unallocated(b) > 0)
                 icon('Divide into flocks', Icons.call_split, () => _allocate(tIntOrNull(b['batchId']) ?? 0), color: const Tone.fg(0xFF4F46E5)),
+              icon(_needsReconcile(b) ? 'Reconcile birds — some are not accounted for' : 'Reconcile birds', Icons.fact_check_outlined, () => _reconcile(b),
+                  color: _needsReconcile(b) ? TColors.amber600 : TColors.slate500),
               icon(null, Icons.edit_outlined, () => _openForm(tIntOrNull(b['batchId']))),
               if (_canDelete) icon(null, Icons.delete_outline, () => _delete(b), color: TColors.red600),
             ]),
@@ -798,11 +935,10 @@ class _ScoreCard extends StatelessWidget {
       );
 }
 
-/// One batch card: open by default, amber on even rows; tapping the header
-/// also opens the batch's flocks, as the web's card does.
+/// One batch card (the web's Collapsible): open by default; tapping the
+/// header also opens the batch's flocks, as the web's card does.
 class _BatchCard extends StatefulWidget {
-  const _BatchCard({super.key, required this.striped, required this.header, required this.details, required this.actions, required this.onHeaderTap});
-  final bool striped;
+  const _BatchCard({super.key, required this.header, required this.details, required this.actions, required this.onHeaderTap});
   final Widget header, actions;
   final List<Widget> details;
   final VoidCallback onHeaderTap;
@@ -814,31 +950,37 @@ class _BatchCardState extends State<_BatchCard> {
   bool _open = true;
   @override
   Widget build(BuildContext context) => Container(
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
-          border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
+          color: Tone.bg(0xFFFFFFFF),
+          border: Border.all(color: TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
-        padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           InkWell(
             onTap: () {
               setState(() => _open = !_open);
               widget.onHeaderTap();
             },
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: widget.header),
-              Icon(_open ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: TColors.slate400),
-            ]),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+              decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: TColors.slate100))),
+              child: Row(children: [
+                Expanded(child: widget.header),
+                const SizedBox(width: 4),
+                Icon(_open ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: TColors.slate400),
+              ]),
+            ),
           ),
-          if (_open) ...[
-            const SizedBox(height: 12),
-            const Divider(height: 1, color: TColors.slate100),
-            const SizedBox(height: 12),
-            for (final d in widget.details) ...[d, const SizedBox(height: 6)],
-            const SizedBox(height: 6),
-            widget.actions,
-          ],
+          if (_open)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                ...widget.details,
+                const SizedBox(height: 12),
+                widget.actions,
+              ]),
+            ),
         ]),
       );
 }
@@ -1096,7 +1238,15 @@ Widget _strip(FarmMoney fmt, num total, num paid, num balance, {bool balanceRed 
 
 /// "Add New Flock Batch" (create) and "Edit Flock Batch" (edit): the web keeps
 /// two dialogs with slightly different fields, and so does this.
-/// Pops with the created batch (create), true (edit) or false.
+/// What the Add dialog pops with: the new batch and whether it was recorded
+/// as an existing batch (413).
+class FlockBatchCreated {
+  const FlockBatchCreated(this.batch, {this.existing = false});
+  final Map batch;
+  final bool existing;
+}
+
+/// Pops with a [FlockBatchCreated] (create), true (edit) or false.
 class FlockBatchDialog extends StatefulWidget {
   const FlockBatchDialog({
     super.key,
@@ -1126,6 +1276,17 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
   String _breed = '', _start = '', _supplierType = 'local', _supplierId = '', _account = '', _order = '', _arrival = '';
   bool _hasArrived = false, _active = true, _saving = false, _fetching = false;
   String _error = '';
+
+  /// 413: a new purchase, or an existing batch bought before the farm used the app.
+  bool _existing = false;
+
+  /// New batch: Amount Paid follows Total Cost (paid in full is the usual case)
+  /// until the user types an amount of their own, e.g. a part payment.
+  bool _paidEdited = false;
+
+  void _followTotal() {
+    if (!_edit && !_paidEdited) _paid.text = _total.text;
+  }
 
   String get _userId => widget.session.tokens.userId ?? '';
 
@@ -1188,7 +1349,10 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
   /// patchForCostChange: a positive cost × birds replaces the total.
   void _recompute() {
     final d = deriveTotalCost(_costN, _birdsN);
-    if (d != null) _total.text = _num(d);
+    if (d != null) {
+      _total.text = _num(d);
+      _followTotal();
+    }
   }
 
   Future<void> _submit() async {
@@ -1208,7 +1372,7 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
     final total = _totalN != 0 ? _totalN : (_costN * _birdsN);
     try {
       if (_edit) {
-        await widget.session.farmClient.put('/api/MainFlockBatch/${widget.batchId}', body: {
+        final res = await widget.session.farmClient.put('/api/MainFlockBatch/${widget.batchId}', body: {
           'UserId': _userId,
           'FarmId': widget.company.farmId,
           'BatchName': _name.text,
@@ -1229,7 +1393,14 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
           'PoultryCashAccountId': int.tryParse(_account) ?? 0,
         });
         if (!mounted) return;
-        trackerToast(context, 'Success!', description: 'Flock batch updated successfully.');
+        // 200 carries { message, warnings }; 204 (older API) carries nothing.
+        final raw = res is Map ? (res['warnings'] ?? res['Warnings']) : null;
+        final warnings = raw is List ? [for (final w in raw) if (w is String && w.isNotEmpty) w] : const <String>[];
+        if (warnings.isNotEmpty) {
+          trackerToast(context, 'Batch updated — please check', description: warnings.join(' '));
+        } else {
+          trackerToast(context, 'Success!', description: 'Flock batch updated successfully.');
+        }
         Navigator.pop(context, true);
       } else {
         final r = await widget.session.farmClient.post('/api/MainFlockBatch', body: {
@@ -1251,10 +1422,13 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
           'OrderPlacementDate': _order.isEmpty ? null : _order,
           'EstimatedArrivalDate': _arrival.isEmpty ? null : _arrival,
           'PoultryCashAccountId': int.tryParse(_account),
+          'IsHistorical': _existing,
         });
         if (!mounted) return;
-        trackerToast(context, 'Success!', description: 'Flock batch created successfully.');
-        Navigator.pop(context, r is Map ? (r['data'] is Map ? r['data'] as Map : r) : true);
+        trackerToast(context, 'Success!',
+            description: _existing ? 'Existing batch recorded. No expense or cash was posted today.' : 'Flock batch created successfully.');
+        final made = r is Map ? (r['data'] is Map ? r['data'] as Map : r) : null;
+        Navigator.pop(context, made == null ? true : FlockBatchCreated(made, existing: _existing));
       }
       return;
     } on ApiException catch (e) {
@@ -1303,6 +1477,43 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
           ),
         ]),
       );
+
+  /// "Are you recording a new batch purchase or an existing batch?"
+  Widget _modeChoice() {
+    Widget option(bool existing, String title, String hint) {
+      final on = _existing == existing;
+      return InkWell(
+        key: ValueKey(existing ? 'batch-mode-existing' : 'batch-mode-new'),
+        borderRadius: BorderRadius.circular(8),
+        onTap: _saving ? null : () => setState(() => _existing = existing),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: on ? const Tone.bg(0xFFEFF6FF) : Tone.bg(0xFFFFFFFF),
+            border: Border.all(color: on ? const Tone.line(0xFF3B82F6) : TColors.slate200),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(on ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18, color: on ? TColors.blue600 : TColors.slate400),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)),
+                Text(hint, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+              ]),
+            ),
+          ]),
+        ),
+      );
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      option(false, 'New batch purchase', "Birds recently purchased or received. The amount paid is today's expense and cash."),
+      const SizedBox(height: 8),
+      option(true, 'Existing batch — already operating',
+          'Bought before you used the system, possibly already placed, sold or lost. Nothing is expensed today; any unpaid balance stays owed.'),
+    ]);
+  }
 
   Widget _accountField() => _cell(
         'Pay from cash account',
@@ -1377,8 +1588,8 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
           ]
         : [
             _cell('Cost Per Chick', _numInput(_cost, onChanged: _recompute)),
-            _cell('Total Cost', _numInput(_total, hint: 'Auto-calculated')),
-            _cell('Amount Paid Now ($sym)', _numInput(_paid), hint: 'Part payment is fine — pay the balance later by editing the batch.'),
+            _cell('Total Cost', _numInput(_total, hint: 'Auto-calculated', onChanged: _followTotal)),
+            _cell('Amount Paid Now ($sym)', _numInput(_paid, onChanged: () => _paidEdited = true), hint: 'Part payment is fine — pay the balance later by editing the batch.'),
             _cell(
               'Type',
               AppSelect<String>(
@@ -1419,6 +1630,7 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
           if (_fetching)
             const Padding(padding: EdgeInsets.all(24), child: Text('Loading flock batch...', textAlign: TextAlign.center))
           else ...[
+            if (!_edit) ...[_modeChoice(), const SizedBox(height: 12)],
             formSection('Batch Details', const Tone.bg(0xFF4F46E5), identity),
             const SizedBox(height: 12),
             formSection('Purchase Details', const Tone.bg(0xFF059669), purchase),

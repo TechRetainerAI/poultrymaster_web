@@ -17,6 +17,10 @@ import '../web_nav.dart';
 import 'breed_picker.dart';
 import 'farm_setup_dialogs.dart';
 import 'farm_setup_wizard.dart';
+import 'reports/batch_bird_reconciliation_screen.dart';
+import 'reports/report_format.dart' show fixed2;
+import 'setup/batch_reconciliation_step.dart';
+import 'setup/setup_runs_panel.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Tools → Initial Farm Setup, as `app/poultry-farm-setup/page.tsx`
@@ -550,7 +554,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       context,
       batchLabel: label,
       batchBirds: v.batchBirds,
-      previouslyAllocated: v.previouslyAllocated,
+      previouslyAllocated: v.previouslyAllocated + v.previouslyAccountedFor,
       thisAllocation: v.thisAllocation,
       savesImmediately: row.existingBatchId != null,
       onSave: (birds) async {
@@ -765,7 +769,12 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         _savedDraftCard(saved),
         const SizedBox(height: 14),
       ],
-      if (_screen == 'completed' && _status != null) _completedPanel(),
+      if (_screen == 'completed' && _status != null) ...[
+        _completedPanel(),
+        // 416: what each setup created; edit, delete or undo it.
+        const SizedBox(height: 24),
+        SetupRunsPanel(session: widget.session, company: widget.company),
+      ],
       if (_screen == 'choose') ..._chooseScreen(),
       if (_screen == 'newBatch') _newBatchScreen(),
       if (_screen == 'done' && _result != null) _doneScreen(),
@@ -1920,10 +1929,11 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _emerald900),
         ),
         if (a.mustBeFullyAllocated)
-          const Text('Birds you already had — every one of them needs a pen', style: TextStyle(fontSize: 12, color: _slate600)),
+          const Text('Birds you already had — every one must be in a pen or explained', style: TextStyle(fontSize: 12, color: _slate600)),
         const SizedBox(height: 8),
         _grid([
           _Figure('Original birds', a.batchBirds),
+          if (a.previouslyAccountedFor != 0) _Figure('Already recorded (sold, died…)', a.previouslyAccountedFor),
           _Figure('Already allocated', a.previouslyAllocated),
           _Figure('This allocation', a.thisAllocation, color: _blue700),
           _Figure(
@@ -2091,8 +2101,9 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
             style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFB45309)),
             child: a.mustBeFullyAllocated
                 ? Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
-                    Text('${fmtInt(a.remaining)} birds still need a pen — these are birds you already had, so all of them must be '
-                        'somewhere. Put them in a pen, or correct the batch. '),
+                    Text('${fmtInt(a.remaining)} birds are not in a pen — these are birds you already had, so each must be accounted for. '
+                        'Put them in a pen, or explain them on the reconciliation step (sold, died, culled, transferred or still waiting), '
+                        'or correct the batch. '),
                     update(),
                   ])
                 : Text('${fmtInt(a.remaining)} birds will stay unallocated — you can place them later.'),
@@ -2245,6 +2256,73 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
     );
   }
 
+  /// The review step's "Birds never placed in a flock (batch level)" table.
+  Widget _neverPlacedSummary(List<BatchReconciliationView> views) {
+    const head = TextStyle(fontSize: 12, color: _slate500);
+    const cell = TextStyle(fontSize: 12, color: _slate900);
+    DataCell numCell(String s, {Color? color}) => DataCell(Align(alignment: Alignment.centerRight, child: Text(s, style: color == null ? cell : cell.copyWith(color: color))));
+    DataColumn col(String s, {bool right = true}) => DataColumn(label: Text(s, style: head), numeric: right);
+    return Container(
+      key: const ValueKey('never-placed-summary'),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Tone.bg(0x80EEF2FF),
+        border: Border.all(color: const Tone.line(0xFFC7D2FE)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('Birds never placed in a flock (batch level)',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF312E81))),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowHeight: 32,
+            dataRowMinHeight: 30,
+            dataRowMaxHeight: 36,
+            horizontalMargin: 4,
+            columnSpacing: 14,
+            columns: [
+              col('Batch', right: false),
+              col('Bought'),
+              col('Already recorded'),
+              col('Originally placed'),
+              col('Not in a pen'),
+              col('Explained now'),
+              col('Unexplained'),
+              col('Historical sales value'),
+            ],
+            rows: [
+              for (final v in views)
+                DataRow(cells: [
+                  DataCell(Text(v.label, style: cell.copyWith(fontWeight: FontWeight.w500))),
+                  numCell(fmtInt(v.originalBirds)),
+                  numCell(v.previouslyAccountedFor != 0 ? '−${fmtInt(v.previouslyAccountedFor)}' : '—', color: _slate500),
+                  numCell(fmtInt(v.placed)),
+                  numCell(fmtInt(v.neverPlaced)),
+                  numCell(fmtInt(v.explained)),
+                  numCell(fmtInt(v.unexplained), color: v.unexplained == 0 ? _emerald700 : const Tone.fg(0xFFB45309)),
+                  numCell(fixed2(v.saleValue)),
+                ]),
+            ],
+          ),
+        ),
+        if (views.any((v) => v.previouslyAccountedFor != 0)) ...[
+          const SizedBox(height: 8),
+          const Text('"Already recorded" birds were posted before this setup and are not posted again — only what you explain now is.',
+              style: TextStyle(fontSize: 12, color: _slate600)),
+        ],
+        const SizedBox(height: 8),
+        const Text(
+          'Financial effect of setup: new cash movement none · current-period revenue none · current-period expense none '
+          '(batches you already had post no expense today; any unpaid balance stays owed to the supplier).',
+          style: TextStyle(fontSize: 12, color: _slate600),
+        ),
+      ]),
+    );
+  }
+
   // ---------------------------------------------------------- step 3
 
   Widget _reconcileStep() {
@@ -2351,6 +2429,20 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
             }(),
             ],
           ),
+        // 413: batches with birds that will be in no pen once this setup is done.
+        if (batchReconciliationViews(_draft, _ctx).isNotEmpty) ...[
+          const SizedBox(height: 14),
+          BatchReconciliationStep(
+            views: batchReconciliationViews(_draft, _ctx),
+            draft: _draft,
+            onEdit: _edit,
+            businessDate: _ctx.businessDate,
+            // "View source": that batch's drilldown on the report.
+            onViewSource: (batchId) => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => BatchBirdReconciliationScreen(session: widget.session, company: widget.company, batchId: batchId),
+            )),
+          ),
+        ],
       ],
     );
   }
@@ -2400,6 +2492,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       title: 'Farm setup summary',
       description: 'Nothing has been saved yet. Check the numbers, then create your farm.',
       children: [
+        if (batchReconciliationViews(_draft, _ctx).isNotEmpty) _neverPlacedSummary(batchReconciliationViews(_draft, _ctx)),
         _grid([
           _Stat('Batches', t.batchCount, tone: 'blue'),
           _Stat('Original batch birds', t.batchBirds, tone: 'blue'),
@@ -2479,7 +2572,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
               ]),
               const SizedBox(height: 2),
               Text(
-                'original ${fmtInt(v.batchBirds)} · already ${fmtInt(v.previouslyAllocated)} · this ${fmtInt(v.thisAllocation)} · remaining ${fmtInt(v.remaining)}',
+                'original ${fmtInt(v.batchBirds)} ·${v.previouslyAccountedFor != 0 ? ' recorded ${fmtInt(v.previouslyAccountedFor)} ·' : ''} already ${fmtInt(v.previouslyAllocated)} · this ${fmtInt(v.thisAllocation)} · remaining ${fmtInt(v.remaining)}',
                 style: const TextStyle(fontSize: 12, color: _slate600),
               ),
             ]),

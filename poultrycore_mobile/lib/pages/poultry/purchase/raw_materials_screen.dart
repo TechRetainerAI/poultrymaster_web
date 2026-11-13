@@ -23,6 +23,7 @@ import '../trackers/tracker_widgets.dart';
 import 'raw_material_dialogs.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
+import '../setup/setup_embed.dart';
 const rawTabs = ['items', 'purchases', 'usage'];
 
 String? _day(Object? raw) => RegExp(r'^(\d{4}-\d{2}-\d{2})').firstMatch(tStr(raw))?[1];
@@ -378,44 +379,42 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
           ),
         );
 
+    final embedded = isSetupEmbedded(context);
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Inventory & Supply Purchases')),
+      appBar: embedded ? null : AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Inventory & Supply Purchases')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            const Text('Inventory & Supply Purchases', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: TColors.slate900)),
-            const Text('Feed inputs, packaging, medication and other supplies — what you hold, what you bought, what was used.',
-                style: TextStyle(fontSize: 13, color: TColors.slate500)),
-            const SizedBox(height: 12),
-            // One clear primary action; Receive invoice, Produce feed and
-            // Recalculate stock are occasional jobs, under More.
-            Row(children: [
-              Expanded(child: OutlinedButton.icon(onPressed: () => _openItem(), icon: const Icon(Icons.add, size: 16), label: const Text('New Item'))),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.icon(onPressed: () => _openPurchase(), icon: const Icon(Icons.shopping_cart_outlined, size: 16), label: const Text('Record Purchase')),
-              ),
-              const SizedBox(width: 4),
-              PopupMenuButton<String>(
-                tooltip: 'More actions',
-                icon: const Icon(Icons.more_horiz),
-                onSelected: (k) => switch (k) {
-                  'receive' => _href('/poultry-purchase-receipts?receive=1', 'Receive Purchase'),
-                  'feed' => _href('/poultry-feed-production', 'Feed Production'),
-                  _ => _recalculate(),
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'receive', child: ListTile(dense: true, leading: Icon(Icons.inventory_outlined), title: Text('Receive invoice'))),
-                  PopupMenuItem(value: 'feed', child: ListTile(dense: true, leading: Icon(Icons.factory_outlined), title: Text('Produce feed'))),
-                  PopupMenuItem(value: 'recalc', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Recalculate stock'))),
-                ],
-              ),
-            ]),
-            const SizedBox(height: 14),
+            if (!embedded) ...[
+              const Text('Inventory & Supply Purchases', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: TColors.slate900)),
+              const Text('Feed inputs, packaging, medication and other supplies — what you hold, what you bought, what was used.',
+                  style: TextStyle(fontSize: 13, color: TColors.slate500)),
+              const SizedBox(height: 12),
+            ],
+            // 9 Nov pull: one task row. Inside Farm Setup this tab only sets up
+            // items; buying, invoices (345), feed production and recounts stay
+            // on the full Inventory page.
+            SetupTaskBar(
+              tasks: embedded
+                  ? [SetupTask(id: 'item', label: 'New Item', icon: Icons.add, primary: true, onTap: () => _openItem())]
+                  : [
+                      SetupTask(id: 'purchase', label: 'Record Purchase', icon: Icons.shopping_cart_outlined, primary: true, onTap: () => _openPurchase()),
+                      SetupTask(id: 'item', label: 'New Item', icon: Icons.add, onTap: () => _openItem()),
+                      SetupTask(id: 'invoice', label: 'Receive Invoice', icon: Icons.inventory_outlined,
+                          onTap: () => _href('/poultry-purchase-receipts?receive=1', 'Receive Purchase')),
+                      SetupTask(id: 'feed', label: 'Produce feed', icon: Icons.factory_outlined, more: true,
+                          onTap: () => _href('/poultry-feed-production', 'Feed Production')),
+                      SetupTask(id: 'recalc', label: 'Recalculate stock', icon: Icons.refresh, more: true, onTap: _recalculate),
+                    ],
+            ),
+            if (!embedded) const SizedBox(height: 14),
             if (_loading)
               const Padding(padding: EdgeInsets.all(24), child: Text('Loading…', style: TextStyle(color: TColors.slate500)))
+            // Farm Setup: the Items list only.
+            else if (embedded)
+              _itemsTab()
             else ...[
               // One summary row; Low stock and Outstanding open the list
               // already filtered to them.
@@ -647,14 +646,115 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
   }
 
   List<Widget> _itemActions(Map i) => [
-        // Feed items only: the tracker reads the two feed categories.
-        if (feedItemKind(i['category']) != null)
+        // Feed items only: the tracker reads the two feed categories. Inside
+        // Farm Setup neither this nor Buy more (setup, not buying).
+        if (!isSetupEmbedded(context) && feedItemKind(i['category']) != null)
           _iconBtn('Track movements', Icons.history, () => _href('/feed-inventory-tracker?itemId=${i['poultryRawMaterialItemId']}', 'Feed inventory tracker'),
               color: TColors.amber700),
-        _iconBtn('Buy more', Icons.shopping_cart_outlined, () => _openPurchase(itemId: tIntOrNull(i['poultryRawMaterialItemId'])), color: TColors.blue600),
+        if (!isSetupEmbedded(context))
+          _iconBtn('Buy more', Icons.shopping_cart_outlined, () => _openPurchase(itemId: tIntOrNull(i['poultryRawMaterialItemId'])), color: TColors.blue600),
         _iconBtn('Edit item', Icons.edit_outlined, () => _openItem(i)),
         _iconBtn('Delete item', Icons.delete_outline, () => _deleteItem(i), color: TColors.red600),
       ];
+
+  /// The web's phone card (9 Nov pull): an icon tile, the name, Default and
+  /// its category, the actions; then its status and units, the stock level
+  /// against its minimum, the stock value and how its cost is recognised.
+  Widget _itemCard(Map i, Map? valuation, String Function(num) fmt) {
+    final qty = tNum(i['currentQuantity']);
+    final min = tNum(i['minimumStockAlert']);
+    final low = i['isActive'] == true && i['isLowStock'] == true;
+    // Full bar at twice the minimum: anything above that is comfortably stocked.
+    final pct = min > 0 ? ((qty / (min * 2)) * 100).clamp(0, 100) : null;
+    final tag = rawCategoryTag(i['category']);
+    return Opacity(
+      key: ValueKey('raw-item-${i['poultryRawMaterialItemId']}'),
+      opacity: i['isActive'] == true ? 1 : .8,
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 10, 6, 10),
+            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: TColors.slate100))),
+            child: Row(children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(color: const Tone.bg(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.inventory_2_outlined, size: 16, color: TColors.blue600),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, children: [
+                    Text(tStr(i['itemName']), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                    if (i['isDefault'] == true) const DefaultItemTag(),
+                  ]),
+                  tag ?? Text(rawCategoryLabel(i['category']), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+                ]),
+              ),
+              ..._itemActions(i),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                _statusBadge(i),
+                const SizedBox(width: 8),
+                Expanded(child: Text(unitsText(i), textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500))),
+              ]),
+              const SizedBox(height: 10),
+              // StockLevel.
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: loc(qty), style: TextStyle(fontWeight: FontWeight.w500, color: low ? TColors.amber700 : TColors.slate900)),
+                  TextSpan(text: ' ${tStr(i['unitOfMeasure'])}', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+                ]),
+                style: const TextStyle(fontSize: 14),
+              ),
+              if (pct != null) ...[
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: 96,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: SizedBox(
+                      height: 6,
+                      child: Stack(children: [
+                        const Positioned.fill(child: ColoredBox(color: TColors.slate100)),
+                        FractionallySizedBox(
+                          widthFactor: (pct < 4 && qty > 0 ? 4 : pct) / 100,
+                          child: ColoredBox(color: low ? const Tone.bg(0xFFF59E0B) : const Tone.bg(0xFF10B981)),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text('min ${loc(min)}', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+              ],
+              const SizedBox(height: 8),
+              const Divider(height: 1, color: TColors.slate100),
+              const SizedBox(height: 8),
+              Row(children: [
+                const Expanded(child: Text('Stock value', style: TextStyle(fontSize: 12, color: TColors.slate500))),
+                Text(valuation != null ? fmt(tNum(valuation['operationalValue'])) : '—',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)),
+              ]),
+              const SizedBox(height: 4),
+              Row(children: [
+                const Expanded(child: Text('Cost', style: TextStyle(fontSize: 12, color: TColors.slate500))),
+                Text('${methodShortLabel(i['effectiveCostRecognitionMethod'])}${tStr(i['costRecognitionSource']) == 'ItemOverride' ? ' (override)' : ''}',
+                    style: const TextStyle(fontSize: 12, color: TColors.slate600)),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
 
   Widget _itemsTab() {
     final fmt = _fmt;
@@ -713,24 +813,28 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
       ),
       const SizedBox(height: 12),
       if (rows.isEmpty)
-        _empty(_items.isEmpty ? 'No items yet — add one with New Item.' : 'No items match these filters.')
+        // 9 Nov pull: the empty state with its box icon.
+        Container(
+          key: const ValueKey('raw-items-empty'),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          child: Column(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: const Tone.bg(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.inventory_2_outlined, size: 20, color: TColors.blue600),
+            ),
+            const SizedBox(height: 12),
+            Text(_items.isEmpty ? 'No items yet — add one with New Item.' : 'No items match these filters.',
+                textAlign: TextAlign.center, style: const TextStyle(fontSize: 13.5, color: TColors.slate500)),
+          ]),
+        )
       else
-        for (final i in pageSlice(rows, _iPage, _iSize))
-          FieldCard(
-            title: tStr(i['itemName']),
-            titleTag: i['isDefault'] == true ? const DefaultItemTag() : null,
-            badge: _statusBadge(i),
-            extra: [if (rawCategoryTag(i['category']) case final tag?) ('Category', tag)],
-            fields: [
-              if (rawCategoryTag(i['category']) == null) ('Category', rawCategoryLabel(i['category']), null),
-              ('Units', unitsText(i), null),
-              ('In stock', '${loc(tNum(i['currentQuantity']))} ${tStr(i['unitOfMeasure'])}'.trim(), i['isActive'] == true && i['isLowStock'] == true ? TColors.amber700 : null),
-              ('Min alert', loc(tNum(i['minimumStockAlert'])), null),
-              ('Cost', '${methodShortLabel(i['effectiveCostRecognitionMethod'])}${tStr(i['costRecognitionSource']) == 'ItemOverride' ? ' (override)' : ''}', null),
-              ('Stock value', byItem[tIntOrNull(i['poultryRawMaterialItemId'])] != null ? fmt(tNum(byItem[tIntOrNull(i['poultryRawMaterialItemId'])]!['operationalValue'])) : '—', null),
-            ],
-            actions: _itemActions(i),
-          ),
+        for (final i in pageSlice(rows, _iPage, _iSize)) ...[
+          _itemCard(i, byItem[tIntOrNull(i['poultryRawMaterialItemId'])], fmt.call),
+          const SizedBox(height: 12),
+        ],
       CompactPager(total: rows.length, page: _iPage, pageSize: _iSize, onPage: (p) => setState(() => _iPage = p), onPageSize: (s) => setState(() {
             _iSize = s;
             _iPage = 1;

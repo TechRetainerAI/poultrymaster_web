@@ -124,4 +124,58 @@ void main() {
     await tester.pumpAndSettle();
     expect((await pixel()).toARGB32(), 0xFFFFFFFF);
   });
+
+  // Farm Setup fell apart when the phone switched mode on it: its rounded,
+  // one-colour-bordered boxes threw while the refresh frame painted, and its
+  // `const BoxDecoration` boxes kept their light background.
+  testWidgets('switching mode repaints rounded bordered const boxes, also inside a LayoutBuilder', (tester) async {
+    tester.view.physicalSize = const Size(200, 200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    final key = GlobalKey();
+    const box = DecoratedBox(
+      decoration: BoxDecoration(
+        color: Tone.bg(0xFFFFFFFF),
+        border: Border.fromBorderSide(BorderSide(color: Tone.line(0xFFE2E8F0))),
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+      ),
+      child: SizedBox.expand(),
+    );
+
+    await tester.pumpWidget(FollowPhoneBrightness(
+      builder: (context, dark) => MaterialApp(
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+        themeAnimationDuration: Duration.zero,
+        home: RepaintBoundary(
+          key: key,
+          child: Scaffold(body: LayoutBuilder(builder: (_, _) => box)),
+        ),
+      ),
+    ));
+
+    Future<Color> pixel() async {
+      late Color c;
+      await tester.runAsync(() async {
+        final image = await (key.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage();
+        final data = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+        const o = (100 * 200 + 100) * 4;
+        c = Color.fromARGB(data.getUint8(o + 3), data.getUint8(o), data.getUint8(o + 1), data.getUint8(o + 2));
+      });
+      return c;
+    }
+
+    expect((await pixel()).toARGB32(), 0xFFFFFFFF);
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'no "borders with uniform colors" paint error');
+    expect(_lum(await pixel()), lessThan(0.03), reason: 'the const box is dark now');
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect((await pixel()).toARGB32(), 0xFFFFFFFF);
+  });
 }

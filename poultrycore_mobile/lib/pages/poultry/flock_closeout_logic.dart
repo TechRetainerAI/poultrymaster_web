@@ -3,6 +3,7 @@
 // validateCloseoutDraft mirrors FlockCloseoutValidator.cs, word for word, so
 // the person is told BEFORE they press Close. The server re-checks everything.
 
+import 'bird_pricing.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr;
 
 /// PAYMENT_TERMS: (value, label).
@@ -17,6 +18,15 @@ String paymentTermsLabel(String v) => closeoutPaymentTerms.firstWhere((t) => t.$
 /// The wizard's own lists (flock-closeout-wizard.tsx).
 const closeoutPaymentMethods = ['Cash', 'Mobile Money', 'Bank Transfer', 'Check', 'Credit Card'];
 const closeoutReasons = ['End of lay (spent layers)', 'Depopulated', 'Disease outbreak', 'All birds sold', 'Other'];
+
+/// 403: a broiler flock ends at market, not at the end of lay.
+const broilerCloseoutReasons = [
+  'Sent to market (grow-out complete)',
+  'All birds sold',
+  'Depopulated',
+  'Disease outbreak',
+  'Other',
+];
 const closeoutSteps = ['Reconcile', 'Dispose', 'Close'];
 
 class CloseoutSale {
@@ -31,6 +41,20 @@ class CloseoutSale {
   num? amountPaid;
   String? paymentMethod = 'Cash';
   int? cashAccountId;
+
+  /// 401: "PerBird" (default) or "PerKg"; null until chosen, as on the web.
+  /// Per kg, total = liveWeightKg × pricePerKg.
+  String? pricingBasis;
+  num? liveWeightKg;
+  num? pricePerKg;
+  bool get perKg => pricingBasis == 'PerKg';
+
+  /// The 401 fields the line posts, only those that were set.
+  Map<String, dynamic> get pricingFields => {
+        if (pricingBasis != null) 'pricingBasis': pricingBasis,
+        if (liveWeightKg != null) 'liveWeightKg': liveWeightKg,
+        if (pricePerKg != null) 'pricePerKg': pricePerKg,
+      };
 }
 
 class CloseoutCull {
@@ -65,11 +89,17 @@ int _qty(num? n) {
 
 num _round2(num n) => (n * 100).round() / 100;
 
-/// Quantity x unit price unless a total was typed. The same default the server uses.
+/// The amount the prices give: per kg (401) weight × price per kg, else birds × price per bird.
+num calculatedSaleTotal(CloseoutSale s) {
+  if (s.perKg) return _round2((s.liveWeightKg ?? 0) * (s.pricePerKg ?? 0));
+  return _round2(_qty(s.quantity) * s.unitPrice);
+}
+
+/// The calculated amount unless a total was typed. The same default the server uses.
 num saleTotal(CloseoutSale s) {
   final t = s.totalAmount;
   if (t != null && t.isFinite) return t;
-  return _round2(_qty(s.quantity) * s.unitPrice);
+  return calculatedSaleTotal(s);
 }
 
 typedef DispositionTotals = ({int sold, int culled, int transferred, int total});
@@ -157,6 +187,16 @@ List<String> validateCloseoutDraft(CloseoutDraft draft, Map context) {
     final n = 'Sale ${i + 1}';
     if (_qty(s.quantity) <= 0) errors.add('$n: enter how many birds were sold.');
     if (s.unitPrice < 0 || (s.totalAmount ?? 0) < 0) errors.add('$n: the price cannot be negative.');
+    // 401: per kg needs the weight and the price per kg; the same limits as the database.
+    final bird = birdPricingProblem(
+      _qty(s.quantity),
+      BirdPricing(
+        basis: s.perKg ? BirdPricingBasis.perKg : BirdPricingBasis.perBird,
+        liveWeightKg: s.liveWeightKg,
+        pricePerKg: s.pricePerKg,
+      ),
+    );
+    if (bird != null) errors.add('$n: ${bird[0].toLowerCase()}${bird.substring(1)}');
     final total = saleTotal(s);
     final hasCustomer = s.customerName.trim().isNotEmpty;
     if (s.paymentTerms != 'Credit' && s.cashAccountId == null) {

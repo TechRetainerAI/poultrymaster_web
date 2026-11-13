@@ -112,6 +112,9 @@ void main() {
       ('Inventory', '/generic-inventory'),
       ('Stock adjustments', '/generic-stock-adjustments'),
       ('Internal Use', '/generic-internal-use'),
+      ('Deliveries', '/generic-deliveries'),
+      ('Drivers', '/generic-drivers'),
+      ('Routes', '/generic-routes'),
     ]);
     final elsewhere = [for (final g in groups.skip(1)) for (final s in g.subGroups) for (final l in s.links) l.href];
     for (final href in ['/generic-products', '/generic-inventory', '/generic-stock-adjustments', '/generic-internal-use']) {
@@ -123,12 +126,12 @@ void main() {
   testWidgets('a Catalog row goes when its module is switched off, and only then', (tester) async {
     final groups = webNavGroups['generic']!;
     final catalog = gateGenericCatalog(groups, generic);
-    expect(catalog.first.subGroups.single.links.length, 4, reason: 'settings not loaded yet: everything shows');
+    expect(catalog.first.subGroups.single.links.length, 7, reason: 'settings not loaded yet: everything shows');
     final a = FakeApi()
       ..gets['$base/module-settings'] = {for (final k in genericModuleKeys) k: true, 'enableInventory': false, 'enableInternalUse': null};
     await tester.runAsync(() async => loadGenericModules(await sessionFor(a), generic));
     final gated = gateGenericCatalog(groups, generic).first.subGroups.single.links.map((l) => l.href);
-    expect(gated, ['/generic-products', '/generic-stock-adjustments', '/generic-internal-use']);
+    expect(gated, ['/generic-products', '/generic-stock-adjustments', '/generic-internal-use', '/generic-deliveries', '/generic-drivers', '/generic-routes']);
   });
 
   test('filters and statuses', () {

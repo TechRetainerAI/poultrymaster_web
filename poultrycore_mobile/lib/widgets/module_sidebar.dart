@@ -8,6 +8,7 @@ import '../pages/registry.dart';
 import '../pages/shared/setup_admin_routes.dart';
 import '../pages/generic/generic_kit.dart' show gateGenericCatalog;
 import '../pages/shared/billing_nav.dart';
+import '../pages/poultry/poultry_features.dart';
 import '../pages/web_nav.dart';
 import '../pages/web_page_screen.dart';
 import '../state/session.dart';
@@ -158,6 +159,8 @@ const _orange400 = Tone.fg(0xFFFB923C);
 const Map<String, IconData> _iconByHref = {
   '/production-records': Icons.description_outlined,
   '/batch-production-records': Icons.widgets_outlined,
+  '/poultry-weigh-ins': Icons.scale_outlined,
+  '/poultry-broiler-performance': Icons.set_meal_outlined,
   '/egg-production': Icons.egg_outlined,
   '/poultry-egg-sorting': Icons.egg_outlined,
   '/poultry-supply-purchases': Icons.inventory_outlined,
@@ -220,6 +223,8 @@ const Map<String, IconData> _iconByHref = {
   '/poultry-alerts': Icons.notifications_outlined,
   '/poultry-purchase-receipts': Icons.receipt_long_outlined,
   '/poultry-setup': Icons.settings_outlined,
+  '/poultry-setup?section=production': Icons.settings_outlined,
+  '/poultry-setup?section=business': Icons.settings_outlined,
   '/poultry-company-setup': Icons.settings_outlined,
   '/poultry-financial-settings': Icons.toll_outlined,
   '/companies': Icons.business_outlined,
@@ -495,7 +500,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
 
   /// The generated nav, with the default Quick Links.
   late final List<NavGroup> _base =
-      gateGenericCatalog(gateBillingLinks(gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company)), widget.company);
+      gateGenericCatalog(gateBillingLinks(gatePoultryFeatureLinks(gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company), widget.company)), widget.company);
 
   /// The user's stored Quick Links (318). Null = never customised, so the
   /// defaults stand; an empty list = they cleared the bar.

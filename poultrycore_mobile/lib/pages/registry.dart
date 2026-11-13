@@ -246,6 +246,8 @@ class PageRegistry {
       key: 'poultry-products', module: 'poultry',
       title: 'Products',
       path: '/api/Poultry/products',
+      // 9 Nov pull: the empty state of setup-views/poultry-products.tsx.
+      emptyMessage: 'Finished goods you produce and stock will appear here.',
       titleField: 'name',
       statusField: 'isActive',
       searchFields: ['name', 'sku', 'productType'],
@@ -263,7 +265,6 @@ class PageRegistry {
         FieldSpec('sku', 'SKU'),
         FieldSpec('isActive', 'Active', kind: FieldKind.boolean),
       ],
-      emptyMessage: 'No products yet.',
     ),
     // ---------------- Restaurant ----------------
     // Customers & CRM (/restaurant-crm), Customers tab, with the web's stat

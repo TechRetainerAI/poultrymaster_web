@@ -127,8 +127,8 @@ void main() {
     final groups = webNavGroups['generic']!;
     final p = groups.firstWhere((g) => g.title == 'Purchasing');
     const hrefs = [
-      '/generic-suppliers', '/generic-purchases', '/generic-supplier-payments', '/generic-supplier-balances', '/generic-expenses',
-      '/recurring-expenses',
+      '/generic-suppliers', '/generic-purchases', '/generic-supplier-payments', '/generic-supplier-balances',
+      '/generic-supplier-credits', '/generic-expenses', '/recurring-expenses',
     ];
     expect([for (final l in p.subGroups.single.links) l.href], hrefs);
     expect(groups.indexOf(p), groups.indexWhere((g) => g.title == 'Sales') + 1);
@@ -150,7 +150,7 @@ void main() {
       };
     await tester.runAsync(() async => loadGenericModules(await sessionFor(a), generic));
     final gated = gateGenericCatalog(groups, generic).firstWhere((g) => g.title == 'Purchasing').subGroups.single.links.map((l) => l.href);
-    expect(gated, ['/generic-suppliers', '/generic-supplier-payments', '/generic-expenses', '/recurring-expenses']);
+    expect(gated, ['/generic-suppliers', '/generic-supplier-payments', '/generic-supplier-credits', '/generic-expenses', '/recurring-expenses']);
   });
 
   test('filters, badges, ledger refs and the balances rail', () {

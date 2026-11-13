@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poultrycore_mobile/design/ui/inputs.dart';
 import 'package:poultrycore_mobile/pages/module_registry.dart';
-import 'package:poultrycore_mobile/pages/poultry/egg_packaging.dart' show resetEggPackaging;
+import 'package:poultrycore_mobile/pages/poultry/egg_packaging.dart' show applyEggPackaging, eggDisplayApi, EggDisplay, resetEggPackaging;
 import 'package:poultrycore_mobile/pages/poultry/production/production_logic.dart';
 import 'package:poultrycore_mobile/pages/poultry/production/production_records_screen.dart';
 
@@ -343,5 +343,61 @@ void main() {
     expect(find.text('Record daily egg production data for a flock'), findsOneWidget);
     await see(tester, find.text('Save Production Record'));
     expect(find.text('Cancel'), findsOneWidget);
+  });
+
+  // Report 34 part 2 (399): a broiler flock lays no eggs.
+  testWidgets('a broiler flock has no egg sections; a layer flock keeps them', (tester) async {
+    final a = api();
+    (a.gets['/api/Flock'] as List)[1] = {
+      'flockId': 8, 'name': 'Pen 2', 'batchId': 2, 'quantity': 50, 'active': true, 'hasArrived': true,
+      'startDate': '2026-08-01T00:00:00', 'flockType': 'Broiler',
+    };
+    await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tester.tap(find.text('Log Production'));
+    await tester.pumpAndSettle();
+    expect(find.text('Egg Production'), findsOneWidget, reason: 'no flock yet');
+
+    await choose(tester, 'Select a flock', 'Pen 2');
+    expect(find.text('Egg Production'), findsNothing);
+    expect(find.text('Egg Losses / Quality'), findsNothing);
+    expect(find.text('Egg grade'), findsNothing);
+    await see(tester, find.text('Birds & Age'));
+    expect(find.text('Birds & Age'), findsOneWidget);
+
+    // Picking Pen 2 picked its batch (as on the web), so Pen 1 is in another
+    // batch's list: go back to All batches first.
+    expect(find.text('B-002'), findsOneWidget, reason: 'the flock picked its batch');
+    await choose(tester, 'B-002', 'All batches');
+    await choose(tester, 'Pen 2', 'Pen 1');
+    expect(find.text('Batch A'), findsOneWidget, reason: 'Pen 1 picked its own batch');
+    await see(tester, find.text('Egg Production'));
+    expect(find.text('Egg Production'), findsOneWidget);
+  });
+
+  testWidgets('picking a flock picks its batch; a flock with no batch leaves it', (tester) async {
+    final a = api();
+    (a.gets['/api/Flock'] as List).add({'flockId': 12, 'name': 'Loose pen', 'quantity': 10, 'active': true, 'hasArrived': true, 'startDate': '2026-08-01T00:00:00'});
+    await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tester.tap(find.text('Log Production'));
+    await tester.pumpAndSettle();
+    await choose(tester, 'Select a flock', 'Pen 1');
+    expect(find.text('Batch A'), findsOneWidget);
+    await choose(tester, 'Batch A', 'All batches');
+    await choose(tester, 'Pen 1', 'Loose pen');
+    expect(find.text('All batches'), findsOneWidget, reason: 'no batch to move to');
+  });
+
+  // A4: the boxes figure moved out of the Total cell to its own line.
+  testWidgets('table: "Total eggs in boxes" on its own line, 15 per page', (tester) async {
+    addTearDown(resetEggPackaging);
+    final a = api()
+      ..gets['/api/Poultry/egg-packaging'] = {'enableBoxes': true, 'cratesPerBox': 14, 'eggDisplay': eggDisplayApi[EggDisplay.boxesCratesPieces]};
+    applyEggPackaging(company.farmId, {'enableBoxes': true, 'cratesPerBox': 14, 'eggDisplay': eggDisplayApi[EggDisplay.boxesCratesPieces]});
+    await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    await see(tester, find.text('15 / page'));
+    expect(find.text('15 / page'), findsOneWidget, reason: 'opens on 15 a page, as the web');
+    await tap(tester, find.text('View table format'));
+    await see(tester, find.byKey(const ValueKey('pr-boxes-total')));
+    expect(find.textContaining('Total eggs in boxes: ', findRichText: true), findsOneWidget);
   });
 }

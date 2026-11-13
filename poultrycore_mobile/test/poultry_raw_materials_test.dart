@@ -189,7 +189,13 @@ void main() {
         'medicationCostRecognitionMethod': 'EXPENSE_WHEN_PURCHASED',
       };
     await open(tester, RawMaterialsScreen(session: await sessionFor(a), company: company), size: phone);
-    await tester.tap(find.text('New Item'));
+    if (find.byKey(const ValueKey('task-item')).evaluate().isEmpty) {
+      await tester.tap(find.byKey(const ValueKey('task-more')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New Item').last);
+    } else {
+      await tester.tap(find.byKey(const ValueKey('task-item')));
+    }
     await tester.pumpAndSettle();
     expect(find.text('New raw material item'), findsOneWidget);
     await tester.tap(find.text('Save'));

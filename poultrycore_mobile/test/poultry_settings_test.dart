@@ -87,7 +87,7 @@ void main() {
     await tester.ensureVisible(find.text('System'));
     await tester.tap(find.text('System'));
     await tester.pumpAndSettle();
-    for (final l in ['Account', 'Alerts', 'Billing', 'Activity Log', 'Resources', 'Help Center', 'Videos', 'Terms & Conditions']) {
+    for (final l in ['Account', 'Alerts', 'Billing', 'Activity Log', 'Resources', 'Help Center', 'Support Videos', 'Terms & Conditions']) {
       expect(find.text(l), findsWidgets, reason: l);
     }
     await tester.ensureVisible(find.text('Alerts'));

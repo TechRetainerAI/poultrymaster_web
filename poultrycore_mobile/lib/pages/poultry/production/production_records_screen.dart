@@ -98,7 +98,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
     ..from = widget.date ?? ''
     ..to = widget.date ?? '';
   SortState _sort = (key: null, dir: null);
-  int _page = 1, _perPage = 10;
+  int _page = 1, _perPage = 15;
   PickSettings _picks = const PickSettings();
   Duration _offset = DateTime.now().timeZoneOffset;
 
@@ -425,6 +425,14 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
 
   // ------------------------------------------------------------ filters sheet
 
+  /// View by Day's "Show in table": that day becomes the date filter.
+  void _showDay(String day) => setState(() {
+        _f
+          ..from = day
+          ..to = day;
+        _page = 1;
+      });
+
   Future<void> _openFilters() async {
     var from = _f.from, to = _f.to, batch = _f.batch, flock = _f.flock, month = _f.month, year = _f.year;
     await showModalBottomSheet<void>(
@@ -663,6 +671,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
                 flockLabel: _flockLabel,
                 batchLabel: _batchOf,
                 onEdit: _openForm,
+                onShowInTable: _showDay,
               ),
               icon: const Icon(Icons.calendar_month_outlined, size: 18),
               label: const Text('View by Day'),
@@ -781,6 +790,22 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
                       : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                           TableViewBar(text: 'Table view • Scroll → for more', onCards: () => setState(() => _table = false)),
                           _tableView(pageRows, rows),
+                          if (rows.isNotEmpty && _eggsBoxes(_totals(rows).eggs) != null)
+                            Padding(
+                              key: const ValueKey('pr-boxes-total'),
+                              padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+                              child: Text.rich(
+                                TextSpan(children: [
+                                  const TextSpan(text: 'Total eggs in boxes: '),
+                                  TextSpan(
+                                    text: '≈ ${_eggsBoxes(_totals(rows).eggs)}',
+                                    style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700),
+                                  ),
+                                ]),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(fontSize: 12, color: TColors.slate500),
+                              ),
+                            ),
                         ]),
                 ),
               ),
@@ -960,12 +985,9 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             withCrates(_sum(filtered, 'production4PM'), const Tone(0xFF6B21A8)),
             for (final (_, k) in extra) withCrates(_sum(filtered, k), const Tone(0xFF115E59)),
             withCrates(_sum(filtered, 'brokenEggs'), TColors.red700),
-            _eggsBoxes(t.eggs) == null
-                ? withCrates(t.eggs, TColors.emerald700)
-                : Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-                    withCrates(t.eggs, TColors.emerald700),
-                    Text('≈ ${_eggsBoxes(t.eggs)}', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
-                  ]),
+            // The boxes figure has its own line under the table (inside this
+            // cell it made the column too wide), as on the web.
+            withCrates(t.eggs, TColors.emerald700),
             const SizedBox.shrink(),
             cellText(t.feed.toStringAsFixed(2), bold: true),
             cellText(loc(sumLatestBirdsByFlock(filtered)), bold: true),

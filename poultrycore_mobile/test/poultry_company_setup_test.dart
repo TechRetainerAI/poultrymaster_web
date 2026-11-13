@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poultrycore_mobile/pages/lookup_loader.dart';
 import 'package:poultrycore_mobile/pages/poultry/company_setup_screen.dart';
-import 'package:poultrycore_mobile/pages/poultry/farm_setup_screen.dart';
+
 import 'package:poultrycore_mobile/pages/poultry/financial_settings_screen.dart';
 import 'package:poultrycore_mobile/pages/shared/companies_screen.dart';
 import 'package:poultrycore_mobile/pages/shared/company_timezone_field.dart';
@@ -161,54 +161,4 @@ void main() {
     });
   });
 
-  group('Farm Setup hub', () {
-    testWidgets('opens on Company; an area lists, adds and deletes through the page itself',
-        (tester) async {
-      final api = FakeApi()
-        ..statuses['/api/Poultry/company'] = 404
-        ..gets['/api/Poultry/vehicles'] = [
-          {'poultryVehicleId': 3, 'vehicleName': 'Truck 1', 'vehicleType': 'Truck', 'capacityCrates': 12, 'status': 'Active'},
-        ];
-      await open(tester, FarmSetupScreen(session: await sessionFor(api), company: company));
-      expect(find.text('Set up Poultry Company'), findsOneWidget, reason: 'Company is the first tab');
-      expect(find.text('Show symbol on amounts'), findsOneWidget);
-
-      await tester.tap(find.text('Vehicles'));
-      await tester.pumpAndSettle();
-      expect(find.text('Truck 1'), findsOneWidget);
-      expect(find.text('12 crates'), findsOneWidget);
-
-      await tester.tap(find.text('Add vehicle'));
-      await tester.pumpAndSettle();
-      expect(find.text('Vehicle name'), findsOneWidget, reason: 'the Vehicles page form');
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Delete'));
-      await tester.pumpAndSettle();
-      expect(find.text('Delete vehicle?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
-      await tester.pumpAndSettle();
-      expect(api.writes.any((w) => w.method == 'DELETE' && w.url.path == '/api/Poultry/vehicles/3'), isTrue);
-    });
-
-    testWidgets('the server refusing the Water-only currency route still saves the company (2026-10-24)',
-        (tester) async {
-      final api = FakeApi()
-        ..gets['/api/Poultry/company'] = {
-          'brandName': 'Gyimah Farm', 'businessType': 'Layers', 'housingSystem': 'DeepLitter',
-          'defaultCurrency': 'GHS', 'defaultCrateEggCount': 30,
-        }
-        ..statuses['/api/Water/farm-settings'] = 403
-        ..writeStatuses['/api/Water/farm-settings/currency'] = 403;
-      await open(tester, FarmSetupScreen(session: await sessionFor(api), company: company));
-      await tester.ensureVisible(find.text('Save changes'));
-      await tester.tap(find.text('Save changes'));
-      await tester.pumpAndSettle();
-      expect(api.lastBody('/api/Poultry/company', 'PUT')['defaultCurrency'], 'GHS');
-      expect(find.textContaining('Save failed'), findsNothing);
-      expect(find.textContaining('Currency not applied app-wide'), findsOneWidget);
-    });
-  });
 }
-

@@ -81,7 +81,7 @@ void main() {
       final d = SetupDraft(batches: [batch], houses: [house], flocks: [flock('800', '800')]);
       final e = validateSetup(d, ctx()).errors.where((x) => x.field == 'numberOfBirds').single;
       expect(e.message,
-          'B1 is a batch you already had, so all 1,000 of its birds must be in a pen — 200 are unaccounted for. Put them in a pen, or lower the batch to 800.');
+          'B1 is a batch you already had, so all 1,000 of its birds must be accounted for — 200 are not. Put them in a pen, or explain them on the reconciliation step (sold, died, culled, transferred, or still alive and waiting).');
 
       batch.isHistorical = false;
       expect(validateSetup(d, ctx()).errors.where((x) => x.field == 'numberOfBirds'), isEmpty);

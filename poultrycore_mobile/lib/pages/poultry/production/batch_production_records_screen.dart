@@ -18,6 +18,7 @@ import '../../shared/business_dates.dart';
 import '../../shared/company_clock.dart';
 import '../money/money_widgets.dart' show twoUp;
 import '../reports/report_export.dart';
+import '../reports/report_format.dart' show periodGroups, periodToRange, rangeToPeriod;
 import '../sales/sales_logic.dart' show pageNumbers, salePageSizes;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc, trackerDate, localDateKey, sortRows, toggleSort, SortState;
 import '../trackers/tracker_widgets.dart';
@@ -112,7 +113,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
     ..from = widget.date ?? ''
     ..to = widget.date ?? '';
   SortState _sort = (key: null, dir: null);
-  int _page = 1, _perPage = 10;
+  int _page = 1, _perPage = 15;
   PickSettings _picks = const PickSettings();
   Duration _offset = DateTime.now().timeZoneOffset;
 
@@ -467,6 +468,14 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
 
   // ------------------------------------------------------------ filters sheet
 
+  /// View by Day's "Show in table": that day becomes the date filter.
+  void _showDay(String day) => setState(() {
+        _f
+          ..from = day
+          ..to = day;
+        _page = 1;
+      });
+
   Future<void> _openFilters() async {
     var from = _f.from, to = _f.to, status = _f.status, batch = _f.batch, month = _f.month, year = _f.year;
     await showModalBottomSheet<void>(
@@ -483,6 +492,27 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
               const SizedBox(height: 14),
               const Text('Date range', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
               const SizedBox(height: 10),
+              // Period presets drive the dates, as on Production Records. No
+              // dates is the unfiltered default, so it reads as All Time;
+              // hand-picked dates read as Custom.
+              AppSelect<String>(
+                key: const ValueKey('bpr-period'),
+                value: from.isEmpty && to.isEmpty ? 'allTime' : rangeToPeriod(from, to),
+                items: [for (final (_, opts) in periodGroups) for (final (k, l) in opts) AppSelectItem(value: k, label: l)],
+                onChanged: (p) => set(() {
+                  if (p == 'allTime') {
+                    from = '';
+                    to = '';
+                  } else if (p != null) {
+                    final r = periodToRange(p);
+                    if (r != null) {
+                      from = r.from;
+                      to = r.to;
+                    }
+                  }
+                }),
+              ),
+              const SizedBox(height: 12),
               FilterLabel('Start date', FilterDate(value: from, hint: 'Start date', onChanged: (v) => set(() => from = v))),
               const SizedBox(height: 12),
               FilterLabel('End date', FilterDate(value: to, hint: 'End date', onChanged: (v) => set(() => to = v))),
@@ -660,11 +690,12 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
                 flockLabel: batchNameLabel,
                 batchLabel: batchScopeLabel,
                 batchPrefix: 'Flocks: ',
-                showBirds: false,
                 badge: (r) => batchStatusBadge(r['status']),
                 editIcon: Icons.open_in_new,
-                editTooltip: 'View',
+                editTooltip: 'Open',
+                description: 'Every batch production record logged on the chosen day.',
                 onEdit: _view,
+                onShowInTable: _showDay,
               ),
               icon: const Icon(Icons.calendar_month_outlined, size: 18),
               label: const Text('View by Day'),

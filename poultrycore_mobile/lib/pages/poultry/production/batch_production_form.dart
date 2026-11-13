@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
+import '../flock_type.dart' show isBroilerFlock;
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -264,6 +265,11 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
   int get _total => [for (var i = 0; i < 6; i++) _pick(i)].fold(0, (a, b) => a + b);
   int _int(TextEditingController c) => int.tryParse(c.text.trim()) ?? 0;
   int get _losses => _int(_broken) + _int(_meaty) + _int(_soft) + _int(_lost);
+
+  /// 399: no egg sections when every flock in scope is a broiler flock,
+  /// unless this record already carries eggs, which must stay visible.
+  bool get _hideEggSections =>
+      _included.isNotEmpty && _included.every(isBroilerFlock) && _total == 0 && _losses == 0;
   int? get _birdsLeftEntered => _birdsLeft.text.isEmpty ? null : _int(_birdsLeft);
   bool get _eggsOver => eggsExceedBirdsLeft(_total, _birdsLeftEntered);
   String get _eggsOverMessage {
@@ -555,12 +561,13 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
                 ),
               ),
             ]),
-            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              _label('Egg grade'),
-              // Automatic since egg sorting: the day's collection is mixed sizes;
-              // sizes are recorded in Egg Sorting. An older record keeps its grade.
-              EggGradeReadout(grade: _eggGrade),
-            ]),
+            if (!_hideEggSections)
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                _label('Egg grade'),
+                // Automatic since egg sorting: the day's collection is mixed sizes;
+                // sizes are recorded in Egg Sorting. An older record keeps its grade.
+                EggGradeReadout(grade: _eggGrade),
+              ]),
           ]),
           if (_selectionType == 'CustomBatch')
             Container(
@@ -603,6 +610,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
           if (!_specific) _info('A mixed scope has no single age, so this record saves its age as “Mixed”.'),
         ]),
       ),
+      if (!_hideEggSections) ...[
       const SizedBox(height: 14),
       ProdSection(
         title: 'Egg Production',
@@ -695,6 +703,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
           CalcField(label: 'Net sellable', value: loc(net), tone: CalcTone.good),
         ]),
       ),
+      ],
       const SizedBox(height: 14),
       ProdSection(
         title: 'Birds',

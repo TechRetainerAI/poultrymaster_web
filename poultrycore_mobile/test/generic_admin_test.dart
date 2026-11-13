@@ -80,12 +80,13 @@ void main() {
     invalidateGenericModules();
   });
 
-  test('Admin is Reports, Setup, Settings; the old Setup rows left More pages', () {
+  test('Admin is Reports, Setup, Business Features, Settings; the old Setup rows left More pages', () {
     final groups = webNavGroups['generic']!;
     final admin = groups.firstWhere((g) => g.title == 'Admin');
     expect([for (final l in admin.subGroups.single.links) (l.label, l.href)], [
       ('Reports', '/generic-reports'),
       ('Setup', '/generic-setup'),
+      ('Business Features', '/generic-business-features'),
       ('Settings', '/generic-settings'),
     ]);
     final more = groups.firstWhere((g) => g.title == 'More pages').subGroups.single.links.map((l) => l.href);
@@ -104,7 +105,12 @@ void main() {
     expect(genericLabels(null).subscription, 'Subscription / Contract');
     expect(genericLabels('Retail').planPlural, 'Service / Plans');
     expect(genericLabels('CleaningService').subscriptionPlural, 'Service Contracts');
-    expect(genericBusinessTypes.length, 10);
+    expect(genericBusinessTypes.length, 25);
+    expect(genericLabels('CarDealership').invoicePlural, 'Vehicle Invoices');
+    expect(genericLabels('Freelancer').customerPlural, 'Clients');
+    expect(businessTemplateFor('Barbershop'), 'GeneralBusiness');
+    expect(businessTemplateFor('Pharmacy'), 'RetailBusiness');
+    expect(legacyCategoryIdFor('Grocery', [{'businessCategoryId': 4, 'name': 'Retail Shop'}]), 4);
     expect(legacyCategoryIdFor('Gym', [{'businessCategoryId': 3, 'name': 'Services Business'}]), 3);
     expect(legacyCategoryIdFor('School', [{'businessCategoryId': 9, 'name': 'Other'}]), 9);
   });
@@ -144,7 +150,7 @@ void main() {
     expect(find.text('Gym / fitness centre — Members on monthly or annual memberships'), findsOneWidget);
     expect(find.text('Opening cash (GHS)'), findsOneWidget);
     await _pick(tester, find.text('Gym / fitness centre — Members on monthly or annual memberships'),
-        'School — Students, termly fees, fee notes');
+        'School / training centre — Students, termly fees, fee notes');
     await _tap(tester, find.text('Save changes'));
     final body = api.lastBody('/api/generic-company/setup');
     // School maps to the legacy "School" category; it is not in the list, so "Other".
@@ -163,32 +169,45 @@ void main() {
     expect(find.text('Choose…'), findsOneWidget);
   });
 
-  testWidgets('Wizard: pick, apply (creating the profile), switch modules, the handover', (tester) async {
-    final api = _api(industry: null)
-      ..statuses[base] = 404
-      ..writeAnswers['$base/business-template'] = _modules();
+  testWidgets('Wizard: welcome, search and kinds, apply (creating the profile), the shop handover', (tester) async {
+    final api = _api(industry: null)..statuses[base] = 404;
     final s = await sessionFor(api);
-    await open(tester, GenericSetupWizardScreen(session: s, company: generic, industry: 'Agency'), size: tall);
-    expect(find.text('Step 1 of 3'), findsOneWidget);
-    // ?industry= preselects the type picked at creation.
-    expect(find.byIcon(Icons.check), findsOneWidget);
-    await _tap(tester, find.text('School'));
-    expect(find.textContaining("You'll see"), findsOneWidget);
-    expect(find.textContaining('Fee Plans'), findsOneWidget);
-    await _tap(tester, find.text('Continue'));
-    expect(api.lastBody('/api/generic-company/setup'), {'farmId': 'g1'});
-    expect(api.lastBody('$base/business-template')['industryTemplate'], 'School');
-    expect(find.text('Step 2 of 3'), findsOneWidget);
-    expect(find.text('Staff and payroll'), findsOneWidget);
-    final inv = find.ancestor(of: find.text('Raise bills and track what is owed'), matching: find.byType(GenericToggle));
-    await tester.tap(find.descendant(of: inv, matching: find.byType(Switch)));
+    await open(tester, GenericSetupWizardScreen(session: s, company: generic), size: tall);
+    expect(find.text('Welcome to VisibilityCore'), findsOneWidget);
+    await _tap(tester, find.byKey(const ValueKey('wizard-start')));
+    expect(find.text('Step 1 of 2'), findsOneWidget);
+    expect(find.byKey(const ValueKey('wizard-create')), findsOneWidget);
+    await _tap(tester, find.byKey(const ValueKey('wizard-cat-service')));
+    expect(find.text('Barbershop'), findsOneWidget);
+    expect(find.text('Bakery'), findsNothing, reason: 'Bakery is a shop');
+    await _tap(tester, find.byKey(const ValueKey('wizard-cat-all')));
+    await tester.enterText(find.byKey(const ValueKey('wizard-search')), 'zzz');
     await tester.pumpAndSettle();
-    await _tap(tester, find.text('Continue'));
-    expect(api.lastBody('$base/module-settings', 'PUT')['enableInvoices'], false);
-    expect(find.text('Step 3 of 3'), findsOneWidget);
-    expect(find.text('Go to Fee Plans'), findsOneWidget);
-    expect(find.text('Add students'), findsOneWidget);
-    expect(find.text('Skip to dashboard'), findsOneWidget);
+    expect(find.textContaining('No business types match'), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('wizard-search')), 'bread');
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Bakery'));
+    expect(find.textContaining('recommended features for'), findsWidgets);
+    await _tap(tester, find.byKey(const ValueKey('wizard-create')));
+    expect(api.lastBody('/api/generic-company/setup'), {'farmId': 'g1'});
+    expect(api.lastBody('$base/business-template'), {'businessTemplate': 'RetailBusiness', 'industryTemplate': 'Bakery'});
+    expect(api.writes.where((w) => w.url.path == '$base/module-settings'), isEmpty, reason: 'no feature step any more');
+    expect(find.text("You're all set"), findsOneWidget);
+    expect(find.text('Add products'), findsOneWidget);
+    expect(find.text('Record a sale'), findsOneWidget);
+    expect(find.text('Go to dashboard'), findsOneWidget);
+  });
+
+  testWidgets('Wizard: a type picked at creation is applied without asking; a templated company is left alone', (tester) async {
+    final api = _api(industry: null);
+    await open(tester, GenericSetupWizardScreen(session: await sessionFor(api), company: generic, industry: 'Agency'), size: tall);
+    expect(api.lastBody('$base/business-template'), {'businessTemplate': 'SubscriptionServiceBusiness', 'industryTemplate': 'Agency'});
+    expect(find.text('Welcome to VisibilityCore'), findsNothing);
+
+    final done = _api();
+    await open(tester, GenericSetupWizardScreen(session: await sessionFor(done), company: generic), size: tall);
+    expect(done.writes, isEmpty);
+    expect(find.text('Welcome to VisibilityCore'), findsNothing);
   });
 
   testWidgets('Reports hub: a gym sees its subscription reports in its words', (tester) async {

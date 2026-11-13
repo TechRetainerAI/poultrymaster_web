@@ -110,14 +110,14 @@ void main() {
   group('Egg Configuration (app/business-office/egg-pick-settings)', () {
     test('one menu row, renamed', () {
       final labels = [for (final g in webNavGroups['poultry']!) for (final s in g.subGroups) for (final l in s.links) l.label];
-      expect(labels, contains('Egg Configuration'));
+      expect(labels, contains('Egg Settings'), reason: 'renamed Egg Settings on 9 Nov');
       expect(labels, isNot(contains('Egg Pick Times')));
       expect(labels, isNot(contains('Egg Sorting Settings')));
     });
 
     testWidgets('the four tabs, their status lines, and the pick cards', (tester) async {
       await open(tester, EggPickSettingsScreen(session: await sessionFor(configApi()), company: company), size: phone);
-      expect(find.text('Egg Configuration'), findsWidgets);
+      expect(find.text('Egg Settings'), findsWidgets);
       expect(find.text('3 picks a day'), findsOneWidget);
       expect(find.text('On'), findsOneWidget);
       expect(find.text('Crates of 30'), findsOneWidget);

@@ -415,7 +415,9 @@ void main() {
       await choose(tester, 'Select a customer', 'Other Customer');
       await tester.enterText(find.widgetWithText(TextFormField, 'Enter other customer name'), 'Walk-in Yaw');
       await tester.pumpAndSettle();
-      await type(tester, 'Quantity', '60');
+      // 401: a live-bird line counts birds; the product name is also "Birds", so find the box by its key.
+      await tester.enterText(find.descendant(of: find.byKey(const ValueKey('line-1:qty')), matching: find.byType(EditableText)), '60');
+      await tester.pumpAndSettle();
       expect(find.text('Only 50 birds in stock — this sale is 10 more than you have.'), findsOneWidget);
       await type(tester, 'Unit price', '20');
       await type(tester, 'Override Total Sale Amount', '1100');
@@ -451,7 +453,7 @@ void main() {
       await tester.pumpAndSettle();
       await choose(tester, 'Fresh Eggs', 'Chicken');
       await choose(tester, 'Select a customer', 'Ama');
-      await type(tester, 'Quantity', '2');
+      await type(tester, 'Birds', '2');
       await type(tester, 'Unit price', '20');
       await tapSeen(tester, find.text('Pay later'));
       expect(find.text('Payment method *'), findsNothing);
@@ -470,7 +472,7 @@ void main() {
       await choose(tester, 'Fresh Eggs', 'Chicken');
       await choose(tester, 'Select a customer', 'Ama');
       expect(find.text('Available customer credit: GHC 30.00'), findsOneWidget);
-      await type(tester, 'Quantity', '2');
+      await type(tester, 'Birds', '2');
       await type(tester, 'Unit price', '20');
       await tapSeen(tester, find.text('Use customer credit'));
       expect(find.text('Rest to pay: GHC 10.00', findRichText: true), findsOneWidget);
@@ -728,6 +730,157 @@ void main() {
 
   test('invoice number helper is exported for the dialog', () {
     expect(SaleInvoiceScreen.jsQty(75), '75');
+  });
+
+  // ---------------------------------------------- Report 34 part 2 (401)
+
+  group('bird sales by the kg', () {
+    /// The farm has plenty of birds, so the stock check stays out of the way.
+    FakeApi birdApi() => salesApi()
+      ..gets['/api/Poultry/products'] = [
+        {'poultryProductId': 2, 'name': 'Birds', 'isBirdProduct': true, 'stockOnHand': 5000},
+      ];
+
+    Future<void> newChickenSale(WidgetTester tester, FakeApi api) async {
+      await open(tester, await screen(api), size: phone);
+      await tester.tap(find.text('Add Sale'));
+      await tester.pumpAndSettle();
+      await choose(tester, 'Fresh Eggs', 'Chicken');
+      await choose(tester, 'Select a customer', 'Ama');
+    }
+
+    testWidgets('per kg: birds, weight × price per kg, the per-bird price stored, one Sale/group line', (tester) async {
+      final api = birdApi();
+      await newChickenSale(tester, api);
+      expect(find.text('Birds'), findsWidgets, reason: 'a live-bird line counts birds');
+      expect(find.text('Quantity'), findsNothing);
+      expect(find.text('Add the weight to track kg sold and feed conversion.'), findsOneWidget);
+      await type(tester, 'Birds', '100');
+      await choose(tester, 'Per bird', 'Per kg');
+      expect(find.text('Live weight (kg) *'), findsOneWidget);
+      await type(tester, 'Unit price', '30');
+      await type(tester, 'Live weight (kg) *', '250');
+      expect(find.text('Average 2.50 kg a bird'), findsOneWidget);
+      expect(find.text('250 kg × GHC 30.00 = GHC 7,500.00 · GHC 75.00 a bird', findRichText: true), findsOneWidget);
+      expect(find.byKey(const ValueKey('line-1:total')), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const ValueKey('line-1:total'))).data, '7500.00');
+      await tapSeen(tester, find.text('Pay later'));
+      await tapPinned(tester, 'Record sale');
+      final line = (api.lastBody('/api/Sale/group')['lines'] as List).single as Map;
+      expect((line['product'], line['quantity'], line['unitPrice'], line['totalAmount']), ('Chicken', 100, 75, 7500));
+      expect((line['pricingBasis'], line['liveWeightKg'], line['pricePerKg']), ('PerKg', 250, 30));
+      expect(line.containsKey('amountOverridden'), isFalse);
+    });
+
+    testWidgets('per kg needs the weight; per bird with a weight goes to Sale/group too', (tester) async {
+      final api = birdApi();
+      await newChickenSale(tester, api);
+      await type(tester, 'Birds', '20');
+      await choose(tester, 'Per bird', 'Per kg');
+      await type(tester, 'Unit price', '30');
+      await tapSeen(tester, find.text('Pay later'));
+      await tapPinned(tester, 'Record sale');
+      expect(find.textContaining('A sale priced per kg needs the total live weight in kg.'), findsWidgets);
+      expect(api.writes, isEmpty);
+
+      await choose(tester, 'Per kg', 'Per bird');
+      await type(tester, 'Unit price', '80');
+      await type(tester, 'Live weight (kg)', '48.5');
+      expect(find.text("Weight kept for the flock's kg sold and feed conversion."), findsOneWidget);
+      await tapPinned(tester, 'Record sale');
+      final line = (api.lastBody('/api/Sale/group')['lines'] as List).single as Map;
+      expect((line['unitPrice'], line['totalAmount'], line['pricingBasis'], line['liveWeightKg'], line['pricePerKg']),
+          (80, 1600, 'PerBird', 48.5, null));
+    });
+
+    testWidgets('a broiler flock switches an egg sale to Chicken', (tester) async {
+      final api = salesApi()
+        ..gets['/api/Flock'] = [
+          {'flockId': 1, 'name': 'Layers A', 'quantity': 500, 'flockType': 'Layer'},
+          {'flockId': 3, 'name': 'Broilers C', 'quantity': 300, 'flockType': 'Broiler'},
+        ];
+      await open(tester, await screen(api), size: phone);
+      await tester.tap(find.text('Add Sale'));
+      await tester.pumpAndSettle();
+      await choose(tester, 'All flocks', 'Layers A (500 birds)');
+      expect(find.text('Fresh Eggs'), findsWidgets, reason: 'a layer flock leaves the product alone');
+      await choose(tester, 'Layers A (500 birds)', 'Broilers C (300 birds)');
+      await see(tester, find.text('Chicken'));
+      expect(find.text('Chicken'), findsWidgets);
+      expect(find.text('Birds'), findsWidgets);
+    });
+
+    testWidgets('meat withdrawal: a warning to tick before the sale is recorded', (tester) async {
+      final api = birdApi()
+        ..gets['/api/Sale/meat-withdrawal'] = [
+          {'flockId': 1, 'flockName': 'Layers A', 'itemName': 'Tylosin', 'lastDoseDate': '2026-11-01', 'withdrawalDays': 14,
+            'withdrawalUntil': '2026-11-15', 'source': 'Treatment campaign'},
+        ];
+      await newChickenSale(tester, api);
+      expect(find.byKey(const ValueKey('meat-withdrawal')), findsOneWidget);
+      expect(find.text('Some flocks are still inside a meat withdrawal period'), findsOneWidget);
+      expect(find.text('• Layers A: Tylosin, last given 01/11/2026, meat withdrawal until 15/11/2026', findRichText: true), findsOneWidget);
+      expect(api.requests.any((r) => r.url.path == '/api/Sale/meat-withdrawal' && r.url.queryParameters['date'] != null), isTrue);
+      await type(tester, 'Birds', '2');
+      await type(tester, 'Unit price', '20');
+      await tapSeen(tester, find.text('Pay later'));
+      await tapPinned(tester, 'Record sale');
+      expect(find.textContaining('These birds may still be inside a meat withdrawal period. Check them, then tick the box to record the sale anyway.'),
+          findsWidgets);
+      expect(api.writes, isEmpty);
+      await tapSeen(tester, find.text('I have checked these birds can be sold. Record the sale anyway.'));
+      await tapPinned(tester, 'Record sale');
+      expect(api.lastBody('/api/Sale')['product'], 'Chicken');
+    });
+
+    testWidgets('an egg sale asks nothing about withdrawal', (tester) async {
+      final api = salesApi()
+        ..gets['/api/Sale/meat-withdrawal'] = [
+          {'flockId': 1, 'flockName': 'Layers A', 'itemName': 'Tylosin', 'lastDoseDate': '2026-11-01', 'withdrawalUntil': '2026-11-15'},
+        ];
+      await open(tester, await screen(api), size: phone);
+      await tester.tap(find.text('Add Sale'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('meat-withdrawal')), findsNothing);
+      expect(api.requests.any((r) => r.url.path == '/api/Sale/meat-withdrawal'), isFalse);
+    });
+
+    test('a corrected sale comes back with its bird pricing', () {
+      final f = SaleForm.correctionOf({
+        'saleId': 9, 'product': 'Chicken', 'quantity': 100, 'unitPrice': 75, 'totalAmount': 7500, 'saleDate': '2026-11-02',
+        'lines': [
+          {'saleLineId': 1, 'lineNo': 1, 'product': 'Chicken', 'quantity': 100, 'unitPrice': 75, 'totalAmount': 7500,
+            'pricingBasis': 'PerKg', 'liveWeightKg': 250, 'pricePerKg': 30},
+          {'saleLineId': 2, 'lineNo': 2, 'product': 'Birds', 'quantity': 10, 'unitPrice': 50, 'totalAmount': 500,
+            'pricingBasis': 'PerBird', 'liveWeightKg': 20},
+        ],
+      }, creditKept: 0);
+      expect(f.first.perKg, isTrue);
+      expect(f.first.total(30), 7500);
+      expect(f.extra.single.bird.liveWeightKg, 20);
+      expect(f.postsAsGroup, isTrue);
+    });
+
+    testWidgets('the invoice notes the weight and price per kg', (tester) async {
+      final api = salesApi()
+        ..gets['/api/Sale'] = [
+          {
+            'saleId': 5, 'saleDate': '2026-11-02T00:00:00', 'product': 'Chicken', 'quantity': 100, 'unitPrice': 75, 'totalAmount': 7500,
+            'amountPaid': 7500, 'paid': true, 'paymentMethod': 'Cash', 'customerName': 'Ama', 'customerId': 1, 'status': 'Posted',
+            'saleGroupNo': 'SG-00005', 'lineCount': 2,
+            'lines': [
+              {'saleLineId': 51, 'lineNo': 1, 'product': 'Chicken', 'quantity': 100, 'unitPrice': 75, 'totalAmount': 7000,
+                'pricingBasis': 'PerKg', 'liveWeightKg': 250, 'pricePerKg': 28},
+              {'saleLineId': 52, 'lineNo': 2, 'product': 'Manure', 'quantity': 5, 'unitPrice': 100, 'totalAmount': 500},
+            ],
+          },
+        ];
+      await open(tester, await screen(api), size: phone);
+      await see(tester, find.text('SG-00005'));
+      final card = find.ancestor(of: find.text('SG-00005'), matching: find.byKey(const ValueKey('sale-5')));
+      await tapSeen(tester, find.descendant(of: card, matching: find.text('Invoice')));
+      expect(find.text('250 kg at 28.00 / kg · 2.50 kg a bird'), findsOneWidget);
+    });
   });
 }
 

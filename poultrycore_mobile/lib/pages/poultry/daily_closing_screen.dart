@@ -778,7 +778,9 @@ class _Sections extends StatelessWidget {
         ),
         // 393: display only; closing figures unchanged.
         _Stat('Eggs produced', '${_qty(p['eggsProduced'])}${eggBoxesSuffix(_n(p['eggsProduced']), currentEggPackaging)}'),
-        _Stat('Damaged eggs', _qty(p['eggsDamaged'])),
+        _Stat('Total damaged (broken) eggs', _qty(p['eggsDamaged'])),
+        // 404: absent until the migration runs, and in a day closed before it.
+        _Stat('Total disposed eggs', p['eggsDisposed'] != null ? _qty(p['eggsDisposed']) : '—'),
         _Stat('Mortality', _qty(p['mortality'])),
         _Stat('Feed used', '${_qty(p['feedKg'], 2)} kg'),
         _Stat('Missing production', _qty(missing), tone: missing > 0 ? 'bad' : 'good'),
@@ -1274,7 +1276,8 @@ class _HistoryCard extends StatelessWidget {
         detail('Opening → closing cash', '${money(h['openingCash'])} → ${money(h['closingCash'])}'),
         detail('Cash difference', money(h['cashDifference'])),
         detail('Eggs produced', '${num0(h['eggsProduced'])}${eggBoxesSuffix(h['eggsProduced'] is num ? h['eggsProduced'] as num : null, currentEggPackaging)}'),
-        detail('Damaged eggs', num0(h['eggsDamaged'])),
+        detail('Total damaged (broken) eggs', num0(h['eggsDamaged'])),
+        detail('Total disposed eggs', num0(h['eggsDisposed'])),
         detail('Mortality', num0(h['mortality'])),
         detail('Feed used', h['feedKg'] != null ? '${num0(h['feedKg'], 2)} kg' : '—'),
         detail('Checks', checksText(h)),

@@ -3,6 +3,7 @@
 // and `lib/sales/reversal.ts`, so the phone computes, validates and posts
 // exactly what the web does.
 
+import '../bird_pricing.dart';
 import '../egg_packaging.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 
@@ -280,6 +281,7 @@ class SaleItem {
     this.pricePerBox,
     this.pricePerPiece,
     this.packaging,
+    this.bird = emptyBirdPricing,
   });
   final String key;
   String product;
@@ -300,6 +302,20 @@ class SaleItem {
 
   bool get isEggs => isEggProductName(product);
 
+  /// 401: a live-bird line, priced per bird or per kg, with its live weight.
+  /// Kept while the product changes; only read while the line sells birds.
+  BirdPricing bird;
+  bool get isBird => !isEggs && isLiveBirdProduct(product);
+  bool get perKg => isBird && bird.perKg;
+
+  /// What the line stores as its unit price: per kg, amount / birds, so the
+  /// quantity × price readers still agree.
+  num storedUnitPrice(int epc) => perKg ? perBirdPrice(total(epc), quantity) : unitPrice;
+
+  /// The bird-pricing fields the line posts (empty for anything but birds).
+  Map<String, dynamic> birdFields({required bool overridden}) =>
+      isBird ? birdPricingPayload(bird, amountOverridden: overridden) : const {};
+
   /// Boxes are in play on this line: an egg line on a box farm.
   bool get boxesOn => isEggs && packaging != null && boxSize(packaging!) != null;
 
@@ -309,7 +325,10 @@ class SaleItem {
 
   /// 394: a box farm prices boxes, crates and pieces each at their own price;
   /// otherwise the old per-crate, loose pro-rata rule, unchanged.
-  num total(int epc) => boxesOn
+  num total(int epc) => perKg
+      // 401: birds priced per kg are the weight times the price per kg.
+      ? birdLineAmount(quantity, unitPrice, bird)
+      : boxesOn
       ? packagedLineAmount(PackagedQuantity(boxes: boxes, crates: crates, pieces: loose),
           pricePerCrate: unitPrice, pricePerBox: pricePerBox, pricePerPiece: pricePerPiece, p: packaging!)
       : saleLineTotal(qty(epc), unitPrice, isEggs, epc);
@@ -433,6 +452,7 @@ class SaleForm {
         _classPackagedPrices(line, classes);
       }
     }
+    syncFirstPerKg();
   }
 
   /// 394: the class's own box and egg prices (null = from the crate price).
@@ -541,16 +561,30 @@ class SaleForm {
 
   // ---------------------------------------------------------- validation
 
+  /// 401: per kg, line 1's per-bird price follows from its amount -- it is
+  /// what the sale stores (the web's calculateTotal). Call after any change
+  /// to line 1's birds, weight, price or price unit.
+  void syncFirstPerKg() {
+    if (first.perKg) first.unitPrice = perBirdPrice(first.total(eggsPerCrate), first.quantity);
+  }
+
   /// validateSaleForm (line 1 and the sale), in the web's order, or null.
-  String? validate({required num? available, required String stockUnits}) {
+  /// [withdrawalUnacknowledged]: birds inside a meat withdrawal period are on
+  /// the form and the box saying they were checked is not ticked (401).
+  String? validate({required num? available, required String stockUnits, bool withdrawalUnacknowledged = false}) {
     final p = first.product.trim();
     final quantity = first.qty(eggsPerCrate);
     final short = stockShortfall(available, quantity);
+    final birdProblem = first.isBird ? birdPricingProblem(quantity, first.bird) : null;
     if (saleDate.isEmpty) return 'Pick the date this sale happened.';
     if (p.isEmpty) return 'Choose what was sold (eggs, chicken, manure, or other).';
     if (customerName.trim().isEmpty) return 'Enter or select who bought from you.';
     if (!quantity.isFinite || quantity <= 0) return 'Enter how many units were sold — use a number greater than zero.';
+    if (birdProblem != null) return birdProblem;
     if (!first.unitPrice.isFinite || first.unitPrice <= 0) return 'Enter the price per unit — it must be greater than zero.';
+    if (withdrawalUnacknowledged) {
+      return 'These birds may still be inside a meat withdrawal period. Check them, then tick the box to record the sale anyway.';
+    }
     if (paymentMethod.trim().isEmpty && !noMoneyNow) return 'Select how the customer paid (cash, mobile money, bank, etc.).';
     if (short > 0 && !overrideStock) {
       return 'Only ${thousands(available ?? 0)} $stockUnits in stock — this sale is '
@@ -585,13 +619,18 @@ class SaleForm {
   /// Several lines, a part payment or customer credit are posted to Sale/group.
   /// 394: so is a box farm's egg sale -- the path that keeps the boxes /
   /// crates / pieces and prices on the line.
-  bool get postsAsGroup => hasExtraLines || partPayment || creditUsed > 0 || (boxesOn && first.isEggs);
+  /// 401: and a bird sale priced per kg or carrying its live weight -- the
+  /// single-sale path has nowhere to keep either.
+  bool get postsAsGroup =>
+      hasExtraLines || partPayment || creditUsed > 0 || (boxesOn && first.isEggs) || (first.isBird && hasBirdPricing(first.bird));
 
   /// The group checks: every added line complete, and no short line unless overridden.
   String? validateGroup(List<Map> classes, List<Map> products) {
-    if (extra.any((l) => l.product.trim().isEmpty || l.qty(eggsPerCrate) <= 0 || l.unitPrice <= 0)) {
+    if (extra.any((l) => l.product.trim().isEmpty || l.qty(eggsPerCrate) <= 0 || (!l.perKg && l.unitPrice <= 0))) {
       return 'Every added line needs a product, a quantity and a price, or remove it.';
     }
+    final birdProblem = [for (final l in extra) if (l.isBird) birdPricingProblem(l.qty(eggsPerCrate), l.bird)].nonNulls.firstOrNull;
+    if (birdProblem != null) return birdProblem;
     final anyShort = extraLineStock(classes, products).any((x) => x?.short == true);
     if ((anyShort || extraEggLinesShort(classes)) && !overrideStock) {
       return 'One of the added lines asks for more than is in stock. Lower it, or tick "Sell it anyway".';
@@ -607,18 +646,20 @@ class SaleForm {
         'product': product,
         'eggProductId': first.isEggs ? first.eggProductId : null,
         'quantity': first.qty(eggsPerCrate),
-        'unitPrice': first.unitPrice,
+        'unitPrice': first.storedUnitPrice(eggsPerCrate),
         'totalAmount': firstLineAmount,
         ...first.packagedFields(overridden: hasOverride),
+        ...first.birdFields(overridden: hasOverride),
       },
       for (final l in extra)
         {
           'product': (l.product.isEmpty ? product : l.product).trim(),
           'eggProductId': l.isEggs ? l.eggProductId : null,
           'quantity': l.qty(eggsPerCrate),
-          'unitPrice': l.unitPrice,
+          'unitPrice': l.storedUnitPrice(eggsPerCrate),
           'totalAmount': l.total(eggsPerCrate),
           ...l.packagedFields(overridden: hasOverride),
+          ...l.birdFields(overridden: hasOverride),
         },
     ];
     final totals = scaleLineTotals([for (final l in lines) l['totalAmount'] as num], hasOverride ? overrideAmount : null);
@@ -715,6 +756,7 @@ class SaleForm {
       ..size = (first != null ? first['size'] : sale['size'])?.toString()
       ..eggProductId = tIntOrNull(first != null ? first['eggProductId'] : sale['eggProductId']);
     if (l1.eggProductId == 0) l1.eggProductId = null;
+    l1.bird = birdPricingFromLine(first);
     if (egg) {
       final sp = split(first, firstQty);
       if (sp.rewritten) f.packagingRewritten = true;
@@ -746,6 +788,7 @@ class SaleForm {
           pricePerBox: e ? priceOf(l, 'pricePerBox') : null,
           pricePerPiece: e ? priceOf(l, 'pricePerPiece') : null,
           packaging: pk,
+          bird: birdPricingFromLine(l),
         ),
       );
     }

@@ -1,615 +1,305 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../../api/api_client.dart';
-import '../../design/tokens.dart';
-import '../../design/ui/buttons.dart';
-import '../../design/ui/form_section.dart';
-import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 import '../list_screen.dart';
-import '../record_api.dart';
-import '../record_navigation.dart';
+import '../module_registry.dart';
 import '../registry.dart';
-import '../shared/currencies.dart';
-import '../shared/search_picker.dart';
-import 'company_setup_screen.dart';
-import 'poultry_profile_form.dart';
+import 'setup/company_settings_form.dart';
+import 'setup/poultry_setup_tabs.dart';
+import 'setup/setup_embed.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
-/// Poultry → Setup → Company → Farm Setup ("Poultry farm setup"), as
-/// `app/poultry-setup/page.tsx`: one hub, tabbed by setup area. Company
-/// edits the profile and the farm's currency; every other area lists its
-/// records with the web's columns, deletes inline, and adds or edits through
-/// the page's own form — one form per entity, never a second copy.
+
+/// Farm Setup (`/poultry-setup`), as the web's `app/poultry-setup/page.tsx`:
+/// the one place a poultry farm sets itself up.
+///
+///   Farm Setup
+///   ( ) Production Setup  ( ) Business Setup    the section
+///   [tab] [tab] [tab] …                         its tabs
+///   One-line description
+///   the tab's own setup screen                  (the same screen as its page)
+///   [task] [task] [⋯]                 [reload]  task bar, along the bottom
+///
+/// Each tab shows the page's own screen with its title and buttons taken off:
+/// the buttons go on the task bar ([SetupTaskBar]). Changing tab or section
+/// asks first when the open tab holds unsaved edits.
 class FarmSetupScreen extends StatefulWidget {
-  const FarmSetupScreen({super.key, required this.session, required this.company});
+  const FarmSetupScreen({super.key, required this.session, required this.company, this.href = setupPath});
   final Session session;
   final Company company;
+
+  /// The link it was opened from: `?section=` / `?tab=` / an old `?step=`.
+  final String href;
 
   @override
   State<FarmSetupScreen> createState() => _FarmSetupScreenState();
 }
 
-/// One column of a tab's table: header, then how a row shows in it.
-typedef _Col = (String header, String Function(Map<String, dynamic> row) value);
+/// Where each tab's screen lives: its page's route, and the list it shows
+/// when the app has no screen of its own for that route.
+const Map<String, (String href, String? specKey)> setupTabRoutes = {
+  'houses': ('/houses', 'house'),
+  'flock-purchases': ('/flock-batch', null),
+  'flock-groups': ('/flocks', 'flocks'),
+  'products': ('/poultry-products', 'poultry-products'),
+  'feed-formulas': ('/poultry-feed-formulas', 'poultry-feed-formulas'),
+  'egg-settings': ('/business-office/egg-pick-settings', null),
+  'inventory': ('/poultry-supply-purchases', null),
+  'customers': ('/customers', 'customer'),
+  'suppliers': ('/suppliers', 'supplier'),
+  'financial-settings': ('/poultry-financial-settings', null),
+  'cash-accounts': ('/poultry-cash-accounts', null),
+  'drivers': ('/poultry-drivers', 'poultry-drivers'),
+  'vehicles': ('/poultry-vehicles', 'poultry-vehicles'),
+  'routes': ('/poultry-routes', 'poultry-routes'),
+  'staff': ('/poultry-staff', 'poultry-staff'),
+};
 
-class _Tab {
-  const _Tab(this.key, this.label, this.singular, this.icon, this.specKey, this.title, this.columns);
-  final String key;
-  final String label;
-  final String singular;
-  final IconData icon;
-  final String specKey;
-  final String Function(Map<String, dynamic> row) title;
-  final List<_Col> columns;
-}
-
-String _dash(Object? v) => v == null || '$v'.isEmpty ? '—' : '$v';
-String _yesNo(Object? v) => v == true ? 'Yes' : 'No';
-
-/// The web's tabs, in its order, with its columns.
-final _tabs = <_Tab>[
-  _Tab('products', 'Products', 'product', Icons.inventory_2_outlined, 'poultry-products', (p) => _dash(p['name']), [
-    ('Unit', (p) => _dash(p['unit'])),
-    ('Type', (p) => _dash(p['productType'])),
-    ('In stock', (p) => '${p['stockOnHand'] ?? 0}'),
-    ('Active', (p) => _yesNo(p['isActive'])),
-  ]),
-  _Tab('customers', 'Customers', 'customer', Icons.people_outline, 'customer', (c) => _dash(c['name']), [
-    ('Phone', (c) => _dash(c['contactPhone'])),
-    ('Email', (c) => _dash(c['contactEmail'])),
-    ('City', (c) => _dash(c['city'])),
-  ]),
-  _Tab('drivers', 'Drivers', 'driver', Icons.groups_outlined, 'poultry-drivers', (d) => _dash(d['driverName']), [
-    ('Phone', (d) => _dash(d['phoneNumber'])),
-    ('Licence', (d) => _dash(d['licenseNumber'])),
-    ('Commission / crate', (d) => _dash(d['commissionPerCrate'])),
-    ('Active', (d) => _yesNo(d['isActive'])),
-  ]),
-  _Tab('vehicles', 'Vehicles', 'vehicle', Icons.local_shipping_outlined, 'poultry-vehicles', (v) => _dash(v['vehicleName']), [
-    ('Reg #', (v) => _dash(v['registrationNumber'])),
-    ('Type', (v) => _dash(v['vehicleType'])),
-    ('Capacity', (v) => v['capacityCrates'] == null || '${v['capacityCrates']}' == '0' ? '—' : '${v['capacityCrates']} crates'),
-    ('Status', (v) => _dash(v['status'])),
-  ]),
-  _Tab('routes', 'Routes', 'route', Icons.alt_route, 'poultry-routes', (r) => _dash(r['routeName']), [
-    ('Area covered', (r) => _dash(r['areaCovered'])),
-    ('Expected customers', (r) => _dash(r['expectedCustomers'])),
-    ('Expected crates', (r) => _dash(r['expectedCratesSold'])),
-  ]),
-  _Tab('houses', 'Houses', 'house', Icons.business_outlined, 'house', (h) => _dash(h['houseName'] ?? h['name']), [
-    ('Capacity', (h) => _dash(h['capacity'])),
-    ('Location', (h) => _dash(h['location'])),
-  ]),
-  _Tab('flocks', 'Flock groups', 'flock group', Icons.flutter_dash, 'flocks', (f) => _dash(f['name']), [
-    ('Breed', (f) => _dash(f['breed'])),
-    ('Birds', (f) => _dash(f['quantity'])),
-    ('Batch', (f) => _dash(f['batchName'])),
-    ('Active', (f) => _yesNo(f['active'])),
-  ]),
-  _Tab('raw-materials', 'Raw materials & supplies', 'raw material', Icons.inventory_outlined, 'raw-materials',
-      (i) => _dash(i['itemName']), [
-    ('Category', (i) => _dash(i['category'])),
-    ('Unit', (i) => _dash(i['unitOfMeasure'])),
-    ('Stock', (i) => '${i['currentQuantity'] ?? 0}'),
-    ('Min alert', (i) => _dash(i['minimumStockAlert'])),
-    ('Active', (i) => _yesNo(i['isActive'])),
-  ]),
-  _Tab('suppliers', 'Suppliers', 'supplier', Icons.local_shipping_outlined, 'supplier', (s) => _dash(s['name']), [
-    ('Phone', (s) => _dash(s['contactPhone'])),
-    ('Email', (s) => _dash(s['contactEmail'])),
-    ('City', (s) => _dash(s['city'])),
-  ]),
-  _Tab('employees', 'Employees', 'employee', Icons.manage_accounts_outlined, 'admin-company-employees',
-      (e) {
-        final n = '${e['firstName'] ?? ''} ${e['lastName'] ?? ''}'.trim();
-        return n.isNotEmpty ? n : _dash(e['userName'] ?? e['email']);
-      }, [
-    ('Email', (e) => _dash(e['email'])),
-    ('Phone', (e) => _dash(e['phoneNumber'])),
-    ('Role', (e) => e['isAdmin'] == true ? 'Admin' : e['isStaff'] == true ? 'Staff' : '—'),
-  ]),
-];
-
+const _leavePrompt = 'You have unsaved changes on this tab. Leave without saving them?';
+const _reloadPrompt = 'You have unsaved changes on this tab. Reload and lose them?';
 
 class _FarmSetupScreenState extends State<FarmSetupScreen> {
-  String _tab = 'company';
+  final _embed = SetupEmbedController();
+  late SetupLocation _loc = resolveSetupHref(widget.href, allowed: _allowed);
+  int _reloadKey = 0;
+  final _tabKeys = <String, GlobalKey>{};
 
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-setup');
-    final tab = _tabs.where((t) => t.key == _tab).firstOrNull;
-    return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Poultry farm setup')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
-        children: [
-          Text(
-            'Everything the daily flow depends on — products, drivers, houses, flock groups, suppliers, '
-            'staff. Add a row here to make it available in production, sales, deliveries and payroll.',
-            style: TextStyle(fontSize: 13, color: tokens.mutedForeground),
-          ),
-          const SizedBox(height: 14),
-          const Text('Choose setup area', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          _AreaGrid(
-            selected: _tab,
-            areas: [
-              ('company', 'Company', Icons.attach_money),
-              for (final t in _tabs) (t.key, t.label, t.icon),
-            ],
-            onSelect: (k) => setState(() => _tab = k),
-          ),
-          const SizedBox(height: 14),
-          if (tab == null)
-            _CompanyCard(session: widget.session, company: widget.company)
-          else
-            _SetupSection(key: ValueKey(tab.key), tab: tab, session: widget.session, company: widget.company),
-        ],
-      ),
-    );
-  }
-}
-
-/// The web's tab triggers: two to a row on a phone, the active one amber.
-class _AreaGrid extends StatelessWidget {
-  const _AreaGrid({required this.selected, required this.areas, required this.onSelect});
-  final String selected;
-  final List<(String, String, IconData)> areas;
-  final ValueChanged<String> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-    return LayoutBuilder(builder: (context, c) {
-      final w = (c.maxWidth - 8) / 2;
-      return Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final (key, label, icon) in areas)
-            SizedBox(
-              width: w,
-              child: Material(
-                color: key == selected ? const Tone.bg(0xFFFFFBEB) : tokens.card, // amber-50
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: key == selected ? Tone.line(0xFFD97706) : tokens.border),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => onSelect(key),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(icon, size: 17, color: key == selected ? Tone.fg(0xFFD97706) : tokens.mutedForeground),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(label,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: key == selected ? FontWeight.w600 : FontWeight.w400,
-                                color: key == selected ? const Tone.fg(0xFFB45309) : null, // amber-700
-                              )),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      );
-    });
-  }
-}
-
-/// One setup area: count, Open full page, Add, and the rows with Edit and
-/// Delete. Edit and Add open the page's own form.
-class _SetupSection extends StatefulWidget {
-  const _SetupSection({super.key, required this.tab, required this.session, required this.company});
-  final _Tab tab;
-  final Session session;
-  final Company company;
-
-  @override
-  State<_SetupSection> createState() => _SetupSectionState();
-}
-
-class _SetupSectionState extends State<_SetupSection> {
-  List<Map<String, dynamic>>? _rows;
-  String? _error;
-
-  RecordApi? get _api {
-    final spec = PageRegistry.of(widget.tab.specKey);
-    return spec == null ? null : RecordApi(widget.session, spec, widget.company);
-  }
+  /// Which tabs this user may open. The app gates Setup the way its menus
+  /// do: the whole of Farm Setup is for anyone who is not an ordinary
+  /// employee (the web's per-tab flags are all true for them).
+  bool _allowed(String tab) => true;
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final api = _api;
-    if (api == null) return;
-    try {
-      final rows = await api.list();
-      if (mounted) setState(() => _rows = rows);
-    } on ApiException catch (e) {
-      if (mounted) {
-        setState(() {
-          _rows = const [];
-          _error = 'Could not load ${widget.tab.label.toLowerCase()}. ${e.message}';
-        });
-      }
+    _embed.addListener(_onTasks);
+    final loc = _loc;
+    if (loc is SetupRedirect) {
+      // An old link to a page outside Farm Setup (Users & Permissions).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final screen = pageScreens[loc.href];
+        final spec = PageRegistry.of('admin-company-employees');
+        Navigator.of(context).pushReplacement(MaterialPageRoute(
+          builder: (_) => screen != null
+              ? screen(widget.session, widget.company)
+              : spec != null
+                  ? ListScreen(spec: spec, session: widget.session, company: widget.company)
+                  : const SizedBox.shrink(),
+        ));
+      });
     }
   }
 
-  Future<void> _form([Map<String, dynamic>? row]) async {
-    final spec = PageRegistry.of(widget.tab.specKey)!;
-    final opened = openRecordForm(context, session: widget.session, company: widget.company, spec: spec, row: row);
-    if (opened == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Open the full page to change this.')));
-      return;
-    }
-    if (await opened == true) _load();
-  }
-
-  Future<void> _openPage() async {
-    final spec = PageRegistry.of(widget.tab.specKey)!;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ListScreen(spec: spec, session: widget.session, company: widget.company),
-    ));
-    _load();
-  }
-
-  Future<void> _delete(Map<String, dynamic> row) async {
-    final t = widget.tab;
-    final api = _api!;
-    final messenger = ScaffoldMessenger.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete ${t.singular}?'),
-        content: Text('${t.title(row)} will be permanently removed. Records that reference it may stop resolving.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Tone.button(Theme.of(ctx).colorScheme.error)),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    final id = api.idIn(row);
-    if (id == null) return;
-    try {
-      await api.remove(id);
-      messenger.showSnackBar(SnackBar(content: Text('${t.label} deleted · ${t.title(row)}')));
-      _load();
-    } on ApiException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Delete failed. ${e.message}')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-    final t = widget.tab;
-    final rows = _rows;
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(children: [
-                  Icon(t.icon, size: 20, color: Tone.fg(0xFFD97706)),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(t.label, style: const TextStyle(fontWeight: FontWeight.w600))),
-                  if (rows != null) AppBadge(label: '${rows.length}'),
-                ]),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(
-                    child: AppButton(
-                      label: 'Open full page',
-                      icon: Icons.edit_outlined,
-                      variant: AppButtonVariant.outline,
-                      size: AppButtonSize.sm,
-                      fullWidth: true,
-                      onPressed: _openPage,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: AppButton(
-                      label: 'Add ${t.singular}',
-                      icon: Icons.add,
-                      size: AppButtonSize.sm,
-                      fullWidth: true,
-                      onPressed: () => _form(),
-                    ),
-                  ),
-                ]),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: tokens.border),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            )
-          else if (rows == null)
-            const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()))
-          else if (rows.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                'No ${t.label.toLowerCase()} yet. Tap Add ${t.singular} above to create your first one.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: tokens.mutedForeground),
-              ),
-            )
-          else
-            for (final r in rows) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(t.title(r), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    for (final (header, value) in t.columns)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Row(children: [
-                          SizedBox(
-                            width: 140,
-                            child: Text(header, style: TextStyle(fontSize: 12.5, color: tokens.mutedForeground)),
-                          ),
-                          Expanded(child: Text(value(r), style: const TextStyle(fontSize: 13))),
-                        ]),
-                      ),
-                    const SizedBox(height: 8),
-                    Row(children: [
-                      Expanded(
-                        child: AppButton(
-                          label: 'Edit',
-                          icon: Icons.edit_outlined,
-                          variant: AppButtonVariant.outline,
-                          size: AppButtonSize.sm,
-                          fullWidth: true,
-                          onPressed: () => _form(r),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: AppButton(
-                          label: 'Delete',
-                          icon: Icons.delete_outline,
-                          variant: AppButtonVariant.outline,
-                          size: AppButtonSize.sm,
-                          fullWidth: true,
-                          onPressed: () => _delete(r),
-                        ),
-                      ),
-                    ]),
-                  ],
-                ),
-              ),
-              Divider(height: 1, color: tokens.border),
-            ],
-        ],
-      ),
-    );
-  }
-}
-
-/// The Company tab: the profile plus the farm's currency (code, symbol,
-/// whether amounts show it). Sets the company up the first time.
-class _CompanyCard extends StatefulWidget {
-  const _CompanyCard({required this.session, required this.company});
-  final Session session;
-  final Company company;
-
-  @override
-  State<_CompanyCard> createState() => _CompanyCardState();
-}
-
-class _CompanyCardState extends State<_CompanyCard> {
-  final _form = PoultryProfileForm();
-  final _symbol = TextEditingController(text: 'GHC');
-  // Clearing the box restores the currency's standard symbol: hiding is the
-  // switch's job, and a blank symbol used to save as empty / "GHC".
-  late final FocusNode _symbolFocus = FocusNode()
-    ..addListener(() {
-      if (!_symbolFocus.hasFocus && _symbol.text.trim().isEmpty) _symbol.text = currencySymbolFor(_code);
-    });
-  String _code = 'GHS';
-  bool _showSymbol = true;
-  bool _loading = true;
-  bool _saving = false;
-
-  String get _farm => Uri.encodeComponent(widget.company.farmId);
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
+  void _onTasks() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _form.dispose();
-    _symbol.dispose();
-    _symbolFocus.dispose();
+    _embed.removeListener(_onTasks);
+    _embed.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    Map? settings;
-    try {
-      final s = await widget.session.farmClient.get('/api/Water/farm-settings?farmId=$_farm');
-      if (s is Map) settings = s;
-    } catch (_) {}
-    try {
-      await loadPoultryProfile(widget.session, widget.company, _form);
-    } catch (_) {}
-    if (!mounted) return;
-    setState(() {
-      if (settings != null) {
-        _code = '${settings['currencyCode'] ?? 'GHS'}';
-        _symbol.text = '${settings['currencySymbol'] ?? _code}';
-        _showSymbol = settings['showCurrencySymbol'] != false;
-      } else if (_form.isSetUp && _form.currency.isNotEmpty) {
-        // A company set up before the Farms row carried a currency: seed the
-        // picker from the profile, as the web does.
-        _code = _form.currency.toUpperCase();
-        _symbol.text = currencySymbolFor(_code);
-      }
-      _loading = false;
+  Future<bool> _confirm(String message) async {
+    if (!_embed.anyDirty) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  /// Radios and tabs: ask first when the open view holds unsaved edits. A
+  /// cancelled confirm changes nothing.
+  Future<void> _go(SetupSection section, [String? tab]) async {
+    final target = tab ?? setupSections[section]!.tabs.where((t) => _allowed(t.key)).firstOrNull?.key;
+    if (target == null) return;
+    final now = _loc;
+    if (now is SetupAt && now.tab == target) return;
+    if (!await _confirm(_leavePrompt) || !mounted) return;
+    _embed.clear();
+    setState(() => _loc = SetupAt(section, target));
+    // On a phone the tab row scrolls sideways: keep the open tab in view.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _tabKeys[target]?.currentContext;
+      if (ctx != null) Scrollable.ensureVisible(ctx, alignment: .5, duration: const Duration(milliseconds: 200));
     });
   }
 
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    final messenger = ScaffoldMessenger.of(context);
-    final wasNew = !_form.isSetUp;
-    try {
-      // The Currency section is the single control; the profile mirrors it.
-      final payload = {..._form.payload(), 'defaultCurrency': _code};
-      await savePoultryProfile(widget.session, widget.company, _form, payload);
-      messenger.showSnackBar(SnackBar(
-          content: Text(wasNew ? 'Poultry Company set up. Default cash accounts seeded.' : 'Company settings saved')));
-      // The profile saved; a currency-sync failure shouldn't lose that (as the
-      // web's Poultry Company Setup). The server now keeps this route Water-only.
-      try {
-        await widget.session.farmClient.put('/api/Water/farm-settings/currency?farmId=$_farm', body: {
-          'currencyCode': _code,
-          // An empty symbol means "the currency's own", never a hard-coded GHC.
-          'currencySymbol': _symbol.text.trim().isNotEmpty ? _symbol.text.trim() : currencySymbolFor(_code),
-          'showCurrencySymbol': _showSymbol,
-        });
-      } on ApiException {
-        messenger
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(
-            content: Text('Currency not applied app-wide. The profile saved, but the display currency could not be updated.')));
-      }
-    } on ApiException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Save failed. ${e.message}')));
-    } finally {
-      if (mounted) setState(() => _saving = false);
+  /// Reload remounts the open view, so it fetches its data again.
+  Future<void> _reload() async {
+    if (!await _confirm(_reloadPrompt) || !mounted) return;
+    _embed.clear();
+    setState(() => _reloadKey++);
+  }
+
+  Widget _view(String tab) {
+    if (tab == 'company-settings') {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        child: CompanySettingsForm(session: widget.session, company: widget.company),
+      );
     }
+    final route = setupTabRoutes[tab];
+    if (route == null) return const SizedBox.shrink();
+    final screen = pageScreens[route.$1];
+    if (screen != null) return screen(widget.session, widget.company);
+    final spec = route.$2 == null ? null : PageRegistry.of(route.$2!);
+    if (spec == null) return const SizedBox.shrink();
+    return ListScreen(spec: spec, session: widget.session, company: widget.company);
   }
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.tokens;
-    final header = Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      child: Row(children: [
-        const Icon(Icons.business_outlined, size: 20, color: Tone.fg(0xFFD97706)),
-        const SizedBox(width: 8),
-        const Text('Company', style: TextStyle(fontWeight: FontWeight.w600)),
-        if (_form.isSetUp) ...[const SizedBox(width: 8), const AppBadge(label: 'Set up')],
-        const Spacer(),
-        AppButton(
-          label: 'Open full page',
-          icon: Icons.edit_outlined,
-          variant: AppButtonVariant.outline,
-          size: AppButtonSize.sm,
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => PoultryCompanySetupScreen(session: widget.session, company: widget.company),
-          )),
-        ),
-      ]),
-    );
-    if (_loading) {
-      return AppCard(
-        padding: EdgeInsets.zero,
-        child: Column(children: [header, const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator())]),
-      );
-    }
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          header,
-          Divider(height: 1, color: tokens.border),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                FormSection(title: 'Business details', color: SectionColor.amber, children: _form.fields(setState)),
-                const SizedBox(height: 12),
-                FormSection(title: 'Currency', color: SectionColor.amber, children: [
-                  AppField(
-                    label: 'Currency',
-                    child: CurrencyPickerField(
-                      code: _code,
-                      // Picking fills the standard symbol; the field stays
-                      // editable, since many write "GHC" rather than "₵".
-                      onChanged: (o) => setState(() {
-                        _code = o.code;
-                        _symbol.text = o.symbol;
-                      }),
-                    ),
-                  ),
-                  AppField(
-                    label: 'Symbol',
-                    hint: 'To hide it, turn off "Show symbol on amounts".',
-                    child: AppInput(
-                      key: const ValueKey('currency-symbol'),
-                      controller: _symbol,
-                      focusNode: _symbolFocus,
-                      hintText: currencySymbolFor(_code),
-                      inputFormatters: [LengthLimitingTextInputFormatter(10)],
-                    ),
-                  ),
-                  AppField(
-                    label: '',
-                    full: true,
-                    child: AppSwitchRow(
-                      label: 'Show symbol on amounts',
-                      value: _showSymbol,
-                      onChanged: (v) => setState(() => _showSymbol = v),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                AppButton(
-                  label: _saving ? 'Saving…' : _form.isSetUp ? 'Save changes' : 'Set up Poultry Company',
-                  icon: Icons.save_outlined,
-                  size: AppButtonSize.lg,
-                  fullWidth: true,
-                  busy: _saving,
-                  onPressed: _saving ? null : _save,
-                ),
-              ],
-            ),
+    final lead = sidebarLeading(context, widget.session, widget.company, href: setupPath);
+    final loc = _loc;
+    return Scaffold(
+      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Farm Setup')),
+      body: switch (loc) {
+        SetupNone() => const Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('You do not have access to any part of Farm Setup. Ask the account owner or an admin.',
+                textAlign: TextAlign.center, style: TextStyle(color: _slate500)),
           ),
-        ],
-      ),
+        SetupRedirect() => const Center(child: CircularProgressIndicator()),
+        SetupAt(:final section, :final tab) => _body(section, tab),
+      },
     );
   }
+
+  Widget _body(SetupSection section, String tab) {
+    final def = setupSections[section]!;
+    final tabs = def.tabs.where((t) => _allowed(t.key)).toList();
+    final current = def.tabs.firstWhere((t) => t.key == tab);
+    final visibleSections = [
+      for (final s in SetupSection.values)
+        if (setupSections[s]!.tabs.any((t) => _allowed(t.key))) s,
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // Section radios, under the title.
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        child: Wrap(spacing: 16, runSpacing: 0, children: [
+          for (final s in visibleSections) _radio(s, s == section),
+        ]),
+      ),
+      Container(
+        margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+        padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+        decoration: const BoxDecoration(
+          color: Tone.bg(0xFFFFFFFF),
+          border: Border(
+            top: BorderSide(color: _slate200),
+            left: BorderSide(color: _slate200),
+            right: BorderSide(color: _slate200),
+          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // Underlined text tabs; they scroll sideways on a phone.
+          Container(
+            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _slate200))),
+            child: SingleChildScrollView(
+              key: const ValueKey('setup-tab-row'),
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [for (final t in tabs) _tab(section, t, t.key == tab)]),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
+            child: Text(current.description, key: const ValueKey('setup-tab-description'), style: const TextStyle(fontSize: 13.5, color: _slate600)),
+          ),
+        ]),
+      ),
+      Expanded(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: const BoxDecoration(
+            color: Tone.bg(0xFFFFFFFF),
+            border: Border(left: BorderSide(color: _slate200), right: BorderSide(color: _slate200), bottom: BorderSide(color: _slate200)),
+          ),
+          child: SetupEmbed(
+            controller: _embed,
+            // A new tab, company or Reload remounts the view, so it loads fresh
+            // data and no late reply from before can land in it.
+            child: KeyedSubtree(key: ValueKey('${widget.company.farmId}:$tab:$_reloadKey'), child: _view(tab)),
+          ),
+        ),
+      ),
+      _taskBar(),
+    ]);
+  }
+
+  Widget _radio(SetupSection s, bool on) => InkWell(
+        key: ValueKey('setup-section-${s.name}'),
+        onTap: on ? null : () => _go(s),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            // The web's native radio, drawn as an icon (the whole row is the tap target).
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Icon(
+                on ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                size: 18,
+                color: on ? const Tone.fg(0xFFD97706) : _slate500,
+              ),
+            ),
+            Text(setupSections[s]!.label,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: on ? const Tone.fg(0xFFB45309) : _slate800)),
+          ]),
+        ),
+      );
+
+  Widget _tab(SetupSection section, SetupTab t, bool on) => InkWell(
+        key: _tabKeys.putIfAbsent(t.key, () => GlobalKey()),
+        onTap: on ? null : () => _go(section, t.key),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: on ? const Tone.line(0xFFD97706) : const Tone.line(0x00000000), width: 2)),
+          ),
+          child: Text(
+            t.label,
+            style: TextStyle(fontSize: 14, fontWeight: on ? FontWeight.w500 : FontWeight.w400, color: on ? const Tone.fg(0xFFB45309) : _slate600),
+          ),
+        ),
+      );
+
+  /// The open tab's buttons, fixed along the bottom; what does not fit folds
+  /// into "More". Then a divider and Reload.
+  Widget _taskBar() => Container(
+        key: const ValueKey('setup-task-bar'),
+        padding: EdgeInsets.fromLTRB(16, 8, 8, 8 + MediaQuery.paddingOf(context).bottom),
+        decoration: const BoxDecoration(
+          color: Tone.bg(0xFF1E293B),
+          border: Border(top: BorderSide(color: Tone.line(0xFF0F172A))),
+          boxShadow: [BoxShadow(color: Tone.bg(0x1F0F172A), blurRadius: 12, offset: Offset(0, -4))],
+        ),
+        child: Row(children: [
+          Expanded(child: TaskBarRow(tasks: _embed.tasks, dark: true, align: MainAxisAlignment.center)),
+          Container(width: 1, height: 24, color: const Tone.line(0x33FFFFFF)),
+          IconButton(
+            key: const ValueKey('setup-reload'),
+            tooltip: 'Reload this tab',
+            onPressed: _reload,
+            icon: const Icon(Icons.refresh, size: 18, color: Tone.fg(0xFFCBD5E1)),
+          ),
+        ]),
+      );
 }
+
+const _slate200 = Tone.line(0xFFE2E8F0);
+const _slate500 = Tone.fg(0xFF64748B);
+const _slate600 = Tone.fg(0xFF475569);
+const _slate800 = Tone.fg(0xFF1E293B);

@@ -232,7 +232,7 @@ void main() {
     expect(find.textContaining('Choose the batch'), findsWidgets);
     clearToasts(tester);
     await choose(tester, 'Choose the batch', 'B-001 — Layers', within: _dialog);
-    await choose(tester, 'Choose the flock', 'Pen 1 · 480 birds', within: _dialog);
+    await choose(tester, 'Choose the flock', 'Pen 1 — 480 birds available', within: _dialog);
     expect(find.text('480 → 475', findRichText: true), findsWidgets, reason: 'the flock and the farm');
     expect(find.text('2 → 7', findRichText: true), findsOneWidget, reason: 'kept as Dead Birds');
     await choose(tester, 'Keep in Dead Bird inventory', 'Already disposed', within: _dialog);
@@ -242,6 +242,7 @@ void main() {
     final b = lastBody(a, '/api/Poultry/stock/manual-movements');
     expect((b['poultryProductId'], b['batchId'], b['flockId'], b['movementType'], b['quantity'], b['reason'], b['disposition'], b['unitCost']),
         (2, 1, 7, 'Damage/Loss', 5, 'Historical Mortality', 'Disposed', null));
+    expect(b['scope'], 'Flock', reason: 'A5 (413): the pool is explicit');
     expect(a.writes.where((w) => w.url.path == '/api/Poultry/stock/birds/adjustments'), isEmpty);
   });
 
@@ -262,9 +263,9 @@ void main() {
     await tester.tap(find.descendant(of: _dialog, matching: find.text('Choose the flock')));
     await tester.pumpAndSettle();
     final closed = tester.widget<DropdownMenuItem<String>>(
-        find.ancestor(of: find.text('Old pen · closed').last, matching: find.byType(DropdownMenuItem<String>)));
+        find.ancestor(of: find.text('Old pen — closed').last, matching: find.byType(DropdownMenuItem<String>)));
     expect(closed.enabled, isFalse);
-    await tester.tap(find.text('Not placed in a flock · 20 birds').last);
+    await tester.tap(find.text('Not placed in a flock — 20 live birds').last);
     await tester.pumpAndSettle();
     await choose(tester, 'Increase', 'Decrease', within: _dialog);
     await choose(tester, 'Choose the reason', 'Cull', within: _dialog);

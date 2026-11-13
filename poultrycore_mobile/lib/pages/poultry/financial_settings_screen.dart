@@ -9,6 +9,7 @@ import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
+import 'setup/setup_embed.dart';
 /// Poultry → Setup → Company → Financial Settings ("Cost Recognition"), as
 /// `app/poultry-financial-settings/page.tsx`: when feed costs and when
 /// medication costs reach Profit & Loss, chosen independently, with an
@@ -54,6 +55,7 @@ const _deferredNote = 'A deferred purchase holds its cost as inventory value and
 
 class _FinancialSettingsScreenState extends State<FinancialSettingsScreen> {
   Map? _saved;
+  final Object _dirtyKey = Object();
   String _feed = purchased;
   String _medication = purchased;
   DateTime? _from;
@@ -138,13 +140,29 @@ class _FinancialSettingsScreenState extends State<FinancialSettingsScreen> {
     final tokens = context.tokens;
     final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-financial-settings');
     final now = DateTime.now();
+    // Farm Setup asks before leaving a tab with unsaved changes.
+    reportSetupDirty(context, _dirtyKey, !_loading && _dirty);
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Cost Recognition')),
+      appBar: isSetupEmbedded(context) ? null : AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Cost Recognition')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
               children: [
+                // Farm Setup: Save and Discard on its task bar. First in the
+                // list so it is always built, wherever the list is scrolled.
+                if (isSetupEmbedded(context))
+                  SetupTaskBar(tasks: [
+                    SetupTask(
+                      id: 'save',
+                      label: _saving ? 'Saving…' : 'Save changes',
+                      icon: Icons.save_outlined,
+                      primary: true,
+                      onTap: _save,
+                      disabled: !_dirty || _saving,
+                    ),
+                    SetupTask(id: 'discard', label: 'Discard', icon: Icons.undo, onTap: _load, disabled: _saving, hidden: !_dirty),
+                  ]),
                 Text(
                   'Choose when inventory costs affect Profit & Loss. Physical stock is tracked either way — '
                   'this only decides when a cost counts as a cost.',
@@ -248,6 +266,9 @@ class _FinancialSettingsScreenState extends State<FinancialSettingsScreen> {
                   ],
                 ],
                 const SizedBox(height: 16),
+                // In Farm Setup, Save and Discard are on the task bar (handed
+                // over from the top of this list, which is always built).
+                if (!isSetupEmbedded(context))
                 Row(
                   children: [
                     Expanded(

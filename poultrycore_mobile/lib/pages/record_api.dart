@@ -97,7 +97,8 @@ class RecordApi {
 
   /// Endpoints that need userId on writes check it on DELETE too (the web
   /// sends it for flocks and houses), so it goes in the query here.
-  Future<void> remove(Object id) => _client.delete(
+  /// The server's answer, for pages that report what it did.
+  Future<dynamic> remove(Object id) => _client.delete(
       '$_path/$id?farmId=${Uri.encodeComponent(company.farmId)}'
       '${spec.needsUserId ? '&userId=${Uri.encodeComponent(session.tokens.userId ?? '')}' : ''}');
 }

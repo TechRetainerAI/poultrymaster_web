@@ -13,6 +13,8 @@ import '../reports/report_format.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'sale_reversal.dart' show customerCreditTotal;
+import '../bird_pricing.dart';
+import '../flock_type.dart' show isBroilerBatch, isBroilerFlock, shouldSwitchToChicken, broilerSaleProduct;
 import 'sales_logic.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
@@ -224,6 +226,8 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
 
   /// What the Unit price box shows for the chosen Price unit.
   num _shownPrice(SaleItem l) {
+    // 401: per kg, the box is the price per kg.
+    if (l.perKg) return l.bird.pricePerKg ?? 0;
     if (!l.isEggs) return l.unitPrice;
     return switch (_unitOf(l)) {
       'Box' => effectiveBoxPrice(l.unitPrice, l.pricePerBox, _pk),
@@ -235,6 +239,11 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
   /// The typed price sets the other two, so a box, a crate and an egg are
   /// always priced from the same figure (the crate price kept to the cent).
   void _setPrice(SaleItem l, num v) {
+    if (l.perKg) {
+      l.bird = l.bird.copyWith(pricePerKg: () => v);
+      f.syncFirstPerKg();
+      return;
+    }
     final unit = _unitOf(l);
     if (!l.isEggs || unit == 'Crate') {
       l.unitPrice = v;
@@ -255,6 +264,112 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
 
   void _toast(String msg) => trackerToast(context, 'Almost there', description: msg);
 
+  // ------------------------------------------------ 401: broilers on the form
+
+  /// Broiler birds are sold as Chicken. Picking a broiler flock or batch
+  /// switches line 1's product, only away from eggs or a blank product.
+  void _chickenForBroiler(bool broiler) {
+    if (!broiler || !shouldSwitchToChicken(f.first.product)) return;
+    f.setProduct(f.first, broilerSaleProduct, _classes, widget.products);
+    _sync(f.first);
+  }
+
+  /// Flocks still inside a meat withdrawal period on the sale date
+  /// (`GET /Sale/meat-withdrawal`). A warning the seller must acknowledge,
+  /// never a refusal: the farm decides.
+  List<Map> _withdrawals = const [];
+  bool _ackWithdrawal = false;
+  String? _withdrawalFor;
+  (int, int?)? _ackFor;
+
+  bool get _anyBirdLine => f.items.any((l) => l.isBird);
+
+  List<Map> get _shownWithdrawals {
+    if (!_anyBirdLine) return const [];
+    final flock = f.flockId ?? 0;
+    return flock != 0 ? _withdrawals.where((w) => tIntOrNull(w['flockId']) == flock).toList() : _withdrawals;
+  }
+
+  /// Re-asks when the date or "is a bird being sold" changes; untick when the
+  /// list or the flock changes. Run from build, as the web's effects run.
+  void _watchWithdrawals() {
+    final key = _anyBirdLine && f.saleDate.isNotEmpty ? f.saleDate : null;
+    if (key != _withdrawalFor) {
+      _withdrawalFor = key;
+      if (key == null) {
+        _withdrawals = const [];
+      } else {
+        widget.session.farmClient
+            .get('/api/Sale/meat-withdrawal', query: {'farmId': widget.company.farmId, 'date': key.length >= 10 ? key.substring(0, 10) : key})
+            .then((res) {
+              if (mounted && _withdrawalFor == key) setState(() => _withdrawals = rowsOf(res));
+            })
+            .catchError((Object _) {
+              // A warning that cannot load must not block selling.
+            });
+      }
+    }
+    final ack = (_shownWithdrawals.length, f.flockId);
+    if (ack != _ackFor) {
+      _ackFor = ack;
+      _ackWithdrawal = false;
+    }
+  }
+
+  static String _localDate(Object? iso) {
+    final d = DateTime.tryParse('${iso ?? ''}'.split('T').first);
+    String two(int n) => n.toString().padLeft(2, '0');
+    return d == null ? '${iso ?? ''}' : '${two(d.day)}/${two(d.month)}/${d.year}';
+  }
+
+  Widget _withdrawalBanner() {
+    final list = _shownWithdrawals;
+    return Container(
+      key: const ValueKey('meat-withdrawal'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: TColors.amber50,
+        border: Border.all(color: const Tone.line(0xFFFCD34D)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Icon(Icons.warning_amber_rounded, size: 16, color: Tone.fg(0xFF78350F)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('${(f.flockId ?? 0) != 0 ? 'This flock is' : 'Some flocks are'} still inside a meat withdrawal period',
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Tone.fg(0xFF78350F))),
+            const SizedBox(height: 4),
+            for (final w in list)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text.rich(
+                  TextSpan(children: [
+                    const TextSpan(text: '• '),
+                    TextSpan(text: tStr(w['flockName']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    TextSpan(
+                        text: ': ${tStr(w['itemName'])}, last given ${_localDate(w['lastDoseDate'])}, '
+                            'meat withdrawal until ${_localDate(w['withdrawalUntil'])}'),
+                  ]),
+                  style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF78350F)),
+                ),
+              ),
+            const SizedBox(height: 4),
+            _checkLine(
+              _ackWithdrawal,
+              (v) => setState(() => _ackWithdrawal = v),
+              const Text('I have checked these birds can be sold. Record the sale anyway.',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF78350F))),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
   Future<void> _save() async {
     if (_saving) return;
     final userId = widget.session.tokens.userId;
@@ -264,7 +379,11 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
       return;
     }
     final sp = f.firstStockProduct(widget.products);
-    final msg = f.validate(available: f.firstAvailable(widget.products), stockUnits: stockUnitLabel(sp));
+    final msg = f.validate(
+      available: f.firstAvailable(widget.products),
+      stockUnits: stockUnitLabel(sp),
+      withdrawalUnacknowledged: _shownWithdrawals.isNotEmpty && !_ackWithdrawal,
+    );
     if (msg != null) return _toast(msg);
     if (!f.noMoneyNow && f.cashAccountId == null) {
       trackerToast(context, 'Cash account required', description: 'Choose which cash account this sale is received into.', error: true);
@@ -470,6 +589,62 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
           _small('1 Crate = ${_pk.eggsPerCrate} Eggs'),
           if (l.loose > 0) _small('Pieces charged pro rata from the crate price'),
         ],
+      ]),
+    );
+  }
+
+  /// 401: the live weight. Required per kg; per bird it is optional and feeds
+  /// the flock's kg-sold and feed-conversion figures.
+  Widget _birdPanel(SaleItem l) {
+    final bp = l.bird;
+    final avg = avgKgPerBird(l.quantity, bp.liveWeightKg);
+    final total = l.total(_epc);
+    final kgCtl = _ctl.putIfAbsent('${l.key}:kg', () => TextEditingController(text: bp.liveWeightKg == null ? '' : _jsNum(bp.liveWeightKg!)));
+    return Container(
+      key: ValueKey('${l.key}:bird'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: const Tone.bg(0xB3F0F9FF), border: Border.all(color: const Tone.line(0xFFE0F2FE)), borderRadius: BorderRadius.circular(6)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(6)),
+            child: const Icon(Icons.scale_outlined, size: 16, color: Tone.fg(0xFF0369A1)),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 144,
+            child: _label(
+              'Live weight (kg)${bp.perKg ? ' *' : ''}',
+              color: TColors.slate600,
+              _num(kgCtl, (v) => setState(() {
+                final kg = num.tryParse(v);
+                l.bird = l.bird.copyWith(liveWeightKg: () => v.isEmpty ? null : (kg == null || kg < 0 ? 0 : kg));
+                f.syncFirstPerKg();
+              }), decimal: true, hint: bp.perKg ? '0.0' : 'Optional', key: ValueKey('${l.key}:kg')),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        if (avg != null) _small('Average ${avg.toStringAsFixed(2)} kg a bird', color: TColors.slate600),
+        if (bp.perKg)
+          Text.rich(
+            TextSpan(children: [
+              TextSpan(text: '${fmtNum(bp.liveWeightKg ?? 0, 3)} kg × ${_money(bp.pricePerKg ?? 0)} = '),
+              TextSpan(text: _money(total), style: const TextStyle(fontWeight: FontWeight.w700)),
+              if (l.quantity > 0) TextSpan(text: ' · ${_money(perBirdPrice(total, l.quantity))} a bird'),
+            ]),
+            key: ValueKey('${l.key}:bird-sum'),
+            style: const TextStyle(fontSize: 12, color: TColors.slate600),
+          )
+        else
+          _small(
+            (bp.liveWeightKg ?? 0) > 0
+                ? "Weight kept for the flock's kg sold and feed conversion."
+                : 'Add the weight to track kg sold and feed conversion.',
+            color: TColors.slate600,
+          ),
       ]),
     );
   }
@@ -698,9 +873,13 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                       )
                     else
                       _label(
-                        'Quantity',
+                        // 401: a live-bird line counts birds.
+                        l.isBird ? 'Birds' : 'Quantity',
                         color: TColors.slate500,
-                        _num(_c(l, 'qty', l.quantity), (v) => setState(() => l.quantity = num.tryParse(v) ?? 0), decimal: true),
+                        _num(_c(l, 'qty', l.quantity), (v) => setState(() {
+                          l.quantity = num.tryParse(v) ?? 0;
+                          f.syncFirstPerKg();
+                        }), decimal: true, key: ValueKey('${l.key}:qty')),
                       ),
                     const SizedBox(height: 10),
                     Row(
@@ -724,7 +903,24 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                           child: _label(
                             'Price unit',
                             color: TColors.slate500,
-                            egg
+                            l.isBird
+                                ? AppSelect<BirdPricingBasis>(
+                                    key: ValueKey('${l.key}:bird-unit'),
+                                    value: l.bird.basis,
+                                    items: const [
+                                      AppSelectItem(value: BirdPricingBasis.perBird, label: 'Per bird'),
+                                      AppSelectItem(value: BirdPricingBasis.perKg, label: 'Per kg'),
+                                    ],
+                                    onChanged: (v) {
+                                      if (v == null) return;
+                                      setState(() {
+                                        l.bird = l.bird.copyWith(basis: v);
+                                        f.syncFirstPerKg();
+                                        _sync(l);
+                                      });
+                                    },
+                                  )
+                                : egg
                                 ? AppSelect<String>(
                                     key: ValueKey('${l.key}:unit'),
                                     value: _unitOf(l),
@@ -766,6 +962,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                         ),
                       ],
                     ),
+                    if (l.isBird) ...[const SizedBox(height: 8), _birdPanel(l)],
                     if (egg && eggs > 0) ...[const SizedBox(height: 8), _amountPanel(l, eggs)],
                     if (first) ...[const SizedBox(height: 6), _stockNotice()],
                     if (!first && stock != null) ...[
@@ -908,6 +1105,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _watchWithdrawals();
     final fix = widget.correcting;
     final customerValue = f.showNewCustomerInput ? '__OTHER__' : (f.customerName.isEmpty ? null : f.customerName);
     final customerNames = <String>[];
@@ -1051,6 +1249,8 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                   f.batchId = v ?? 0;
                   // A flock from another batch no longer fits: back to All flocks.
                   if (f.batchId != 0 && (f.flockId ?? 0) != 0 && batchOfFlock(widget.flocks, f.flockId) != f.batchId) f.flockId = 0;
+                  final breed = _batches.where((b) => tIntOrNull(b['batchId']) == f.batchId).firstOrNull?['breed'];
+                  _chickenForBroiler(isBroilerBatch(f.batchId, widget.flocks, breed?.toString()));
                 }),
               ),
             ),
@@ -1076,6 +1276,8 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                   // Picking a flock picks its batch too.
                   final b = batchOfFlock(widget.flocks, f.flockId);
                   if ((f.flockId ?? 0) != 0 && b != 0) f.batchId = b;
+                  final fl = widget.flocks.where((x) => tIntOrNull(x['flockId']) == f.flockId).firstOrNull;
+                  _chickenForBroiler((f.flockId ?? 0) != 0 && isBroilerFlock(fl));
                 }),
               ),
             ),
@@ -1109,6 +1311,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
               ],
             ),
             [
+              if (_shownWithdrawals.isNotEmpty) _withdrawalBanner(),
               for (var i = 0; i < f.items.length; i++) _line(i + 1, f.items[i], i == 0 ? null : stock[i - 1]),
               if (anyShort && f.firstShortfall(widget.products) == 0)
                 Container(

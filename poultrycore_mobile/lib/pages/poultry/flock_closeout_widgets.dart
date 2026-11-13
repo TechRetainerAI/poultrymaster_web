@@ -9,7 +9,9 @@ import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../shared/business_dates.dart';
+import 'bird_pricing.dart' show avgKgPerBird;
 import 'flock_closeout_logic.dart';
+import 'flock_type.dart' show isBroilerFlock;
 import 'reports/report_format.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, jsNum;
 import 'trackers/tracker_widgets.dart';
@@ -31,6 +33,14 @@ class FlockCloseoutApi {
   Future<Object?> context(int flockId) =>
       _api.get('/api/flock-closeout/$flockId/context', query: {'userId': userId, 'farmId': farmId});
   Future<Object?> history(int flockId) => _api.get('/api/flock-closeout/$flockId/history', query: {'farmId': farmId});
+
+  /// 402: the meat-bird figures (fnflock_broilerkpis), built on the lifetime
+  /// summary so cost and profit agree with it. Null = not knowable yet.
+  Future<Object?> broilerKpis({int? flockId, bool broilersOnly = false}) => _api.get('/api/flock-closeout/broiler-kpis', query: {
+        'farmId': farmId,
+        if (flockId != null) 'flockId': '$flockId',
+        if (broilersOnly) 'broilersOnly': 'true',
+      });
   Future<Object?> close(int flockId, Map<String, dynamic> body) =>
       _api.post('/api/flock-closeout/$flockId', query: {'farmId': farmId}, body: body);
   Future<Object?> reopen(int flockId, String reason, bool reverseSales) => _api.post('/api/flock-closeout/$flockId/reverse',
@@ -174,8 +184,13 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
         _loadError = (err ?? '').isNotEmpty ? err! : "Could not load this flock's bird position.";
       } else {
         _context = ctx;
-        _reasonChoice = closeoutReasons.first;
-        _draft = CloseoutDraft(closedDate: _day(_context!['businessDate']) == '—' ? '' : _day(_context!['businessDate']));
+        // 403: a broiler flock ends at market, not at the end of lay.
+        final firstReason = _reasons.first;
+        _reasonChoice = firstReason;
+        _draft = CloseoutDraft(
+          closedDate: _day(_context!['businessDate']) == '—' ? '' : _day(_context!['businessDate']),
+          reason: firstReason,
+        );
       }
       _customers = rowsOf(results[1]);
       _cash = [for (final a in rowsOf(results[2])) if (a['isActive'] == true) a];
@@ -187,6 +202,77 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
     if (_cash.isEmpty) return null;
     final main = _cash.where((a) => tStr(a['accountName']).trim().toLowerCase() == 'main cash account');
     return tIntOrNull((main.isNotEmpty ? main.first : _cash.first)['poultryCashAccountId']);
+  }
+
+  bool get _broiler => isBroilerFlock(_context?['flock'] is Map ? _context!['flock'] as Map : null);
+  List<String> get _reasons => _broiler ? broilerCloseoutReasons : closeoutReasons;
+
+  // 401: meat withdrawal on the closing date, for this flock's sales.
+  List<Map> _withdrawals = const [];
+  bool _ackWithdrawal = false;
+  String? _withdrawalFor;
+  int _ackLen = 0;
+
+  /// Re-asks when the closing date changes; unticks when the list changes.
+  /// Run from build, as the web's effects run.
+  void _watchWithdrawals() {
+    final date = _context == null ? null : (_draft.closedDate.isEmpty ? null : _draft.closedDate);
+    if (date != _withdrawalFor) {
+      _withdrawalFor = date;
+      if (date == null) {
+        _withdrawals = const [];
+      } else {
+        widget.session.farmClient
+            .get('/api/Sale/meat-withdrawal', query: {'farmId': _api.farmId, 'date': date.length >= 10 ? date.substring(0, 10) : date})
+            .then((res) {
+              if (!mounted || _withdrawalFor != date) return;
+              setState(() => _withdrawals = [for (final w in rowsOf(res)) if (tIntOrNull(w['flockId']) == widget.flockId) w]);
+            })
+            .catchError((Object _) {});
+      }
+    }
+    if (_withdrawals.length != _ackLen) {
+      _ackLen = _withdrawals.length;
+      _ackWithdrawal = false;
+    }
+  }
+
+  /// A warning, acknowledged once -- only when birds are actually being sold.
+  bool get _withdrawalBlocks => _draft.sales.isNotEmpty && _withdrawals.isNotEmpty && !_ackWithdrawal;
+
+  Widget _withdrawalAlert() {
+    String day(Object? v) {
+      final d = DateTime.tryParse(_day(v));
+      String two(int n) => n.toString().padLeft(2, '0');
+      return d == null ? _day(v) : '${two(d.day)}/${two(d.month)}/${d.year}';
+    }
+
+    return closeoutAlert('',
+        tone: 'warn',
+        child: Column(key: const ValueKey('closeout-withdrawal'), crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('This flock is still inside a meat withdrawal period on the closing date',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tone.fg(0xFF78350F))),
+          const SizedBox(height: 4),
+          for (final w in _withdrawals)
+            Text('• ${tStr(w['itemName'])}: meat withdrawal until ${day(w['withdrawalUntil'])}',
+                style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF78350F))),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: () => setState(() => _ackWithdrawal = !_ackWithdrawal),
+            child: Row(children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(value: _ackWithdrawal, onChanged: (v) => setState(() => _ackWithdrawal = v == true)),
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text('I have checked these birds can be sold. Record the sales anyway.',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF78350F))),
+              ),
+            ]),
+          ),
+        ]));
   }
 
   Map get _position => _context?['position'] is Map ? _context!['position'] as Map : const {};
@@ -223,6 +309,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
               'amountPaid': s.paymentTerms == 'PartPaid' ? (s.amountPaid ?? 0) : null,
               'paymentMethod': s.paymentTerms == 'Credit' ? null : s.paymentMethod,
               'poultryCashAccountId': s.paymentTerms == 'Credit' ? null : s.cashAccountId,
+              ...s.pricingFields,
             };
           }(),
       ],
@@ -319,7 +406,11 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
   }
 
   Widget _wizard(Map ctx) {
-    final errors = validateCloseoutDraft(_draft, ctx);
+    _watchWithdrawals();
+    final draftErrors = validateCloseoutDraft(_draft, ctx);
+    final errors = _withdrawalBlocks
+        ? [...draftErrors, 'This flock is inside a meat withdrawal period: tick the box on the Dispose step to record the sales anyway.']
+        : draftErrors;
     final remaining = unresolvedBirds(_position, _draft);
     final blocked = ctx['isClosed'] == true || tStr(ctx['ineligibleReason']).isNotEmpty;
     final shown = {...(_step == 2 ? [...errors, ..._serverErrors] : _serverErrors)}.toList();
@@ -514,13 +605,14 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
       Text.rich(
         TextSpan(children: [
           TextSpan(
-              text:
-                  'Spent-layer sales are recorded as ordinary ${tStr(ctx['birdProductName'])} sales. There is no separate save: each sale here is saved together with the closeout when you press '),
+              text: '${_broiler ? 'Broiler' : 'Spent-layer'} sales are recorded as ordinary ${tStr(ctx['birdProductName'])} sales'
+                  '${_broiler ? ', priced per bird or per kg' : ''}. There is no separate save: each sale here is saved together with the closeout when you press '),
           const TextSpan(text: 'Close flock & record sales', style: TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF334155))),
           const TextSpan(text: ' on the last step, so a sale can never be left behind on a flock that did not close.'),
         ]),
         style: const TextStyle(fontSize: 12, color: TColors.slate500),
       ),
+      if (_withdrawals.isNotEmpty && _draft.sales.isNotEmpty) ...[const SizedBox(height: 8), _withdrawalAlert()],
       for (var i = 0; i < _draft.sales.length; i++) ...[
         const SizedBox(height: 8),
         _SaleCard(
@@ -610,7 +702,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
           'Reason',
           AppSelect<String>(
             value: _reasonChoice,
-            items: [for (final r in closeoutReasons) AppSelectItem(value: r, label: r)],
+            items: [for (final r in _reasons) AppSelectItem(value: r, label: r)],
             onChanged: (v) {
               if (v == null) return;
               setState(() {
@@ -711,10 +803,12 @@ class _SaleCardState extends State<_SaleCard> {
   late final _price = TextEditingController(text: _shown(s.unitPrice));
   late final _total = TextEditingController(text: _shown(saleTotal(s)));
   late final _paid = TextEditingController(text: s.amountPaid == null ? '' : jsNum(s.amountPaid!));
+  late final _ppk = TextEditingController(text: s.pricePerKg == null ? '' : jsNum(s.pricePerKg!));
+  late final _kg = TextEditingController(text: s.liveWeightKg == null ? '' : jsNum(s.liveWeightKg!));
 
   @override
   void dispose() {
-    for (final c in [_qty, _price, _total, _paid]) {
+    for (final c in [_qty, _price, _total, _paid, _ppk, _kg]) {
       c.dispose();
     }
     super.dispose();
@@ -761,18 +855,76 @@ class _SaleCardState extends State<_SaleCard> {
               }),
             ),
           ),
+          // 401: priced per bird or per kg.
           _label(
-            'Price per bird',
-            AppNumberInput(
-              controller: _price,
-              hintText: '',
-              allowDecimal: true,
+            'Priced',
+            AppSelect<String>(
+              key: ValueKey('closeout-sale-${widget.index}-priced'),
+              value: s.perKg ? 'PerKg' : 'PerBird',
+              items: const [
+                AppSelectItem(value: 'PerBird', label: 'Per bird'),
+                AppSelectItem(value: 'PerKg', label: 'Per kg'),
+              ],
               onChanged: (v) => _set(() {
-                s.unitPrice = _parse(v) ?? 0;
+                s.pricingBasis = v ?? 'PerBird';
                 s.totalAmount = null;
                 _syncTotal();
               }),
             ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _pair(
+          s.perKg
+              ? _label(
+                  'Price per kg',
+                  AppNumberInput(
+                    key: ValueKey('closeout-sale-${widget.index}-ppk'),
+                    controller: _ppk,
+                    hintText: '',
+                    allowDecimal: true,
+                    onChanged: (v) => _set(() {
+                      s.pricePerKg = v.isEmpty ? null : _parse(v);
+                      s.totalAmount = null;
+                      _syncTotal();
+                    }),
+                  ),
+                )
+              : _label(
+                  'Price per bird',
+                  AppNumberInput(
+                    controller: _price,
+                    hintText: '',
+                    allowDecimal: true,
+                    onChanged: (v) => _set(() {
+                      s.unitPrice = _parse(v) ?? 0;
+                      s.totalAmount = null;
+                      _syncTotal();
+                    }),
+                  ),
+                ),
+          _label(
+            'Live weight (kg)${s.perKg ? '' : ' (optional)'}',
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+              AppNumberInput(
+                key: ValueKey('closeout-sale-${widget.index}-kg'),
+                controller: _kg,
+                hintText: '',
+                allowDecimal: true,
+                onChanged: (v) => _set(() {
+                  s.liveWeightKg = v.isEmpty ? null : _parse(v);
+                  if (s.perKg) {
+                    s.totalAmount = null;
+                    _syncTotal();
+                  }
+                }),
+              ),
+              if (avgKgPerBird(s.quantity, s.liveWeightKg) case final avg?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('${avg.toStringAsFixed(2)} kg a bird', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                ),
+            ]),
           ),
         ),
         const SizedBox(height: 12),
@@ -938,6 +1090,9 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
   String _error = '';
   Map? _summary;
   List<Map> _history = [];
+
+  /// 402: a broiler flock's meat figures replace the egg panel.
+  Map? _kpis;
   bool _reopening = false;
   bool _reopenOpen = false;
   final _reopenReason = TextEditingController();
@@ -972,17 +1127,23 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
     Object? s;
     String? sErr;
     Object? h;
+    Object? k;
     await Future.wait([
       _api.lifetime(flockId: widget.flockId).then((v) => s = v, onError: (Object e) {
         sErr = e is ApiException ? e.message : '$e';
         return null;
       }),
       _api.history(widget.flockId).then((v) => h = v, onError: (Object _) => null),
+      // A database or API before 402 just has no broiler figures.
+      _api.broilerKpis(flockId: widget.flockId).then((v) => k = v, onError: (Object _) => null),
     ]);
     if (!mounted) return;
     final rows = rowsOf(s);
     final row = rows.isNotEmpty ? rows.first : null;
+    final kRows = rowsOf(k);
+    final kRow = kRows.isNotEmpty ? kRows.first : null;
     setState(() {
+      _kpis = kRow != null && kRow['flockType'] == 'Broiler' ? kRow : null;
       if (sErr != null) {
         _error = sErr!.isNotEmpty ? sErr! : "Could not load this flock's performance.";
       } else if (rows.isEmpty) {
@@ -1234,6 +1395,46 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
         ]),
       );
 
+  /// 402: the Broiler performance panel, in place of the egg Production one.
+  Widget _broilerPanel(Map k) {
+    num? v(String key) => k[key] == null ? null : tNum(k[key]);
+    final profitPerKg = v('profitPerKg');
+    final birdsSold = tNum(k['birdsSold']), weighed = tNum(k['birdsSoldWeighed']);
+    final latest = tStr(k['latestWeighDate']);
+    final note = [
+      if (k['kgIsEstimated'] == true)
+        'Part of the kg is estimated from an average weight (unweighed sales or birds still in the house).',
+      if (tStr(k['missing']).isNotEmpty) 'To complete: ${tStr(k['missing'])}.',
+    ].join(' ');
+    return _panel(
+        'Broiler performance',
+        Icons.set_meal_outlined,
+        Tone.bg(0xFFFFF7ED),
+        Tone.fg(0xFFEA580C),
+        _grid([
+          _figure('Age', '${_n(v('ageInDays'))} days'),
+          _figure('Liveability', v('liveabilityPct') == null ? '—' : '${v('liveabilityPct')!.toStringAsFixed(2)}%',
+              hint: '${_n(v('deaths'))} died of ${_n(v('birdsStarted'))}'),
+          _figure('FCR', v('fcr') == null ? '—' : v('fcr')!.toStringAsFixed(3),
+              hint: v('fcr') == null ? 'Needs feed and live weight' : 'kg feed per kg live weight'),
+          _figure('EPEF', v('epef') == null ? '—' : _n(v('epef')),
+              hint: v('epef') == null ? null : 'Liveability x weight / (age x FCR) x 100'),
+          _figure('Kg produced', v('kgProduced') == null ? '—' : '${_n(v('kgProduced')!.round())} kg',
+              hint: k['kgIsEstimated'] == true ? 'Partly estimated' : null),
+          _figure('Average weight', v('avgLiveWeightKg') == null ? '—' : '${v('avgLiveWeightKg')!.toStringAsFixed(2)} kg',
+              hint: latest.isNotEmpty ? 'Last weigh-in ${latest.length >= 10 ? latest.substring(0, 10) : latest}' : 'No weigh-in yet'),
+          _figure('Feed consumed', '${_n(tNum(k['feedKg']).round())} kg'),
+          _figure('Kg sold', '${_n((tNum(k['kgSoldWeighed']) + tNum(k['kgSoldEstimated'])).round())} kg',
+              hint: birdsSold > weighed ? '${_n(birdsSold - weighed)} birds sold without a weight' : null),
+          _figure('Cost per kg', _m(k['costPerKg']), tone: TColors.rose700, hint: 'Chick cost included'),
+          _figure('Revenue per kg', _m(k['revenuePerKg']), tone: TColors.emerald700),
+          _figure('Profit per kg', _m(k['profitPerKg']),
+              tone: profitPerKg == null ? null : (profitPerKg >= 0 ? TColors.emerald700 : TColors.rose700)),
+          _figure('Birds in house', _n(v('liveBirds'))),
+        ]),
+        note: note.isNotEmpty ? note : 'Live weight from the bird sales and weigh-ins; feed from the production records.');
+  }
+
   List<Widget> _sections(Map s, bool isClosed) {
     final hasOpening = s['hasOpeningPosition'] == true;
     final historyKnown = s['historyKnown'] == true;
@@ -1263,7 +1464,7 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
                 hint: !hasOpening ? 'Tracked from placement' : (historyKnown ? 'Opening historical mortality' : 'History not recorded')),
             _figure('Lifetime rate', _pct(s['lifetimeMortalityRate']), hint: s['lifetimeMortalityRate'] == null ? 'Opening losses unknown' : null),
           ])),
-      _panel(
+      if (_kpis != null) _broilerPanel(_kpis!) else _panel(
           'Production',
           Icons.egg_outlined,
           Tone.bg(0xFFFFFBEB),

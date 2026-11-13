@@ -16,6 +16,7 @@ import '../trackers/tracker_widgets.dart';
 import 'sale_dialogs.dart';
 import 'sale_form_screen.dart';
 import 'sale_reversal.dart';
+import '../bird_pricing.dart' show birdLineNote;
 import 'sales_logic.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
@@ -311,7 +312,8 @@ class _SalesScreenState extends State<SalesScreen> {
               // 394: as entered, with the conversion of the day it was sold.
               note: isEggProductName(l['product']) && l['crates'] != null
                   ? [postedLineQuantity(l, eggPackagingFor(widget.company.farmId)).text, postedLineConversion(l)].whereType<String>().join(' · ')
-                  : null,
+                  // 401: a bird line's weight and price per kg.
+                  : birdLineNote(l),
             ),
         ],
       ),
@@ -548,7 +550,7 @@ class _SalesScreenState extends State<SalesScreen> {
                   InkWell(
                     onTap: () {
                       Navigator.pop(ctx);
-                      openAppHref(context, widget.session, widget.company, '/poultry-setup', label: 'Setup');
+                      openAppHref(context, widget.session, widget.company, '/poultry-setup?section=production&tab=company-settings', label: 'Setup');
                     },
                     child: const Text('Change',
                         style: TextStyle(color: TColors.amber700, fontWeight: FontWeight.w500, decoration: TextDecoration.underline)),

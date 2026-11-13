@@ -140,7 +140,7 @@ void main() {
       expect(find.text('e.g. how do I reverse a sale?'), findsOneWidget);
       expect(find.text('who owes me'), findsOneWidget);
       expect(find.text('Feature Guide'), findsOneWidget);
-      await see(tester, find.byKey(const ValueKey('help-guide-/poultry-company-setup')));
+      await see(tester, find.byKey(const ValueKey('help-guide-/poultry-setup?section=business')));
       await see(tester, find.byKey(const ValueKey('help-tab-faq')));
       expect(find.text('23'), findsOneWidget);
       expect(find.text('8'), findsOneWidget);
@@ -180,7 +180,7 @@ void main() {
       addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
       await openHelp(tester);
       // "How do I set up my farm?" is four numbered steps.
-      await see(tester, find.text('Company Setup: farm name, address, currency and time zone.'));
+      await see(tester, find.textContaining('Production Setup: company settings (business details, farm type, currency and business time zone)'));
       await see(tester, find.byKey(const ValueKey('help-copy-set-up-farm')));
       await tester.tap(find.byKey(const ValueKey('help-copy-set-up-farm')));
       await tester.pump();
@@ -188,7 +188,7 @@ void main() {
       expect(find.text('Link copied'), findsOneWidget);
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('help-link-set-up-farm-/poultry-company-setup')), findsOneWidget);
+      expect(find.byKey(const ValueKey('help-link-set-up-farm-/poultry-setup?section=production')), findsOneWidget);
     });
 
     testWidgets('search: suggestion, Go to page, kinds, Ask support', (tester) async {
@@ -240,9 +240,9 @@ void main() {
     testWidgets('staff: answers do not link to Setup pages', (tester) async {
       await openHelp(tester, as: Company(farmId: 'farm-1', name: 'Test Farm', type: CompanyType.poultry, role: 'Staff'));
       await see(tester, find.byKey(const ValueKey('help-guide-/sales')));
-      expect(find.byKey(const ValueKey('help-guide-/poultry-company-setup')), findsNothing);
-      await see(tester, find.text('Company Setup: farm name, address, currency and time zone.'));
-      expect(find.byKey(const ValueKey('help-link-set-up-farm-/poultry-company-setup')), findsNothing);
+      expect(find.byKey(const ValueKey('help-guide-/poultry-setup?section=business')), findsNothing);
+      await see(tester, find.textContaining('Production Setup: company settings (business details, farm type, currency and business time zone)'));
+      expect(find.byKey(const ValueKey('help-link-set-up-farm-/poultry-setup?section=production')), findsNothing);
     });
   });
 
@@ -272,7 +272,7 @@ void main() {
     test('System menu row, route and the feed shape', () {
       final system = webNavGroups['poultry']!.firstWhere((g) => g.title == 'System');
       final labels = [for (final s in system.subGroups) for (final l in s.links) l.label];
-      expect(labels.indexOf('Videos'), labels.indexOf('Help Center') + 1);
+      expect(labels.indexOf('Support Videos'), labels.indexOf('Help Center') + 1); // renamed 9 Nov
       expect(pageScreens.containsKey('/poultry-videos'), isTrue);
       final f = ChannelFeed.fromJson(_feed);
       expect(f.videos.length, 3);
@@ -283,6 +283,19 @@ void main() {
       expect(timeAgo('2026-10-31T00:00:00Z', now: now), '3 days ago');
       expect(timeAgo('2026-09-01T00:00:00Z', now: now), '2 mo ago');
       expect(timeAgo('2025-01-01T00:00:00Z', now: now), '1 yr ago');
+    });
+
+    // 9 Nov pull: the Theater button and the honest quality tip.
+    testWidgets('Theater toggles to Shrink; the quality tip points at the gear', (tester) async {
+      await openVideos(tester, () async => ChannelFeed.fromJson(_feed));
+      await see(tester, find.byKey(const ValueKey('videos-theater')));
+      expect(find.descendant(of: find.byKey(const ValueKey('videos-theater')), matching: find.text('Theater')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('videos-theater')));
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: find.byKey(const ValueKey('videos-theater')), matching: find.text('Shrink')), findsOneWidget);
+      await see(tester, find.byKey(const ValueKey('videos-quality-tip')));
+      expect(find.textContaining('Picture blurry? Tap the gear', findRichText: true), findsOneWidget);
+      expect(find.textContaining('Quality → 720p or higher', findRichText: true), findsOneWidget);
     });
 
     testWidgets('figures, play, Next, autoplay, watched, filters, search', (tester) async {

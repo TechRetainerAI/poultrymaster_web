@@ -24,6 +24,7 @@ import '../registry.dart';
 import '../poultry/egg_pick_settings_screen.dart';
 import '../poultry/reports/report_routes.dart' show openAppHref;
 import '../poultry/trackers/tracker_widgets.dart';
+import '../poultry/poultry_features.dart';
 import '../web_nav.dart';
 import 'help/contact_support.dart';
 import 'help/help_search.dart';
@@ -65,11 +66,12 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   final _opened = <String>{};
 
   late final List<({String title, String href, String group})> _pages = _openablePages();
-  late final Set<String> _openable = {for (final p in _pages) p.href};
+  // Paths only: a menu row can carry a query (/poultry-setup?section=business).
+  late final Set<String> _openable = {for (final p in _pages) p.href.split('?').first};
 
   List<({String title, String href, String group})> _openablePages() {
     final out = <String, ({String title, String href, String group})>{};
-    final groups = gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company);
+    final groups = gatePoultryFeatureLinks(gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company), widget.company);
     // Quick Links last, as on the web; the first occurrence of an href wins.
     for (final g in [...groups.where((g) => g.title != 'Quick Links'), ...groups.where((g) => g.title == 'Quick Links')]) {
       for (final s in g.subGroups) {

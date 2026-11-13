@@ -89,7 +89,7 @@ void main() {
     await open(tester, DailyClosingScreen(session: await sessionFor(api), company: adminCompany), size: tallPhone);
     await tester.tap(find.text('Previous closings'));
     await tester.pumpAndSettle();
-    for (final t in ['Credit sales', 'Expenses', 'Sales recorded', 'Cash sales', 'Payments received', 'Damaged eggs', 'Mortality', 'Feed used']) {
+    for (final t in ['Credit sales', 'Expenses', 'Sales recorded', 'Cash sales', 'Payments received', 'Total damaged (broken) eggs', 'Total disposed eggs', 'Mortality', 'Feed used']) {
       expect(find.text(t), findsOneWidget, reason: t);
     }
     expect(find.text('1 warning'), findsOneWidget, reason: 'checks');

@@ -71,6 +71,8 @@ const genericRetailReports = [
       'Top customers by revenue, including outstanding balances.', Icons.people_outline, _cyan),
   GenericReportCard('/generic-reports/inventory-value', 'Inventory value',
       'Stock value at cost and at retail, with a per-category breakdown.', Icons.inventory_2_outlined, _orange),
+  GenericReportCard('/generic-reports/delivery-report', 'Delivery report',
+      'Driver performance, product sell-through rates, and route profitability.', Icons.local_shipping_outlined, _emerald),
 ];
 
 class GenericReportsScreen extends StatefulWidget {

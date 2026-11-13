@@ -131,6 +131,9 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
   List<String> _watched = [];
   bool _showMore = false;
 
+  /// Theater mode (the web: a wider player for a sharper picture).
+  bool _theater = false;
+
   List<ChannelVideo> get _videos => _feed?.videos ?? const [];
 
   @override
@@ -222,7 +225,7 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
     final feed = _feed;
     final link = feed?.playlistUrl ?? (feed?.channelUrl.isNotEmpty == true ? feed!.channelUrl : null);
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Videos')),
+      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Support Videos')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(key: const ValueKey('videos-list'), padding: const EdgeInsets.fromLTRB(14, 16, 14, 28), children: [
@@ -236,7 +239,7 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
             const SizedBox(width: 12),
             const Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Videos', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
+                Text('Support Videos', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
                 Text('Step-by-step guide videos to help you get the most out of the system.',
                     style: TextStyle(fontSize: 13.5, color: Tone.fg(0xFF475569))),
               ]),
@@ -439,9 +442,42 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
       Wrap(spacing: 8, runSpacing: 8, children: [
         _pill('videos-prev', Icons.chevron_left, 'Previous', prev == null ? null : () => _play(prev.id)),
         _pill('videos-next', Icons.chevron_right, 'Next', next == null ? null : () => _play(next.id), iconAfter: true),
+        // Theater mode: on the web it widens the player to the full content
+        // width (YouTube picks its resolution from the player's size). A phone
+        // already plays at full width, as the web's phone layout does.
+        _pill('videos-theater', _theater ? Icons.close_fullscreen : Icons.open_in_full, _theater ? 'Shrink' : 'Theater',
+            () => setState(() => _theater = !_theater)),
         // The web hides the word below sm:, leaving the icon; a phone has room.
         _pill('videos-youtube', Icons.open_in_new, 'YouTube', () => openExternal(context, 'https://www.youtube.com/watch?v=${current.id}')),
       ]),
+      // Honest quality tip: YouTube controls the resolution and ignores any
+      // request to pin it, so viewers are pointed at the player's own menu.
+      const SizedBox(height: 12),
+      Container(
+        key: const ValueKey('videos-quality-tip'),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: const Tone.bg(0xFFFFFBEB), borderRadius: BorderRadius.circular(12)),
+        child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.settings_outlined, size: 16, color: Tone.fg(0xFF92400E))),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: 'Picture blurry? Tap the '),
+                TextSpan(text: 'gear', style: TextStyle(fontWeight: FontWeight.w600)),
+                TextSpan(text: ' ('),
+                WidgetSpan(alignment: PlaceholderAlignment.middle, child: Icon(Icons.settings_outlined, size: 14, color: Tone.fg(0xFF92400E))),
+                TextSpan(text: ') on the video, then '),
+                TextSpan(text: 'Quality → 720p', style: TextStyle(fontWeight: FontWeight.w600)),
+                TextSpan(text: ' or higher. For the sharpest picture, use '),
+                TextSpan(text: 'Theater', style: TextStyle(fontWeight: FontWeight.w600)),
+                TextSpan(text: ' or full screen.'),
+              ]),
+              style: TextStyle(fontSize: 14, color: Tone.fg(0xFF92400E)),
+            ),
+          ),
+        ]),
+      ),
       if (current.description.isNotEmpty) ...[
         const SizedBox(height: 12),
         Container(

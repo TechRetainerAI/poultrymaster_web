@@ -20,6 +20,9 @@ import '../sales/balances_widgets.dart' show CompactPager;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import '../../shared/reason_select.dart';
+import '../production/production_record_form.dart' show productionRecordScreenForHref;
+import '../reports/report_routes.dart' show openAppHref;
+import 'auto_loss_entries.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
 const lossTypes = ['Damage', 'Mortality', 'Theft', 'Spoilage', 'MissingStock', 'Other'];
@@ -53,7 +56,22 @@ class LossRecordsScreen extends StatefulWidget {
 }
 
 class _LossRecordsScreenState extends State<LossRecordsScreen> {
-  List<Map> _rows = [], _products = [];
+  List<Map> _manual = [], _products = [];
+  List<AutoLossEntry> _auto = [];
+
+  /// One list: manual records (editable, approvable) and the automatic damage
+  /// rows read from production records, driver returns and egg sorting
+  /// (read-only), newest first. A manual row is a Map, an automatic one an
+  /// [AutoLossEntry].
+  List<Object> get _rows {
+    String day(Object o) => (o is AutoLossEntry ? o.lossDate : tStr((o as Map)['lossDate'])).split('T').first;
+    final all = <Object>[..._manual, ..._auto].indexed.toList()
+      ..sort((a, b) {
+        final c = day(b.$2).compareTo(day(a.$2));
+        return c != 0 ? c : a.$1.compareTo(b.$1);
+      });
+    return [for (final (_, o) in all) o];
+  }
   bool _loading = true, _table = false;
   int _page = 1, _size = 10;
   FarmMoney _fmt = const FarmMoney();
@@ -83,10 +101,12 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
       ]);
       if (mounted) {
         setState(() {
-          _rows = r[0];
+          _manual = r[0];
           _products = r[1];
         });
       }
+      final auto = await loadAutoDamage(widget.session, widget.company);
+      if (mounted) setState(() => _auto = auto);
     } on ApiException catch (e) {
       if (mounted) trackerToast(context, 'Could not load loss records', description: e.message, error: true);
     }
@@ -135,7 +155,8 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
   @override
   Widget build(BuildContext context) {
     final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-loss-records');
-    final pageRows = pageSlice(_rows, _page, _size);
+    final all = _rows;
+    final pageRows = pageSlice(all, _page, _size);
     return Scaffold(
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Loss & Damage Records')),
       body: RefreshIndicator(
@@ -147,7 +168,11 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
               const Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Loss & Damage Records', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: TColors.slate900)),
-                  Text('Manual losses — damages, mortality, spoilage, missing stock.', style: TextStyle(fontSize: 13, color: TColors.slate500)),
+                  Text(
+                    'Damages, mortality, spoilage, missing stock. Damaged eggs from production records, driver returns and egg sorting '
+                    'are added automatically — change those at their source.',
+                    style: TextStyle(fontSize: 13, color: TColors.slate500),
+                  ),
                 ]),
               ),
               const SizedBox(width: 8),
@@ -159,18 +184,21 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
                 if (_loading)
                   const Padding(padding: EdgeInsets.all(24), child: Text('Loading…', style: TextStyle(color: TColors.slate500)))
                 else if (!_table) ...[
-                  if (_rows.isEmpty)
+                  if (all.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Text('No loss records yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
                     )
                   else ...[
-                    for (var i = 0; i < pageRows.length; i++) ...[_card(pageRows[i], i), const SizedBox(height: 10)],
+                    for (var i = 0; i < pageRows.length; i++) ...[
+                      pageRows[i] is AutoLossEntry ? _autoCard(pageRows[i] as AutoLossEntry, i) : _card(pageRows[i] as Map, i),
+                      const SizedBox(height: 10),
+                    ],
                     ViewTableButton(onPressed: () => setState(() => _table = true)),
                   ],
                 ] else ...[
                   TableViewBar(text: 'Table view • Scroll → for more', onCards: () => setState(() => _table = false)),
-                  if (_rows.isEmpty)
+                  if (all.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Text('No loss records yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
@@ -178,7 +206,7 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
                   else
                     _tableView(pageRows),
                 ],
-                CompactPager(total: _rows.length, page: _page, pageSize: _size, onPage: (x) => setState(() => _page = x), onPageSize: (s) => setState(() {
+                CompactPager(total: all.length, page: _page, pageSize: _size, onPage: (x) => setState(() => _page = x), onPageSize: (s) => setState(() {
                       _size = s;
                       _page = 1;
                     })),
@@ -258,7 +286,81 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
     );
   }
 
-  Widget _tableView(List<Map> rows) {
+  /// "Open <source>": the automatic row is changed where it came from.
+  void _openSource(AutoLossEntry a) {
+    final href = a.href;
+    if (href == null) return;
+    final record = productionRecordScreenForHref(href, widget.session, widget.company);
+    if (record != null) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => record)).then((_) => _load());
+      return;
+    }
+    openAppHref(context, widget.session, widget.company, href, label: 'Open ${a.sourceLabel}');
+  }
+
+  static const _automatic = TBadge('Automatic', bg: Tone.bg(0xFFE2E8F0), fg: TColors.slate700);
+
+  /// An automatic damage row: read-only, linked to its source.
+  Widget _autoCard(AutoLossEntry a, int i) {
+    Widget tile(String label, String value, Color bg, Color border, Color lc, Color vc) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .4, color: lc)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: vc)),
+            ),
+          ]),
+        );
+    return Container(
+      key: ValueKey('loss-auto-${a.key}'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: i.isEven ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: i.isEven ? TColors.amber300 : TColors.slate200),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          Text(fmtDateTime(a.lossDate, const {}, _offset), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
+          _automatic,
+        ]),
+        const SizedBox(height: 2),
+        Text('${a.productName} · from ${a.sourceLabel}',
+            maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: tile(a.lossType, loc(a.quantity), TColors.rose100, const Tone.line(0xFFFDA4AF), const Tone(0xFF881337), TColors.rose800)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: tile('Value', a.estimatedValue != null ? _fmt(a.estimatedValue!) : '—', TColors.violet100, const Tone.line(0xFFC4B5FD),
+                const Tone(0xFF4C1D95), const Tone(0xFF4C1D95)),
+          ),
+        ]),
+        if (a.reason != null && a.reason!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text.rich(TextSpan(children: [
+            const TextSpan(text: 'Details ', style: TextStyle(color: TColors.slate500)),
+            TextSpan(text: a.reason, style: const TextStyle(fontWeight: FontWeight.w500)),
+          ]), style: const TextStyle(fontSize: 14)),
+        ],
+        if (a.href != null) ...[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: ValueKey('loss-auto-open-${a.key}'),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
+            onPressed: () => _openSource(a),
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: Text('Open ${a.sourceLabel}'),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _tableView(List<Object> rows) {
     IconButton icon(String? tip, IconData i, VoidCallback onTap, {Color? color}) => IconButton(
           tooltip: tip,
           visualDensity: VisualDensity.compact,
@@ -271,7 +373,27 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
         TCol('Value', right: true, width: 110), TCol('Status', width: 100), TCol('Actions', width: 140),
       ],
       rows: [
-        for (final l in rows)
+        for (final o in rows)
+          if (o is AutoLossEntry)
+            [
+              cellText(fmtDateTime(o.lossDate, const {}, _offset)),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                cellText(o.lossType),
+                Text('from ${o.sourceLabel}', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+              ]),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                cellText(o.productName),
+                if (o.reason != null && o.reason!.isNotEmpty) Text(o.reason!, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+              ]),
+              cellText(loc(o.quantity)),
+              cellText(o.estimatedValue != null ? _fmt(o.estimatedValue!) : '—'),
+              const Align(alignment: Alignment.centerLeft, child: _automatic),
+              Wrap(alignment: WrapAlignment.end, children: [
+                if (o.href != null) icon('Open ${o.sourceLabel}', Icons.open_in_new, () => _openSource(o)),
+              ]),
+            ]
+          else
+          for (final l in [o as Map])
           [
             cellText(fmtDateTime(l['lossDate'], l, _offset)),
             cellText(tStr(l['lossType'])),

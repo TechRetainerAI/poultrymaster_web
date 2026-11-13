@@ -49,6 +49,8 @@ const Map<String, List<NavGroup>> webNavGroups = {
       NavSubGroup('Production', [
         NavLink('Production Records', '/production-records', null),
         NavLink('Batch Production', '/batch-production-records', null),
+        // 400: broilers phase 2. Any flock can be weighed.
+        NavLink('Weigh-ins', '/poultry-weigh-ins', null),
         NavLink('Egg Sorting', '/poultry-egg-sorting', null),
         NavLink('Feed Usage', '/feed-usage', null),
         NavLink('Feed Production', '/poultry-feed-production', null),
@@ -108,6 +110,9 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Feed tracker', '/feed-tracker', null),
         NavLink('Feed inventory tracker', '/feed-inventory-tracker', null),
         NavLink('Birds tracker', '/birds-left-tracker', null),
+        // 402: FCR, liveability, EPEF and cost per kg per broiler flock. Shown
+        // once the company has had a broiler flock (gatePoultryFeatureLinks).
+        NavLink('Broiler performance', '/poultry-broiler-performance', null),
         NavLink('Dead birds tracker', '/dead-birds-tracker', null),
         NavLink('Medication tracker', '/medication-tracker', null),
         NavLink('Analytical Report', '/weekly-report', null),
@@ -183,36 +188,43 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Recurring Expenses', '/recurring-expenses', null),
       ]),
     ]),
+    // 9 Nov pull: Farm | Finance | Production (what a new farm sets up first),
+    // then Company | Delivery | People.
     NavGroup('Setup', [
-      NavSubGroup('Company', [
-        NavLink('Farm Setup', '/poultry-setup', 'poultry-farm-setup-status'),
-        NavLink('Company Setup', '/poultry-company-setup', 'poultry-company'),
-        NavLink('Financial Settings', '/poultry-financial-settings', 'poultry-financial-settings-cost-recognition'),
-        NavLink('Companies', '/companies', 'companies-mine'),
-      ]),
-      NavSubGroup('Delivery', [
-        NavLink('Drivers', '/poultry-drivers', 'poultry-drivers'),
-        NavLink('Vehicles', '/poultry-vehicles', 'poultry-vehicles'),
-        NavLink('Routes', '/poultry-routes', 'poultry-routes'),
-      ]),
-      NavSubGroup('Production', [
-        NavLink('Products', '/poultry-products', 'poultry-products'),
-        NavLink('Feed Formulas', '/poultry-feed-formulas', 'poultry-feed-formulas'),
-        // 2 Nov pull: Egg Pick Times and Egg Sorting Settings became one
-        // tabbed page, Egg Configuration (/poultry-egg-sorting-settings
-        // still opens, but is no longer in the menu).
-        NavLink('Egg Configuration', '/business-office/egg-pick-settings', 'farmproductionsettings'),
-      ]),
-      NavSubGroup('Finance', [
-        NavLink('Customers', '/customers', 'customer'),
-        NavLink('Suppliers', '/suppliers', 'supplier'),
-      ]),
       NavSubGroup('Farm', [
         NavLink('Houses', '/houses', 'house'),
         NavLink('Flock Groups', '/flocks', 'flocks'),
         // Also under Operations > Purchase, so the batches sit beside the
         // houses and flock groups they are divided into (31 Oct pull).
         NavLink('Flock Purchases (Batches)', '/flock-batch', null),
+      ]),
+      NavSubGroup('Finance', [
+        NavLink('Customers', '/customers', 'customer'),
+        NavLink('Suppliers', '/suppliers', 'supplier'),
+        // A finance decision (it changes what the owner reads as profit), so
+        // it sits with the other Finance rows (moved from Company, 9 Nov).
+        NavLink('Financial Settings', '/poultry-financial-settings', 'poultry-financial-settings-cost-recognition'),
+      ]),
+      NavSubGroup('Production', [
+        NavLink('Products', '/poultry-products', 'poultry-products'),
+        NavLink('Feed Formulas', '/poultry-feed-formulas', 'poultry-feed-formulas'),
+        // 2 Nov pull: Egg Pick Times and Egg Sorting Settings became one
+        // tabbed page (/poultry-egg-sorting-settings still opens, but is no
+        // longer in the menu); renamed Egg Settings on 9 Nov.
+        NavLink('Egg Settings', '/business-office/egg-pick-settings', 'farmproductionsettings'),
+      ]),
+      NavSubGroup('Company', [
+        // The two doors into the consolidated Farm Setup page. They replace
+        // the old Farm Setup + Company Setup rows: the company profile is now
+        // Production Setup's first tab. /poultry-company-setup still opens.
+        NavLink('Production Setup', '/poultry-setup?section=production', null),
+        NavLink('Business Setup', '/poultry-setup?section=business', null),
+        NavLink('Companies', '/companies', 'companies-mine'),
+      ]),
+      NavSubGroup('Delivery', [
+        NavLink('Drivers', '/poultry-drivers', 'poultry-drivers'),
+        NavLink('Vehicles', '/poultry-vehicles', 'poultry-vehicles'),
+        NavLink('Routes', '/poultry-routes', 'poultry-routes'),
       ]),
       NavSubGroup('People', [
         NavLink('Staff', '/poultry-staff', 'poultry-staff'),
@@ -229,7 +241,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Resources', '/resources', null),
         NavLink('Help Center', '/help', null),
         // System → Videos (28 Oct pull): the training playlist.
-        NavLink('Videos', '/poultry-videos', null),
+        NavLink('Support Videos', '/poultry-videos', null),
         NavLink('Terms & Conditions', '/terms', null),
       ]),
     ]),
@@ -392,6 +404,9 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Inventory', '/generic-inventory', 'generic-products'),
         NavLink('Stock adjustments', '/generic-stock-adjustments', 'generic-inventory-adjustments'),
         NavLink('Internal Use', '/generic-internal-use', 'generic-internal-usage'),
+        NavLink('Deliveries', '/generic-deliveries', null),
+        NavLink('Drivers', '/generic-drivers', null),
+        NavLink('Routes', '/generic-routes', null),
       ]),
     ]),
     NavGroup('People', [
@@ -400,6 +415,14 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Staff', '/generic-staff', 'generic-staff'),
         NavLink('Attendance', '/generic-attendance', 'generic-staff-attendance'),
         NavLink('Payroll', '/generic-payroll', 'generic-payroll-runs'),
+      ]),
+    ]),
+    // generic-nav-config.ts "School": School businesses only (gateGenericCatalog).
+    NavGroup('School', [
+      NavSubGroup('', [
+        NavLink('Classes', '/generic-classes', null),
+        NavLink('Academic Terms', '/generic-terms', null),
+        NavLink('Student Attendance', '/generic-student-attendance', null),
       ]),
     ]),
     // The web's Generic System block is sidebar.tsx's flat systemItems list,
@@ -437,6 +460,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Sales', '/generic-sales', 'generic-sales'),
         NavLink('Customers', '/generic-customers', 'generic-customers'),
         NavLink('Payments', '/generic-customer-payments', 'generic-customer-payments'),
+        NavLink('Customer Credits', '/generic-customer-credits', null),
       ]),
     ]),
     // generic-nav-config.ts "Purchasing". Purchases, Supplier balances and
@@ -448,6 +472,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Purchases', '/generic-purchases', 'generic-purchases'),
         NavLink('Supplier payments', '/generic-supplier-payments', 'generic-supplier-payments'),
         NavLink('Supplier balances', '/generic-supplier-balances', null),
+        NavLink('Supplier Credits & Advances', '/generic-supplier-credits', null),
         NavLink('Expenses', '/generic-expenses', 'generic-expenses'),
         NavLink('Recurring expenses', '/recurring-expenses', null),
       ]),
@@ -468,6 +493,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
       NavSubGroup('', [
         NavLink('Reports', '/generic-reports', null),
         NavLink('Setup', '/generic-setup', null),
+        NavLink('Business Features', '/generic-business-features', null),
         NavLink('Settings', '/generic-settings', null),
       ]),
     ]),

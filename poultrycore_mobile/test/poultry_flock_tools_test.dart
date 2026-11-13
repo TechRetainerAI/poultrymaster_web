@@ -280,6 +280,121 @@ void main() {
       await open(tester, FlockCloseoutScreen(session: await sessionFor(api), company: company), size: phone);
       expect(find.text('You do not have access to Flock Closeout.'), findsOneWidget);
     });
+
+    // ------------------------------------------ Report 34 part 2 (401 / 402 / 403)
+
+    test('a close-out sale priced per kg: weight × price, and the same checks as the database', () {
+      final s = CloseoutSale(quantity: 100)
+        ..pricingBasis = 'PerKg'
+        ..liveWeightKg = 250
+        ..pricePerKg = 30;
+      expect(saleTotal(s), 7500);
+      expect(s.pricingFields, {'pricingBasis': 'PerKg', 'liveWeightKg': 250, 'pricePerKg': 30});
+      expect(CloseoutSale().pricingFields, isEmpty, reason: 'nothing chosen, nothing sent');
+      final d = CloseoutDraft(closedDate: '2026-10-12', reason: 'All birds sold')
+        ..sales.add(CloseoutSale(quantity: 100, cashAccountId: 2)
+          ..pricingBasis = 'PerKg'
+          ..pricePerKg = 30);
+      expect(validateCloseoutDraft(d, closeoutContext()), contains('Sale 1: a sale priced per kg needs the total live weight in kg.'));
+    });
+
+    FakeApi broilerCloseout() => closeoutApi()
+      ..gets['/api/flock-closeout/7/context'] = {
+        ...closeoutContext(),
+        'flock': {'flockId': 7, 'name': 'Flock A', 'flockType': 'Broiler'},
+        'birdProductName': 'Chicken',
+      }
+      ..gets['/api/Poultry/cash-accounts'] = [
+        {'poultryCashAccountId': 2, 'accountName': 'Main Cash Account', 'isActive': true},
+      ]
+      ..writeAnswers['/api/flock-closeout/7'] = {'success': true, 'message': 'Flock A closed.', 'saleIds': [56], 'warnings': [], 'errors': []};
+
+    testWidgets('a broiler flock: market reasons, per-kg sales, and the withdrawal warning to tick', (tester) async {
+      final api = broilerCloseout()
+        ..gets['/api/Sale/meat-withdrawal'] = [
+          {'flockId': 7, 'flockName': 'Flock A', 'itemName': 'Amprolium', 'lastDoseDate': '2026-10-05', 'withdrawalUntil': '2026-10-14'},
+          {'flockId': 99, 'flockName': 'Other', 'itemName': 'Other drug', 'lastDoseDate': '2026-10-05', 'withdrawalUntil': '2026-10-14'},
+        ];
+      await open(tester, FlockCloseoutScreen(session: await sessionFor(api), company: adminCompany), size: phone);
+      await seek(tester, 'Close flock');
+      await tester.tap(find.text('Close flock').first);
+      await tester.pumpAndSettle();
+
+      await tapText(tester, 'Next');
+      expect(find.textContaining('Broiler sales are recorded as ordinary Chicken sales, priced per bird or per kg.', findRichText: true),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('closeout-withdrawal')), findsNothing, reason: 'only while birds are being sold');
+      await tapText(tester, 'Sale');
+      expect(find.byKey(const ValueKey('closeout-withdrawal')), findsOneWidget);
+      expect(find.text('• Amprolium: meat withdrawal until 14/10/2026'), findsOneWidget);
+      expect(find.textContaining('Other drug'), findsNothing, reason: "another flock's medicine");
+
+      await pickVisible(tester, 'Per bird', 'Per kg');
+      expect(find.text('Live weight (kg)'), findsOneWidget);
+      expect(find.text('Price per bird'), findsNothing);
+      await enterVisible(tester, 'Price per kg', '30');
+      await enterVisible(tester, 'Live weight (kg)', '250');
+      expect(find.text('2.50 kg a bird'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, '7500'), findsOneWidget);
+
+      await tapText(tester, 'Next');
+      expect(find.text('Sent to market (grow-out complete)'), findsOneWidget, reason: 'the first broiler reason');
+      expect(find.textContaining('This flock is inside a meat withdrawal period: tick the box on the Dispose step to record the sales anyway.'),
+          findsOneWidget);
+      final close = find.widgetWithText(FilledButton, 'Close flock & record sales');
+      await tester.ensureVisible(close);
+      expect(tester.widget<FilledButton>(close).onPressed, isNull);
+
+      await tapText(tester, 'Back');
+      await tapText(tester, 'I have checked these birds can be sold. Record the sales anyway.');
+      await tapText(tester, 'Next');
+      await tapText(tester, 'Close flock & record sales');
+      final body = api.lastBody('/api/flock-closeout/7');
+      expect(body['reason'], 'Sent to market (grow-out complete)');
+      final sale = (body['sales'] as List).single as Map;
+      expect((sale['pricingBasis'], sale['liveWeightKg'], sale['pricePerKg'], sale['totalAmount']), ('PerKg', 250, 30, 7500));
+    });
+
+    testWidgets('a broiler flock lifetime page shows Broiler performance instead of Production', (tester) async {
+      final api = closeoutApi()
+        ..gets['/api/flock-closeout/9/history'] = []
+        ..gets['/api/flock-closeout/broiler-kpis'] = [
+          {
+            'flockId': 9, 'flockName': 'Flock C', 'flockType': 'Broiler', 'status': 'Closed', 'ageInDays': 42, 'birdsStarted': 1000,
+            'deaths': 50, 'liveabilityPct': 95, 'birdsSold': 950, 'birdsSoldWeighed': 900, 'kgSoldWeighed': 2200, 'kgSoldEstimated': 100,
+            'liveBirds': 0, 'latestWeighDate': '2026-09-25T00:00:00', 'kgProduced': 2300, 'kgIsEstimated': true, 'avgLiveWeightKg': 2.42,
+            'feedKg': 4200, 'fcr': 1.826, 'epef': 300.4, 'costPerKg': 2.17, 'revenuePerKg': 8.7, 'profitPerKg': 6.53, 'missing': null,
+          },
+        ];
+      api.gets['/api/flock-closeout/lifetime'] = [lifetimeRow(9, 'Flock C', 'Closed')];
+      await open(tester, FlockLifetimeScreen(session: await sessionFor(api), company: adminCompany, flockId: 9), size: phone);
+      await seek(tester, 'Broiler performance');
+      expect(find.text('Broiler performance'), findsOneWidget);
+      expect(find.text('Production'), findsNothing);
+      expect(find.text('42 days'), findsOneWidget);
+      expect(find.text('95.00%'), findsOneWidget);
+      expect(find.text('50 died of 1,000'), findsOneWidget);
+      expect(find.text('1.826'), findsOneWidget);
+      expect(find.text('2,300 kg'), findsNWidgets(2), reason: 'kg produced, and kg sold (2,200 weighed + 100 estimated)');
+      expect(find.text('Partly estimated'), findsOneWidget);
+      expect(find.text('Last weigh-in 2026-09-25'), findsOneWidget);
+      expect(find.text('50 birds sold without a weight'), findsOneWidget);
+      expect(find.textContaining('Part of the kg is estimated'), findsOneWidget);
+      expect(api.requests.any((r) => r.url.path == '/api/flock-closeout/broiler-kpis' && r.url.queryParameters['flockId'] == '9'), isTrue);
+    });
+
+    testWidgets('a layer flock keeps its Production panel', (tester) async {
+      final api = closeoutApi()
+        ..gets['/api/flock-closeout/9/history'] = []
+        ..gets['/api/flock-closeout/broiler-kpis'] = [
+          {'flockId': 9, 'flockName': 'Flock C', 'flockType': 'Layer', 'feedKg': 0, 'kgSoldWeighed': 0, 'birdsSold': 0, 'birdsSoldWeighed': 0},
+        ];
+      api.gets['/api/flock-closeout/lifetime'] = [lifetimeRow(9, 'Flock C', 'Closed')];
+      await open(tester, FlockLifetimeScreen(session: await sessionFor(api), company: adminCompany, flockId: 9), size: phone);
+      await seek(tester, 'Production');
+      expect(find.text('Production'), findsOneWidget);
+      expect(find.text('Broiler performance'), findsNothing);
+    });
   });
 
   group('Flock Lifecycle', () {

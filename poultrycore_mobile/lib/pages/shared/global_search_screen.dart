@@ -24,6 +24,7 @@ import '../../state/session.dart';
 import '../poultry/reports/report_routes.dart' show openAppHref;
 import '../poultry/trackers/tracker_widgets.dart' show TColors, rowsOf;
 import '../registry.dart';
+import '../poultry/poultry_features.dart';
 import '../web_nav.dart';
 import 'help/help_search.dart';
 import 'setup_admin_routes.dart';
@@ -140,7 +141,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   List<({String title, String href, String group})> _openablePages() {
     final out = <String, ({String title, String href, String group})>{};
-    final groups = gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company);
+    final groups = gatePoultryFeatureLinks(gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company), widget.company);
     for (final g in [...groups.where((g) => g.title != 'Quick Links'), ...groups.where((g) => g.title == 'Quick Links')]) {
       for (final s in g.subGroups) {
         for (final l in s.links) {

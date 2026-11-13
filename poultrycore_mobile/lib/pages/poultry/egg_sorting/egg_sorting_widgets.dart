@@ -22,7 +22,25 @@ import 'egg_sorting_logic.dart';
 import 'package:poultrycore_mobile/design/tone.dart';
 const _sm = TextStyle(fontSize: 12, color: TColors.slate500);
 
-Widget _card({required Widget child, String? title, String? description, Widget? trailing}) => Container(
+/// The egg cards' compact mode (9 Nov pull, `compact` on the web's
+/// EggSortingSettingsCard / EggSizesCard / EggPackagingCard): inside Farm
+/// Setup's titled panels they drop their own frame and header.
+class EggCompactScope extends InheritedWidget {
+  const EggCompactScope({super.key, required super.child});
+
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<EggCompactScope>() != null;
+
+  @override
+  bool updateShouldNotify(EggCompactScope old) => false;
+}
+
+Widget _card({required Widget child, String? title, String? description, Widget? trailing}) => Builder(
+    builder: (context) => EggCompactScope.of(context)
+        ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (trailing != null) Align(alignment: Alignment.centerRight, child: trailing),
+            child,
+          ])
+        : Container(
       decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (title != null || description != null)
@@ -41,7 +59,7 @@ Widget _card({required Widget child, String? title, String? description, Widget?
           ),
         child,
       ]),
-    );
+    ));
 
 // ------------------------------------------------------------------ audit list
 

@@ -15,6 +15,7 @@ import 'form_spec.dart';
 import 'registry.dart';
 import 'web_page_design.dart';
 import 'list_header.dart';
+import 'page_headers.dart' show PageHeaderDef;
 import 'lookup_loader.dart';
 import 'form_screen.dart';
 import 'module_registry.dart';
@@ -22,6 +23,7 @@ import 'page_extras.dart';
 import 'page_actions.dart';
 import 'page_spec.dart';
 import 'plumbing_fields.dart';
+import 'poultry/setup/setup_embed.dart';
 import 'record_screen.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
@@ -31,6 +33,15 @@ import 'package:poultrycore_mobile/design/tone.dart';
 /// but a table on a 400px screen means horizontal scrolling for every glance;
 /// the same fields as a card read in one column. Opening a card shows the full
 /// record, which is where the rest of the table's columns go.
+/// Lists that keep Export / Email Report on Farm Setup's task bar (the web's
+/// setup-views/customers.tsx and suppliers.tsx).
+const _setupReportSpecs = {'customer', 'supplier'};
+
+/// A list's own empty state, where the web has one (title, icon).
+const Map<String, (String, IconData)> _emptyTitles = {
+  'poultry-products': ('No products yet', Icons.inventory_2_outlined),
+};
+
 class ListScreen extends StatefulWidget {
   const ListScreen({
     super.key,
@@ -57,6 +68,43 @@ class _ListScreenState extends State<ListScreen> {
 
   /// A header extra: open its screen and reload if it changed data, or run
   /// its action and report what it did.
+  /// The page's Add button: its own form when it has one, else the form built
+  /// from its fields.
+  void _add(PageActions acts, PageHeaderDef head) {
+    final spec = widget.spec;
+    final custom = customForms[spec.key];
+    if (custom != null) {
+      Navigator.of(context)
+          .push<bool>(MaterialPageRoute(builder: (_) => custom(widget.session, widget.company, null)))
+          .then((saved) {
+        if (saved == true) _load();
+      });
+      return;
+    }
+    final def = _formDef;
+    if (def == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This page has no records yet, so the fields are unknown. Add the first one on the web.')),
+      );
+      return;
+    }
+    Navigator.of(context)
+        .push<bool>(MaterialPageRoute(
+          builder: (_) => FormScreen(
+            def: def,
+            title: acts.action ?? head.action ?? 'New ${head.title.toLowerCase()}',
+            company: widget.company,
+            session: widget.session,
+            spec: spec,
+          ),
+        ))
+        .then((saved) {
+      // A new record changes the list and the summary tiles above it, so
+      // reload rather than patching.
+      if (saved == true) _load();
+    });
+  }
+
   Future<void> _runExtra(ListExtra x) async {
     final run = x.run;
     if (run != null) {
@@ -606,9 +654,11 @@ class _ListScreenState extends State<ListScreen> {
     final acts = pageActions[spec.key] ?? const PageActions();
     final lead = sidebarLeading(context, widget.session, widget.company,
         specKey: spec.key);
+    // Inside Farm Setup: no app bar or title block (Farm Setup shows one line).
+    final embedded = isSetupEmbedded(context);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: embedded ? null : AppBar(
         leading: lead.leading,
         leadingWidth: lead.width,
         title: Column(
@@ -638,7 +688,7 @@ class _ListScreenState extends State<ListScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ListPageHeader(
+                if (!embedded) ListPageHeader(
                   title: head.title,
                   // Built from the page's own name, never the spec title:
                   // that is an API action name, which read as "Manage get
@@ -666,54 +716,41 @@ class _ListScreenState extends State<ListScreen> {
                         busy: x.run != null && _extraBusy,
                         onPressed: () => _runExtra(x),
                       );
+                  final addLabel = acts.action ?? head.action ?? 'Add ${head.title.toLowerCase()}';
+                  // Farm Setup: the buttons go on its task bar instead.
+                  if (embedded) {
+                    return <Widget>[
+                      SetupTaskBar(tasks: [
+                        if (hasPrimary)
+                          SetupTask(id: 'add', label: addLabel, icon: Icons.add, primary: true, onTap: () => _add(acts, head)),
+                        for (final (i, x) in extras.indexed)
+                          SetupTask(id: 'extra-$i', label: x.label, icon: x.icon, onTap: () => _runExtra(x)),
+                        // Customers and Suppliers keep their report buttons on
+                        // the bar (the app's export is a CSV file).
+                        if (_setupReportSpecs.contains(spec.key)) ...[
+                          SetupTask(
+                            id: 'pdf',
+                            label: 'Export CSV',
+                            icon: Icons.download_outlined,
+                            hidden: _rows.isEmpty,
+                            onTap: () => ListExport.share(context: context, spec: spec, rows: rows, company: widget.company),
+                          ),
+                          SetupTask(
+                            id: 'email',
+                            label: 'Email Report',
+                            icon: Icons.mail_outline,
+                            hidden: _rows.isEmpty,
+                            onTap: () => ListExport.share(context: context, spec: spec, rows: rows, company: widget.company, email: true),
+                          ),
+                        ],
+                      ]),
+                    ];
+                  }
                   final first = <Widget>[
                     if (hasPrimary) Expanded(child: PrimaryAction(
                     color: head.color,
-                    label: acts.action ??
-                        head.action ??
-                        'Add ${head.title.toLowerCase()}',
-                    onPressed: () {
-                      final custom = customForms[spec.key];
-                      if (custom != null) {
-                        Navigator.of(context)
-                            .push<bool>(MaterialPageRoute(
-                              builder: (_) => custom(
-                                  widget.session, widget.company, null),
-                            ))
-                            .then((saved) {
-                              if (saved == true) _load();
-                            });
-                        return;
-                      }
-                      final def = _formDef;
-                      if (def == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                'This page has no records yet, so the fields '
-                                'are unknown. Add the first one on the web.'),
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.of(context)
-                          .push<bool>(MaterialPageRoute(
-                            builder: (_) => FormScreen(
-                              def: def,
-                              title: acts.action ??
-                                  head.action ??
-                                  'New ${head.title.toLowerCase()}',
-                              company: widget.company,
-                              session: widget.session,
-                              spec: spec,
-                            ),
-                          ))
-                          .then((saved) {
-                            // A new record changes the list and the summary
-                            // tiles above it, so reload rather than patching.
-                            if (saved == true) _load();
-                          });
-                    },
+                    label: addLabel,
+                    onPressed: () => _add(acts, head),
                   )),
                     if (hasPrimary && extras.isNotEmpty) const SizedBox(width: 8),
                     if (extras.isNotEmpty) Expanded(child: extra(extras.first)),
@@ -735,7 +772,8 @@ class _ListScreenState extends State<ListScreen> {
                   onChanged: (v) => setState(() => _query = v),
                 ),
                 const SizedBox(height: 10),
-                ListActionRow(
+                // In Farm Setup only the search stays (the web's SetupTabTools).
+                if (!embedded) ListActionRow(
                   onFilters: () async {
                     final defs = listFilters[spec.key];
                     if (defs == null) {
@@ -802,9 +840,9 @@ class _ListScreenState extends State<ListScreen> {
                             )
                       : rows.isEmpty
                           ? _Message(
-                              icon: Icons.inbox_outlined,
+                              icon: _query.isEmpty && _filters.isEmpty ? (_emptyTitles[spec.key]?.$2 ?? Icons.inbox_outlined) : Icons.inbox_outlined,
                               title: _query.isEmpty && _filters.isEmpty
-                                  ? 'Nothing here yet'
+                                  ? (_emptyTitles[spec.key]?.$1 ?? 'Nothing here yet')
                                   : 'No matches',
                               detail: _query.isEmpty && _filters.isEmpty
                                   ? (spec.emptyMessage ??

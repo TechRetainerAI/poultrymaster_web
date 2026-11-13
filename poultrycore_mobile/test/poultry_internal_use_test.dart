@@ -83,7 +83,19 @@ Future<void> enterIn(WidgetTester tester, String label, String text) async {
 
 void clearToasts(WidgetTester tester) => tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).removeCurrentSnackBar();
 
+/// The last request that is not the page's own "make sure Broken Eggs / Dead
+/// Birds exist" (A5: every load asks for it first).
+dynamic _lastAction(FakeApi a) => a.writes.lastWhere((w) => w.url.path != '/api/Poultry/products/ensure-byproducts');
+
 void main() {
+  testWidgets('A5: each load first makes sure the byproducts exist (best effort)', (tester) async {
+    final a = api()..writeStatuses['/api/Poultry/products/ensure-byproducts'] = 404;
+    await open(tester, InternalUseScreen(session: await sessionFor(a), company: company), size: phone);
+    final w = a.writes.first;
+    expect((w.method, w.url.path, w.url.queryParameters['farmId']), ('POST', '/api/Poultry/products/ensure-byproducts', company.farmId));
+    expect(find.textContaining("Couldn't load"), findsNothing, reason: 'a refusal never blocks the list');
+  });
+
   test('labels, quantities and filters', () {
     expect(internalUseCategoryLabel('StaffWelfare'), 'Staff allowance');
     expect(isStaffCategory('OfficeUse'), isTrue);
@@ -108,8 +120,8 @@ void main() {
     expect(find.textContaining('4 crates (120 eggs) comes out of stock and GHC 240.00'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'Post'));
     await tester.pumpAndSettle();
-    expect(a.writes.last.url.path, '/api/Poultry/internal-usage/1/post');
-    expect(a.writes.last.url.queryParameters['postedBy'], 'user-1');
+    expect(_lastAction(a).url.path, '/api/Poultry/internal-usage/1/post');
+    expect(_lastAction(a).url.queryParameters['postedBy'], 'user-1');
     clearToasts(tester);
 
     await tap(tester, find.byTooltip('Reverse'));
@@ -120,8 +132,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Reverse'));
     await tester.pumpAndSettle();
-    expect(a.writes.last.url.path, '/api/Poultry/internal-usage/2/reverse');
-    expect(jsonDecode(a.writes.last.body), {'reason': 'Wrong recipient', 'userId': 'user-1'});
+    expect(_lastAction(a).url.path, '/api/Poultry/internal-usage/2/reverse');
+    expect(jsonDecode(_lastAction(a).body), {'reason': 'Wrong recipient', 'userId': 'user-1'});
     clearToasts(tester);
 
     await tap(tester, find.byTooltip('Post again'));
@@ -132,8 +144,8 @@ void main() {
     expect(find.text('Delete this reversed record?'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
     await tester.pumpAndSettle();
-    expect(a.writes.last.method, 'DELETE');
-    expect(a.writes.last.url.path, '/api/Poultry/internal-usage/3');
+    expect(_lastAction(a).method, 'DELETE');
+    expect(_lastAction(a).url.path, '/api/Poultry/internal-usage/3');
 
     await tap(tester, find.byTooltip('View details').last);
     expect(find.text('Reversed — Wrong quantity'), findsOneWidget);
@@ -180,7 +192,7 @@ void main() {
     expect(find.text('Edit draft'), findsOneWidget);
     expect(find.text('Total quantity'), findsOneWidget);
     await tapIn(tester, inDialog(find.text('Save draft')));
-    final w = a.writes.last;
+    final w = _lastAction(a);
     expect((w.method, w.url.path), ('PUT', '/api/Poultry/internal-usage/1'));
     expect((jsonDecode(w.body) as Map)['poultryInternalUsageId'], 1);
   });

@@ -14,6 +14,7 @@ import '../egg_packaging.dart';
 import '../production/production_logic.dart' show eggsPerCrate;
 import '../trackers/tracker_logic.dart' show tIntOrNull;
 import '../trackers/tracker_widgets.dart';
+import 'egg_sorting_widgets.dart' show EggCompactScope;
 
 import 'package:poultrycore_mobile/design/tone.dart';
 const _sample = 10675;
@@ -167,10 +168,14 @@ class _EggPackagingCardState extends State<EggPackagingCard> {
     final error = packagingConfigError(enableBoxes: _on, cratesPerBox: n, display: _display, saleEntryUnit: _entry);
     final preview = EggPackaging(eggsPerCrate: eggsPerCrate, enableBoxes: _on && n != null && n >= 1, cratesPerBox: _on ? n : null, display: _display);
     final dirty = _dirty;
+    // Compact inside Farm Setup's Packaging & units panel: no frame of its own.
+    final compact = EggCompactScope.of(context);
     return Container(
       key: const ValueKey('egg-packaging-card'),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      padding: compact ? EdgeInsets.zero : const EdgeInsets.all(14),
+      decoration: compact
+          ? null
+          : BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Expanded(

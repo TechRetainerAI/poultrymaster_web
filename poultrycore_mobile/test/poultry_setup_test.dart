@@ -18,6 +18,7 @@ import 'package:poultrycore_mobile/pages/poultry/feed_formula_form_screen.dart';
 import 'package:poultrycore_mobile/pages/poultry/product_screens.dart';
 import 'package:poultrycore_mobile/pages/registry.dart';
 import 'package:poultrycore_mobile/state/session.dart';
+import 'package:poultrycore_mobile/pages/poultry/setup/feed_formulas_screen.dart';
 
 import 'support/harness.dart';
 
@@ -59,6 +60,7 @@ void main() {
       await open(tester, formFor(await sessionFor(api), 'poultry-routes'));
 
       await enter(tester, 'Route name', 'Kumasi East');
+      await enter(tester, 'Area covered', 'Asafo, Adum');
       await pick(tester, '(none)', 'Truck 1 (Truck)');
       expect(find.text('Truck 1 (Truck)'), findsOneWidget, reason: 'the choice stays shown');
 
@@ -103,7 +105,7 @@ void main() {
     testWidgets('editing shows the saved vehicle once the list arrives', (tester) async {
       final api = FakeApi()..gets['/api/Poultry/vehicles'] = [truck, van];
       await open(tester, formFor(await sessionFor(api), 'poultry-routes', existing: {
-        'poultryRouteId': 9, 'routeName': 'East', 'defaultVehicleId': 4,
+        'poultryRouteId': 9, 'routeName': 'East', 'areaCovered': 'Suame', 'defaultVehicleId': 4,
       }));
       expect(find.text('Van A (Van) — UnderMaintenance'), findsOneWidget);
       await tester.tap(find.text('Update'));
@@ -142,19 +144,28 @@ void main() {
         ..gets['/api/Poultry/feed-formulas'] = formulas
         ..writeAnswers[ensure] = {'itemsCreated': 2, 'formulasCreated': 1, 'alreadyApplied': false};
       final s = await sessionFor(api);
-      await open(tester, ListScreen(spec: PageRegistry.of('poultry-feed-formulas')!, session: s, company: adminCompany), size: phone);
+      // 9 Nov pull: its own screen (setup-views/poultry-feed-formulas.tsx).
+      await open(tester, FeedFormulasScreen(session: s, company: adminCompany), size: phone);
       final seeded = api.writes.where((w) => w.url.path == ensure).toList();
       expect(seeded, hasLength(1));
       expect(seeded.single.url.queryParameters['farmId'], 'farm-1');
       expect(seeded.single.url.queryParameters.containsKey('force'), isFalse);
 
-      expect(find.text('Default formulas to start with'), findsOneWidget);
+      expect(find.text('Default formulas to start with'), findsNothing, reason: 'the panel went with the 9 Nov pull');
       await see(tester, find.text('My Grower'));
       expect(find.text('Layer Mash'), findsOneWidget);
       expect(find.text('Default'), findsOneWidget, reason: 'only the default formula is badged');
 
-      await see(tester, find.text('Add missing defaults'));
-      await tester.tap(find.text('Add missing defaults'));
+      // A task now, beside New Formula (folded into More on a narrow row).
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, 3000));
+      await tester.pumpAndSettle();
+      if (find.byKey(const ValueKey('task-defaults')).evaluate().isEmpty) {
+        await tester.tap(find.byKey(const ValueKey('task-more')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Add missing defaults').last);
+      } else {
+        await tester.tap(find.byKey(const ValueKey('task-defaults')));
+      }
       await tester.pumpAndSettle();
       final forced = api.writes.where((w) => w.url.path == ensure && w.url.queryParameters['force'] == 'true');
       expect(forced, hasLength(1));
@@ -165,10 +176,10 @@ void main() {
       final api = FakeApi()..gets['/api/Poultry/feed-formulas'] = formulas;
       final staff = Company(farmId: 'farm-1', name: 'Test Farm', type: CompanyType.poultry, role: 'Staff');
       final s = await sessionFor(api);
-      await open(tester, ListScreen(spec: PageRegistry.of('poultry-feed-formulas')!, session: s, company: staff), size: phone);
+      await open(tester, FeedFormulasScreen(session: s, company: staff), size: phone);
       expect(api.writes.where((w) => w.url.path == ensure), isEmpty);
-      expect(find.text('Default formulas to start with'), findsOneWidget);
       expect(find.text('Add missing defaults'), findsNothing);
+      expect(find.byKey(const ValueKey('task-more')), findsNothing);
     });
 
     testWidgets('Feed Formulas: Copy starts a new "My …" formula; editing a default says so', (tester) async {
@@ -210,6 +221,8 @@ void main() {
       await pick(tester, 'Truck', 'Motorbike');
 
       await enter(tester, 'Vehicle name', 'Bike 2');
+      await enter(tester, 'Registration #', 'M 22-19');
+      await enter(tester, 'Capacity (crates)', '10');
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       final body = api.lastBody('/api/Poultry/vehicles');
@@ -229,7 +242,8 @@ void main() {
         ];
       final s = await sessionFor(api);
       await open(tester, customForms['poultry-drivers']!(s, company, {
-        'poultryDriverId': 5, 'driverName': 'Kofi', 'defaultVehicleId': 3, 'defaultRouteId': 7,
+        'poultryDriverId': 5, 'driverName': 'Kofi', 'phoneNumber': '0241234567', 'licenseNumber': 'GHA-12345678',
+        'defaultVehicleId': 3, 'defaultRouteId': 7,
         'isActive': true,
       }));
       expect(find.text('Truck 1 (Truck)'), findsOneWidget);
@@ -261,6 +275,7 @@ void main() {
       expect(find.text('Ama Mensah — 0241'), findsNothing);
       await tester.tap(find.text('Yaw Boateng — 0242').last);
       await tester.pumpAndSettle();
+      await enter(tester, 'License number', 'GHA-12345678');
       await tester.tap(find.text('Assign as driver'));
       await tester.pumpAndSettle();
       final body = api.lastBody('/api/Poultry/drivers/from-employee');
@@ -274,6 +289,8 @@ void main() {
       await open(tester, DriverEmployeeScreen(session: s, company: company, mode: DriverEmployeeMode.created));
       await enter(tester, 'First name', 'Kojo');
       await enter(tester, 'Last name', 'Asante');
+      await enter(tester, 'Phone', '024 123 4567');
+      await enter(tester, 'License number', 'GHA-12345678');
       await enter(tester, 'Username', 'kojo_a');
       await enter(tester, 'Password', 'secret1');
       await tester.tap(find.text('Create & make driver'));

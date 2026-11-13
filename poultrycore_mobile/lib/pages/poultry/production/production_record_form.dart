@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
+import '../flock_type.dart' show isBroilerFlock;
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -236,6 +237,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       _rawItems = r[2];
       _purchases = r[3];
       _flocksLoading = false;
+      _syncBatchToFlock();
       _flocksError = _flockOptions.isEmpty ? _emptyHint() : '';
     });
     _seed();
@@ -248,6 +250,18 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       return 'You have ${_flocks.length} flock(s), but none are ready for production yet. On the Flocks page, turn on “Flock Has Arrived” (and keep the flock Active).';
     }
     return 'No flocks available';
+  }
+
+  /// Picking a flock picks its batch; also for a flock that arrives already
+  /// chosen (an edited record, ?flockId=). Only when the flock's batch is one of
+  /// the listed batches, so the flock never disappears from its own list; a
+  /// flock with no batch leaves the Batch box as it is.
+  void _syncBatchToFlock() {
+    if (_flockId.isEmpty) return;
+    final batchId = tStr(_flocks.where((f) => tStr(f['flockId']) == _flockId).firstOrNull?['batchId']);
+    if (batchId.isEmpty || batchId == _batch) return;
+    if (!_batches.any((b) => b['batchId'] != null && tStr(b['batchId']) == batchId)) return;
+    _batch = batchId;
   }
 
   /// useBatchFlockSelect({ excludeClosed, keepFlockId }).
@@ -341,6 +355,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     String n(Object? v) => v == null ? '' : tStr(v);
     _silent = true;
     _flockId = rec['flockId'] != null ? tStr(rec['flockId']) : '';
+    _syncBatchToFlock();
     _date = date;
     const keys = ['production9AM', 'production12PM', 'production4PM', 'production4thPick', 'production5thPick', 'production6thPick'];
     for (var i = 0; i < 6; i++) {
@@ -441,6 +456,12 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
   int _int(TextEditingController c) => int.tryParse(c.text) ?? 0;
   num get _losses => _int(_broken) + _int(_meaty) + _int(_soft) + _int(_lost);
   num get _birdsLeft => _int(_numBirds) - _int(_mortality);
+
+  /// 399: a broiler flock lays no eggs, so its record has no egg sections.
+  /// Shown anyway when this record already HAS eggs (a flock retyped later,
+  /// or eggs typed before switching flock): hiding them would hide data that
+  /// is still about to be saved.
+  bool get _hideEggSections => isBroilerFlock(_selectedFlock) && _total == 0 && _losses == 0;
   bool get _eggsOver => eggsExceedBirdsLeft(_total, _int(_numBirds) > 0 ? _birdsLeft : null);
   String get _eggsOverMessage =>
       '${loc(_total)} eggs against ${loc(_birdsLeft)} bird${_birdsLeft == 1 ? '' : 's'} left — more than one egg per bird. Check the crates and the bird count, or save anyway if that is right.';
@@ -706,7 +727,10 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
               enabled: !_flocksLoading,
               items: [for (final f in _flockOptions) AppSelectItem(value: tStr(f['flockId']), label: tStr(f['name']))],
               onChanged: (v) {
-                _set(() => _flockId = v ?? '');
+                _set(() {
+                  _flockId = v ?? '';
+                  _syncBatchToFlock();
+                });
                 _seed();
               },
             ),
@@ -729,14 +753,16 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
               },
             ),
           ]),
-          Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _label('Egg grade'),
-            // Automatic since egg sorting: the day's collection is mixed sizes;
-            // sizes are recorded in Egg Sorting. An older record keeps its grade.
-            EggGradeReadout(grade: _eggGrade),
-          ]),
+          if (!_hideEggSections)
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              _label('Egg grade'),
+              // Automatic since egg sorting: the day's collection is mixed sizes;
+              // sizes are recorded in Egg Sorting. An older record keeps its grade.
+              EggGradeReadout(grade: _eggGrade),
+            ]),
         ]),
       ),
+      if (!_hideEggSections) ...[
       const SizedBox(height: 14),
       ProdSection(
         title: 'Egg Production',
@@ -848,6 +874,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
           ),
         ]),
       ),
+      ],
       const SizedBox(height: 14),
       ProdSection(
         title: 'Birds & Age',

@@ -6,7 +6,7 @@ import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 import 'egg_packaging.dart';
 import 'egg_sorting/egg_packaging_card.dart';
-import 'egg_sorting/egg_sorting_widgets.dart' show PanelSection, SizesSettingsPanel;
+import 'egg_sorting/egg_sorting_widgets.dart' show EggCompactScope, PanelSection, SizesSettingsPanel;
 import 'production/production_logic.dart' show eggsPerCrate;
 import 'reports/report_routes.dart' show openAppHref;
 import 'trackers/egg_class_ledger.dart' show cratesText, fmtCount;
@@ -14,7 +14,8 @@ import 'trackers/tracker_logic.dart' show tNum;
 import 'trackers/tracker_widgets.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
-/// Poultry → Setup → Production → **Egg Configuration**
+import 'setup/setup_embed.dart';
+/// Poultry → Setup → Production → **Egg Settings** (was Egg Configuration)
 /// (`app/business-office/egg-pick-settings/page.tsx`, was "Egg Pick Time
 /// Settings"): one place for the farm's egg settings, as four tabs --
 ///   - Pick times: the time each pick represents (display and reporting only;
@@ -91,6 +92,8 @@ String formatPickTime(String hhmm) {
 }
 
 class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
+  /// Farm Setup asks before leaving with unsaved pick times.
+  final Object _dirtyKey = Object();
   final Map<String, String> _times = Map.of(_defaults);
   final Map<String, bool> _enabled = {for (final t in _toggles) t.$1: false};
   Map<String, String> _savedTimes = Map.of(_defaults);
@@ -231,7 +234,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
     };
     final unsorted = _classes.where((c) => c['classKind'] == 'Unsorted').firstOrNull;
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Egg Configuration')),
+      appBar: isSetupEmbedded(context) ? null : AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Egg Settings')),
       body: RefreshIndicator(
         onRefresh: () async {
           await Future.wait([_load(), _loadEggs()]);
@@ -239,7 +242,9 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
         child: ListView(
           key: const ValueKey('egg-config-list'),
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
-          children: [
+          children: isSetupEmbedded(context)
+              ? _embedded(status, enabledPicks, unsorted)
+              : [
             _header(),
             const SizedBox(height: 14),
             _tabGrid(status),
@@ -309,7 +314,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
             const SizedBox(width: 12),
             const Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Egg Configuration', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: TColors.slate900)),
+                Text('Egg Settings', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: TColors.slate900)),
                 Text(
                   'Everything about how this farm collects, counts, sorts and prices its eggs — pick times, egg sorting, packaging units and egg sizes.',
                   style: TextStyle(fontSize: 13, color: TColors.slate600),
@@ -368,6 +373,242 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
               Expanded(child: tab(_tabs[i + 1])),
             ]),
           ),
+      ]),
+    );
+  }
+
+  /// Inside Farm Setup the four tabs are one page (setup-views/egg-pick-settings.tsx):
+  /// four titled panels, each with the compact version of its settings (a
+  /// 2 × 2 grid on a wide screen, one after another on a phone).
+  List<Widget> _embedded(Map<String, String> status, List<(String, int, String, String?, String?)> enabledPicks, Map? unsorted) {
+    reportSetupDirty(context, _dirtyKey, _picksDirty);
+    return [
+      SetupTaskBar(tasks: [
+        SetupTask(
+          id: 'sorting',
+          label: 'Open Egg Sorting',
+          icon: Icons.open_in_new,
+          onTap: () => openAppHref(context, widget.session, widget.company, '/poultry-egg-sorting', label: 'Egg Sorting'),
+        ),
+      ]),
+      if (_eggError != null) ...[TrackerBanner.error(_eggError!), const SizedBox(height: 12)],
+      _quadrant(Icons.schedule, _QTone.emerald, 'Pick times', 'When each egg pick happens in the day', status['picks']!, _compactPicks()),
+      const SizedBox(height: 16),
+      _quadrant(
+        Icons.settings_outlined,
+        _QTone.sky,
+        'Egg sorting',
+        'Sort eggs into sizes and price them',
+        status['sorting']!,
+        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          EggCompactScope(
+            child: SizesSettingsPanel(
+              session: widget.session,
+              company: widget.company,
+              settings: _settings,
+              classes: _classes,
+              canEdit: _canEditEggs,
+              onChanged: _loadEggs,
+              section: PanelSection.sorting,
+            ),
+          ),
+          if (unsorted != null) ...[
+            const SizedBox(height: 8),
+            Text.rich(
+              TextSpan(children: [
+                const TextSpan(text: 'Unsorted on hand: '),
+                TextSpan(text: fmtCount(tNum(unsorted['onHand'])), style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate700)),
+                TextSpan(text: ' (${cratesText(tNum(unsorted['onHand']))})'),
+              ]),
+              style: const TextStyle(fontSize: 12, color: TColors.slate500),
+            ),
+          ],
+        ]),
+      ),
+      const SizedBox(height: 16),
+      _quadrant(
+        Icons.inventory_2_outlined,
+        _QTone.amber,
+        'Packaging & units',
+        'Count eggs in boxes, crates and pieces',
+        status['packaging']!,
+        EggCompactScope(
+          child: EggPackagingCard(session: widget.session, company: widget.company, canEdit: _canEditEggs, onChanged: () => setState(() {})),
+        ),
+      ),
+      const SizedBox(height: 16),
+      _quadrant(
+        Icons.layers_outlined,
+        _QTone.violet,
+        'Egg sizes',
+        "Each size's name, price and stock",
+        status['sizes']!,
+        EggCompactScope(
+          child: SizesSettingsPanel(
+            session: widget.session,
+            company: widget.company,
+            settings: _settings,
+            classes: _classes,
+            canEdit: _canEditEggs,
+            onChanged: _loadEggs,
+            section: PanelSection.sizes,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// The compact pick times: a box per pick (number, name, its switch, the
+  /// time), then the save row.
+  Widget _compactPicks() {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Row(children: [
+          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 8),
+          Text('Loading…', style: TextStyle(fontSize: 14, color: TColors.slate500)),
+        ]),
+      );
+    }
+    Widget box((String, int, String, String?, String?) p) {
+      final (key, n, label, toggle, hint) = p;
+      final enabled = toggle == null || _enabled[toggle] == true;
+      final time = _times[key] ?? '';
+      final tile = Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: enabled ? Tone.bg(0xFFFFFFFF) : TColors.slate50,
+          border: Border.all(color: TColors.slate200),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Container(
+              width: 20,
+              height: 20,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: enabled ? const Tone.bg(0xFFD1FAE5) : const Tone.bg(0xFFE2E8F0), shape: BoxShape.circle),
+              child: Text('$n', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: enabled ? const Tone.fg(0xFF047857) : TColors.slate500)),
+            ),
+            const SizedBox(width: 6),
+            Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: TColors.slate800))),
+            if (toggle != null)
+              SizedBox(
+                height: 24,
+                child: FittedBox(
+                  child: Switch(
+                    key: ValueKey('egg-config-qtoggle-$n'),
+                    value: _enabled[toggle] == true,
+                    onChanged: _saving ? null : (v) => setState(() => _enabled[toggle] = v),
+                  ),
+                ),
+              )
+            else
+              const Text('ON', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: TColors.slate400)),
+          ]),
+          const SizedBox(height: 6),
+          Opacity(
+            opacity: enabled ? 1 : .6,
+            child: OutlinedButton(
+              key: ValueKey('egg-config-qtime-$n'),
+              onPressed: _saving ? null : () => _pick(key),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(32), alignment: Alignment.centerLeft, backgroundColor: Tone.bg(0xFFFFFFFF)),
+              child: Text(time.isEmpty ? '--:--' : time),
+            ),
+          ),
+        ]),
+      );
+      return hint == null ? tile : Tooltip(message: hint, child: tile);
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // Two per row on a phone, as the web's grid-cols-2.
+      for (var i = 0; i < _picks.length; i += 2) ...[
+        if (i > 0) const SizedBox(height: 8),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: box(_picks[i])),
+          const SizedBox(width: 8),
+          Expanded(child: i + 1 < _picks.length ? box(_picks[i + 1]) : const SizedBox()),
+        ]),
+      ],
+      const SizedBox(height: 12),
+      const Divider(height: 1, color: TColors.slate100),
+      const SizedBox(height: 10),
+      Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 6, children: [
+        Text(_picksDirty ? 'Unsaved changes' : 'Pick times are saved.',
+            style: TextStyle(fontSize: 12, fontWeight: _picksDirty ? FontWeight.w500 : FontWeight.w400, color: _picksDirty ? const Tone.fg(0xFFB45309) : TColors.slate500)),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          if (_picksDirty)
+            TextButton(
+              onPressed: _saving
+                  ? null
+                  : () => setState(() {
+                        _times
+                          ..clear()
+                          ..addAll(_savedTimes);
+                        _enabled
+                          ..clear()
+                          ..addAll(_savedEnabled);
+                      }),
+              child: const Text('Discard'),
+            ),
+          const SizedBox(width: 6),
+          FilledButton.icon(
+            key: const ValueKey('egg-config-qsave'),
+            onPressed: _saving || !_picksDirty ? null : _save,
+            icon: _saving
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.save_outlined, size: 16),
+            label: const Text('Save'),
+          ),
+        ]),
+      ]),
+    ]);
+  }
+
+  /// One quarter of the Farm Setup egg settings page: a titled, coloured panel.
+  Widget _quadrant(IconData icon, _QTone tone, String title, String subtitle, String status, Widget child) {
+    final (head, line, solid, chipBg, chipFg) = switch (tone) {
+      _QTone.emerald => (const Tone.bg(0xFFECFDF5), const Tone.line(0xFFD1FAE5), const Tone.bg(0xFF10B981), const Tone.bg(0xFFD1FAE5), const Tone.fg(0xFF065F46)),
+      _QTone.sky => (const Tone.bg(0xFFF0F9FF), const Tone.line(0xFFE0F2FE), const Tone.bg(0xFF0EA5E9), const Tone.bg(0xFFE0F2FE), const Tone.fg(0xFF075985)),
+      _QTone.amber => (const Tone.bg(0xFFFFFBEB), const Tone.line(0xFFFEF3C7), const Tone.bg(0xFFF59E0B), const Tone.bg(0xFFFEF3C7), const Tone.fg(0xFF92400E)),
+      _QTone.violet => (const Tone.bg(0xFFF5F3FF), const Tone.line(0xFFEDE9FE), const Tone.bg(0xFF8B5CF6), const Tone.bg(0xFFEDE9FE), const Tone.fg(0xFF5B21B6)),
+    };
+    return Container(
+      key: ValueKey('egg-quadrant-$title'),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [head, Tone.bg(0xFFFFFFFF)]),
+            border: Border(bottom: BorderSide(color: line)),
+          ),
+          child: Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: solid, borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, size: 20, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              decoration: BoxDecoration(color: chipBg, borderRadius: BorderRadius.circular(999)),
+              child: Text(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: chipFg)),
+            ),
+          ]),
+        ),
+        Padding(padding: const EdgeInsets.all(16), child: child),
       ]),
     );
   }
@@ -529,3 +770,6 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
     );
   }
 }
+
+/// The four panels' colours (QUADRANT_TONES).
+enum _QTone { emerald, sky, amber, violet }

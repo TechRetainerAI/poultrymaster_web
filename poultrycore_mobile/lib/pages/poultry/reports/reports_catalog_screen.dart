@@ -76,6 +76,7 @@ const List<ReportMenuGroup> poultryReportMenuGroups = [
       (id: 'feed-production-report', title: 'Feed Production', description: 'Feed produced and ingredient usage, with full costing.', icon: Icons.factory_outlined, href: '/poultry-feed-production/reports'),
       (id: 'mortality', title: 'Mortality', description: 'Deaths and mortality percentages.', icon: Icons.heart_broken_outlined, href: '/poultry/reports/mortality'),
       (id: 'birds-on-hand', title: 'Birds on Hand', description: 'Current bird count and reconciliation.', icon: Icons.flutter_dash, href: '/poultry/reports/birds-on-hand'),
+      (id: 'batch-bird-reconciliation', title: 'Batch Bird Reconciliation', description: 'Every bird each batch bought: in flocks, waiting to be placed, sold or lost.', icon: Icons.fact_check_outlined, href: '/poultry/reports/batch-bird-reconciliation'),
       (id: 'end-of-flock', title: 'End-of-Flock', description: 'Final lifecycle performance per flock.', icon: Icons.flag_outlined, href: '/poultry/reports/end-of-flock'),
       (id: 'vaccination-schedule', title: 'Vaccination Schedule', description: 'Recorded and upcoming vaccinations.', icon: Icons.vaccines_outlined, href: '/poultry/reports/vaccination-schedule'),
       (id: 'medicine-usage', title: 'Medicine Usage', description: 'Medicines used by flock and date.', icon: Icons.medication_outlined, href: '/poultry/reports/medicine-usage'),

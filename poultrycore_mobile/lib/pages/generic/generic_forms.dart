@@ -6,6 +6,12 @@ import '../custom_form.dart';
 import '../poultry/sales/balances_logic.dart' show BalanceRail, BalanceSide;
 import '../poultry/sales/customer_balances_screen.dart';
 import '../water/water_internal_use_screen.dart';
+import 'delivery/generic_deliveries_screen.dart';
+import 'delivery/generic_delivery_report_screen.dart';
+import 'delivery/generic_fleet_screens.dart';
+import 'generic_business_features_screen.dart';
+import 'generic_credits_screen.dart';
+import 'school/generic_school_screens.dart';
 import 'generic_customer_payments_screen.dart';
 import 'generic_customers_screen.dart';
 import 'generic_expenses_screen.dart';
@@ -29,17 +35,22 @@ const Map<String, PageScreenBuilder> genericPageScreens = {
   '/generic-inventory': _onHand,
   '/generic-stock-adjustments': _adjustments,
   '/generic-internal-use': _internalUse,
+  '/generic-deliveries': _deliveries,
+  '/generic-drivers': _drivers,
+  '/generic-routes': _routes,
   // Sales.
   '/generic-sales': _sales,
   '/generic-sales/new': _newSale,
   '/generic-customers': _customers,
   '/generic-customer-payments': _customerPayments,
+  '/generic-customer-credits': _customerCredits,
   // Purchasing (Recurring expenses is the shared /recurring-expenses screen).
   '/generic-suppliers': _suppliers,
   '/generic-purchases': _purchases,
   '/generic-purchases/new': _newPurchase,
   '/generic-supplier-payments': _supplierPayments,
   '/generic-supplier-balances': _supplierBalances,
+  '/generic-supplier-credits': _supplierCredits,
   '/generic-expenses': _expenseList,
   '/generic-expenses/new': _newExpense,
   // Money.
@@ -47,10 +58,15 @@ const Map<String, PageScreenBuilder> genericPageScreens = {
   '/generic-cash-transfers': _cashTransfers,
   '/generic-daily-closings': _dailyClosings,
   '/generic-owner-money': _ownerMoney,
+  // School.
+  '/generic-classes': _classes,
+  '/generic-terms': _terms,
+  '/generic-student-attendance': _studentAttendance,
   // Admin.
   '/generic-reports': _reports,
   '/generic-setup': _setup,
   '/generic-setup/wizard': _wizard,
+  '/generic-business-features': _businessFeatures,
   '/generic-settings': _settings,
   // The reports the hub links to (the two balance pages are Sales & Money's).
   '/generic-reports/period-pnl': _pnl,
@@ -66,6 +82,7 @@ const Map<String, PageScreenBuilder> genericPageScreens = {
   '/generic-reports/sales-by-product': _byProduct,
   '/generic-reports/sales-by-customer': _byCustomer,
   '/generic-reports/inventory-value': _inventory,
+  '/generic-reports/delivery-report': _deliveryReport,
 };
 
 Widget _products(Session s, Company c) => GenericProductsScreen(session: s, company: c);
@@ -76,6 +93,16 @@ Widget _sales(Session s, Company c) => GenericSalesScreen(session: s, company: c
 Widget _newSale(Session s, Company c) => GenericNewSaleScreen(session: s, company: c);
 Widget _customers(Session s, Company c) => GenericCustomersScreen(session: s, company: c);
 Widget _customerPayments(Session s, Company c) => GenericCustomerPaymentsScreen(session: s, company: c);
+Widget _deliveries(Session s, Company c) => GenericDeliveriesScreen(session: s, company: c);
+Widget _drivers(Session s, Company c) => GenericDriversScreen(session: s, company: c);
+Widget _routes(Session s, Company c) => GenericRoutesScreen(session: s, company: c);
+Widget _deliveryReport(Session s, Company c) => GenericDeliveryReportScreen(session: s, company: c);
+Widget _classes(Session s, Company c) => GenericClassesScreen(session: s, company: c);
+Widget _terms(Session s, Company c) => GenericTermsScreen(session: s, company: c);
+Widget _studentAttendance(Session s, Company c) => GenericStudentAttendanceScreen(session: s, company: c);
+Widget _businessFeatures(Session s, Company c) => GenericBusinessFeaturesScreen(session: s, company: c);
+Widget _customerCredits(Session s, Company c) => GenericCreditsScreen(session: s, company: c);
+Widget _supplierCredits(Session s, Company c) => GenericCreditsScreen(session: s, company: c, supplier: true);
 Widget _suppliers(Session s, Company c) => GenericSuppliersScreen(session: s, company: c);
 Widget _purchases(Session s, Company c) => GenericPurchasesScreen(session: s, company: c);
 Widget _newPurchase(Session s, Company c) => GenericNewPurchaseScreen(session: s, company: c);

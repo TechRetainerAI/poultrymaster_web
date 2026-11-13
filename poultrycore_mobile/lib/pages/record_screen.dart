@@ -72,25 +72,32 @@ class RecordScreen extends StatelessWidget {
     final label = formatValue(row[spec.titleField], FieldKind.text);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+    // Some pages say up front whether the row can go, and why not.
+    final check = await deleteChecks[spec.key]?.call(session!, company, row);
+    if (!context.mounted) return;
+    final blocked = check != null && !check.canDelete;
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete this record?'),
-        content: Text(label.isEmpty
-            ? 'This cannot be undone.'
-            : '“$label” will be removed. This cannot be undone.'),
+        content: Text(check != null
+            ? check.message
+            : label.isEmpty
+                ? 'This cannot be undone.'
+                : '“$label” will be removed. This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(blocked ? 'Close' : 'Cancel'),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Tone.button(Theme.of(ctx).colorScheme.error)),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
+          if (!blocked)
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: Tone.button(Theme.of(ctx).colorScheme.error)),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Delete'),
+            ),
         ],
       ),
     );
@@ -98,9 +105,18 @@ class RecordScreen extends StatelessWidget {
 
     try {
       final api = RecordApi(session!, spec, company);
-      await api.remove(api.idIn(row)!);
+      final res = await api.remove(api.idIn(row)!);
+      // 414: the server may answer 200 { deleted: false, message }.
+      if (res is Map && res['deleted'] == false) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Not deleted — ${res['message'] ?? 'The record was not deleted.'}'),
+          duration: const Duration(seconds: 6),
+        ));
+        return;
+      }
+      afterDelete[spec.key]?.call(session!, company);
       navigator.pop(true);
-      messenger.showSnackBar(const SnackBar(content: Text('Deleted')));
+      messenger.showSnackBar(SnackBar(content: Text(deletedMessages[spec.key]?.call(res) ?? 'Deleted')));
     } on ApiException catch (e) {
       // The API explains refusals (in use elsewhere, closed period) better
       // than any message written here could.

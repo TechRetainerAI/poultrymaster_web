@@ -155,6 +155,11 @@ class _InternalUseScreenState extends State<InternalUseScreen> {
   /// Records and products load separately; either failing toasts on its own.
   Future<void> _load() async {
     setState(() => _loading = true);
+    // Broken Eggs / Dead Birds only exist once something creates them; make
+    // sure they do so they can be picked. Best effort: never blocks the list.
+    try {
+      await _api.post('/api/Poultry/products/ensure-byproducts', query: {'farmId': _farmId});
+    } catch (_) {}
     try {
       final r = rowsOf(await _api.get('/api/Poultry/internal-usage', query: {'farmId': _farmId}));
       if (mounted) setState(() => _items = r);

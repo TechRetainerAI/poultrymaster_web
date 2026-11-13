@@ -10,6 +10,7 @@ import '../state/session.dart';
 import 'form_spec.dart';
 import 'lookup_loader.dart';
 import 'lookup_sources.dart';
+import 'module_registry.dart' show formChecks, dependentOptions;
 import 'page_spec.dart';
 import 'record_api.dart';
 
@@ -236,6 +237,20 @@ class _FormScreenState extends State<FormScreen> {
     setState(() => _saving = true);
     final api = RecordApi(session, spec, widget.company);
     final body = _payload();
+    // The page's own whole-form check (e.g. a vehicle registration used once).
+    final check = formChecks[spec.key];
+    if (check != null) {
+      final problem = await check(session, widget.company, body, widget.existing);
+      if (!mounted) return;
+      if (problem != null) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${problem.title} — ${problem.problem}'),
+          duration: const Duration(seconds: 6),
+        ));
+        return;
+      }
+    }
     try {
       final id =
           widget.existing == null ? null : api.idIn(widget.existing!);
@@ -288,6 +303,30 @@ class _FormScreenState extends State<FormScreen> {
 
   String _id(FormSectionDef s, FormFieldDef f) =>
       f.name ?? '${s.title}:${f.label}';
+
+  /// The selects' current values by field name, for [dependentOptions].
+  Map<String, String?> _selectsByName() => {
+        for (final s in widget.def.sections)
+          for (final f in s.fields)
+            if (f.kind == FormFieldKind.select && f.name != null) f.name!: _selects[_id(s, f)],
+      };
+
+  /// A value a dependent select no longer allows is cleared rather than kept
+  /// (Vehicles: a fuel the new type cannot use).
+  void _clearDisallowed() {
+    final spec = widget.spec;
+    if (spec == null) return;
+    final now = _selectsByName();
+    for (final s in widget.def.sections) {
+      for (final f in s.fields) {
+        if (f.kind != FormFieldKind.select || f.name == null) continue;
+        final allowed = dependentOptions['${spec.key}.${f.name}']?.call(now);
+        final id = _id(s, f);
+        final v = _selects[id];
+        if (allowed != null && v != null && v.isNotEmpty && !allowed.contains(v)) _selects[id] = null;
+      }
+    }
+  }
 
   Widget _control(FormSectionDef s, FormFieldDef f) {
     final id = _id(s, f);
@@ -355,7 +394,9 @@ class _FormScreenState extends State<FormScreen> {
         final searched = _options.containsKey(id);
         final known = declared ||
             (resolvable && !(searched && (_options[id]?.isEmpty ?? false)));
-        final items = _options[id];
+        final allowed = slot == null ? null : dependentOptions[slot]?.call(_selectsByName());
+        final all = _options[id];
+        final items = all == null || allowed == null ? all : [for (final i in all) if (allowed.contains(i.value)) i];
         final loading = known && items == null && !_optionsFailed.contains(id);
 
         // A selected value that is not in the list would assert in
@@ -382,7 +423,10 @@ class _FormScreenState extends State<FormScreen> {
                           : f.placeholder ?? 'Select…',
           items: items ?? const [],
           validator: req,
-          onChanged: (v) => setState(() => _selects[id] = v),
+          onChanged: (v) => setState(() {
+            _selects[id] = v;
+            _clearDisallowed();
+          }),
         );
       case FormFieldKind.text:
         return AppInput(

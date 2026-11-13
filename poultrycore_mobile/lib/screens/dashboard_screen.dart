@@ -12,10 +12,12 @@ import '../pages/shared/global_search_screen.dart';
 import '../pages/poultry/production/production_logic.dart' show loadEggsPerCrate;
 import '../pages/poultry/farm_alerts_screen.dart';
 import '../pages/poultry/poultry_dashboard_charts.dart';
+import '../pages/poultry/poultry_quick_actions.dart';
 import '../pages/water/water_dashboard_charts.dart';
 import '../pages/generic/generic_dashboard_charts.dart';
 import '../pages/hotel/hotel_dashboard_view.dart';
 import '../pages/restaurant/restaurant_dashboard_view.dart';
+import '../pages/poultry/poultry_features.dart';
 import '../widgets/app_header.dart';
 import '../widgets/company_switcher_sheet.dart';
 
@@ -89,6 +91,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     loadEggPackaging(widget.session, company);
     // billing_nav: whether the menus offer Billing for this company.
     loadBillingNavFlag(widget.session, companyId: company.farmId);
+    // 399 / 402: a broiler-only farm hides its egg pages and egg cards;
+    // Broiler performance shows once the farm has had a broiler flock.
+    loadPoultryFeatures(widget.session, company).then((_) {
+      if (mounted) setState(() {});
+    });
     _loadAlertCount();
     setState(() {
       _loading = true;
@@ -151,7 +158,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final metrics = _data?.metrics ?? const <Metric>[];
+    // metrics-cards.tsx: a broiler-only company has no eggs to count or
+    // laying rate to show.
+    final metrics = [
+      for (final m in _data?.metrics ?? const <Metric>[])
+        if (showsHomeMetric(company, m.key)) m,
+    ];
 
     return Scaffold(
       backgroundColor: tokens.card,
@@ -229,6 +241,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 );
                               },
                             ),
+                          // charts.tsx's Quick Actions card, under the metric cards.
+                          if (company.type == CompanyType.poultry) ...[
+                            const SizedBox(height: 14),
+                            PoultryQuickActions(session: session, company: company),
+                          ],
                         ],
                       ],
                     ),

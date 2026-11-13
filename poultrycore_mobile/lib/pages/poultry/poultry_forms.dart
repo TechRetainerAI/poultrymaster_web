@@ -7,6 +7,8 @@ import '../shared/terms_screen.dart';
 import 'flock_closeout_screen.dart';
 import 'flock_lifecycle_screen.dart';
 import 'videos_screen.dart';
+import 'weigh_ins_screen.dart';
+import 'broiler_performance_screen.dart';
 import 'treatment_campaigns_screen.dart';
 import 'flock_alerts_screen.dart';
 import 'farm_alerts_screen.dart';
@@ -62,6 +64,8 @@ import 'driver_employee_screen.dart';
 import 'egg_pick_settings_screen.dart';
 import 'farm_completeness_screen.dart';
 import 'farm_setup_screen.dart';
+import 'setup/houses_screen.dart';
+import 'setup/feed_formulas_screen.dart';
 import 'feed_distribution_screen.dart';
 import 'feed_formula_form_screen.dart';
 import 'financial_settings_screen.dart';
@@ -168,11 +172,11 @@ const Map<String, FormDef> poultryForms = {
       FormSectionDef(title: 'Identity', color: 'indigo', columns: 2, fields: [
         FormFieldDef(label: 'Vehicle name', kind: FormFieldKind.text, required: true, full: true, placeholder: 'e.g. Truck 1', name: 'vehicleName'),
         FormFieldDef(label: 'Type', kind: FormFieldKind.select, name: 'vehicleType', initial: 'Truck'),
-        FormFieldDef(label: 'Registration #', kind: FormFieldKind.text, name: 'registrationNumber'),
+        FormFieldDef(label: 'Registration #', kind: FormFieldKind.text, required: true, placeholder: 'e.g. GR 1234-20', name: 'registrationNumber'),
       ]),
       FormSectionDef(title: 'Details', color: 'blue', columns: 2, fields: [
-        FormFieldDef(label: 'Capacity (crates)', kind: FormFieldKind.number, name: 'capacityCrates'),
-        FormFieldDef(label: 'Fuel type', kind: FormFieldKind.text, placeholder: 'Petrol / Diesel', name: 'fuelType'),
+        FormFieldDef(label: 'Capacity (crates)', kind: FormFieldKind.number, required: true, name: 'capacityCrates'),
+        FormFieldDef(label: 'Fuel type', kind: FormFieldKind.select, placeholder: 'Choose fuel', name: 'fuelType'),
         FormFieldDef(label: 'Status', kind: FormFieldKind.select, full: true, name: 'status', initial: 'Active'),
       ]),
       FormSectionDef(title: 'Notes', color: 'slate', columns: 1, fields: [
@@ -189,10 +193,10 @@ const Map<String, FormDef> poultryForms = {
     sections: [
       FormSectionDef(title: 'Basics', color: 'indigo', columns: 2, fields: [
         FormFieldDef(label: 'Route name', kind: FormFieldKind.text, required: true, full: true, placeholder: 'e.g. Kumasi East', name: 'routeName'),
-        FormFieldDef(label: 'Area covered', kind: FormFieldKind.text, full: true, name: 'areaCovered'),
+        FormFieldDef(label: 'Area covered', kind: FormFieldKind.text, required: true, full: true, placeholder: 'e.g. Asafo, Adum, Bantama', name: 'areaCovered'),
       ]),
       FormSectionDef(title: 'Assignment', color: 'blue', columns: 2, fields: [
-        FormFieldDef(label: 'Default vehicle', kind: FormFieldKind.select, full: true, placeholder: '(none)', name: 'defaultVehicleId',
+        FormFieldDef(label: 'Default vehicle', kind: FormFieldKind.select, required: true, full: true, placeholder: '(none)', name: 'defaultVehicleId',
             optionLabel: vehicleOptionLabel, emptyHint: 'No vehicles. Add one on the Vehicles page first.'),
         FormFieldDef(label: 'Expected customers', kind: FormFieldKind.number, name: 'expectedCustomers'),
         FormFieldDef(label: 'Expected crates/day', kind: FormFieldKind.number, name: 'expectedCratesSold'),
@@ -214,9 +218,9 @@ const Map<String, FormDef> poultryForms = {
       FormSectionDef(title: 'Driver details', color: 'indigo', columns: 2,
           description: "Enter the driver's details and assign a vehicle.", fields: [
         FormFieldDef(label: 'Driver name', kind: FormFieldKind.text, required: true, full: true, name: 'driverName'),
-        FormFieldDef(label: 'Phone', kind: FormFieldKind.text, name: 'phoneNumber'),
-        FormFieldDef(label: 'License number', kind: FormFieldKind.text, name: 'licenseNumber'),
-        FormFieldDef(label: 'Default vehicle', kind: FormFieldKind.select, placeholder: '(none)', name: 'defaultVehicleId',
+        FormFieldDef(label: 'Phone', kind: FormFieldKind.text, required: true, placeholder: 'e.g. 024 123 4567', name: 'phoneNumber'),
+        FormFieldDef(label: 'License number', kind: FormFieldKind.text, required: true, placeholder: 'As printed on the licence card', name: 'licenseNumber'),
+        FormFieldDef(label: 'Default vehicle', kind: FormFieldKind.select, required: true, placeholder: '(none)', name: 'defaultVehicleId',
             optionLabel: vehicleOptionLabel, emptyHint: 'No vehicles. Add one on the Vehicles page first.'),
         FormFieldDef(label: 'Default route', kind: FormFieldKind.select, placeholder: '(none)', name: 'defaultRouteId',
             emptyHint: 'No routes. Add one on the Routes page first.'),
@@ -284,6 +288,14 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/poultry-company-setup': _companySetup,
   '/poultry-financial-settings': _financialSettings,
   '/poultry-setup': _farmSetup,
+  // 9 Nov pull: Houses is a page of its own (setup-views/houses.tsx).
+  '/houses': _houses,
+  '/poultry-feed-formulas': _feedFormulas,
+  // The two Setup menu rows (and the sale form's Change link) open a section
+  // or a tab of Farm Setup.
+  '/poultry-setup?section=production': _productionSetup,
+  '/poultry-setup?section=business': _businessSetup,
+  '/poultry-setup?section=production&tab=company-settings': _companySettingsTab,
   // The old address still opens it, as the web redirects it.
   '/poultry-days-of-supply': _daysOfSupply,
   '/poultry-restock-forecast': _daysOfSupply,
@@ -336,6 +348,8 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/poultry-loss-records': _lossRecords,
   '/production-records': _productionRecords,
   '/batch-production-records': _batchProduction,
+  '/poultry-weigh-ins': _weighIns,
+  '/poultry-broiler-performance': _broilerPerformance,
   '/egg-production': _eggSorting,
   '/feed-usage': _feedUsage,
   // 389: the old "new" page opens the Record feed usage form on the page.
@@ -431,6 +445,12 @@ Widget _eggSortingWorkspace(Session s, Company c) => EggSortingWorkspaceScreen(s
 Widget _eggSortingSettings(Session s, Company c) => EggSortingSettingsScreen(session: s, company: c);
 
 Widget _farmSetup(Session s, Company c) => FarmSetupScreen(session: s, company: c);
+Widget _houses(Session s, Company c) => HousesScreen(session: s, company: c);
+Widget _feedFormulas(Session s, Company c) => FeedFormulasScreen(session: s, company: c);
+Widget _productionSetup(Session s, Company c) => FarmSetupScreen(session: s, company: c, href: '/poultry-setup?section=production');
+Widget _businessSetup(Session s, Company c) => FarmSetupScreen(session: s, company: c, href: '/poultry-setup?section=business');
+Widget _companySettingsTab(Session s, Company c) =>
+    FarmSetupScreen(session: s, company: c, href: '/poultry-setup?section=production&tab=company-settings');
 
 Widget _financialSettings(Session s, Company c) => FinancialSettingsScreen(session: s, company: c);
 
@@ -444,4 +464,6 @@ Widget _activityLog(Session s, Company c) => ActivityLogScreen(session: s, compa
 Widget _resources(Session s, Company c) => ResourcesScreen(session: s, company: c);
 Widget _help(Session s, Company c) => HelpCenterScreen(session: s, company: c);
 Widget _videos(Session s, Company c) => PoultryVideosScreen(session: s, company: c);
+Widget _weighIns(Session s, Company c) => WeighInsScreen(session: s, company: c);
+Widget _broilerPerformance(Session s, Company c) => BroilerPerformanceScreen(session: s, company: c);
 Widget _terms(Session s, Company c) => TermsScreen(session: s, company: c);

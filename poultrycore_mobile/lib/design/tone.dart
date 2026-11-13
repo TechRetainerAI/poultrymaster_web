@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/rendering.dart' show RenderDecoratedBox;
+import 'package:flutter/scheduler.dart' show SchedulerPhase;
 import 'package:flutter/widgets.dart';
 
 /// A colour that follows the phone's light / dark setting.
@@ -245,14 +247,68 @@ class _FollowPhoneBrightnessState extends State<FollowPhoneBrightness> with Widg
 /// with [Tone.refreshing] on for one frame, so each colour is applied afresh
 /// and nothing — including the screen the user is on and what they typed —
 /// is thrown away.
+///
+/// The flag is on only while the tree rebuilds and lays out, never while it
+/// paints: during it a Tone is not even equal to itself, and painting then
+/// breaks every rounded box with a one-colour border (Flutter checks that all
+/// four sides match and throws "A borderRadius can only be given on borders
+/// with uniform colors"). That is what made Farm Setup, which is full of such
+/// boxes, fall apart when the phone switched mode on it. So the rebuild and
+/// layout run straight away, and the next frame paints with the flag off.
 void refreshTones(BuildContext context) {
-  Tone.refreshing = true;
-  void mark(Element e) {
-    e.markNeedsBuild();
-    e.visitChildren(mark);
+  final binding = WidgetsBinding.instance;
+  if (binding.schedulerPhase != SchedulerPhase.idle) {
+    // Mid-frame: do it once this frame is finished.
+    binding.addPostFrameCallback((_) {
+      if (context.mounted) refreshTones(context);
+    });
+    binding.scheduleFrame();
+    return;
   }
+  final root = context as Element;
+  Tone.refreshing = true;
+  try {
+    void mark(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(mark);
+    }
 
-  (context as Element).visitChildren(mark);
-  WidgetsBinding.instance.addPostFrameCallback((_) => Tone.refreshing = false);
-  WidgetsBinding.instance.scheduleFrame();
+    root.visitChildren(mark);
+    binding.buildOwner?.buildScope(binding.rootElement ?? root);
+    // Layout runs LayoutBuilders, whose children build only then.
+    binding.rootPipelineOwner.flushLayout();
+
+    // A `const BoxDecoration` is identical to itself, and BoxDecoration ==
+    // returns true for identical objects before it ever compares a colour, so
+    // the box keeps its cached (light) background. Hand each box a stand-in
+    // and then its own decoration back: that drops the cached painter.
+    void reset(Element e) {
+      if (e is RenderObjectElement) {
+        final ro = e.renderObject;
+        if (ro is RenderDecoratedBox) {
+          final d = ro.decoration;
+          ro.decoration = const _Stand();
+          ro.decoration = d;
+        }
+      }
+      e.visitChildren(reset);
+    }
+
+    root.visitChildren(reset);
+  } finally {
+    Tone.refreshing = false;
+  }
+  binding.scheduleFrame();
+}
+
+/// A decoration that paints nothing, used by [refreshTones] for one moment.
+class _Stand extends Decoration {
+  const _Stand();
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) => _StandPainter();
+}
+
+class _StandPainter extends BoxPainter {
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {}
 }

@@ -8,6 +8,8 @@ import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import 'bulk_house_screen.dart';
+import 'flock_type.dart';
+import 'poultry_features.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
 /// Flock Groups → "Add Multiple Flocks", as the web's
@@ -117,6 +119,9 @@ class _BatchAllocationScreenState extends State<BatchAllocationScreen> {
   void initState() {
     super.initState();
     _loadBatches();
+    loadPoultryBusinessType(widget.session, widget.company).then((t) {
+      if (mounted) setState(() => _businessType = t);
+    });
     final id = widget.batchId;
     if (id != null && id > 0) {
       _step = _Step.allocate;
@@ -172,6 +177,10 @@ class _BatchAllocationScreenState extends State<BatchAllocationScreen> {
   int _available = 0;
   List<_House> _houses = const [];
   List<String> _existingNames = const [];
+
+  /// '' = automatic: the database default for every flock created.
+  String _flockType = '';
+  String? _businessType;
 
   final List<_Row> _rows = [];
   bool _submitted = false;
@@ -428,6 +437,7 @@ class _BatchAllocationScreenState extends State<BatchAllocationScreen> {
         'FarmId': widget.company.farmId,
         'BatchId': id,
         'Source': widget.source,
+        if (_flockType.isNotEmpty) 'FlockType': _flockType,
         'Allocations': [
           for (final r in _rows)
             {
@@ -438,6 +448,7 @@ class _BatchAllocationScreenState extends State<BatchAllocationScreen> {
             },
         ],
       });
+      loadPoultryFeatures(widget.session, widget.company, force: true);
       if (!mounted) return;
       final m = res is Map ? res : const {};
       final b = m['batch'] is Map ? m['batch'] as Map : const {};
@@ -529,6 +540,17 @@ class _BatchAllocationScreenState extends State<BatchAllocationScreen> {
               const SizedBox(height: 12),
             ],
             if (_batchId != null && !_loading && _step == _Step.allocate) ...[
+              AppField(
+                label: 'Flock type',
+                full: true,
+                child: FlockTypeSelect(
+                  value: _flockType.isNotEmpty ? _flockType : defaultFlockType(_breed, _businessType),
+                  automatic: _flockType.isEmpty,
+                  enabled: !_saving,
+                  onChanged: (t) => setState(() => _flockType = t),
+                ),
+              ),
+              const SizedBox(height: 12),
               _housesSection(),
               const SizedBox(height: 12),
               _allocationSection(errs.rows),

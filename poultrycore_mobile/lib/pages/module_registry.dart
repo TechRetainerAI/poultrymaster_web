@@ -55,6 +55,15 @@ final Map<String, List<ListFilter>> listFilters = {
 };
 final Map<String, DeleteGuard> deleteGuards = {...waterDeleteGuards, ...restaurantDeleteGuards, ...poultryDeleteGuards};
 final Map<String, BeforeLoad> beforeLoad = {...poultryBeforeLoad};
+final Map<String, AfterDelete> afterDelete = {...poultryAfterDelete};
+final Map<String, DeleteCheck> deleteChecks = {...poultryDeleteChecks};
+final Map<String, DeletedMessage> deletedMessages = {...poultryDeletedMessages};
+
+/// Keyed by spec key.
+final Map<String, FormCheck> formChecks = {...poultryFormChecks};
+
+/// Keyed "specKey.fieldName".
+final Map<String, DependentOptions> dependentOptions = {...poultryDependentOptions};
 final Map<String, RowEnrich> rowEnrich = {...staffLinkRowEnrich};
 final Map<String, RowBadge> rowBadges = {...staffLinkRowBadges, ...poultryRowBadges};
 final Map<String, ListBanner> listBanners = {...poultryListBanners};

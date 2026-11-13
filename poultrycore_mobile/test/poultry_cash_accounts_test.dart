@@ -157,12 +157,12 @@ void main() {
     final a = api();
     await open(tester, CashAccountsScreen(session: await sessionFor(a), company: company), size: phone);
 
-    await tap(tester, find.text('Create default account'));
+    await tapTask(tester, 'Create default account');
     expect(find.textContaining('Default account already exists'), findsOneWidget);
     expect(a.writes, isEmpty);
     clearToasts(tester);
 
-    await tap(tester, find.text('Recalculate'));
+    await tapTask(tester, 'Recalculate');
     expect(a.writes.single.url.path, '/api/Poultry/cash-accounts/reconcile-balances');
 
     await tap(tester, find.text('New account'));
@@ -196,7 +196,7 @@ void main() {
   testWidgets('Transfer: checks, the Other note, then create and approve', (tester) async {
     final a = api();
     await open(tester, CashAccountsScreen(session: await sessionFor(a), company: company), size: phone);
-    await tap(tester, find.widgetWithText(OutlinedButton, 'Transfer'));
+    await tapTask(tester, 'Transfer');
     expect(find.text('Cash transfer (Draft → Approved)'), findsOneWidget);
     final go = inDialog(find.text('Create & approve'));
     await tapIn(tester, go);
@@ -226,7 +226,7 @@ void main() {
   testWidgets('Record Cash Adjustment steers a shortage to Reconcile', (tester) async {
     final a = api();
     await open(tester, CashAccountsScreen(session: await sessionFor(a), company: company), size: phone);
-    await tap(tester, find.text('Record Cash Adjustment'));
+    await tapTask(tester, 'Record Cash Adjustment');
     final save = inDialog(find.widgetWithText(FilledButton, 'Record adjustment'));
     expect(tester.widget<FilledButton>(save).onPressed, isNull);
     await choose(tester, 'Which account?', 'GCB Current');
@@ -283,4 +283,16 @@ void main() {
     final c = a.lastBody('/api/Poultry/cash-reconciliations/clearing');
     expect(c, {'poultryCashAccountId': 5, 'transactionIds': [2], 'clearingStatus': 'Disputed', 'userId': 'user-1'});
   });
+}
+
+/// A button of the task row (9 Nov pull): on the row, or folded into More.
+Future<void> tapTask(WidgetTester tester, String label) async {
+  final onRow = find.descendant(of: find.byWidgetPredicate((w) => w is OutlinedButton || w is FilledButton), matching: find.text(label));
+  if (onRow.evaluate().isNotEmpty) {
+    await tap(tester, onRow);
+    return;
+  }
+  await tap(tester, find.byKey(const ValueKey('task-more')));
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
 }

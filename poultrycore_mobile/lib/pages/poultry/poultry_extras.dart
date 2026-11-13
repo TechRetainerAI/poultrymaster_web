@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 
-import '../../api/api_client.dart';
 import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
-import '../../state/session.dart';
 import '../page_extras.dart';
 import 'batch_allocation_screen.dart';
 import 'bulk_house_screen.dart';
 import 'feed_formula_form_screen.dart';
+import '../../models/company.dart' show Company;
+import '../../state/session.dart';
+import '../lookup_loader.dart';
+import 'delivery/fleet_validation.dart';
+import 'flock_history.dart' show flockDeleteCheck, loadFlockEditContext;
+import 'flock_type.dart';
+import 'poultry_features.dart';
 import 'product_screens.dart';
 import 'driver_employee_screen.dart';
 import 'staff_attendance_screen.dart';
@@ -147,9 +152,17 @@ final Map<String, BeforeLoad> poultryBeforeLoad = {
 
 bool _canManage(Company c) => (c.role ?? '').toLowerCase() != 'staff';
 
-/// The sky "Default" badge after a default formula's name.
+/// Flock Groups: a deleted flock can change which egg / broiler pages show.
+final Map<String, AfterDelete> poultryAfterDelete = {
+  'flocks': (s, c) => loadPoultryFeatures(s, c, force: true),
+};
+
+/// The sky "Default" badge after a default formula's name, and the
+/// Broiler badge on Flock Groups.
 final Map<String, RowBadge> poultryRowBadges = {
   'poultry-feed-formulas': (row) => row['isDefault'] == true ? const _DefaultBadge() : null,
+  // Flock Groups: a broiler flock's name carries the orange badge (399).
+  'flocks': (row) => isBroilerFlock(row) ? const BroilerBadge() : null,
 };
 
 class _DefaultBadge extends StatelessWidget {
@@ -168,109 +181,61 @@ class _DefaultBadge extends StatelessWidget {
 }
 
 const _sky50 = Tone.bg(0xFFF0F9FF);
-const _sky100 = Tone(0xFFE0F2FE);
-const _sky200 = Tone.line(0xFFBAE6FD);
 const _sky300 = Tone.line(0xFF7DD3FC);
-const _sky600 = Tone.fg(0xFF0284C7);
 const _sky700 = Tone.fg(0xFF0369A1);
-const _sky800 = Tone.fg(0xFF075985);
-const _sky900 = Tone.fg(0xFF0C4A6E);
 
-/// Panels above a list (ListBanner).
-final Map<String, ListBanner> poultryListBanners = {
-  'poultry-feed-formulas': (s, c, reload) => _FeedDefaultsBanner(session: s, company: c, reload: reload),
+/// Panels above a list (ListBanner). Feed Formulas' "Default formulas to
+/// start with" panel went with the 9 Nov pull: its Add missing defaults is a
+/// task on FeedFormulasScreen now.
+final Map<String, ListBanner> poultryListBanners = {};
+
+/// Flock Groups (414): say up front whether a flock can be deleted, and why not.
+final Map<String, DeleteCheck> poultryDeleteChecks = {
+  'flocks': (s, c, row) async => flockDeleteCheck(await loadFlockEditContext(s, c, _int(row['flockId']))),
 };
 
-/// The defaults (385) are an example, not a rule -- the web says so where
-/// they appear, with "Add missing defaults" for managers.
-class _FeedDefaultsBanner extends StatefulWidget {
-  const _FeedDefaultsBanner({required this.session, required this.company, required this.reload});
-  final Session session;
-  final Company company;
-  final Future<void> Function() reload;
+/// Flock Groups: only what the server confirmed it did.
+final Map<String, DeletedMessage> poultryDeletedMessages = {
+  'flocks': (res) {
+    final released = res is Map ? _int(res['birdsReleased']) : 0;
+    final msg = res is Map && '${res['message'] ?? ''}'.isNotEmpty
+        ? '${res['message']}'
+        : released > 0
+            ? 'Flock deleted. Its ${loc(released)} birds are back in the batch, available to place again.'
+            : 'Flock deleted successfully';
+    return 'Flock deleted — $msg';
+  },
+};
 
-  @override
-  State<_FeedDefaultsBanner> createState() => _FeedDefaultsBannerState();
-}
+// ---- Vehicles, Drivers, Routes (A5, 9 Nov pull): the web's fleet-validation.ts
 
-class _FeedDefaultsBannerState extends State<_FeedDefaultsBanner> {
-  bool _restoring = false;
-
-  Future<void> _restore() async {
-    setState(() => _restoring = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final (formulas, items) = await ensureDefaultFeedFormulas(widget.session, widget.company, force: true);
-      messenger.showSnackBar(SnackBar(
-        content: Text(formulas + items == 0
-            ? 'Nothing to add. All the default formulas and feeds are already here.'
-            : 'Default formulas added. $formulas formula${formulas == 1 ? '' : 's'} and $items feed item${items == 1 ? '' : 's'} added.'),
-      ));
-      await widget.reload();
-    } on ApiException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Could not add the default formulas. ${e.message}')));
-    } finally {
-      if (mounted) setState(() => _restoring = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const text = TextStyle(fontSize: 13, color: _sky900, height: 1.4);
-    const bold = TextStyle(fontWeight: FontWeight.w700);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: _sky50, border: Border.all(color: _sky200), borderRadius: BorderRadius.circular(12)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(padding: EdgeInsets.only(top: 1), child: Icon(Icons.auto_awesome, size: 20, color: _sky600)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Default formulas to start with', style: text.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              const Text.rich(
-                TextSpan(children: [
-                  TextSpan(text: 'Pre-Starter (0–10 days), Starter, Grower, Developer and Layer formulas — each for '),
-                  TextSpan(text: '1,000 kg (1 tonne)', style: bold),
-                  TextSpan(text: ' of feed — are ready to use. This is one great example many farmers use. '
-                      'To make 2 tonnes, every amount is simply doubled.'),
-                ]),
-                style: text,
-              ),
-              const SizedBox(height: 4),
-              const Text.rich(
-                TextSpan(children: [
-                  TextSpan(text: 'Most farms have their own variation. '),
-                  TextSpan(text: 'Copy', style: bold),
-                  TextSpan(text: ' a default to make your own version, edit it, or create a new formula from scratch.'),
-                ]),
-                style: text,
-              ),
-            ]),
-          ),
-        ]),
-        if (_canManage(widget.company)) ...[
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
-                foregroundColor: _sky800,
-                side: const BorderSide(color: _sky300),
-                overlayColor: _sky100,
-                visualDensity: VisualDensity.compact,
-              ),
-              onPressed: _restoring ? null : _restore,
-              icon: _restoring
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.add, size: 16),
-              label: const Text('Add missing defaults'),
-            ),
-          ),
-        ],
-      ]),
-    );
+Future<List<Map>> _fleetRows(Session s, Company c, String path) async {
+  try {
+    return [for (final r in LookupLoader.rowsIn(await s.farmClient.get(path, query: {'farmId': c.farmId}))) if (r is Map) r];
+  } catch (_) {
+    return const [];
   }
 }
+
+/// Checked before the save is sent, in the order the form shows its fields.
+final Map<String, FormCheck> poultryFormChecks = {
+  'poultry-vehicles': (s, c, body, existing) async {
+    final p = validateVehicle(body, await _fleetRows(s, c, '/api/Poultry/vehicles'), id: _int(existing?['poultryVehicleId']));
+    return p == null ? null : (title: 'Check the vehicle details', problem: p);
+  },
+  'poultry-drivers': (s, c, body, existing) async {
+    final r = await Future.wait([_fleetRows(s, c, '/api/Poultry/drivers/list-for-farm'), _fleetRows(s, c, '/api/Poultry/vehicles')]);
+    final p = validateDriver(body, others: r[0], vehicleCount: r[1].length, id: _int(existing?['poultryDriverId']));
+    return p == null ? null : (title: 'Check the driver details', problem: p);
+  },
+  'poultry-routes': (s, c, body, existing) async {
+    final r = await Future.wait([_fleetRows(s, c, '/api/Poultry/routes'), _fleetRows(s, c, '/api/Poultry/vehicles')]);
+    final p = validateRoute(body, others: r[0], vehicles: r[1], id: _int(existing?['poultryRouteId']));
+    return p == null ? null : (title: 'Check the route details', problem: p);
+  },
+};
+
+/// Vehicles: only the fuels the chosen type can use.
+final Map<String, DependentOptions> poultryDependentOptions = {
+  'poultry-vehicles.fuelType': (selects) => fuelsFor(selects['vehicleType'] ?? 'Truck'),
+};

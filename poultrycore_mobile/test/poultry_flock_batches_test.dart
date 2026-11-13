@@ -67,6 +67,7 @@ Future<void> enterIn(WidgetTester tester, String label, String text) async {
 void clearToasts(WidgetTester tester) => tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).removeCurrentSnackBar();
 
 void main() {
+  reconMain();
   test('status toggles, totals, allocation and filters', () {
     expect(batchToggles('pending'), (hasArrived: false, active: true));
     expect(batchStatus(true, false), 'inactive');
@@ -133,11 +134,15 @@ void main() {
     await enterIn(tester, 'Number of Birds *', '40');
     await enterIn(tester, 'Cost Per Chick', '2.5');
     expect(find.text('Part payment'), findsNothing);
-    expect(find.text('Unpaid'), findsOneWidget, reason: 'total 100 now set, nothing paid');
+    expect(find.text('Paid in full'), findsOneWidget, reason: 'Amount Paid follows the total of 100 until typed');
+    await enterIn(tester, 'Amount Paid Now (GHC)', '30');
+    await enterIn(tester, 'Cost Per Chick', '3');
+    expect(find.text('Part payment'), findsOneWidget, reason: 'a typed amount stops following the total');
+    await enterIn(tester, 'Cost Per Chick', '2.5');
     await tapIn(tester, inDialog(find.text('Create Batch')));
     final b = jsonDecode(a.writes.lastWhere((w) => w.url.path == '/api/MainFlockBatch').body) as Map;
-    expect((b['BatchName'], b['NumberOfBirds'], b['TotalCost'], b['Status'], b['SupplierId'], b['PoultryCashAccountId']),
-        ('Batch C', 40, 100, 'pending', null, null));
+    expect((b['BatchName'], b['NumberOfBirds'], b['TotalCost'], b['AmountPaid'], b['Status'], b['SupplierId'], b['PoultryCashAccountId'], b['IsHistorical']),
+        ('Batch C', 40, 100, 30, 'pending', null, null, false));
     expect(find.text('Batch B-003 created successfully'), findsOneWidget);
     expect(find.text("I'll Do This Later"), findsOneWidget);
   });
@@ -153,5 +158,89 @@ void main() {
     expect((w.method, w.url.path), ('PUT', '/api/MainFlockBatch/1'));
     final b = jsonDecode(w.body) as Map;
     expect((b['StartDate'], b['Status'], b['PoultryCashAccountId'], b.containsKey('Notes')), ('2026-09-01T00:00:00Z', 'active', 0, false));
+  });
+}
+
+// ---- 413: the server's bird figures, Reconcile, Add Multiple Batches, existing batches
+
+FakeApi reconApi() => api()
+  ..gets['/api/Poultry/bird-reconciliation/batches'] = [
+    {'batchId': 1, 'unallocatedPool': 25, 'batchSold': 5, 'flockSold': 10, 'status': 'Unexplained'},
+    {'batchId': 2, 'unallocatedPool': 0, 'batchSold': 0, 'flockSold': 0, 'status': 'FullyAccountedFor'},
+  ];
+
+Future<void> tapTask(WidgetTester tester, String id, String label) async {
+  await see(tester, find.byKey(const ValueKey('task-add')));
+  if (find.byKey(ValueKey('task-$id')).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const ValueKey('task-more')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label).last);
+  } else {
+    await tester.tap(find.byKey(ValueKey('task-$id')));
+  }
+  await tester.pumpAndSettle();
+}
+
+void reconMain() {
+  testWidgets('server figures: unallocated, sold, Reconcile, Add Multiple Batches', (tester) async {
+    final a = reconApi();
+    await open(tester, FlockBatchesScreen(session: await sessionFor(a), company: company), size: phone);
+    expect(find.textContaining('Each row is one purchase of birds'), findsOneWidget);
+    await see(tester, find.text('Batch A'));
+    expect(find.text('Divide'), findsOneWidget, reason: 'the server says batch B has no birds left out of a flock');
+    expect(find.descendant(of: find.byKey(const ValueKey('batch-sold-1')), matching: find.text('15 sold')), findsOneWidget);
+    expect(find.byKey(const ValueKey('batch-sold-2')), findsNothing);
+    await see(tester, find.text('TOTAL BIRDS SOLD'));
+    expect(find.descendant(of: find.ancestor(of: find.text('TOTAL BIRDS SOLD'), matching: find.byType(Column)).first, matching: find.text('15')),
+        findsOneWidget);
+
+    await tap(tester, find.byKey(const ValueKey('batch-reconcile-1')));
+    expect(find.text('Reconcile Birds'), findsOneWidget);
+    expect(a.requests.any((r) => r.url.path == '/api/Poultry/bird-reconciliation/batches/1'), isTrue);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tapTask(tester, 'bulk', 'Add Multiple Batches');
+    expect(find.widgetWithText(AppBar, 'Add Multiple Batches'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tap(tester, find.text('View table format'));
+    expect(find.textContaining('60 allocated · 25 unallocated · 15 sold', findRichText: true), findsOneWidget);
+    expect(find.byTooltip('Reconcile birds — some are not accounted for'), findsOneWidget);
+    expect(find.byTooltip('Reconcile birds'), findsOneWidget);
+  });
+
+  testWidgets('existing batch: IsHistorical, the toast and the Reconcile Birds prompt', (tester) async {
+    final a = reconApi();
+    await open(tester, FlockBatchesScreen(session: await sessionFor(a), company: company), size: phone);
+    await tapTask(tester, 'add', 'Add Flock Batch');
+    expect(find.text('New batch purchase'), findsOneWidget);
+    await tapIn(tester, find.byKey(const ValueKey('batch-mode-existing')));
+    await enterIn(tester, 'Batch Name *', 'Old batch');
+    await enterIn(tester, 'Batch Code *', 'B-003');
+    await tapIn(tester, find.ancestor(of: inDialog(find.text('Start Date *')), matching: find.byType(Column)).first);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await enterIn(tester, 'Number of Birds *', '40');
+    await tapIn(tester, inDialog(find.text('Create Batch')));
+    final b = jsonDecode(a.writes.lastWhere((w) => w.url.path == '/api/MainFlockBatch').body) as Map;
+    expect(b['IsHistorical'], isTrue);
+    expect(find.text('Success! — Existing batch recorded. No expense or cash was posted today.'), findsOneWidget);
+    expect(find.textContaining('then reconcile the birds that never went into a flock'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('just-created-reconcile')));
+    await tester.pumpAndSettle();
+    expect(a.requests.any((r) => r.url.path == '/api/Poultry/bird-reconciliation/batches/33'), isTrue);
+  });
+
+  testWidgets('update warnings show in the toast', (tester) async {
+    final a = reconApi()
+      ..gets['/api/MainFlockBatch/1'] = owing
+      ..writeAnswers['/api/MainFlockBatch/1'] = {'message': 'ok', 'warnings': ['Flocks hold more birds than the batch.']};
+    await open(tester, FlockBatchesScreen(session: await sessionFor(a), company: company), size: phone);
+    await tap(tester, find.text('Edit'));
+    expect(find.text('New batch purchase'), findsNothing, reason: 'the mode is only for a new batch');
+    await tapIn(tester, inDialog(find.text('Update Batch')));
+    expect(find.text('Batch updated — please check — Flocks hold more birds than the batch.'), findsOneWidget);
   });
 }

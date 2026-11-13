@@ -128,7 +128,7 @@ void main() {
   testWidgets('the Sales menu: web order, native screens, the template words', (tester) async {
     final groups = webNavGroups['generic']!;
     final sales = groups.firstWhere((g) => g.title == 'Sales');
-    expect([for (final l in sales.subGroups.single.links) l.href], ['/generic-sales', '/generic-customers', '/generic-customer-payments']);
+    expect([for (final l in sales.subGroups.single.links) l.href], ['/generic-sales', '/generic-customers', '/generic-customer-payments', '/generic-customer-credits']);
     expect(groups.indexOf(sales), groups.indexWhere((g) => g.title == 'Subscriptions') + 1);
     final elsewhere = [for (final g in groups) if (g != sales) for (final s in g.subGroups) for (final l in s.links) l.href];
     for (final href in ['/generic-sales', '/generic-customers', '/generic-customer-payments']) {
@@ -139,7 +139,7 @@ void main() {
     await tester.runAsync(() async => loadGenericModules(await sessionFor(api()), generic));
     final gm = cachedGenericModules('g1')!;
     final worded = gateGenericCatalog(groups, generic).firstWhere((g) => g.title == 'Sales').subGroups.single.links.map((l) => l.label);
-    expect(worded, ['Sales', gm.labels.customerPlural, gm.labels.paymentPlural]);
+    expect(worded, ['Sales', gm.labels.customerPlural, gm.labels.paymentPlural, 'Customer Credits']);
   });
 
   test('filters, badges and ledger refs', () {

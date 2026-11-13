@@ -20,6 +20,7 @@ import 'package:poultrycore_mobile/design/tone.dart';
 import 'cash_flow_screen.dart' show sourceTypeLabel;
 import '../../shared/reason_select.dart' show ReasonSelectField;
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
+import '../setup/setup_embed.dart';
 
 /// Poultry → Money → Cash Account, as `app/poultry-cash-accounts/page.tsx`
 /// (list) and `[id]/page.tsx` (one account's ledger). On hotelMoneyRail it is
@@ -549,18 +550,39 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
         );
 
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(_water ? 'Cash accounts' : 'Cash Account')),
+      appBar: isSetupEmbedded(context) ? null : AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(_water ? 'Cash accounts' : 'Cash Account')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            Row(children: [
-              Icon(Icons.account_balance_wallet_outlined, size: 24, color: _r.accent ?? _sky600),
-              const SizedBox(width: 8),
-              Expanded(child: Text(_water ? 'Cash accounts' : 'Cash Account', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
-            ]),
-            const SizedBox(height: 10),
+            if (!isSetupEmbedded(context)) ...[
+              Row(children: [
+                Icon(Icons.account_balance_wallet_outlined, size: 24, color: _r.accent ?? _sky600),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_water ? 'Cash accounts' : 'Cash Account', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
+              ]),
+              const SizedBox(height: 10),
+            ],
+            // Poultry (9 Nov pull, setup-views/poultry-cash-accounts.tsx): the
+            // buttons as one task row, in the web's order and groups; on Farm
+            // Setup's task bar inside a tab. Water and Hotel keep theirs.
+            if (!_water && !_hotel)
+              SetupTaskBar(tasks: [
+                SetupTask(id: 'new', label: 'New account', icon: Icons.add, primary: true,
+                    onTap: () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r))),
+                SetupTask(id: 'transfer', label: 'Transfer', icon: Icons.swap_horiz, group: 'money',
+                    onTap: () => _dialog(CashTransferQuickDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts))),
+                SetupTask(id: 'adjust', label: 'Record Cash Adjustment', icon: Icons.balance, group: 'money',
+                    onTap: () => _dialog(RecordCashAdjustmentDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts, fmt: _fmt))),
+                SetupTask(id: 'reconcile', label: 'Reconcile', icon: Icons.balance, group: 'check', onTap: () => _reconcile(null)),
+                SetupTask(id: 'recalc', label: 'Recalculate', icon: Icons.refresh, group: 'check', onTap: _recalculate),
+                SetupTask(id: 'report', label: 'Cash Account Report', icon: Icons.description_outlined, group: 'check',
+                    onTap: () => _href(_r.cashAccountsHref, 'Cash Account Report')),
+                SetupTask(id: 'default', label: 'Create default account', icon: Icons.account_balance_wallet_outlined,
+                    disabled: _saving, more: true, onTap: _createDefault),
+              ])
+            else
             Wrap(spacing: 8, runSpacing: 8, children: [
               headerButton(Icons.balance, 'Record Cash Adjustment',
                   () => _dialog(RecordCashAdjustmentDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts, fmt: _fmt))),

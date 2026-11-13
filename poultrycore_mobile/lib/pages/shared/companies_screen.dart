@@ -30,7 +30,9 @@ class CompaniesScreen extends StatefulWidget {
 /// One business on offer (lib/companies/business-types.ts). Several map to
 /// the same company type and differ only by the Generic template.
 class BusinessType {
-  const BusinessType(this.id, this.label, this.description, this.companyType, [this.industryTemplate]);
+  const BusinessType(this.id, this.label, this.description, this.companyType, [this.industryTemplate]) : businessTemplate = null, category = null;
+  const BusinessType.generic(this.id, this.label, this.description, this.industryTemplate, {required this.businessTemplate, required this.category})
+      : companyType = 'Generic';
   final String id;
   final String label;
   final String description;
@@ -38,6 +40,12 @@ class BusinessType {
 
   /// Set only for Generic-based types, which go through the setup wizard.
   final String? industryTemplate;
+
+  /// The module bundle it runs (business-types.ts `businessTemplate`).
+  final String? businessTemplate;
+
+  /// The wizard's grouping: retail, service, subscription or other.
+  final String? category;
 }
 
 const businessTypes = [
@@ -45,16 +53,31 @@ const businessTypes = [
   BusinessType('poultry', 'Poultry farm', 'Flocks, houses, egg production, feed', 'Poultry'),
   BusinessType('hotel', 'Hotel', 'Rooms, bookings, front desk', 'Hotel'),
   BusinessType('restaurant', 'Restaurant', 'POS, menu, kitchen, delivery', 'Restaurant'),
-  BusinessType('saas', 'SaaS / software company', 'Customers on recurring plans', 'Generic', 'SaaS'),
-  BusinessType('gym', 'Gym / fitness centre', 'Members on monthly or annual memberships', 'Generic', 'Gym'),
-  BusinessType('school', 'School', 'Students, termly fees, fee notes', 'Generic', 'School'),
-  BusinessType('cleaning', 'Cleaning service', 'Clients on service contracts', 'Generic', 'CleaningService'),
-  BusinessType('security', 'Security service', 'Clients on service contracts', 'Generic', 'SecurityService'),
-  BusinessType('agency', 'Agency', 'Clients on monthly retainers', 'Generic', 'Agency'),
-  BusinessType('retainer', 'Retainer business', 'Any business billing a fixed amount each period', 'Generic', 'RetainerBusiness'),
-  BusinessType('membership', 'Membership organisation', 'Members paying dues', 'Generic', 'MembershipBusiness'),
-  BusinessType('retail', 'Shop / retail', 'Stock, counter sales, suppliers', 'Generic', 'Retail'),
-  BusinessType('other', 'Other small business', 'Salon, pharmacy, workshop — sales, expenses and cash', 'Generic', 'Other'),
+  BusinessType.generic('saas', 'SaaS / software company', 'Customers on recurring plans', 'SaaS', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('gym', 'Gym / fitness centre', 'Members on monthly or annual memberships', 'Gym', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('school', 'School / training centre', 'Students, termly fees, fee notes', 'School', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('cleaning', 'Cleaning service', 'Clients on service contracts', 'CleaningService', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('security', 'Security service', 'Clients on service contracts', 'SecurityService', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('agency', 'Agency', 'Clients on monthly retainers', 'Agency', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('retainer', 'Retainer business', 'Any business billing a fixed amount each period', 'RetainerBusiness', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('membership', 'Membership organisation', 'Members paying dues', 'MembershipBusiness', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('produce', 'Yam & produce seller', 'Yams, tomatoes, vegetables — purchases, sales and spoilage', 'ProduceSeller', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('grocery', 'Grocery shop / mini-mart', 'Packaged goods, stock alerts, daily cash closing', 'Grocery', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('clothing', 'Clothing & shoe shop', 'Fashion, accessories — stock by size and style', 'Retail', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('hardware', 'Hardware & building materials', 'Cement, iron rods, paint — bulk and unit sales', 'HardwareShop', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('electronics', 'Phone & electronics shop', 'Phones, accessories, repairs — serial tracking', 'ElectronicsShop', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('wholesaler', 'Wholesaler / distributor', 'Bulk buying and reselling — customer credit, supplier payments', 'Wholesaler', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('bakery', 'Bakery', 'Bread, pastries — daily production and sales', 'Bakery', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('pharmacy', 'Pharmacy', 'Medicines, health products — stock and expiry tracking', 'Pharmacy', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('car-dealership', 'Car dealership', 'Vehicle sales — purchases, deposits, customer balances', 'CarDealership', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('retail', 'Other shop / retail', 'Any store selling physical goods', 'Retail', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('barbershop', 'Barbershop', 'Haircuts, shaves — walk-in sales, staff commissions', 'Barbershop', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('salon', 'Hair salon & beauty', 'Hair, nails, skincare — services, retail products, staff', 'Salon', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('auto-repair', 'Auto repair garage', 'Car repairs — job tracking, parts, labour', 'AutoRepair', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('tailor', 'Tailor / fashion designer', 'Custom clothing — measurements, deposits, job tracking', 'Tailor', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('laundry', 'Laundry & dry cleaning', 'Wash, iron, dry clean — customer items and pickup', 'Laundry', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('freelancer', 'Freelancer / consultant', 'Client invoicing, project billing, expenses', 'Freelancer', businessTemplate: 'SubscriptionServiceBusiness', category: 'service'),
+  BusinessType.generic('other', 'Other business', 'Any business not listed above', 'Other', businessTemplate: 'GeneralBusiness', category: 'other'),
 ];
 
 /// CompanyIcon: the same mark and colour wherever a company is named.

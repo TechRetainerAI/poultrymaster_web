@@ -58,6 +58,30 @@ typedef BeforeLoad = Future<void> Function(Session session, Company company);
 /// some rows (Water's system-generated customers).
 typedef DeleteGuard = bool Function(Map<String, dynamic> row);
 
+/// Run after a row is deleted, for what else the web refreshes then
+/// (Flock Groups: which egg / broiler pages show).
+typedef AfterDelete = Future<void> Function(Session session, Company company);
+
+/// Asked before the delete confirm opens (Flock Groups, 414: whether the
+/// flock can be deleted and why not). Null = say nothing extra.
+typedef DeleteCheck = Future<({bool canDelete, String message})?> Function(
+    Session session, Company company, Map<String, dynamic> row);
+
+/// The message to show after a delete, from what the server said it did.
+typedef DeletedMessage = String? Function(Object? response);
+
+/// A whole-form check before a generated form saves (the web's validateX in
+/// handleSave): the toast title and the first problem, or null to save.
+/// [body] is what would be sent; [existing] is the record being edited.
+typedef FormCheck = Future<({String title, String problem})?> Function(
+    Session session, Company company, Map<String, dynamic> body, Map<String, dynamic>? existing);
+
+/// A select whose options depend on another field (Vehicles: the fuels a
+/// vehicle type can use). Given the form's select values by field name, the
+/// option values allowed now, or null for all. A chosen value that stops being
+/// allowed is cleared.
+typedef DependentOptions = List<String>? Function(Map<String, String?> selects);
+
 /// One dropdown in a list's Filters panel. The first option ('') is "All".
 class ListFilter {
   const ListFilter({

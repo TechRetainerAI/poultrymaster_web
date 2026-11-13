@@ -263,4 +263,43 @@ void main() {
     expect(batchProductionScreenForHref('/batch-production-records/abc/edit', s, company), isA<BatchProductionRecordPage>());
     expect(batchProductionScreenForHref('/batch-production-records/21/allocate?returnTo=%2Fpoultry-farm-completeness', s, company), isA<BatchAllocateScreen>());
   });
+
+  // Report 34 part 2 (399): no egg sections when every flock in scope is a broiler.
+  testWidgets('every flock in scope a broiler: no egg sections; one layer brings them back', (tester) async {
+    final a = api();
+    final flocks = a.gets['/api/Flock'] as List<Map<String, Object>>;
+    flocks[0] = {...flocks[0], 'flockType': 'Broiler'};
+    flocks[2] = {...flocks[2], 'flockType': 'Broiler'};
+    await open(tester, BatchProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tester.tap(find.text('Log Batch Production'));
+    await tester.pumpAndSettle();
+    await choose(tester, 'All batches', 'Custom selection', within: find.byType(Dialog));
+    await tap(tester, find.text('Pen 3'));
+    expect(find.text('Egg Production'), findsNothing);
+    expect(find.text('Egg Losses / Quality'), findsNothing);
+    expect(find.text('Egg grade'), findsNothing);
+    await tap(tester, find.text('Pen 2'));
+    await see(tester, find.text('Egg Production'));
+    expect(find.text('Egg Production'), findsOneWidget, reason: 'Pen 2 is a layer flock');
+  });
+
+  // A4 (9 Nov pull): the page's Period presets and 15 records per page.
+  testWidgets('filters: the Period preset fills the dates, as on the web; 15 per page', (tester) async {
+    final a = api();
+    await open(tester, BatchProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    await see(tester, find.text('15 / page'));
+    expect(find.text('15 / page'), findsOneWidget, reason: 'opens on 15 a page, as the web');
+    await tap(tester, find.text('Filters'));
+    expect(find.byKey(const ValueKey('bpr-period')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('bpr-period')), matching: find.text('All Time')), findsOneWidget,
+        reason: 'no dates reads as All Time');
+    await tester.tap(find.byKey(const ValueKey('bpr-period')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Last Year').last);
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: find.byKey(const ValueKey('bpr-period')), matching: find.text('Last Year')), findsOneWidget,
+        reason: 'the dates were set to last year, so the preset reads back as Last Year');
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+  });
 }

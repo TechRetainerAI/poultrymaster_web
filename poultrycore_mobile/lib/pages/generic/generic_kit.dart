@@ -89,6 +89,23 @@ final Map<String, GenericLabels> _labelTable = {
       invoice: 'Bill', invoicePlural: 'Bills', payment: 'Member Payment', paymentPlural: 'Member Payments',
       customerBalance: 'Member Balances'),
   'Retail': _labels('Customer', 'Service / Plan', 'Subscription'),
+  // Phase B: expanded business types (migration 362), template-labels.ts.
+  'ProduceSeller': _labels('Customer', 'Service / Plan', 'Subscription'),
+  'Grocery': _labels('Customer', 'Service / Plan', 'Subscription'),
+  'HardwareShop': _labels('Customer', 'Service / Plan', 'Subscription'),
+  'ElectronicsShop': _labels('Customer', 'Service / Plan', 'Subscription'),
+  'Wholesaler': _labels('Customer', 'Service / Plan', 'Subscription', customerBalance: 'Customer Balances', overdueCustomer: 'Overdue Customer'),
+  'Bakery': _labels('Customer', 'Service / Plan', 'Subscription'),
+  'CarDealership': _labels('Customer', 'Service / Plan', 'Subscription',
+      invoice: 'Vehicle Invoice', invoicePlural: 'Vehicle Invoices', payment: 'Vehicle Payment', paymentPlural: 'Vehicle Payments'),
+  'Pharmacy': _labels('Customer', 'Service / Plan', 'Subscription'),
+  'Barbershop': _labels('Customer', 'Service / Plan', 'Subscription / Contract'),
+  'Salon': _labels('Customer', 'Service / Plan', 'Subscription / Contract'),
+  'AutoRepair': _labels('Customer', 'Service / Plan', 'Subscription / Contract', invoice: 'Job Invoice', invoicePlural: 'Job Invoices'),
+  'Tailor': _labels('Customer', 'Service / Plan', 'Subscription / Contract',
+      invoice: 'Job Invoice', invoicePlural: 'Job Invoices', payment: 'Job Payment', paymentPlural: 'Job Payments'),
+  'Laundry': _labels('Customer', 'Service / Plan', 'Subscription / Contract', invoice: 'Service Invoice', invoicePlural: 'Service Invoices'),
+  'Freelancer': _labels('Client', 'Retainer Package', 'Retainer', payment: 'Client Payment', paymentPlural: 'Client Payments'),
   'Other': _labels('Customer', 'Service / Plan', 'Subscription / Contract'),
 };
 
@@ -98,12 +115,8 @@ GenericLabels genericLabels(String? industry) => _labelTable[industry] ?? _label
 // --------------------------------------------------------- business types
 
 /// The module bundle each Generic business type runs (business-types.ts).
-String? businessTemplateFor(String? industry) => switch (industry) {
-      null => null,
-      'Retail' => 'RetailBusiness',
-      'Other' => 'GeneralBusiness',
-      _ => 'SubscriptionServiceBusiness',
-    };
+String? businessTemplateFor(String? industry) =>
+    industry == null ? null : businessTypeForIndustry(industry)?.businessTemplate ?? 'SubscriptionServiceBusiness';
 
 /// GENERIC_BUSINESS_TYPES.
 final List<BusinessType> genericBusinessTypes = [
@@ -124,6 +137,11 @@ const _legacyCategory = {
   'SaaS': 'Services Business', 'Agency': 'Services Business', 'RetainerBusiness': 'Services Business',
   'CleaningService': 'Services Business', 'SecurityService': 'Services Business', 'Gym': 'Services Business',
   'MembershipBusiness': 'Services Business', 'School': 'School', 'Retail': 'Retail Shop', 'Other': 'Other',
+  // Phase B (business-types.ts LEGACY_CATEGORY_BY_INDUSTRY).
+  'ProduceSeller': 'Retail Shop', 'Grocery': 'Retail Shop', 'HardwareShop': 'Retail Shop', 'ElectronicsShop': 'Retail Shop',
+  'Wholesaler': 'Retail Shop', 'Bakery': 'Retail Shop', 'CarDealership': 'Retail Shop', 'Pharmacy': 'Retail Shop',
+  'Barbershop': 'Other', 'Salon': 'Other', 'AutoRepair': 'Other', 'Tailor': 'Other', 'Laundry': 'Other',
+  'Freelancer': 'Services Business',
 };
 
 /// legacyCategoryIdFor: the old business-category id for a template, by name,
@@ -222,16 +240,25 @@ const genericCatalogModules = {
 /// (labels.customerPlural / paymentPlural), once the settings are known.
 List<NavGroup> gateGenericCatalog(List<NavGroup> groups, Company company) {
   final m = cachedGenericModules(company.farmId);
-  if (m == null) return groups;
+  // The School group is for School businesses only; until the settings are
+  // known it stays hidden, as the web's isSchool is false while loading.
+  if (m == null) return [for (final g in groups) if (g.title != 'School') g];
   bool keep(NavLink l) => genericCatalogModules[l.href] == null || m.showExisting(genericCatalogModules[l.href]!);
   NavLink word(NavLink l) => switch (l.href) {
         '/generic-customers' => NavLink(m.labels.customerPlural, l.href, l.specKey),
         '/generic-customer-payments' => NavLink(m.labels.paymentPlural, l.href, l.specKey),
+        // Subscription businesses call suppliers vendors (generic-nav-config.ts).
+        '/generic-suppliers' when m.isSubscriptionBusiness => NavLink('Vendors', l.href, l.specKey),
+        '/generic-supplier-payments' when m.isSubscriptionBusiness => NavLink('Vendor payments', l.href, l.specKey),
+        '/generic-supplier-balances' when m.isSubscriptionBusiness => NavLink('Vendor balances', l.href, l.specKey),
+        '/generic-supplier-credits' when m.isSubscriptionBusiness => NavLink('Vendor credits', l.href, l.specKey),
         _ => l,
       };
   return [
     for (final g in groups)
-      if (NavGroup(g.title, [
+      if (g.title == 'School' && m.industry != 'School')
+        ...const <NavGroup>[]
+      else if (NavGroup(g.title, [
         for (final s in g.subGroups)
           if (s.links.where(keep).map(word).toList() case final links when links.isNotEmpty) NavSubGroup(s.title, links),
       ]) case final kept when kept.subGroups.isNotEmpty)
