@@ -163,7 +163,7 @@ export default function GenericLossRecordsPage() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <AlertTriangle className="h-6 w-6 text-red-600" /> Loss &amp; Damage Tracker
+                <AlertTriangle className="h-6 w-6 text-red-600" /> Loss &amp; Damage Records
               </h1>
               <p className="text-sm text-slate-500">Track damaged, spoiled, stolen, or lost products.</p>
             </div>

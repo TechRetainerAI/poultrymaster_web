@@ -17,15 +17,12 @@ import { Check, Loader2, Package, Plus } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { useFmt } from "@/lib/currency"
 import { approvePurchase, getPurchases, type GenericPurchase } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Cancelled"] as const
-
-function fmt(n: number) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
-}
 
 function badgeClass(s: string) {
   switch (s) {
@@ -41,6 +38,7 @@ function GenericPurchasesPageInner() {
   const status = sp.get("status") || "All"
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
+  const fmt = useFmt()
   const { toast } = useToast()
   const [rows, setRows] = useState<GenericPurchase[]>([])
   const [search, setSearch] = useState("")

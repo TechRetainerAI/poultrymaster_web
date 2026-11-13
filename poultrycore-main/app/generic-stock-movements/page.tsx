@@ -151,8 +151,8 @@ export default function GenericStockMovementsPage() {
 
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-                <ArrowUpDown className="h-5 w-5 text-emerald-600" /> Stock Movements
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <ArrowUpDown className="h-6 w-6 text-emerald-600" /> Stock Movements
               </h1>
               <p className="text-xs text-slate-500">
                 Every inventory change — purchases, sales, adjustments, internal use, and losses.
