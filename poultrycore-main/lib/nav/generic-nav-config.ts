@@ -216,8 +216,6 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
           item("/generic-reports/inventory-value",   "Inventory Value",   Boxes, canSee("/generic-reports")),
           item("/generic-reports/delivery-report",   "Delivery Report",   Truck, canSee("/generic-reports")),
         ] : []),
-        item("/generic-customer-balances",  labels.customerBalance, Scale, canSee("/generic-customer-balances")),
-        item("/generic-supplier-balances",  "Supplier Balances",    Truck, canSee("/generic-supplier-balances")),
       ]),
     },
     ...(isSub ? [{
