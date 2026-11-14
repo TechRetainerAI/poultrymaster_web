@@ -62,7 +62,7 @@ BEGIN
     pr."GenericProductionRecordId",
     pr."FarmId",
     pr."GenericProductId",
-    p."ProductName",
+    p.productname::TEXT AS "ProductName",
     pr."QuantityProduced",
     pr."ProductionDate",
     pr."UnitCost",
@@ -77,7 +77,7 @@ BEGIN
     pr."ReversedAt",
     pr."CreatedAt"
   FROM genericproductionrecords pr
-  LEFT JOIN genericproducts p ON p."GenericProductId" = pr."GenericProductId"
+  LEFT JOIN genericproducts p ON p.genericproductid = pr."GenericProductId" AND p.farmid = pr."FarmId"
   WHERE pr."FarmId" = p_farmid
     AND (p_status IS NULL OR pr."Status" = p_status)
   ORDER BY pr."ProductionDate" DESC, pr."GenericProductionRecordId" DESC;
@@ -115,11 +115,11 @@ BEGIN
     'Posted', p_createdby, NOW()
   ) RETURNING "GenericProductionRecordId" INTO v_id;
 
-  -- Create stock movement (increase stock)
+  -- Create stock movement (lowercase columns for genericstockmovements)
   INSERT INTO genericstockmovements (
-    "FarmId", "GenericProductId", "MovementDate", "MovementType",
-    "Quantity", "UnitCost", "TotalCostValue", "Reason", "Notes",
-    "Status", "CreatedAt"
+    farmid, genericproductid, movementdate, movementtype,
+    quantity, unitcost, totalcostvalue, reason, notes,
+    status, createdat
   ) VALUES (
     p_farmid, p_genericproductid, p_productiondate, 'Production',
     p_quantityproduced, p_unitcost, v_totalcost,
@@ -128,10 +128,10 @@ BEGIN
     'Approved', NOW()
   );
 
-  -- Update product current stock
+  -- Update product current stock (lowercase columns for genericproducts)
   UPDATE genericproducts
-  SET "CurrentStock" = "CurrentStock" + p_quantityproduced
-  WHERE "GenericProductId" = p_genericproductid AND "FarmId" = p_farmid;
+  SET currentstock = currentstock + p_quantityproduced
+  WHERE genericproductid = p_genericproductid AND farmid = p_farmid;
 
   RETURN v_id;
 END;
@@ -168,11 +168,11 @@ BEGIN
       "ReversedBy" = p_reversedby, "ReversedAt" = NOW()
   WHERE "GenericProductionRecordId" = p_id;
 
-  -- Reverse stock movement
+  -- Reverse stock movement (lowercase columns)
   INSERT INTO genericstockmovements (
-    "FarmId", "GenericProductId", "MovementDate", "MovementType",
-    "Quantity", "UnitCost", "TotalCostValue", "Reason", "Notes",
-    "Status", "CreatedAt"
+    farmid, genericproductid, movementdate, movementtype,
+    quantity, unitcost, totalcostvalue, reason, notes,
+    status, createdat
   ) VALUES (
     p_farmid, v_productid, NOW(), 'Reversal',
     -v_qty, v_unitcost, -v_totalcost,
@@ -180,10 +180,10 @@ BEGIN
     'Approved', NOW()
   );
 
-  -- Reduce product stock
+  -- Reduce product stock (lowercase columns)
   UPDATE genericproducts
-  SET "CurrentStock" = "CurrentStock" - v_qty
-  WHERE "GenericProductId" = v_productid AND "FarmId" = p_farmid;
+  SET currentstock = currentstock - v_qty
+  WHERE genericproductid = v_productid AND farmid = p_farmid;
 END;
 $fn$;
 
