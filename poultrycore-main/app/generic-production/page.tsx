@@ -47,6 +47,22 @@ import { exportTableToPdf } from "@/lib/utils/pdf-export"
 const DEFAULT = defaultReportRange()
 const today = () => new Date().toISOString().slice(0, 10)
 
+/** Auto-generate a batch number: PROD-YYYYMMDD-NNN */
+function generateBatchNumber(existingRecords: GenericProductionRecord[]): string {
+  const date = new Date()
+  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "")
+  const prefix = `PROD-${dateStr}-`
+  // Find the highest sequence number for today
+  let maxSeq = 0
+  for (const r of existingRecords) {
+    if (r.batchNumber?.startsWith(prefix)) {
+      const seq = parseInt(r.batchNumber.slice(prefix.length), 10)
+      if (!isNaN(seq) && seq > maxSeq) maxSeq = seq
+    }
+  }
+  return `${prefix}${String(maxSeq + 1).padStart(3, "0")}`
+}
+
 export default function GenericProductionPage() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -196,7 +212,10 @@ export default function GenericProductionPage() {
               <Button size="sm" variant="outline" onClick={doExport} disabled={loading || filtered.length === 0}>
                 <Download className="h-4 w-4 mr-1" /> Export PDF
               </Button>
-              <Button size="sm" onClick={() => setRecordOpen(true)}>
+              <Button size="sm" onClick={() => {
+                setForm((f) => ({ ...f, batchNumber: generateBatchNumber(rows), productionDate: today() }))
+                setRecordOpen(true)
+              }}>
                 <Plus className="h-4 w-4 mr-1" /> Record Production
               </Button>
             </div>
@@ -380,8 +399,8 @@ export default function GenericProductionPage() {
             </FormSection>
 
             <FormSection title="Details" color="slate">
-              <FormField label="Batch number">
-                <Input value={form.batchNumber} placeholder="e.g., BATCH-001"
+              <FormField label="Batch number" hint="Auto-generated. Edit if needed.">
+                <Input value={form.batchNumber} placeholder="e.g., PROD-20261114-001"
                   onChange={(e) => setForm((f) => ({ ...f, batchNumber: e.target.value }))} />
               </FormField>
               <FormField label="Materials used" full hint="What inputs or raw materials went into this production?">
