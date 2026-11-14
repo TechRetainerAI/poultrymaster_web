@@ -433,6 +433,7 @@ builder.Services.AddScoped<IGenericCompanyService>(sp => new GenericCompanyServi
 builder.Services.AddScoped<IGenericProductService>(sp => new GenericProductService(connectionString));
 builder.Services.AddScoped<IGenericServiceCatalogService>(sp => new GenericServiceCatalogService(connectionString));
 builder.Services.AddScoped<IGenericInventoryService>(sp => new GenericInventoryService(connectionString));
+builder.Services.AddScoped<IGenericProductionRecordService>(sp => new GenericProductionRecordService(connectionString));
 builder.Services.AddScoped<IGenericDeliveryService>(sp => new GenericDeliveryService(connectionString));
 builder.Services.AddScoped<IGenericDriverService>(sp => new GenericDriverService(connectionString));
 builder.Services.AddScoped<IGenericRouteService>(sp => new GenericRouteService(connectionString));

@@ -11,7 +11,7 @@
 
 import {
   Activity, AlertTriangle, ArrowUpDown, Banknote, BarChart3, Boxes, Building2, CalendarClock, CalendarDays,
-  ClipboardCheck, CreditCard, DollarSign, FileText, Gift, GraduationCap, HandCoins, History, Landmark,
+  ClipboardCheck, CreditCard, DollarSign, Factory, FileText, Gift, GraduationCap, HandCoins, History, Landmark,
   MapPin, Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
   PieChart, ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
 } from "lucide-react"
@@ -97,6 +97,8 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       ? [item("/generic-stock-movements", "Stock Movements", ArrowUpDown)] : []),
     ...(showExisting("enableProducts")
       ? [item("/generic-product-tracker", "Product Tracker", History)] : []),
+    ...(showExisting("enableProducts")
+      ? [item("/generic-production", "Production Records", Factory)] : []),
     ...(showExisting("enablePurchases")
       ? [item("/generic-purchases/new", "Record Purchase", ShoppingCart)] : []),
     ...(showExisting("enableInternalUse")
@@ -266,7 +268,8 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       key: "setup-production",
       label: "Production",
       items: gated([
-        item("/generic-products",  "Products", ShoppingBag),
+        item("/generic-products",    "Products",           ShoppingBag),
+        item("/generic-production",  "Production Records", Factory),
       ]),
     }] : []),
     {
