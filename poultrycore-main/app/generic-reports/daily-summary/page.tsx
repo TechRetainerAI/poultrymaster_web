@@ -22,6 +22,7 @@ import { useFmt } from "@/lib/currency"
 import { getDashboard, type GenericDashboard } from "@/lib/api/generic"
 import { cn } from "@/lib/utils"
 import { ReportExportButtons } from "@/components/reports/report-export-buttons"
+import { ReportPageHeader, RichCard } from "@/components/reports/report-header"
 
 export default function DailyBusinessSummaryPage() {
   const router = useRouter()
@@ -62,14 +63,9 @@ export default function DailyBusinessSummaryPage() {
           <div className="mx-auto w-full max-w-7xl">
             <Link href="/generic-reports"
                   className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
-              <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
+              <ArrowLeft className="h-3 w-3 mr-1" /> Reports
             </Link>
-            <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-emerald-600" /> Daily Business Summary
-            </h1>
-            <p className="text-sm text-slate-500 mb-4">
-              Today's snapshot and this week's performance at a glance.
-            </p>
+            <ReportPageHeader title="Daily Business Summary" description="Today's snapshot and this week's performance at a glance." />
 
             <div className="flex gap-2 mb-4 flex-wrap">
               <Button variant="outline" onClick={load} disabled={loading}>

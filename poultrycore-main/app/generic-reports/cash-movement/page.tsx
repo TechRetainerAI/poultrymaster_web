@@ -26,7 +26,7 @@ import { listCashTransactions, getCashAccounts, type GenericCashTransaction } fr
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { cn } from "@/lib/utils"
 import { defaultReportRange } from "@/lib/date-ranges"
-import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { ReportPageHeader, RichCard } from "@/components/reports/report-header"
 
 const DEFAULT = defaultReportRange()
 
@@ -118,24 +118,19 @@ export default function CashMovementReportPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0 space-y-4">
           <div className="mx-auto w-full max-w-7xl">
-            <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
-              <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
-            </Link>
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                  <Wallet className="h-6 w-6 text-blue-600" /> Cash Movement
-                </h1>
-                <p className="text-sm text-slate-500">Every cash inflow and outflow across all accounts.</p>
-              </div>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+              <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700">
+                <ArrowLeft className="h-3 w-3 mr-1" /> Reports
+              </Link>
               <ReportExportButtons pdf={pdfOpts} disabled={loading} csvFilename="cash-movement" />
             </div>
+            <ReportPageHeader title="Cash Movement" description="Every cash inflow and outflow across all accounts." period={{ from: dateFrom, to: dateTo }} />
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">
-              <Tile icon={TrendingUp} label="Cash In" value={fmt(totals.cashIn)} accent="emerald" />
-              <Tile icon={TrendingDown} label="Cash Out" value={fmt(totals.cashOut)} accent="red" />
-              <Tile icon={Wallet} label="Net Movement" value={fmt(totals.net)} accent={totals.net >= 0 ? "emerald" : "red"} />
-              <Tile icon={Wallet} label="Transactions" value={String(totals.count)} />
+              <RichCard label="Cash In" value={fmt(totals.cashIn)} accent="emerald" lines={["All money received"]} />
+              <RichCard label="Cash Out" value={fmt(totals.cashOut)} accent="red" lines={["All money paid out"]} />
+              <RichCard label="Net Movement" value={fmt(totals.net)} accent={totals.net >= 0 ? "emerald" : "red"} lines={[`In (${fmt(totals.cashIn)}) − Out (${fmt(totals.cashOut)})`]} />
+              <RichCard label="Transactions" value={String(totals.count)} lines={["In this period"]} />
             </div>
 
             <Card className="mb-4">

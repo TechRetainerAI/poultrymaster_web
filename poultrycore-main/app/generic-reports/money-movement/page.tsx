@@ -28,6 +28,7 @@ import {
 } from "@/lib/api/generic"
 import { getOwnerEntries, type GenericOwnerEntry } from "@/lib/api/generic-money-out"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ReportPageHeader } from "@/components/reports/report-header"
 
 function monthStart() {
   const n = new Date()
@@ -107,16 +108,13 @@ export default function GenericMoneyMovementPage() {
           <div className="mx-auto w-full max-w-7xl">
             <Link href="/generic-reports"
                   className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
-              <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
+              <ArrowLeft className="h-3 w-3 mr-1" /> Reports
             </Link>
-            <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <Wallet className="h-6 w-6 text-violet-600" /> Money Movement
-            </h1>
-            <p className="text-sm text-slate-500 mb-4 max-w-3xl">
-              Transfers between your own accounts, money the owner put in or took out, and
-              borrowed money. <strong>None of this is income or expense</strong> — except the
-              interest and fees on a repayment, which are the only part that reaches P&L.
-            </p>
+            <ReportPageHeader
+              title="Money Movement"
+              description="Transfers between your own accounts, money the owner put in or took out, and borrowed money. None of this is income or expense — except the interest and fees on a repayment."
+              period={{ from, to }}
+            />
 
             <Card className="mb-4">
               <CardContent className="flex flex-wrap items-end gap-3 pt-6">

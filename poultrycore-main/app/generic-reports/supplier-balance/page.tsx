@@ -21,6 +21,7 @@ import { useFmt } from "@/lib/currency"
 import { getSuppliers, type GenericSupplier } from "@/lib/api/generic"
 import { cn } from "@/lib/utils"
 import { ReportExportButtons } from "@/components/reports/report-export-buttons"
+import { ReportPageHeader, RichCard } from "@/components/reports/report-header"
 
 export default function SupplierBalanceReportPage() {
   const router = useRouter()
@@ -86,24 +87,19 @@ export default function SupplierBalanceReportPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0 space-y-4">
           <div className="mx-auto w-full max-w-7xl">
-            <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
-              <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
-            </Link>
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                  <Truck className="h-6 w-6 text-orange-600" /> Supplier Balance Report
-                </h1>
-                <p className="text-sm text-slate-500">What is owed to suppliers, and any advances paid.</p>
-              </div>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+              <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700">
+                <ArrowLeft className="h-3 w-3 mr-1" /> Reports
+              </Link>
               <ReportExportButtons pdf={pdfOpts} disabled={loading} csvFilename="supplier-balances" />
             </div>
+            <ReportPageHeader title="Supplier Balance Report" description="What is owed to suppliers, and any advances paid." />
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">
-              <Tile label="Total owed" value={fmt(totals.totalOwed)} sub={`${totals.owedCount} supplier(s)`} accent="orange" />
-              <Tile label="Total advances" value={fmt(totals.totalCredit)} sub={`${totals.creditCount} supplier(s)`} accent="emerald" />
-              <Tile label="Net payable" value={fmt(totals.totalOwed - totals.totalCredit)} accent="orange" />
-              <Tile label="Active suppliers" value={String(totals.totalSuppliers)} />
+              <RichCard label="Total Owed" value={fmt(totals.totalOwed)} accent="orange" lines={[`${totals.owedCount} supplier(s)`]} />
+              <RichCard label="Total Advances" value={fmt(totals.totalCredit)} accent="emerald" lines={[`${totals.creditCount} supplier(s)`]} />
+              <RichCard label="Net Payable" value={fmt(totals.totalOwed - totals.totalCredit)} accent="orange" lines={["Owed minus advances"]} />
+              <RichCard label="Active Suppliers" value={String(totals.totalSuppliers)} lines={["With balances tracked"]} />
             </div>
 
             <Card className="mb-4">

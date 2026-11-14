@@ -21,6 +21,7 @@ import { useFmt } from "@/lib/currency"
 import { getDailyClosings, type GenericDailyClosing } from "@/lib/api/generic"
 import { cn } from "@/lib/utils"
 import { ReportExportButtons } from "@/components/reports/report-export-buttons"
+import { ReportPageHeader, RichCard } from "@/components/reports/report-header"
 
 function monthStart() {
   const n = new Date()
@@ -100,12 +101,9 @@ export default function ClosingByCategoryPage() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0 space-y-4">
           <div className="mx-auto w-full max-w-7xl">
             <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
-              <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
+              <ArrowLeft className="h-3 w-3 mr-1" /> Reports
             </Link>
-            <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-emerald-600" /> Closing by Category
-            </h1>
-            <p className="text-sm text-slate-500 mb-4">Period totals from approved daily closings, grouped by financial category.</p>
+            <ReportPageHeader title="Closing by Category" description="Period totals from approved daily closings, grouped by financial category." period={{ from, to }} />
 
             <Card className="mb-4">
               <CardContent className="flex flex-wrap items-end gap-3 pt-6">
@@ -129,9 +127,9 @@ export default function ClosingByCategoryPage() {
             </Card>
 
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-              <Tile label="Total Sales" value={fmt(inRange.reduce((s, r) => s + r.totalSales, 0))} accent="emerald" />
-              <Tile label="Total Expenses" value={fmt(inRange.reduce((s, r) => s + r.totalExpenses, 0))} accent="red" />
-              <Tile label="Net Profit" value={fmt(netProfit)} accent={netProfit >= 0 ? "emerald" : "red"} />
+              <RichCard label="Total Sales" value={fmt(inRange.reduce((s, r) => s + r.totalSales, 0))} accent="emerald" lines={["From approved closings"]} />
+              <RichCard label="Total Expenses" value={fmt(inRange.reduce((s, r) => s + r.totalExpenses, 0))} accent="red" lines={["From approved closings"]} />
+              <RichCard label="Net Profit" value={fmt(netProfit)} accent={netProfit >= 0 ? "emerald" : "red"} lines={["Sales minus expenses"]} />
             </div>
 
             {loading ? (

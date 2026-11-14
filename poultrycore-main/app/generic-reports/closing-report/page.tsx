@@ -23,7 +23,7 @@ import { getDailyClosings, type GenericDailyClosing } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { cn } from "@/lib/utils"
 import { ReportExportButtons } from "@/components/reports/report-export-buttons"
-import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { ReportPageHeader, RichCard } from "@/components/reports/report-header"
 
 export default function ClosingReportPage() {
   const router = useRouter()
@@ -80,12 +80,9 @@ export default function ClosingReportPage() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0 space-y-4">
           <div className="mx-auto w-full max-w-7xl">
             <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
-              <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
+              <ArrowLeft className="h-3 w-3 mr-1" /> Reports
             </Link>
-            <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <FileText className="h-6 w-6 text-emerald-600" /> Closing Report
-            </h1>
-            <p className="text-sm text-slate-500 mb-2">Every daily closing with cash reconciliation and approval status.</p>
+            <ReportPageHeader title="Closing Report" description="Every daily closing with cash reconciliation and approval status." />
             <div className="mb-4">
               <ReportExportButtons disabled={loading || filtered.length === 0} csvFilename="closing-report" pdf={{
                 title: "Closing Report",
@@ -104,11 +101,11 @@ export default function ClosingReportPage() {
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-              <Tile label="Total closings" value={String(totals.count)} />
-              <Tile label="Approved" value={String(totals.approvedCount)} accent="emerald" />
-              <Tile label="Total sales" value={fmt(totals.totalSales)} accent="emerald" />
-              <Tile label="Total expenses" value={fmt(totals.totalExpenses)} accent="red" />
-              <Tile label="Cash difference" value={fmt(totals.totalDifference)} accent={totals.totalDifference >= 0 ? "emerald" : "red"} />
+              <RichCard label="Total Closings" value={String(totals.count)} lines={["All daily closings"]} />
+              <RichCard label="Approved" value={String(totals.approvedCount)} accent="emerald" lines={["Ready for reporting"]} />
+              <RichCard label="Total Sales" value={fmt(totals.totalSales)} accent="emerald" lines={["From approved closings"]} />
+              <RichCard label="Total Expenses" value={fmt(totals.totalExpenses)} accent="red" lines={["From approved closings"]} />
+              <RichCard label="Cash Difference" value={fmt(totals.totalDifference)} accent={totals.totalDifference >= 0 ? "emerald" : "red"} lines={["Expected vs actual cash"]} />
             </div>
 
             <Card className="mb-4">
