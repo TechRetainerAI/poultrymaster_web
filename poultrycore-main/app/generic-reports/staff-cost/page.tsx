@@ -8,6 +8,7 @@
 // wage bill. The two cannot double count -- they are different tables and
 // neither writes the other.
 
+import { useMemo } from "react"
 import { Users2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { getStaffCostReport, type GenericStaffCostReport } from "@/lib/api/generic-reports"
@@ -15,6 +16,7 @@ import {
   GenericReportShell, ReportStat, ReportTable, fmtDate, fmtMonth, fmtMoney, fmtPct,
   trailingMonthsRange, useReport,
 } from "@/components/generic/report-shell"
+import { ReportExportButtons } from "@/components/reports/report-export-buttons"
 
 export default function StaffCostReportPage() {
   const { toast } = useToast()
@@ -32,11 +34,25 @@ export default function StaffCostReportPage() {
   const payroll = people.reduce((s, p) => s + p.payrollPay, 0)
   const monthsWithPay = months.filter((m) => m.totalPaid > 0).length
 
+  const pdfOpts = useMemo(() => ({
+    title: "Staff & Contractor Cost",
+    subtitle: `${range.fromDate} to ${range.toDate}`,
+    columns: [
+      { header: "Person", key: "name", width: 120 },
+      { header: "Role", key: "role", width: 80 },
+      { header: "Staff Payments", key: "staffPayments", width: 80, align: "right" as const, format: "currency" as const },
+      { header: "Payroll", key: "payrollPay", width: 80, align: "right" as const, format: "currency" as const },
+      { header: "Total", key: "totalPaid", width: 80, align: "right" as const, format: "currency" as const },
+    ],
+    rows: people.map((p) => ({ name: p.staffName, role: p.role, staffPayments: p.staffPayments, payrollPay: p.payrollPay, totalPaid: p.totalPaid })),
+  }), [people, range])
+
   return (
     <GenericReportShell
       title="Staff &amp; contractor cost"
       description="Everything paid to people in the period — staff payments and payroll together — by person, by month and by role."
       icon={Users2}
+      exportButtons={<ReportExportButtons pdf={pdfOpts} disabled={loading} csvFilename="staff-cost" />}
       range={range}
       onRangeChange={setRange}
       onRun={() => run()}

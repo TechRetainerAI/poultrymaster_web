@@ -59,6 +59,7 @@ export function GenericReportShell({
   onRun,
   loading,
   extraFilters,
+  exportButtons,
   children,
 }: {
   title: string
@@ -70,6 +71,8 @@ export function GenericReportShell({
   loading: boolean
   /** Report-specific controls that sit next to the dates. */
   extraFilters?: React.ReactNode
+  /** CSV / Email / PDF export buttons — rendered beside the title. */
+  exportButtons?: React.ReactNode
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -89,9 +92,12 @@ export function GenericReportShell({
           <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
             <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
           </Link>
-          <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-            <Icon className="h-6 w-6 text-emerald-600" /> {title}
-          </h1>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+              <Icon className="h-6 w-6 text-emerald-600" /> {title}
+            </h1>
+            {exportButtons}
+          </div>
           {description && <p className="text-sm text-slate-500 mb-4">{description}</p>}
 
           <Card className="mb-4 mt-4">
