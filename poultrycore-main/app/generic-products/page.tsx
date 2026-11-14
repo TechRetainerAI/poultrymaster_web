@@ -42,6 +42,7 @@ const EMPTY_FORM = {
   sku: "",
   barcode: "",
   unitOfMeasure: "",
+  itemType: "Product" as "Product" | "SupplyItem",
   costPrice: "0",
   sellingPrice: "0",
   wholesalePrice: "",
@@ -86,6 +87,7 @@ export default function GenericProductsPage() {
       sku: p.sku ?? "",
       barcode: p.barcode ?? "",
       unitOfMeasure: p.unitOfMeasure ?? "",
+      itemType: (p.itemType ?? "Product") as "Product" | "SupplyItem",
       costPrice: String(p.costPrice),
       sellingPrice: String(p.sellingPrice),
       wholesalePrice: p.wholesalePrice != null ? String(p.wholesalePrice) : "",
@@ -174,6 +176,7 @@ export default function GenericProductsPage() {
         sku: optStr(form.sku),
         barcode: optStr(form.barcode),
         unitOfMeasure: optStr(form.unitOfMeasure),
+        itemType: form.itemType,
         costPrice: cost,
         sellingPrice: sell,
         wholesalePrice: opt(form.wholesalePrice),
@@ -227,10 +230,19 @@ export default function GenericProductsPage() {
                       ? <><Pencil className="w-5 h-5 text-blue-600" /> Edit product</>
                       : <><ShoppingBag className="w-5 h-5 text-blue-600" /> New product</>}
                   </DialogTitle>
-                  <DialogDescription>Add a product or item your business sells. Turn off "Track inventory" for services or items you don't count stock for.</DialogDescription>
+                  <DialogDescription>Add a product you sell, or a supply item you use internally (packaging, fuel, tools, etc.).</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <FormSection title="Basics" color="indigo">
+                    <FormField label="Item type *" full hint="Products are things you sell. Supply items are things you use in the business but don't sell.">
+                      <Select value={form.itemType} onValueChange={(v) => setForm((f) => ({ ...f, itemType: v as "Product" | "SupplyItem" }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Product">Product — something you sell</SelectItem>
+                          <SelectItem value="SupplyItem">Supply Item — something you use internally</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormField>
                     <FormField label="Product name *" full>
                       <Input value={form.productName} onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))} maxLength={200} />
                     </FormField>

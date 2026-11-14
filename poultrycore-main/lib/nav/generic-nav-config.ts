@@ -97,8 +97,6 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       ? [item("/generic-stock-movements", "Stock Movements", ArrowUpDown)] : []),
     ...(showExisting("enableProducts")
       ? [item("/generic-product-tracker", "Product Tracker", History)] : []),
-    ...(showExisting("enableProducts")
-      ? [item("/generic-production", "Production Records", Factory)] : []),
     ...(showExisting("enablePurchases")
       ? [item("/generic-purchases/new", "Record Purchase", ShoppingCart)] : []),
     ...(showExisting("enableInternalUse")

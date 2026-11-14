@@ -90,6 +90,8 @@ export interface GenericProduct {
   expiryDate?: string | null
   /** Whether this product tracks expiry dates (migration 363). */
   trackExpiry?: boolean
+  /** Product = things you sell, SupplyItem = things you use internally (migration 440). */
+  itemType?: "Product" | "SupplyItem"
 }
 
 export interface GenericCustomer {
@@ -569,6 +571,8 @@ export interface GenericProductInput {
   sku?: string | null
   barcode?: string | null
   unitOfMeasure?: string | null
+  /** Product = things you sell, SupplyItem = things you use internally (migration 440). */
+  itemType?: "Product" | "SupplyItem"
   costPrice: number
   sellingPrice: number
   wholesalePrice?: number | null

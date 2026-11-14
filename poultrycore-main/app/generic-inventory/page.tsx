@@ -227,6 +227,7 @@ function GenericInventoryPageInner() {
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [unitFilter, setUnitFilter] = useState("all")
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "out" | "inactive">("all")
+  const [itemTypeFilter, setItemTypeFilter] = useState<"all" | "Product" | "SupplyItem">("all")
   const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all")
   const [purchaseStatusFilter, setPurchaseStatusFilter] = useState<"all" | "Draft" | "Approved" | "Cancelled">("all")
 
@@ -340,13 +341,18 @@ function GenericInventoryPageInner() {
   // ---- Filtered items ----
   const filteredItems = useMemo(() => {
     let rows = filterByDateAndSearch(products, { search, searchKeys: ["productName", "sku", "barcode", "categoryName"] })
+    if (itemTypeFilter !== "all") rows = rows.filter((p) => (p.itemType ?? "Product") === itemTypeFilter)
     if (categoryFilter !== "all") rows = rows.filter((p) => p.categoryName === categoryFilter)
     if (unitFilter !== "all") rows = rows.filter((p) => p.unitOfMeasure === unitFilter)
     if (stockFilter === "low") rows = rows.filter((p) => stockStatus(p) === "low")
     else if (stockFilter === "out") rows = rows.filter((p) => stockStatus(p) === "out")
     else if (stockFilter === "inactive") rows = rows.filter((p) => !p.isActive)
     return rows
-  }, [products, search, categoryFilter, unitFilter, stockFilter])
+  }, [products, search, itemTypeFilter, categoryFilter, unitFilter, stockFilter])
+
+  // Counts for item type chips
+  const productCount = useMemo(() => products.filter((p) => (p.itemType ?? "Product") === "Product").length, [products])
+  const supplyCount = useMemo(() => products.filter((p) => p.itemType === "SupplyItem").length, [products])
 
   // ---- Filtered purchases ----
   const filteredPurchases = useMemo(() => {
@@ -556,8 +562,15 @@ function GenericInventoryPageInner() {
                 {/* ===== ITEMS TAB ===== */}
                 <TabsContent value="items">
                   <Card><CardContent className="space-y-3 p-3 sm:p-4">
+                    {/* Item type: Products vs Supply Items */}
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      <Chip active={itemTypeFilter === "all"} onClick={() => setItemTypeFilter("all")} count={products.length}>All Items</Chip>
+                      <Chip active={itemTypeFilter === "Product"} onClick={() => setItemTypeFilter("Product")} count={productCount}>Products (for sale)</Chip>
+                      <Chip active={itemTypeFilter === "SupplyItem"} onClick={() => setItemTypeFilter("SupplyItem")} count={supplyCount}>Supply Items (internal use)</Chip>
+                    </div>
+                    {/* Stock status */}
                     <div className="flex flex-wrap gap-1.5">
-                      <Chip active={stockFilter === "all"} onClick={() => setStockFilter("all")} count={products.length}>All</Chip>
+                      <Chip active={stockFilter === "all"} onClick={() => setStockFilter("all")} count={filteredItems.length}>All</Chip>
                       <Chip active={stockFilter === "low"} onClick={() => setStockFilter("low")} count={stats.low} tone="warn">Low stock</Chip>
                       <Chip active={stockFilter === "out"} onClick={() => setStockFilter("out")} count={stats.out} tone="bad">Out of stock</Chip>
                       <Chip active={stockFilter === "inactive"} onClick={() => setStockFilter("inactive")} count={stats.inactive}>Inactive</Chip>
