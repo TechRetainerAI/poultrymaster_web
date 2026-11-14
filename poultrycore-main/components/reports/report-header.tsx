@@ -16,9 +16,9 @@ export function RichCard({ label, value, accent = "slate", lines }: {
   lines?: string[]
 }) {
   const borderColor: Record<string, string> = {
-    slate: "border-l-slate-300", emerald: "border-l-emerald-500", red: "border-l-red-500",
-    amber: "border-l-amber-500", orange: "border-l-orange-500", violet: "border-l-violet-500",
-    blue: "border-l-blue-500", cyan: "border-l-cyan-500",
+    slate: "border-t-slate-200", emerald: "border-t-emerald-500", red: "border-t-red-500",
+    amber: "border-t-amber-500", orange: "border-t-orange-500", violet: "border-t-violet-500",
+    blue: "border-t-blue-500", cyan: "border-t-cyan-500",
   }
   const valueColor: Record<string, string> = {
     slate: "text-slate-900", emerald: "text-emerald-700", red: "text-red-600",
@@ -32,8 +32,8 @@ export function RichCard({ label, value, accent = "slate", lines }: {
   }
 
   return (
-    <Card className={cn("border-l-4", borderColor[accent])}>
-      <CardContent className="p-4">
+    <Card className={cn("border-t-[3px]", borderColor[accent])}>
+      <CardContent className="p-4 pt-5">
         <div className={cn("text-[11px] font-semibold uppercase tracking-wider mb-1", labelColor[accent])}>{label}</div>
         <div className={cn("text-xl font-bold tabular-nums", valueColor[accent])}>{value}</div>
         {lines && lines.filter(Boolean).length > 0 && (
@@ -67,10 +67,12 @@ export function ReportPageHeader({ title, description, period, children }: {
         <div className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-1">{farmName ?? "Company"}</div>
         <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
         <p className="text-sm text-slate-500 mt-1">{description}</p>
-        <div className="flex flex-wrap gap-x-8 gap-y-1 mt-3 text-sm text-slate-600">
-          {period && <div><span className="text-slate-400">Period:</span> {period.from} → {period.to}</div>}
-          <div><span className="text-slate-400">Generated:</span> {generated}</div>
-          <div><span className="text-slate-400">Currency:</span> GHS (GHC)</div>
+        <div className="mt-3 space-y-0.5 text-sm">
+          <div className="flex items-center justify-between">
+            {period && <div className="text-slate-600"><span className="text-slate-400 font-medium">Period:</span> {period.from} → {period.to}</div>}
+            <div className="text-slate-600"><span className="text-slate-400 font-medium">Currency:</span> <span className="text-emerald-700">GHS (GHC)</span></div>
+          </div>
+          <div className="text-slate-600"><span className="text-slate-400 font-medium">Generated:</span> {generated}</div>
         </div>
         {children && (
           <div className="mt-4 pt-4 border-t border-slate-100">

@@ -25,6 +25,7 @@ import { useGenericModules } from "@/hooks/use-generic-modules"
 import { PeriodSelect } from "@/components/ui/period-select"
 import { rangeToPeriod } from "@/lib/date-ranges"
 import { ReportExportButtons } from "@/components/reports/report-export-buttons"
+import { RichCard } from "@/components/reports/report-header"
 import { cn } from "@/lib/utils"
 
 function defaultMonthRange() {
@@ -283,41 +284,4 @@ export default function PeriodPnLPage() {
   )
 }
 
-/** Rich summary card matching the poultry report style — colored left border, formula lines. */
-function RichCard({ label, value, accent, lines }: {
-  label: string; value: string; accent: "slate" | "emerald" | "red" | "amber"
-  lines: string[]
-}) {
-  const borderColor = {
-    slate: "border-l-slate-300",
-    emerald: "border-l-emerald-500",
-    red: "border-l-red-500",
-    amber: "border-l-amber-500",
-  }[accent]
-  const valueColor = {
-    slate: "text-slate-900",
-    emerald: "text-emerald-700",
-    red: "text-red-600",
-    amber: "text-amber-700",
-  }[accent]
-  const labelColor = {
-    slate: "text-slate-500",
-    emerald: "text-emerald-600",
-    red: "text-red-500",
-    amber: "text-amber-600",
-  }[accent]
-
-  return (
-    <Card className={cn("border-l-4", borderColor)}>
-      <CardContent className="p-4">
-        <div className={cn("text-[11px] font-semibold uppercase tracking-wider mb-1", labelColor)}>{label}</div>
-        <div className={cn("text-xl font-bold tabular-nums", valueColor)}>{value}</div>
-        <div className="mt-2 space-y-0.5">
-          {lines.filter(Boolean).map((line, i) => (
-            <div key={i} className="text-xs text-slate-500">{line}</div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+// RichCard imported from @/components/reports/report-header
