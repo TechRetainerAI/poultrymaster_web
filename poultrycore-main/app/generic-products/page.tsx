@@ -211,10 +211,10 @@ export default function GenericProductsPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                <ShoppingBag className="h-6 w-6 text-emerald-600" /> Products
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <ShoppingBag className="h-6 w-6 text-blue-600" /> Products
               </h1>
-              <p className="text-sm text-slate-500">{rows.length} product(s)</p>
+              <p className="text-sm text-slate-500">Finished goods you produce and stock. {rows.length} product(s)</p>
             </div>
             <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingId(null) }}>
               <DialogTrigger asChild>

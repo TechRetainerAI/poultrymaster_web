@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { Check, FileText, Loader2, Plus, RefreshCw } from "lucide-react"
+import { CalendarCheck, Check, Loader2, Plus, RefreshCw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -27,11 +27,9 @@ import {
   type GenericDailyClosing,
 } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { usePagination } from "@/hooks/use-pagination"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
-
-function fmt(n: number) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
-}
+import { useFmt } from "@/lib/currency"
 
 function badgeClass(s: string) {
   switch (s) {
@@ -47,6 +45,7 @@ export default function GenericDailyClosingsPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
   const { toast } = useToast()
+  const fmt = useFmt()
 
   const [rows, setRows] = useState<GenericDailyClosing[]>([])
   const [search, setSearch] = useState("")
@@ -165,11 +164,14 @@ export default function GenericDailyClosingsPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                <FileText className="h-6 w-6 text-slate-700" /> Daily closings
-              </h1>
-              <p className="text-sm text-slate-500">{rows.length} closing(s) — totals are auto-aggregated; you just count cash.</p>
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 shrink-0 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <CalendarCheck className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Daily Closing</h1>
+                <p className="text-sm text-slate-600">Check that everything that should have happened today has, then close the day.</p>
+              </div>
             </div>
             <Button className="w-full sm:w-auto h-11 sm:h-10" onClick={openClosingDialog}><Plus className="h-4 w-4 mr-1" />Close today</Button>
             <Dialog open={open} onOpenChange={setOpen}>
@@ -279,6 +281,9 @@ export default function GenericDailyClosingsPage() {
             <Card>
               <CardContent className="p-0">
                 <MobileCardList
+                  defaultOpen
+                  striped
+                  stripeAccent="blue"
                   items={visibleRows}
                   getKey={(c) => c.genericDailyClosingId}
                   primary={(c) => fmtDateTime(c.closingDate, c)}
@@ -290,6 +295,12 @@ export default function GenericDailyClosingsPage() {
                     </>
                   )}
                   trailing={(c) => <Badge className={badgeClass(c.status)}>{c.status}</Badge>}
+                  highlights={(c) => [
+                    { label: "Sales", value: fmt(c.totalSales), accent: "emerald" as const },
+                    { label: "Expenses", value: fmt(c.totalExpenses), accent: "rose" as const },
+                    { label: "Net cash", value: fmt(c.expectedCash), accent: c.expectedCash < 0 ? "rose" as const : "blue" as const },
+                    { label: "Difference", value: fmt(c.cashDifference), accent: c.cashDifference !== 0 ? "amber" as const : "slate" as const },
+                  ]}
                   details={(c) => [
                     { label: "Sales", value: fmt(c.totalSales) },
                     { label: "Expenses", value: fmt(c.totalExpenses) },

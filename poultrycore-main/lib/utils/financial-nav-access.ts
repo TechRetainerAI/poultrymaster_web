@@ -138,10 +138,19 @@ export function isFinancialNavItemVisible(
   if (href === "/generic-suppliers" || href === "/generic-supplier-payments") {
     return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
   }
+  if (href === "/generic-customer-credits") {
+    return isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers
+  }
+  if (href === "/generic-supplier-credits") {
+    return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
+  }
   if (href === "/generic-supplier-balances") {
     return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
   }
   if (href === "/generic-payroll" || href === "/generic-staff-payments") return f.canViewCashLedger
+  if (href === "/generic-loans") return f.canViewCashLedger
+  if (href === "/generic-deferred-costs") return isAdmin || f.canViewFinancial
+  if (href === "/generic-assets") return isAdmin || f.canViewFinancial
   if (href === "/generic-reports") return isAdmin || f.canViewReports
   if (href === "/generic-setup" || href === "/generic-settings" || href === "/generic-business-features") return isAdmin
 

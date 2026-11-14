@@ -435,6 +435,42 @@ export async function getCashAccounts(): Promise<GenericCashAccount[]> {
   return getJson<GenericCashAccount[]>(`${farmBase()}/cash-accounts`)
 }
 
+export async function createCashAccount(input: {
+  accountName: string; accountType: string; openingBalance: number;
+  allowNegativeBalance: boolean; notes?: string | null
+}): Promise<GenericCashAccount | null> {
+  return postJson<GenericCashAccount>(`${farmBase()}/cash-accounts`, withFarmId(input))
+}
+
+export async function updateCashAccount(id: number, input: {
+  accountName: string; accountType: string;
+  allowNegativeBalance: boolean; isActive: boolean; notes?: string | null
+}): Promise<void> {
+  await putJson(`${farmBase()}/cash-accounts/${id}`, withFarmId(input))
+}
+
+export async function deleteCashAccount(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/cash-accounts/${id}`)
+}
+
+export interface GenericCashTransaction {
+  genericCashTransactionId: number
+  genericCashAccountId: number
+  accountName?: string | null
+  transactionDate: string
+  transactionType: string
+  sourceType?: string | null
+  amount: number
+  description?: string | null
+}
+
+export async function listCashTransactions(params?: { cashAccountId?: number }): Promise<GenericCashTransaction[]> {
+  const path = params?.cashAccountId
+    ? `${farmBase()}/cash/accounts/${params.cashAccountId}/transactions`
+    : `${farmBase()}/cash/transactions`
+  return getJson<GenericCashTransaction[]>(path)
+}
+
 // =============================================================================
 // Cash reconciliation
 // =============================================================================

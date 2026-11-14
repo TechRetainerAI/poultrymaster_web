@@ -167,11 +167,11 @@ function GenericCashTransfersPageInner() {
 
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-                <ArrowLeftRight className="h-5 w-5 text-sky-600" /> Cash Transfers
+              <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+                <ArrowLeftRight className="h-6 w-6 text-sky-600" /> Cash Transfers
               </h1>
-              <p className="text-xs text-slate-500">
-                Move cash between your own accounts. Never company-wide money in or money out.
+              <p className="text-sm text-slate-500">
+                Move cash between your own accounts — it never counts as money in or money out on Cash Flow.
               </p>
             </div>
             <Button onClick={() => setNewOpen(true)}>

@@ -110,6 +110,9 @@ export function ReconcileProductStockButton({
                 </div>
               )}
               <p className="text-[11px] text-slate-400">Current = In − Out. Finished stock is ledger-derived, so this verifies rather than overwrites.</p>
+              {result.some((r) => r.name === "Birds") && (
+                <p className="text-[11px] text-slate-400">Birds: In = birds bought, Out = deaths + sold + other, Current = birds alive — the same figures as the Flocks page.</p>
+              )}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setResult(null)}>Back</Button>
                 <Button onClick={() => setOpen(false)}>Done</Button>
