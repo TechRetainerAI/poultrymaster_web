@@ -20,9 +20,10 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Loader2, Plus, Users2, Pencil, Trash2, KeyRound, CalendarCheck } from "lucide-react"
+import { Loader2, Plus, Users2, Pencil, Trash2, KeyRound, CalendarCheck, UserPlus } from "lucide-react"
 import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
 import { EmployeeBadge } from "@/components/employees/link-badges"
+import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -56,6 +57,9 @@ export default function GenericStaffPage() {
   const [saving, setSaving] = useState(false)
   const [filterRole, setFilterRole] = useState<string>("all")
   const [deleteTarget, setDeleteTarget] = useState<GenericStaff | null>(null)
+
+  // Add Employee dialog (with access/permissions, same as poultry)
+  const [addEmployeeOpen, setAddEmployeeOpen] = useState(false)
 
   // Attendance modal
   const [attDlg, setAttDlg] = useState<{ open: boolean; staff?: GenericStaff }>({ open: false })
@@ -196,6 +200,11 @@ export default function GenericStaffPage() {
                   {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                 </SelectContent>
               </Select>
+
+              <Button variant="outline" className="w-full sm:w-auto h-11 sm:h-10"
+                onClick={() => setAddEmployeeOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-1" /> Add Employee
+              </Button>
 
               <Dialog open={open} onOpenChange={(o) => { if (o) link.clearPending(); setOpen(o) }}>
                 <DialogTrigger asChild>
@@ -431,6 +440,15 @@ export default function GenericStaffPage() {
             await deleteStaff(deleteTarget.genericStaffId)
             await load()
           }
+        }}
+      />
+
+      <AddEmployeeDialog
+        open={addEmployeeOpen}
+        onOpenChange={setAddEmployeeOpen}
+        onCreated={() => {
+          setAddEmployeeOpen(false)
+          load()
         }}
       />
     </div>
