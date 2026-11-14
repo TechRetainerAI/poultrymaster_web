@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft, Loader2 } from "lucide-react"
+import { useAuthStore as useAuthStoreShell } from "@/lib/store/auth-store"
 import { PeriodSelect } from "@/components/ui/period-select"
 import { rangeToPeriod } from "@/lib/date-ranges"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -89,37 +90,44 @@ export function GenericReportShell({
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
-            <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
-          </Link>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <Icon className="h-6 w-6 text-emerald-600" /> {title}
-            </h1>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+            <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700">
+              <ArrowLeft className="h-3 w-3 mr-1" /> Reports
+            </Link>
             {exportButtons}
           </div>
-          {description && <p className="text-sm text-slate-500 mb-4">{description}</p>}
 
-          <Card className="mb-4 mt-4">
-            <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-              <PeriodSelect
-                value={rangeToPeriod(range.fromDate, range.toDate)}
-                onChange={(_p, rg) => { if (rg) onRangeChange({ fromDate: rg.from, toDate: rg.to }) }}
-              />
-              <div>
-                <Label>From</Label>
-                <Input type="date" value={range.fromDate}
-                       onChange={(e) => onRangeChange({ ...range, fromDate: e.target.value })} />
+          <Card className="mb-4 border-t-4 border-t-amber-500">
+            <CardContent className="pt-6">
+              <div className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-1">{useAuthStoreShell.getState().activeFarmName ?? "Company"}</div>
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <Icon className="h-6 w-6 text-emerald-600" /> {title}
+              </h1>
+              {description && <p className="text-sm text-slate-500 mt-1">{description}</p>}
+              <div className="flex flex-wrap gap-x-8 gap-y-1 mt-3 text-sm text-slate-600">
+                <div><span className="text-slate-400">Period:</span> {range.fromDate} → {range.toDate}</div>
+                <div><span className="text-slate-400">Currency:</span> GHS (GHC)</div>
               </div>
-              <div>
-                <Label>To</Label>
-                <Input type="date" value={range.toDate}
-                       onChange={(e) => onRangeChange({ ...range, toDate: e.target.value })} />
-              </div>
-              {extraFilters}
-              <Button onClick={onRun} disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Run
-              </Button>
+
+              <div className="flex flex-wrap items-end gap-3 mt-4 pt-4 border-t border-slate-100">
+                <PeriodSelect
+                  value={rangeToPeriod(range.fromDate, range.toDate)}
+                  onChange={(_p, rg) => { if (rg) onRangeChange({ fromDate: rg.from, toDate: rg.to }) }}
+                />
+                <div>
+                  <Label className="text-xs text-slate-500">From</Label>
+                  <Input type="date" value={range.fromDate}
+                         onChange={(e) => onRangeChange({ ...range, fromDate: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500">To</Label>
+                  <Input type="date" value={range.toDate}
+                         onChange={(e) => onRangeChange({ ...range, toDate: e.target.value })} />
+                </div>
+                {extraFilters}
+                <Button onClick={onRun} disabled={loading}>
+                  {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Run
+                </Button>
             </CardContent>
           </Card>
 
