@@ -44,10 +44,13 @@ function coreReports(l: TemplateLabels): ReportCard[] {
     { href: "/generic-reports/daily-summary", title: "Daily business summary", description: "Today's snapshot: sales, expenses, profit, cash positions and alerts.", icon: BarChart3, accent: "sky" },
     { href: "/generic-reports/cash-summary", title: "Cash flow", description: "Money in, money out and the closing balance of every cash account.", icon: Wallet, accent: "slate" },
     { href: "/generic-reports/expenses-by-category", title: "Expense report", description: "Where the money went — by category, by supplier, and month by month.", icon: BarChart3, accent: "amber" },
+    { href: "/generic-reports/closing-report", title: "Closing report", description: "Every daily closing with cash reconciliation and approval status.", icon: BarChart3, accent: "slate" },
+    { href: "/generic-reports/closing-by-category", title: "Closing by category", description: "Period totals from approved daily closings, grouped into financial categories.", icon: BarChart3, accent: "slate" },
+    { href: "/generic-reports/customer-balance", title: "Customer balance", description: "Who owes what, who has credit on account, and which customers are over their limit.", icon: Users, accent: "cyan" },
+    { href: "/generic-reports/supplier-balance", title: "Supplier balance", description: "What is owed to suppliers, any advances paid, and net payable position.", icon: Truck, accent: "orange" },
     { href: "/generic-reports/cash-accounts", title: "Cash account report", description: "Per-account opening, money in, money out and closing, with reconciliation status.", icon: Wallet, accent: "slate" },
+    { href: "/generic-reports/cash-movement", title: "Cash movement", description: "Every cash inflow and outflow across all accounts, by type and source.", icon: Wallet, accent: "sky" },
     { href: "/generic-reports/money-movement", title: "Money movement", description: "Cash transfers, owner money and loans — what moved but is not income or expense.", icon: Wallet, accent: "violet" },
-    { href: "/generic-customer-balances", title: `${l.customerBalance} report`, description: `Who owes what, how old it is, and every open ${l.invoice.toLowerCase()} behind it.`, icon: Scale, accent: "cyan" },
-    { href: "/generic-supplier-balances", title: "Supplier balances", description: "What is owed to suppliers, aged, with the bills behind each balance.", icon: Truck, accent: "orange" },
     { href: "/generic-reports/staff-cost", title: "Staff & contractor cost", description: "Everything paid to people — staff payments and payroll — by person, month and role.", icon: Users2, accent: "violet" },
   ]
 }
