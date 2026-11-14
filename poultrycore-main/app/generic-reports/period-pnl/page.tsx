@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Banknote, Building2, Info, Loader2, Wallet } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -218,44 +218,172 @@ export default function PeriodPnLPage() {
                   />
                 </div>
 
-                {/* P&L Statement table */}
-                <Card>
-                  <CardContent className="pt-6">
-                    <h2 className="text-lg font-semibold text-slate-900 mb-1">Profit & Loss Statement</h2>
-                    <p className="text-xs text-slate-500 mb-4">{range.fromDate} to {range.toDate} · {d.salesCount} sale(s)</p>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-slate-50">
-                            <TableHead className="w-[70%] font-semibold">Item</TableHead>
-                            <TableHead className="text-right font-semibold">Amount</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {statementRows.map((row, i) => row.separator ? (
-                            <TableRow key={i}><TableCell colSpan={2} className="py-0.5 border-0" /></TableRow>
-                          ) : (
-                            <TableRow key={i} className={row.bold ? "bg-slate-50" : ""}>
-                              <TableCell className={cn(
-                                row.bold ? "font-bold text-slate-900" : "",
-                                row.indent ? "pl-8 text-slate-500 text-sm" : "",
-                              )}>
-                                {row.label}
-                              </TableCell>
-                              <TableCell className={cn(
-                                "text-right tabular-nums",
-                                row.bold ? "font-bold" : "",
-                                row.value > 0 ? "text-emerald-700" : row.value < 0 ? "text-red-600" : "text-slate-400",
-                              )}>
-                                {fmt(row.value)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                {/* 4 breakdown columns — matching poultry layout */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                  <Card className="border-t-[3px] border-t-emerald-400">
+                    <CardContent className="p-4">
+                      <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 mb-3">Revenue</div>
+                      {d.totalIncome > 0 ? (
+                        <div className="text-sm text-slate-600 mb-3">
+                          Sales · {d.salesCount} transaction(s)
+                        </div>
+                      ) : (
+                        <div className="text-sm text-slate-400 mb-3">None this period</div>
+                      )}
+                      <div className="border-t border-emerald-200 pt-2 flex justify-between font-semibold text-sm">
+                        <span>Total Revenue</span>
+                        <span>{fmt(d.totalIncome)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-t-[3px] border-t-red-400">
+                    <CardContent className="p-4">
+                      <div className="text-xs font-bold uppercase tracking-wider text-red-500 mb-3">Direct Production Costs</div>
+                      {d.costOfGoodsSold > 0 ? (
+                        <div className="text-sm text-slate-600 mb-3">Cost of goods sold</div>
+                      ) : (
+                        <div className="text-sm text-slate-400 mb-3">None this period</div>
+                      )}
+                      <div className="border-t border-red-200 pt-2 flex justify-between font-semibold text-sm">
+                        <span>Total Direct Costs</span>
+                        <span>({fmt(d.costOfGoodsSold)})</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-t-[3px] border-t-amber-400">
+                    <CardContent className="p-4">
+                      <div className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-3">Operating Expenses</div>
+                      {d.totalExpenses > 0 ? (
+                        <div className="text-sm text-slate-600 mb-3">Business operating costs</div>
+                      ) : (
+                        <div className="text-sm text-slate-400 mb-3">None this period</div>
+                      )}
+                      <div className="border-t border-amber-200 pt-2 flex justify-between font-semibold text-sm">
+                        <span>Total Operating Expenses</span>
+                        <span>({fmt(d.totalExpenses)})</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-t-[3px] border-t-yellow-400">
+                    <CardContent className="p-4">
+                      <div className="text-xs font-bold uppercase tracking-wider text-yellow-600 mb-3">Depreciation & Financing Costs</div>
+                      <div className="text-sm text-slate-400 mb-3">None this period</div>
+                      <div className="border-t border-yellow-200 pt-2 flex justify-between font-semibold text-sm">
+                        <span>Total Depreciation & Financing</span>
+                        <span>({fmt(0)})</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* 3 "Excluded from profit" cards — matching poultry */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                  <Card>
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Wallet className="h-4 w-4 text-slate-600" />
+                        <span className="font-semibold text-slate-900">Owner Contributions & Draws</span>
+                      </div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-amber-600 mb-2">Excluded from profit</div>
+                      <p className="text-sm text-slate-600 mb-3">
+                        Money the owner puts in or takes out. It changes company cash but is never profit:{" "}
+                        <span className="bg-amber-50 text-amber-800 px-1 rounded font-medium">putting money in is not income, and taking it out is not an expense.</span>
+                      </p>
+                      <div className="text-sm text-slate-500 mb-1">Net owner funding <span className="font-bold text-slate-900">{fmt(0)}</span></div>
+                      <div className="flex gap-3 mt-3">
+                        <Link href="/generic-owner-money" className="text-sm text-blue-600 hover:underline">View Owner Money</Link>
+                        <Link href="/generic-cash-flow" className="text-sm text-blue-600 hover:underline">View Cash Flow</Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Banknote className="h-4 w-4 text-slate-600" />
+                        <span className="font-semibold text-slate-900">Loans (Financing)</span>
+                      </div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-amber-600 mb-2">Excluded from profit</div>
+                      <p className="text-sm text-slate-600 mb-3">
+                        Money borrowed and principal repaid.{" "}
+                        <span className="bg-red-50 text-red-700 px-1 rounded font-medium">Borrowing is not income and repaying principal is not an expense</span>
+                        {" "}— only the interest and fees are a cost of borrowing.
+                      </p>
+                      <div className="text-sm text-slate-500 mb-1">Net borrowing <span className="font-bold text-slate-900">{fmt(0)}</span></div>
+                      <div className="flex gap-3 mt-3">
+                        <Link href="/generic-loans" className="text-sm text-blue-600 hover:underline">View Loans</Link>
+                        <Link href="/generic-cash-flow" className="text-sm text-blue-600 hover:underline">View Cash Flow</Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Building2 className="h-4 w-4 text-slate-600" />
+                        <span className="font-semibold text-slate-900">Capital Investments</span>
+                      </div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-violet-600 mb-2">Excluded from immediate operating expenses</div>
+                      <p className="text-sm text-slate-600 mb-3">
+                        Capital investments affect cash but are not charged against profit in the period they are bought.{" "}
+                        <span className="bg-violet-50 text-violet-700 px-1 rounded font-medium">Their cost is recognised over time through depreciation.</span>
+                      </p>
+                      <div className="text-sm text-slate-500 mb-1">Total capital investments <span className="font-bold text-slate-900">{fmt(0)}</span></div>
+                      <div className="flex gap-3 mt-3">
+                        <Link href="/generic-assets" className="text-sm text-blue-600 hover:underline">View Capital Investments/Assets</Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* "Profit is not the same as cash flow" educational section */}
+                <Card className="mb-4 bg-blue-50/50 border-blue-100">
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-2 mb-3">
+                      <Info className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+                      <div>
+                        <h3 className="font-semibold text-slate-900">Profit is not the same as cash flow</h3>
+                        <p className="text-sm text-slate-600 mt-1">
+                          Profit measures the revenue and costs that belong to the selected period.
+                          Cash Flow measures the money that actually entered and left the company.
+                          They are both right, and they can differ.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                      <div>
+                        <h4 className="font-semibold text-sm text-slate-900 mb-2">Cash out that is not this period's cost</h4>
+                        <ul className="list-disc pl-5 text-sm text-slate-600 space-y-1">
+                          <li>Buying stock you will use later — the cash leaves now, the cost lands as you use it</li>
+                          <li>Buying a building or machine — the cash leaves now, the cost spreads over its useful life</li>
+                          <li>Repaying loan principal — money you are giving back, not a cost</li>
+                          <li>Owner draws — the owner taking money out, not a business cost</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-sm text-slate-900 mb-2">Costs that did not move cash this period</h4>
+                        <ul className="list-disc pl-5 text-sm text-slate-600 space-y-1">
+                          <li>Depreciation — a real cost of this period that moves no money</li>
+                          <li>Stock bought earlier and used now — the cost lands now, the cash left months ago</li>
+                          <li>A bill you have received but not yet paid — the cost is yours the day it is incurred</li>
+                        </ul>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Link href="/generic-cash-flow" className="text-sm text-blue-600 hover:underline">View Cash Flow</Link>
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Footer note */}
+                <div className="text-xs text-slate-400 mb-4">
+                  Profit & Loss uses structured revenue, expense, inventory-cost, depreciation and financing classifications.
+                  Cash movements such as owner funding, loan principal, inventory bought under consumption costing, and capital
+                  investments may affect Cash Flow without affecting profit.
+                </div>
 
                 {/* Subscription income split */}
                 {split && isSubscriptionBusiness && (
