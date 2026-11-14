@@ -237,7 +237,9 @@ async function handleRequest(
     // dev terminal and in Cloud Run logs, where anyone with log access can replay them.
 
     // Login/Admin: allow longer (Cloud Run cold start + SQL). Farm: keep shorter.
-    const upstreamTimeoutMs = isAdminPath ? 75_000 : 30_000
+    // Local dev: shorter timeouts so login failures surface faster.
+    const isLocal = process.env.NODE_ENV === 'development'
+    const upstreamTimeoutMs = isAdminPath ? (isLocal ? 30_000 : 75_000) : (isLocal ? 15_000 : 30_000)
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), upstreamTimeoutMs)
 
