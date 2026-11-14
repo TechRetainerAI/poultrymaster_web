@@ -75,6 +75,7 @@ import {
 import { BatchReconciliationStep } from "@/components/farm-setup/batch-reconciliation-step"
 import { SetupRunsPanel } from "@/components/farm-setup/setup-runs-panel"
 import { batchReconciliationViews } from "@/lib/farm-setup/wizard"
+import { getBatchBirdReconciliation, type BatchBirdReconciliationRow } from "@/lib/api/bird-reconciliation"
 // Prompt 1's bulk house generator, reused rather than rebuilt.
 import { generateRows as generateHouseRows, nextStartNumber } from "@/lib/houses/bulk"
 
@@ -128,6 +129,8 @@ export default function PoultryFarmSetupPage() {
   const [loading, setLoading] = useState(true)
   const [context, setContext] = useState<FarmSetupWizardContext | null>(null)
   const [opening, setOpening] = useState<OpeningPositionSummary | null>(null)
+  // The batches behind the opening flocks: birds sold or lost before placing.
+  const [batchRecon, setBatchRecon] = useState<BatchBirdReconciliationRow[]>([])
   const [screen, setScreen] = useState<Screen>("choose")
   const [step, setStep] = useState<Step>(0)
   const [saving, setSaving] = useState(false)
@@ -324,6 +327,9 @@ export default function PoultryFarmSetupPage() {
     listPoultryCashAccounts()
       .then((a) => setCashAccounts(a.filter((x) => x.isActive)))
       .catch(() => setCashAccounts([]))
+    getBatchBirdReconciliation()
+      .then((r) => setBatchRecon(Array.isArray(r) ? r : []))
+      .catch(() => setBatchRecon([]))
     if (ctxRes.success && ctxRes.data) {
       setContext(ctxRes.data)
 
@@ -1032,7 +1038,7 @@ export default function PoultryFarmSetupPage() {
 
                 {screen === "completed" && status && (
                   <div className="space-y-6">
-                    <CompletedPanel status={status} opening={opening} onSetUpMore={startExistingFarm} />
+                    <CompletedPanel status={status} opening={opening} batchRecon={batchRecon} onSetUpMore={startExistingFarm} />
                     {/* 416: what each setup created; edit, delete or undo it. */}
                     <SetupRunsPanel />
                   </div>
@@ -2914,9 +2920,27 @@ function Stat({ label, value, tone = "slate", small }: {
  * button. Re-running the wizard would create the whole farm a second time, so
  * the way back in is deliberately absent.
  */
-function CompletedPanel({ status, opening, onSetUpMore }: {
-  status: FarmSetupStatus; opening: OpeningPositionSummary | null; onSetUpMore: () => void
+function CompletedPanel({ status, opening, batchRecon, onSetUpMore }: {
+  status: FarmSetupStatus; opening: OpeningPositionSummary | null; batchRecon: BatchBirdReconciliationRow[]; onSetUpMore: () => void
 }) {
+  // The batches the opening flocks came from (every batch when the positions
+  // do not say). The flock figures below start at "placed"; these say what
+  // happened to the birds before that: bought, sold or died straight from the
+  // batch, still not in a flock.
+  const fromBatches = (() => {
+    if (!opening) return null
+    const ids = new Set(opening.positions.map((p) => p.batchId).filter((b): b is number => b != null))
+    const rows = ids.size > 0 ? batchRecon.filter((r) => ids.has(r.batchId)) : batchRecon
+    if (rows.length === 0) return null
+    const t = rows.reduce((a, r) => ({
+      bought: a.bought + (r.originalBirds ?? 0),
+      placed: a.placed + (r.originallyAllocated ?? 0),
+      sold: a.sold + (r.batchSold ?? 0),
+      died: a.died + (r.batchMortality ?? 0),
+      notInFlock: a.notInFlock + Math.max(0, r.unallocatedLive ?? 0),
+    }), { bought: 0, placed: 0, sold: 0, died: 0, notInFlock: 0 })
+    return { ...t, other: t.bought - t.placed - t.sold - t.died - t.notInFlock }
+  })()
   return (
     <div className="space-y-4">
       {/* FIRST on the page. The tool is no longer one-shot, and starting another
@@ -2983,8 +3007,28 @@ function CompletedPanel({ status, opening, onSetUpMore }: {
               <Stat label="Historical reduction" value={opening.historicalReduction} tone="amber" />
               <Stat label="Opening historical mortality" value={opening.historicalMortality} tone="rose" />
             </div>
+            {fromBatches && (
+              <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Before the birds went into flocks</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <Stat small label="Birds bought" value={fromBatches.bought} tone="blue" />
+                  <Stat small label="Sold before placing in a flock" value={fromBatches.sold} tone="amber" />
+                  <Stat small label="Died before placing in a flock" value={fromBatches.died} tone="rose" />
+                  <Stat small label="Not yet in a flock" value={fromBatches.notInFlock} tone="emerald" />
+                </div>
+                <p className="text-xs text-slate-600">
+                  {fromBatches.bought.toLocaleString()} bought
+                  {fromBatches.sold > 0 && <> − {fromBatches.sold.toLocaleString()} sold</>}
+                  {fromBatches.died > 0 && <> − {fromBatches.died.toLocaleString()} died</>}
+                  {fromBatches.notInFlock > 0 && <> − {fromBatches.notInFlock.toLocaleString()} not yet in a flock</>}
+                  {fromBatches.other !== 0 && <> − {fromBatches.other.toLocaleString()} other / not accounted for</>}
+                  {" "}= <b>{fromBatches.placed.toLocaleString()}</b> placed into flocks. Birds sold before placing are
+                  on the Sales page under &ldquo;Before tracking&rdquo;.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <Stat small label="Sold" value={opening.historicalSold} />
+              <Stat small label="Sold from flocks" value={opening.historicalSold} />
               <Stat small label="Culled" value={opening.historicalCulled} />
               <Stat small label="Transferred" value={opening.historicalTransferred} />
               <Stat small label="Other / unknown" value={opening.otherAdjustment} />
