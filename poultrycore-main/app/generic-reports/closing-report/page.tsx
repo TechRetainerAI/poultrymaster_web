@@ -1,70 +1,54 @@
 "use client"
 
-// Closing Report — every daily closing with cash reconciliation and approval status.
+// Closing Report — one row per daily closing, matching the poultry design.
+// Uses the shared ReportShell for consistent toolbar, PDF and email behaviour.
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { DashboardSidebar } from "@/components/dashboard/sidebar"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MobileCardList } from "@/components/ui/mobile-card-list"
-import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { Badge } from "@/components/ui/badge"
+import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { ArrowLeft, FileText, Loader2 } from "lucide-react"
-import { useAuthStore } from "@/lib/store/auth-store"
-import { useLogout } from "@/hooks/use-logout"
-import { useToast } from "@/hooks/use-toast"
-import { useFmt } from "@/lib/currency"
 import { getDailyClosings, type GenericDailyClosing } from "@/lib/api/generic"
-import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { useFmt } from "@/lib/currency"
+import { defaultReportRange } from "@/lib/date-ranges"
 import { cn } from "@/lib/utils"
-import { ReportExportButtons } from "@/components/reports/report-export-buttons"
-import { ReportPageHeader, RichCard } from "@/components/reports/report-header"
 
-export default function ClosingReportPage() {
-  const router = useRouter()
-  const activeFarmType = useAuthStore((s) => s.activeFarmType)
-  const logout = useLogout()
-  const { toast } = useToast()
-  const fmt = useFmt()
-
+export default function GenericClosingReportPage() {
+  const fmtMoney = useFmt()
+  const DEFAULT_RANGE = defaultReportRange("last30")
+  const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
+  const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [rows, setRows] = useState<GenericDailyClosing[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState("")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
-
-  useEffect(() => {
-    if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
-    void load()
-  }, [activeFarmType, router])
+  const pg = usePagination(rows)
+  const [busy, setBusy] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   async function load() {
-    setLoading(true)
-    try { setRows(await getDailyClosings()) }
-    catch (e: any) { toast({ title: "Could not load closings", description: e?.message ?? String(e), variant: "destructive" }) }
-    finally { setLoading(false) }
+    setBusy(true); setError(null)
+    try {
+      const all = await getDailyClosings()
+      // Filter by date range
+      const filtered = all.filter((c) => {
+        const d = c.closingDate.slice(0, 10)
+        return (!fromDate || d >= fromDate) && (!toDate || d <= toDate)
+      })
+      setRows(filtered)
+    } catch (e: any) { setError(e?.message ?? String(e)) }
+    finally { setBusy(false) }
   }
 
-  const filtered = useMemo(() =>
-    filterByDateAndSearch(rows, { search, searchKeys: ["status", "managerNotes", "differenceReason"], dateFrom, dateTo, dateKey: "closingDate" }),
-    [rows, search, dateFrom, dateTo])
-
-  const pg = usePagination(filtered)
+  useEffect(() => { void load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fromDate, toDate])
 
   const totals = useMemo(() => {
-    const approved = rows.filter((r) => r.status === "Approved")
-    return {
-      count: rows.length,
-      approvedCount: approved.length,
-      totalSales: approved.reduce((s, r) => s + r.totalSales, 0),
-      totalExpenses: approved.reduce((s, r) => s + r.totalExpenses, 0),
-      totalDifference: approved.reduce((s, r) => s + r.cashDifference, 0),
-    }
+    const approved = rows.filter((c) => c.status === "Approved")
+    const income = approved.reduce((s, c) => s + (c.totalSales ?? 0), 0)
+    const expenses = approved.reduce((s, c) => s + (c.totalExpenses ?? 0), 0)
+    const cashIn = approved.reduce((s, c) => s + (c.totalCashIn ?? 0), 0)
+    const cashOut = approved.reduce((s, c) => s + (c.totalCashOut ?? 0), 0)
+    const difference = approved.reduce((s, c) => s + (c.cashDifference ?? 0), 0)
+    const short = approved.filter((c) => (c.cashDifference ?? 0) !== 0).length
+    return { total: rows.length, approved: approved.length, income, expenses, cashIn, cashOut, difference, short }
   }, [rows])
 
   const statusBadge = (s: string) => {
@@ -73,107 +57,94 @@ export default function ClosingReportPage() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      <DashboardSidebar onLogout={logout} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0 space-y-4">
-          <div className="mx-auto w-full max-w-7xl">
-            <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
-              <ArrowLeft className="h-3 w-3 mr-1" /> Reports
-            </Link>
-            <ReportPageHeader title="Closing Report" description="Every daily closing with cash reconciliation and approval status." />
-            <div className="mb-4">
-              <ReportExportButtons disabled={loading || filtered.length === 0} csvFilename="closing-report" pdf={{
-                title: "Closing Report",
-                columns: [
-                  { header: "Date", key: "closingDate", width: 70 },
-                  { header: "Opening", key: "openingCash", width: 70, align: "right" as const, format: "currency" as const },
-                  { header: "Sales", key: "totalSales", width: 70, align: "right" as const, format: "currency" as const },
-                  { header: "Expenses", key: "totalExpenses", width: 70, align: "right" as const, format: "currency" as const },
-                  { header: "Expected", key: "expectedCash", width: 70, align: "right" as const, format: "currency" as const },
-                  { header: "Actual", key: "actualCashCounted", width: 70, align: "right" as const, format: "currency" as const },
-                  { header: "Difference", key: "cashDifference", width: 70, align: "right" as const, format: "currency" as const },
-                  { header: "Status", key: "status", width: 60 },
-                ],
-                rows: filtered.map((r) => ({ ...r, closingDate: r.closingDate.slice(0, 10) })),
-              }} />
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-              <RichCard label="Total Closings" value={String(totals.count)} lines={["All daily closings"]} />
-              <RichCard label="Approved" value={String(totals.approvedCount)} accent="emerald" lines={["Ready for reporting"]} />
-              <RichCard label="Total Sales" value={fmt(totals.totalSales)} accent="emerald" lines={["From approved closings"]} />
-              <RichCard label="Total Expenses" value={fmt(totals.totalExpenses)} accent="red" lines={["From approved closings"]} />
-              <RichCard label="Cash Difference" value={fmt(totals.totalDifference)} accent={totals.totalDifference >= 0 ? "emerald" : "red"} lines={["Expected vs actual cash"]} />
-            </div>
-
-            <Card className="mb-4">
-              <CardContent className="pt-6">
-                <ListFilters search={search} setSearch={setSearch} searchPlaceholder="Search status, notes..."
-                  dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} />
-              </CardContent>
-            </Card>
-
-            {loading ? (
-              <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-            ) : filtered.length === 0 ? (
-              <Card><CardContent className="py-8 text-center text-slate-500">No daily closings found.</CardContent></Card>
-            ) : (
-              <Card>
-                <CardContent className="p-0 md:p-2">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead className="text-right">Opening Cash</TableHead>
-                          <TableHead className="text-right">Sales</TableHead>
-                          <TableHead className="text-right">Expenses</TableHead>
-                          <TableHead className="text-right">Cash In</TableHead>
-                          <TableHead className="text-right">Cash Out</TableHead>
-                          <TableHead className="text-right">Expected</TableHead>
-                          <TableHead className="text-right">Actual</TableHead>
-                          <TableHead className="text-right">Difference</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {pg.pageItems.map((r) => (
-                          <TableRow key={r.genericDailyClosingId}>
-                            <TableCell className="whitespace-nowrap font-medium">{r.closingDate.slice(0, 10)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmt(r.openingCash)}</TableCell>
-                            <TableCell className="text-right tabular-nums text-emerald-700">{fmt(r.totalSales)}</TableCell>
-                            <TableCell className="text-right tabular-nums text-red-600">{fmt(r.totalExpenses)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmt(r.totalCashIn)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmt(r.totalCashOut)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmt(r.expectedCash)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmt(r.actualCashCounted)}</TableCell>
-                            <TableCell className={cn("text-right tabular-nums font-medium", r.cashDifference >= 0 ? "text-emerald-700" : "text-red-600")}>
-                              {r.cashDifference >= 0 ? "+" : ""}{fmt(r.cashDifference)}
-                            </TableCell>
-                            <TableCell>{statusBadge(r.status)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </main>
+    <ReportShell
+      title="Closing Report"
+      description="Every daily closing, with cash reconciliation and approval status."
+      backHref="/generic-reports"
+      busy={busy} error={error} onClearError={() => setError(null)}
+      fromDate={fromDate} toDate={toDate}
+      onFromDateChange={setFromDate} onToDateChange={setToDate}
+      pdf={{
+        title: "Closing Report",
+        filename: "generic-closing-report",
+        columns: [
+          { header: "Date" },
+          { header: "Sales", align: "right" },
+          { header: "Expenses", align: "right" },
+          { header: "Cash In", align: "right" },
+          { header: "Cash Out", align: "right" },
+          { header: "Expected", align: "right" },
+          { header: "Counted", align: "right" },
+          { header: "Difference", align: "right" },
+          { header: "Status" },
+        ],
+        rows: rows.map((c) => [
+          (c.closingDate ?? "").slice(0, 10),
+          fmtMoney(c.totalSales ?? 0),
+          fmtMoney(c.totalExpenses ?? 0),
+          fmtMoney(c.totalCashIn ?? 0),
+          fmtMoney(c.totalCashOut ?? 0),
+          fmtMoney(c.expectedCash ?? 0),
+          fmtMoney(c.actualCashCounted ?? 0),
+          fmtMoney(c.cashDifference ?? 0),
+          c.status,
+        ]),
+        summaryLines: [
+          `Closings: ${totals.approved} / ${totals.total}`,
+          `Income: ${fmtMoney(totals.income)}`,
+          `Expenses: ${fmtMoney(totals.expenses)}`,
+          `Cash difference: ${fmtMoney(totals.difference)}${totals.short > 0 ? ` (${totals.short} day(s) did not balance)` : ""}`,
+        ],
+      }}
+      summary={<>
+        <SumTile label="Closings" value={`${totals.approved} / ${totals.total}`} />
+        <SumTile label="Income" value={fmtMoney(totals.income)} accent="green" />
+        <SumTile label="Expenses" value={fmtMoney(totals.expenses)} accent="rose" />
+        <SumTile label="Cash In" value={fmtMoney(totals.cashIn)} accent="green" />
+        <SumTile
+          label={totals.short > 0 ? `Cash difference (${totals.short} day${totals.short === 1 ? "" : "s"})` : "Cash difference"}
+          value={fmtMoney(totals.difference)}
+          accent={totals.difference !== 0 ? "rose" : undefined}
+        />
+      </>}
+    >
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead className="text-right">Sales</TableHead>
+              <TableHead className="text-right">Expenses</TableHead>
+              <TableHead className="text-right">Cash In</TableHead>
+              <TableHead className="text-right">Cash Out</TableHead>
+              <TableHead className="text-right">Expected</TableHead>
+              <TableHead className="text-right">Counted</TableHead>
+              <TableHead className="text-right">Difference</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow><TableCell colSpan={9} className="text-slate-500 text-center p-4">No closings in this period.</TableCell></TableRow>
+            ) : pg.pageItems.map((c) => (
+              <TableRow key={c.genericDailyClosingId}>
+                <TableCell className="whitespace-nowrap font-medium">{c.closingDate.slice(0, 10)}</TableCell>
+                <TableCell className="text-right tabular-nums text-emerald-700">{fmtMoney(c.totalSales)}</TableCell>
+                <TableCell className="text-right tabular-nums text-red-600">{fmtMoney(c.totalExpenses)}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmtMoney(c.totalCashIn)}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmtMoney(c.totalCashOut)}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmtMoney(c.expectedCash)}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmtMoney(c.actualCashCounted)}</TableCell>
+                <TableCell className={cn("text-right tabular-nums font-medium", c.cashDifference !== 0 ? "text-red-600" : "text-slate-500")}>
+                  {fmtMoney(c.cashDifference)}
+                </TableCell>
+                <TableCell>{statusBadge(c.status)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {rows.length > 0 && <DataPagination {...pg.paginationProps} />}
       </div>
-    </div>
-  )
-}
-
-function Tile({ label, value, accent }: { label: string; value: string; accent?: string }) {
-  const color = { emerald: "text-emerald-700", red: "text-red-600", blue: "text-blue-700" }[accent ?? ""] ?? "text-slate-900"
-  return (
-    <Card><CardContent className="p-3">
-      <div className="text-xs uppercase tracking-wide text-slate-500 truncate">{label}</div>
-      <div className={cn("text-lg font-bold mt-1 truncate", color)}>{value}</div>
-    </CardContent></Card>
+    </ReportShell>
   )
 }
