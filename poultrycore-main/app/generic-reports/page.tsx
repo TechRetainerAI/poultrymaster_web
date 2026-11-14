@@ -41,8 +41,11 @@ interface ReportCard {
 function coreReports(l: TemplateLabels): ReportCard[] {
   return [
     { href: "/generic-reports/period-pnl", title: "Profit & loss", description: "Income, expenses, cost-of-goods-sold and profit for any date range.", icon: DollarSign, accent: "emerald" },
+    { href: "/generic-reports/daily-summary", title: "Daily business summary", description: "Today's snapshot: sales, expenses, profit, cash positions and alerts.", icon: BarChart3, accent: "sky" },
     { href: "/generic-reports/cash-summary", title: "Cash flow", description: "Money in, money out and the closing balance of every cash account.", icon: Wallet, accent: "slate" },
     { href: "/generic-reports/expenses-by-category", title: "Expense report", description: "Where the money went — by category, by supplier, and month by month.", icon: BarChart3, accent: "amber" },
+    { href: "/generic-reports/cash-accounts", title: "Cash account report", description: "Per-account opening, money in, money out and closing, with reconciliation status.", icon: Wallet, accent: "slate" },
+    { href: "/generic-reports/money-movement", title: "Money movement", description: "Cash transfers, owner money and loans — what moved but is not income or expense.", icon: Wallet, accent: "violet" },
     { href: "/generic-customer-balances", title: `${l.customerBalance} report`, description: `Who owes what, how old it is, and every open ${l.invoice.toLowerCase()} behind it.`, icon: Scale, accent: "cyan" },
     { href: "/generic-supplier-balances", title: "Supplier balances", description: "What is owed to suppliers, aged, with the bills behind each balance.", icon: Truck, accent: "orange" },
     { href: "/generic-reports/staff-cost", title: "Staff & contractor cost", description: "Everything paid to people — staff payments and payroll — by person, month and role.", icon: Users2, accent: "violet" },

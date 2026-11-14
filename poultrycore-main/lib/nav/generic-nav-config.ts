@@ -201,8 +201,11 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       items: gated([
         item("/generic-reports",                          "All Reports",        BarChart3, canSee("/generic-reports")),
         item("/generic-reports/period-pnl",               "Profit & Loss",      DollarSign, canSee("/generic-reports")),
+        item("/generic-reports/daily-summary",            "Daily Business Summary", BarChart3, canSee("/generic-reports")),
         item("/generic-reports/cash-summary",             "Cash Flow",          Wallet, canSee("/generic-reports")),
         item("/generic-reports/expenses-by-category",     "Expense Report",     PieChart, canSee("/generic-reports")),
+        item("/generic-reports/cash-accounts",            "Cash Account Report", Landmark, canSee("/generic-reports")),
+        item("/generic-reports/money-movement",           "Money Movement",     ArrowUpDown, canSee("/generic-reports")),
         item("/generic-reports/staff-cost",               "Staff & Contractor Cost", Users2, canSee("/generic-reports")),
       ]),
     },
