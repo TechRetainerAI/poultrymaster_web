@@ -16,7 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
-import { ArrowLeft, Download, Loader2, TrendingDown, TrendingUp, Wallet } from "lucide-react"
+import { ArrowLeft, Loader2, TrendingDown, TrendingUp, Wallet } from "lucide-react"
+import { ReportExportButtons } from "@/components/reports/report-export-buttons"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -89,28 +90,26 @@ export default function CashMovementReportPage() {
     return { cashIn, cashOut, net: cashIn - cashOut, count: filtered.length }
   }, [filtered])
 
-  function doExport() {
-    exportTableToPdf({
-      title: "Cash Movement Report",
-      subtitle: `${dateFrom} to ${dateTo}`,
-      columns: [
-        { header: "Date", key: "date", width: 70 },
-        { header: "Account", key: "accountName", width: 100 },
-        { header: "Type", key: "transactionType", width: 80 },
-        { header: "In", key: "inAmt", width: 70, align: "right", format: "currency" },
-        { header: "Out", key: "outAmt", width: 70, align: "right", format: "currency" },
-        { header: "Description", key: "description", width: 120 },
-      ],
-      rows: filtered.map((r) => ({
-        date: fmtDateTime(r.transactionDate, r),
-        accountName: r.accountName ?? "–",
-        transactionType: r.transactionType,
-        inAmt: r.amount > 0 ? r.amount : "",
-        outAmt: r.amount < 0 ? Math.abs(r.amount) : "",
-        description: r.description ?? "–",
-      })),
-    })
-  }
+  const pdfOpts = useMemo(() => ({
+    title: "Cash Movement Report",
+    subtitle: `${dateFrom} to ${dateTo}`,
+    columns: [
+      { header: "Date", key: "date", width: 70 },
+      { header: "Account", key: "accountName", width: 100 },
+      { header: "Type", key: "transactionType", width: 80 },
+      { header: "In", key: "inAmt", width: 70, align: "right" as const, format: "currency" as const },
+      { header: "Out", key: "outAmt", width: 70, align: "right" as const, format: "currency" as const },
+      { header: "Description", key: "description", width: 120 },
+    ],
+    rows: filtered.map((r) => ({
+      date: fmtDateTime(r.transactionDate, r),
+      accountName: r.accountName ?? "–",
+      transactionType: r.transactionType,
+      inAmt: r.amount > 0 ? r.amount : "",
+      outAmt: r.amount < 0 ? Math.abs(r.amount) : "",
+      description: r.description ?? "–",
+    })),
+  }), [filtered, dateFrom, dateTo])
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -129,9 +128,7 @@ export default function CashMovementReportPage() {
                 </h1>
                 <p className="text-sm text-slate-500">Every cash inflow and outflow across all accounts.</p>
               </div>
-              <Button size="sm" variant="outline" onClick={doExport} disabled={filtered.length === 0}>
-                <Download className="h-4 w-4 mr-1" /> Export PDF
-              </Button>
+              <ReportExportButtons pdf={pdfOpts} disabled={loading} csvFilename="cash-movement" />
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">

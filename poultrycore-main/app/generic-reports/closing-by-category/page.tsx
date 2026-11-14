@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { getDailyClosings, type GenericDailyClosing } from "@/lib/api/generic"
 import { cn } from "@/lib/utils"
+import { ReportExportButtons } from "@/components/reports/report-export-buttons"
 
 function monthStart() {
   const n = new Date()
@@ -114,6 +115,16 @@ export default function ClosingByCategoryPage() {
                   {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Refresh
                 </Button>
                 <div className="text-sm text-slate-500">{inRange.length} approved closing(s) in period</div>
+                <ReportExportButtons disabled={loading || inRange.length === 0} csvFilename="closing-by-category" pdf={{
+                  title: "Closing by Category",
+                  subtitle: `${from} to ${to}`,
+                  columns: [
+                    { header: "Category", key: "category", width: 120 },
+                    { header: "Item", key: "item", width: 150 },
+                    { header: "Amount", key: "amount", width: 100, align: "right" as const, format: "currency" as const },
+                  ],
+                  rows: categories.flatMap((cat) => cat.subcategories.map((sub) => ({ category: cat.category, item: sub.label, amount: sub.value }))),
+                }} />
               </CardContent>
             </Card>
 

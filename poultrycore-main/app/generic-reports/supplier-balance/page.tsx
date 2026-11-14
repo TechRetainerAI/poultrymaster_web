@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
-import { ArrowLeft, Download, Loader2, Truck } from "lucide-react"
+import { ArrowLeft, Loader2, Truck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { getSuppliers, type GenericSupplier } from "@/lib/api/generic"
 import { cn } from "@/lib/utils"
-import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { ReportExportButtons } from "@/components/reports/report-export-buttons"
 
 export default function SupplierBalanceReportPage() {
   const router = useRouter()
@@ -68,18 +68,16 @@ export default function SupplierBalanceReportPage() {
     }
   }, [rows])
 
-  function doExport() {
-    exportTableToPdf({
-      title: "Supplier Balance Report",
-      columns: [
-        { header: "Supplier", key: "supplierName", width: 120 },
-        { header: "Type", key: "supplierType", width: 80 },
-        { header: "Phone", key: "phoneNumber", width: 80 },
-        { header: "Balance", key: "balance", width: 80, align: "right", format: "currency" },
-      ],
-      rows: filtered.map((r) => ({ ...r, balance: r.currentBalance })),
-    })
-  }
+  const pdfOpts = useMemo(() => ({
+    title: "Supplier Balance Report",
+    columns: [
+      { header: "Supplier", key: "supplierName", width: 120 },
+      { header: "Type", key: "supplierType", width: 80 },
+      { header: "Phone", key: "phoneNumber", width: 80 },
+      { header: "Balance", key: "balance", width: 80, align: "right" as const, format: "currency" as const },
+    ],
+    rows: filtered.map((r) => ({ ...r, balance: r.currentBalance })),
+  }), [filtered])
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -98,9 +96,7 @@ export default function SupplierBalanceReportPage() {
                 </h1>
                 <p className="text-sm text-slate-500">What is owed to suppliers, and any advances paid.</p>
               </div>
-              <Button size="sm" variant="outline" onClick={doExport} disabled={filtered.length === 0}>
-                <Download className="h-4 w-4 mr-1" /> Export PDF
-              </Button>
+              <ReportExportButtons pdf={pdfOpts} disabled={loading} csvFilename="supplier-balances" />
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">

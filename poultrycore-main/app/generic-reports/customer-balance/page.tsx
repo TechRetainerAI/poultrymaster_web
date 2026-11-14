@@ -19,9 +19,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { getCustomers, type GenericCustomer } from "@/lib/api/generic"
 import { cn } from "@/lib/utils"
-import { exportTableToPdf } from "@/lib/utils/pdf-export"
 import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
+import { ReportExportButtons } from "@/components/reports/report-export-buttons"
 
 export default function CustomerBalanceReportPage() {
   const router = useRouter()
@@ -69,19 +68,17 @@ export default function CustomerBalanceReportPage() {
     }
   }, [rows])
 
-  function doExport() {
-    exportTableToPdf({
-      title: "Customer Balance Report",
-      columns: [
-        { header: "Customer", key: "customerName", width: 120 },
-        { header: "Type", key: "customerType", width: 80 },
-        { header: "Phone", key: "phoneNumber", width: 80 },
-        { header: "Balance", key: "balance", width: 80, align: "right", format: "currency" },
-        { header: "Credit Limit", key: "creditLimit", width: 80, align: "right", format: "currency" },
-      ],
-      rows: filtered.map((r) => ({ ...r, balance: r.currentBalance })),
-    })
-  }
+  const pdfOpts = useMemo(() => ({
+    title: "Customer Balance Report",
+    columns: [
+      { header: "Customer", key: "customerName", width: 120 },
+      { header: "Type", key: "customerType", width: 80 },
+      { header: "Phone", key: "phoneNumber", width: 80 },
+      { header: "Balance", key: "balance", width: 80, align: "right" as const, format: "currency" as const },
+      { header: "Credit Limit", key: "creditLimit", width: 80, align: "right" as const, format: "currency" as const },
+    ],
+    rows: filtered.map((r) => ({ ...r, balance: r.currentBalance })),
+  }), [filtered])
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -100,9 +97,7 @@ export default function CustomerBalanceReportPage() {
                 </h1>
                 <p className="text-sm text-slate-500">Who owes what, and who has credit on account.</p>
               </div>
-              <Button size="sm" variant="outline" onClick={doExport} disabled={filtered.length === 0}>
-                <Download className="h-4 w-4 mr-1" /> Export PDF
-              </Button>
+              <ReportExportButtons pdf={pdfOpts} disabled={loading} csvFilename="customer-balances" />
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">

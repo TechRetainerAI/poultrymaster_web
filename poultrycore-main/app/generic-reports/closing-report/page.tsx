@@ -22,6 +22,7 @@ import { useFmt } from "@/lib/currency"
 import { getDailyClosings, type GenericDailyClosing } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { cn } from "@/lib/utils"
+import { ReportExportButtons } from "@/components/reports/report-export-buttons"
 import { exportTableToPdf } from "@/lib/utils/pdf-export"
 
 export default function ClosingReportPage() {
@@ -84,7 +85,23 @@ export default function ClosingReportPage() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <FileText className="h-6 w-6 text-emerald-600" /> Closing Report
             </h1>
-            <p className="text-sm text-slate-500 mb-4">Every daily closing with cash reconciliation and approval status.</p>
+            <p className="text-sm text-slate-500 mb-2">Every daily closing with cash reconciliation and approval status.</p>
+            <div className="mb-4">
+              <ReportExportButtons disabled={loading || filtered.length === 0} csvFilename="closing-report" pdf={{
+                title: "Closing Report",
+                columns: [
+                  { header: "Date", key: "closingDate", width: 70 },
+                  { header: "Opening", key: "openingCash", width: 70, align: "right" as const, format: "currency" as const },
+                  { header: "Sales", key: "totalSales", width: 70, align: "right" as const, format: "currency" as const },
+                  { header: "Expenses", key: "totalExpenses", width: 70, align: "right" as const, format: "currency" as const },
+                  { header: "Expected", key: "expectedCash", width: 70, align: "right" as const, format: "currency" as const },
+                  { header: "Actual", key: "actualCashCounted", width: 70, align: "right" as const, format: "currency" as const },
+                  { header: "Difference", key: "cashDifference", width: 70, align: "right" as const, format: "currency" as const },
+                  { header: "Status", key: "status", width: 60 },
+                ],
+                rows: filtered.map((r) => ({ ...r, closingDate: r.closingDate.slice(0, 10) })),
+              }} />
+            </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
               <Tile label="Total closings" value={String(totals.count)} />

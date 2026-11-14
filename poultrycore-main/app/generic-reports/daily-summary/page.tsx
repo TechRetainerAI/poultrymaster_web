@@ -4,7 +4,7 @@
 // Uses the dashboard API to show sales, expenses, profit, cash, inventory
 // and outstanding balances in a report-style layout.
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { getDashboard, type GenericDashboard } from "@/lib/api/generic"
 import { cn } from "@/lib/utils"
+import { ReportExportButtons } from "@/components/reports/report-export-buttons"
 
 export default function DailyBusinessSummaryPage() {
   const router = useRouter()
@@ -70,10 +71,29 @@ export default function DailyBusinessSummaryPage() {
               Today's snapshot and this week's performance at a glance.
             </p>
 
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 flex-wrap">
               <Button variant="outline" onClick={load} disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Refresh
               </Button>
+              <ReportExportButtons disabled={loading || !data} pdf={{
+                title: "Daily Business Summary",
+                columns: [
+                  { header: "Metric", key: "metric", width: 150 },
+                  { header: "Value", key: "value", width: 100, align: "right" },
+                ],
+                rows: t ? [
+                  { metric: "Today Sales", value: t.todaySales },
+                  { metric: "Today Expenses", value: t.todayExpenses },
+                  { metric: "Today Gross Profit", value: t.todayGrossProfit },
+                  { metric: "Cash at Hand", value: t.cashAtHand },
+                  { metric: "Inventory Value", value: t.inventoryValue },
+                  { metric: "Customer Debt", value: t.customerDebt },
+                  { metric: "Supplier Debt", value: t.supplierDebt },
+                  { metric: "Week Sales", value: w?.weekSales ?? 0 },
+                  { metric: "Week Expenses", value: w?.weekExpenses ?? 0 },
+                  { metric: "Week Gross Profit", value: w?.weekGrossProfit ?? 0 },
+                ] : [],
+              }} csvFilename="daily-summary" />
             </div>
 
             {loading ? (
