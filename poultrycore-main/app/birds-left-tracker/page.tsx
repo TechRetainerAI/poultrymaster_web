@@ -33,6 +33,9 @@ import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 import { getFlockPositions } from "@/lib/api/flock-positions"
 import { positionsById } from "@/lib/flocks/bird-position"
 import type { FlockPositionLookup } from "@/lib/utils/birds-left-ledger"
+import { getBatchBirdReconciliation, type BatchBirdReconciliationRow } from "@/lib/api/bird-reconciliation"
+import { isBatchNotArrived } from "@/lib/flocks/farm-bird-totals"
+import { batchUnplacedSummaries, batchUnplacedLedger } from "@/lib/flocks/batch-unplaced"
 
 
 export default function BirdsLeftTrackerPage() {
@@ -48,6 +51,8 @@ export default function BirdsLeftTrackerPage() {
   // Batch filter: narrows both tables (and the flock list) to one batch's flocks.
   const [batchFilter, setBatchFilter] = useState("ALL")
   const [batches, setBatches] = useState<FlockBatch[]>([])
+  // Birds bought but never placed in a flock (sold / died straight from the batch).
+  const [recon, setRecon] = useState<BatchBirdReconciliationRow[]>([])
   const [flockFilter, setFlockFilter] = useState("ALL")
   const [typeFilter, setTypeFilter] = useState<"ALL" | "IN" | "OUT">("ALL")
   const [ledgerDateFrom, setLedgerDateFrom] = useState("")
@@ -86,13 +91,15 @@ export default function BirdsLeftTrackerPage() {
       setRefreshing(false)
       return
     }
-    const [flocksRes, prodRes, salesRes, batchesRes, posRows] = await Promise.all([
+    const [flocksRes, prodRes, salesRes, batchesRes, posRows, reconRows] = await Promise.all([
       getFlocks(userId, farmId),
       getProductionRecords(userId, farmId),
       getSales(userId, farmId),
       getFlockBatches(userId, farmId).catch(() => ({ success: false, data: [] as FlockBatch[] })),
       getFlockPositions(farmId),
+      getBatchBirdReconciliation().catch(() => [] as BatchBirdReconciliationRow[]),
     ])
+    setRecon(Array.isArray(reconRows) ? reconRows : [])
     setBatches(batchesRes.success && Array.isArray(batchesRes.data) ? batchesRes.data : [])
     // 421: each flock's opening position, so a flock from Initial Farm Setup
     // goes IN with the birds originally placed and its history goes OUT.
@@ -156,9 +163,24 @@ export default function BirdsLeftTrackerPage() {
     (!batchFlockIds || batchFlockIds.has(flockId)) && (flockFilter === "ALL" || flockId === Number(flockFilter)),
   [batchFlockIds, flockFilter])
   const byFlockRows = useMemo(() => summaries.filter((r) => inScope(r.flockId)), [summaries, inScope])
-  const scopedLedger = useMemo(() => ledger.filter((r) => inScope(r.flockId)), [ledger, inScope])
+  // Each batch's birds that never went into a flock: what was sold or died
+  // straight from the batch. Shown with the batch, hidden when one flock is picked.
+  const batchRows = useMemo(() => {
+    if (flockFilter !== "ALL") return []
+    const notArrived = new Set(batches.filter((b) => isBatchNotArrived(b)).map((b) => b.batchId))
+    return batchUnplacedSummaries(recon, notArrived)
+      .filter((b) => batchFilter === "ALL" || String(b.batchId) === batchFilter)
+  }, [recon, batches, batchFilter, flockFilter])
+  const scopedLedger = useMemo(
+    () => ledger.filter((r) => inScope(r.flockId)).concat(batchUnplacedLedger(batchRows)),
+    [ledger, inScope, batchRows],
+  )
   const totalPlaced = useMemo(() => byFlockRows.reduce((s, r) => s + r.placedIn, 0), [byFlockRows])
-  const totalBirdsLeft = useMemo(() => byFlockRows.reduce((s, r) => s + r.birdsLeftCalculated, 0), [byFlockRows])
+  const notPlacedIn = useMemo(() => batchRows.reduce((s, r) => s + r.placedIn, 0), [batchRows])
+  const totalBirdsLeft = useMemo(
+    () => byFlockRows.reduce((s, r) => s + r.birdsLeftCalculated, 0) + batchRows.reduce((s, r) => s + r.left, 0),
+    [byFlockRows, batchRows],
+  )
   const scopeLabel = flockFilter !== "ALL"
     ? (flocks.find((f) => f.flockId === Number(flockFilter))?.name ?? "this flock")
     : batchFilter !== "ALL"
@@ -226,17 +248,26 @@ export default function BirdsLeftTrackerPage() {
   // "By flock" column totals.
   const flockTotals = useMemo(
     () =>
-      byFlockRows.reduce(
+      batchRows.reduce(
         (acc, r) => ({
-          placedIn: acc.placedIn + (Number(r.placedIn) || 0),
-          mortalityOut: acc.mortalityOut + (Number(r.totalMortalityOut) || 0),
-          salesOut: acc.salesOut + (Number(r.totalBirdSalesOut) || 0),
-          otherOut: acc.otherOut + (Number(r.totalOtherOut) || 0),
-          left: acc.left + (Number(r.birdsLeftCalculated) || 0),
+          placedIn: acc.placedIn + r.placedIn,
+          mortalityOut: acc.mortalityOut + r.deaths,
+          salesOut: acc.salesOut + r.sales,
+          otherOut: acc.otherOut + r.other,
+          left: acc.left + r.left,
         }),
-        { placedIn: 0, mortalityOut: 0, salesOut: 0, otherOut: 0, left: 0 }
+        byFlockRows.reduce(
+          (acc, r) => ({
+            placedIn: acc.placedIn + (Number(r.placedIn) || 0),
+            mortalityOut: acc.mortalityOut + (Number(r.totalMortalityOut) || 0),
+            salesOut: acc.salesOut + (Number(r.totalBirdSalesOut) || 0),
+            otherOut: acc.otherOut + (Number(r.totalOtherOut) || 0),
+            left: acc.left + (Number(r.birdsLeftCalculated) || 0),
+          }),
+          { placedIn: 0, mortalityOut: 0, salesOut: 0, otherOut: 0, left: 0 }
+        ),
       ),
-    [byFlockRows]
+    [byFlockRows, batchRows]
   )
 
   const ledgerTotalPages = Math.max(1, Math.ceil(sortedLedger.length / ledgerPageSize))
@@ -271,8 +302,9 @@ export default function BirdsLeftTrackerPage() {
                 <div className="min-w-0">
                   <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Birds left tracker</h1>
                   <p className="text-sm text-slate-600 mt-1">
-                    One <strong>IN</strong> per flock (birds placed at purchase). Only{" "}
-                    <strong>mortality</strong> (production records) and <strong>bird sales</strong> create{" "}
+                    One <strong>IN</strong> per flock (birds placed at purchase), plus one per batch for birds
+                    never placed in a flock. Only <strong>mortality</strong> (production records),{" "}
+                    <strong>bird sales</strong> and birds sold or lost straight from a batch create{" "}
                     <strong>OUT</strong> rows and reduce the count.
                   </p>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -383,6 +415,11 @@ export default function BirdsLeftTrackerPage() {
                     <div className="text-2xl font-bold text-emerald-600 tabular-nums mt-1">
                       {ledgerTotals.in.toLocaleString()}
                     </div>
+                    {notPlacedIn > 0 && (
+                      <p className="mt-0.5 text-[11px] text-slate-500">
+                        {totalPlaced.toLocaleString()} placed in flocks + {notPlacedIn.toLocaleString()} never placed
+                      </p>
+                    )}
                   </div>
                   <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -494,6 +531,31 @@ export default function BirdsLeftTrackerPage() {
                                   </CollapsibleContent>
                                 </div>
                               </Collapsible>
+                            ))}
+                            {batchRows.map((b) => (
+                              <div key={`batch-${b.batchId}`} className="rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-3 shadow-sm">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold text-slate-900">Not placed in a flock</span>
+                                  <Badge variant="outline" className="bg-white text-[11px] font-normal">{b.label}</Badge>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                  <div className="rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 shadow-sm">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Bought, not placed (in)</p>
+                                    <p className="text-xl font-extrabold leading-tight text-emerald-800 tabular-nums">{b.placedIn.toLocaleString()}</p>
+                                  </div>
+                                  <div className="rounded-lg border border-sky-300 bg-sky-100 px-3 py-2 shadow-sm">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-900">Birds left</p>
+                                    <p className="text-xl font-extrabold leading-tight text-sky-800 tabular-nums">{b.left.toLocaleString()}</p>
+                                  </div>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                                  <div><span className="text-slate-500">Deaths OUT</span>{" "}<span className="font-medium tabular-nums text-red-700">{b.deaths.toLocaleString()}</span></div>
+                                  <div><span className="text-slate-500">Sales OUT</span>{" "}<span className="font-medium tabular-nums text-amber-800">{b.sales.toLocaleString()}</span></div>
+                                  {b.other !== 0 && (
+                                    <div className="col-span-2"><span className="text-slate-500">Culled / other OUT</span>{" "}<span className="font-medium tabular-nums text-slate-700">{b.other.toLocaleString()}</span></div>
+                                  )}
+                                </div>
+                              </div>
                             ))}
                             {/* The table's footer row, which the cards would
                                 otherwise drop. */}
@@ -618,8 +680,21 @@ export default function BirdsLeftTrackerPage() {
                             </TableRow>
                           ))
                         )}
+                        {batchRows.map((b) => (
+                          <TableRow key={`batch-${b.batchId}`} className="bg-amber-50/60">
+                            <TableCell className="font-medium italic text-slate-700" title="Birds bought in this batch that never went into a flock">Not placed in a flock</TableCell>
+                            <TableCell className="text-slate-600">{b.label}</TableCell>
+                            <TableCell className="text-right tabular-nums">{b.placedIn.toLocaleString()}</TableCell>
+                            <TableCell className="text-right tabular-nums text-red-700">{b.deaths.toLocaleString()}</TableCell>
+                            <TableCell className="text-right tabular-nums text-amber-800">{b.sales.toLocaleString()}</TableCell>
+                            <TableCell className="text-right tabular-nums text-slate-700">{b.other.toLocaleString()}</TableCell>
+                            <TableCell className="text-right tabular-nums font-semibold text-sky-800">{b.left.toLocaleString()}</TableCell>
+                            <TableCell className="text-right text-slate-400">—</TableCell>
+                            <TableCell className="text-right text-slate-400">—</TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
-                      {byFlockRows.length > 0 && (
+                      {byFlockRows.length + batchRows.length > 0 && (
                         <TableFooter>
                           <TableRow className="bg-slate-50 hover:bg-slate-50">
                             <TableCell className="font-medium text-slate-700" colSpan={2}>

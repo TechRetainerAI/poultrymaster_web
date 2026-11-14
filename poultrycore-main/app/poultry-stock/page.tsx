@@ -110,6 +110,8 @@ function sourceFor(txnType: string, relatedId?: number | null): string {
   if (txnType === "Broken Egg Disposal" || txnType === "Mortality Disposal") return "Production Record (disposed immediately)"
   if (txnType === "Sorting Breakage") return "Egg Sorting"
   if (txnType === "Sale") return "Sale"
+  // 438: a correction so the Birds rows add up to the birds alive.
+  if (txnType === "Ledger Correction") return "Bird stock correction"
   if (txnType === "Restock" || txnType === "Increase") return "Manual / Product Stock Entry"
   return "Stock Page"
 }
