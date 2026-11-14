@@ -128,6 +128,7 @@ export function GenericReportShell({
                 <Button onClick={onRun} disabled={loading}>
                   {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Run
                 </Button>
+              </div>
             </CardContent>
           </Card>
 
