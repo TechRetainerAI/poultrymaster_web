@@ -254,6 +254,13 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
         ] : []),
       ]),
     },
+    ...(showExisting("enableProducts") ? [{
+      key: "setup-production",
+      label: "Production",
+      items: gated([
+        item("/generic-products",  "Products", ShoppingBag),
+      ]),
+    }] : []),
     {
       key: "setup-delivery",
       label: "Delivery",
