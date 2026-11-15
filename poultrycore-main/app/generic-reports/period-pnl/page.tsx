@@ -133,6 +133,7 @@ export default function PeriodPnLPage() {
             <Card className="mb-4 border-t-4 border-t-amber-500">
               <CardContent className="pt-6">
                 <div className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-1">{farmName ?? "Company"}</div>
+                <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
                 <h1 className="text-2xl font-bold text-slate-900">Profit & Loss</h1>
                 <p className="text-sm text-slate-500 mt-1">Did the business make money from its operations this period?</p>
                 <div className="flex flex-wrap gap-x-8 gap-y-1 mt-3 text-sm text-slate-600">

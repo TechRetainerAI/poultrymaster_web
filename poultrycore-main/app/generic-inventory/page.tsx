@@ -21,7 +21,6 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
@@ -31,8 +30,8 @@ import { REJECT_REASONS, STOCK_ADJUSTMENT_REASONS } from "@/lib/reversal-reasons
 import { ReasonSelect } from "@/components/ui/reason-select"
 import {
   Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle,
-  History, MoreHorizontal, Check, Package, ArrowUpCircle, ArrowDownCircle,
-  Boxes, ExternalLink,
+  History, Check, Package, ArrowUpCircle, ArrowDownCircle,
+  Boxes, ExternalLink, ArrowLeft,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -492,6 +491,7 @@ function GenericInventoryPageInner() {
         <main className="flex-1 p-4 sm:p-6 space-y-4">
           <Tabs value={tab} onValueChange={selectTab} className="gap-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <div className="min-w-0">
                 <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Inventory &amp; Supply Purchases</h1>
                 <p className="text-sm text-slate-500">Products, purchases, and stock adjustments — what you hold, what you bought, what changed.</p>
@@ -503,22 +503,15 @@ function GenericInventoryPageInner() {
                 <Button className="flex-1 sm:flex-none" asChild>
                   <Link href="/generic-purchases/new"><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Link>
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" aria-label="More actions"><MoreHorizontal className="w-4 h-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => setAdjOpen(true)}>
-                      <ArrowUpCircle className="w-4 h-4 mr-2" /> Adjust stock
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => router.push("/generic-products")}>
-                      <Package className="w-4 h-4 mr-2" /> Manage products
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => router.push("/generic-suppliers")}>
-                      <Wallet className="w-4 h-4 mr-2" /> Manage suppliers
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setAdjOpen(true)}>
+                  <ArrowUpCircle className="w-4 h-4 mr-1" /> Adjust Stock
+                </Button>
+                <Button variant="outline" className="flex-1 sm:flex-none" asChild>
+                  <Link href="/generic-products"><Package className="w-4 h-4 mr-1" /> Manage Products</Link>
+                </Button>
+                <Button variant="outline" className="flex-1 sm:flex-none" asChild>
+                  <Link href="/generic-suppliers"><Wallet className="w-4 h-4 mr-1" /> Manage Suppliers</Link>
+                </Button>
               </div>
             </div>
 

@@ -65,6 +65,7 @@ export default function DailyBusinessSummaryPage() {
                   className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
               <ArrowLeft className="h-3 w-3 mr-1" /> Reports
             </Link>
+            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <ReportPageHeader title="Daily Business Summary" description="Today's snapshot and this week's performance at a glance." />
 
             <div className="flex gap-2 mb-4 flex-wrap">

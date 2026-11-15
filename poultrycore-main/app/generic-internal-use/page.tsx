@@ -36,7 +36,7 @@ import {
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Loader2, PackageMinus, Pencil, Trash2, Undo2, CheckCircle2, Eye, Info } from "lucide-react"
+import { ArrowLeft, Plus, Loader2, PackageMinus, Pencil, Trash2, Undo2, CheckCircle2, Eye, Info } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -369,6 +369,7 @@ export default function GenericInternalUsePage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <PackageMinus className="w-6 h-6 text-sky-600" /> Internal Use
               </h1>

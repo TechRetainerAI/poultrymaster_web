@@ -124,6 +124,7 @@ export default function CashMovementReportPage() {
               </Link>
               <ReportExportButtons pdf={pdfOpts} disabled={loading} csvFilename="cash-movement" />
             </div>
+            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <ReportPageHeader title="Cash Movement" description="Every cash inflow and outflow across all accounts." period={{ from: dateFrom, to: dateTo }} />
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">

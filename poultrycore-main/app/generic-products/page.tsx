@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, ShoppingBag, Plus, Pencil, Trash2 } from "lucide-react"
+import { Loader2, ShoppingBag, Plus, Pencil, Trash2, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -162,9 +162,10 @@ export default function GenericProductsPage() {
       toast({ title: "Product name is required", variant: "destructive" })
       return
     }
-    const cost = Number(form.costPrice); const sell = Number(form.sellingPrice)
+    const cost = Number(form.costPrice)
+    const sell = form.itemType === "SupplyItem" ? 0 : Number(form.sellingPrice)
     if (Number.isNaN(cost) || cost < 0) return toast({ title: "Cost price must be 0 or more", variant: "destructive" })
-    if (Number.isNaN(sell) || sell < 0) return toast({ title: "Selling price must be 0 or more", variant: "destructive" })
+    if (form.itemType === "Product" && (Number.isNaN(sell) || sell < 0)) return toast({ title: "Selling price must be 0 or more", variant: "destructive" })
 
     const opt = (s: string) => s.trim() === "" ? null : Number(s)
     const optStr = (s: string) => s.trim() === "" ? null : s.trim()
@@ -179,8 +180,8 @@ export default function GenericProductsPage() {
         itemType: form.itemType,
         costPrice: cost,
         sellingPrice: sell,
-        wholesalePrice: opt(form.wholesalePrice),
-        retailPrice: opt(form.retailPrice),
+        wholesalePrice: form.itemType === "SupplyItem" ? null : opt(form.wholesalePrice),
+        retailPrice: form.itemType === "SupplyItem" ? null : opt(form.retailPrice),
         openingStock: Number(form.openingStock) || 0,
         minimumStockAlert: Number(form.minimumStockAlert) || 0,
         trackInventory: form.trackInventory,
@@ -214,6 +215,7 @@ export default function GenericProductsPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <ShoppingBag className="h-6 w-6 text-blue-600" /> Products
               </h1>
@@ -235,7 +237,14 @@ export default function GenericProductsPage() {
                 <div className="space-y-4">
                   <FormSection title="Basics" color="indigo">
                     <FormField label="Item type *" full hint="Products are things you sell. Supply items are things you use in the business but don't sell.">
-                      <Select value={form.itemType} onValueChange={(v) => setForm((f) => ({ ...f, itemType: v as "Product" | "SupplyItem" }))}>
+                      <Select value={form.itemType} onValueChange={(v) => {
+                        const t = v as "Product" | "SupplyItem"
+                        setForm((f) => ({
+                          ...f,
+                          itemType: t,
+                          ...(t === "SupplyItem" ? { sellingPrice: "0", wholesalePrice: "", retailPrice: "" } : {}),
+                        }))
+                      }}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Product">Product — something you sell</SelectItem>
@@ -289,15 +298,19 @@ export default function GenericProductsPage() {
                     <FormField label="Cost price *">
                       <NumberInput step="0.01" min="0" value={form.costPrice} onChange={(e) => setForm((f) => ({ ...f, costPrice: e.target.value }))} />
                     </FormField>
-                    <FormField label="Selling price *">
-                      <NumberInput step="0.01" min="0" value={form.sellingPrice} onChange={(e) => setForm((f) => ({ ...f, sellingPrice: e.target.value }))} />
-                    </FormField>
-                    <FormField label="Wholesale price (optional)">
-                      <NumberInput step="0.01" min="0" value={form.wholesalePrice} onChange={(e) => setForm((f) => ({ ...f, wholesalePrice: e.target.value }))} />
-                    </FormField>
-                    <FormField label="Retail price (optional)">
-                      <NumberInput step="0.01" min="0" value={form.retailPrice} onChange={(e) => setForm((f) => ({ ...f, retailPrice: e.target.value }))} />
-                    </FormField>
+                    {form.itemType === "Product" && (
+                      <>
+                        <FormField label="Selling price *">
+                          <NumberInput step="0.01" min="0" value={form.sellingPrice} onChange={(e) => setForm((f) => ({ ...f, sellingPrice: e.target.value }))} />
+                        </FormField>
+                        <FormField label="Wholesale price (optional)">
+                          <NumberInput step="0.01" min="0" value={form.wholesalePrice} onChange={(e) => setForm((f) => ({ ...f, wholesalePrice: e.target.value }))} />
+                        </FormField>
+                        <FormField label="Retail price (optional)">
+                          <NumberInput step="0.01" min="0" value={form.retailPrice} onChange={(e) => setForm((f) => ({ ...f, retailPrice: e.target.value }))} />
+                        </FormField>
+                      </>
+                    )}
                   </FormSection>
 
                   <FormSection title="Inventory" color="amber">
@@ -419,7 +432,7 @@ export default function GenericProductsPage() {
                     { label: "SKU", value: p.sku ?? "—" },
                     { label: "Category", value: p.categoryName ?? "—" },
                     { label: "Cost", value: fmt(p.costPrice) },
-                    { label: "Selling", value: fmt(p.sellingPrice) },
+                    { label: "Selling", value: p.itemType === "SupplyItem" ? "—" : fmt(p.sellingPrice) },
                     { label: "Stock", value: p.trackInventory ? p.currentStock.toLocaleString(undefined, { maximumFractionDigits: 3 }) : "n/a" },
                   ]}
                   actions={(p) => (
@@ -459,7 +472,7 @@ export default function GenericProductsPage() {
                               <TableCell className="font-mono text-xs">{p.sku ?? "—"}</TableCell>
                               <TableCell>{p.categoryName ?? "—"}</TableCell>
                               <TableCell className="text-right">{fmt(p.costPrice)}</TableCell>
-                              <TableCell className="text-right">{fmt(p.sellingPrice)}</TableCell>
+                              <TableCell className="text-right">{p.itemType === "SupplyItem" ? "—" : fmt(p.sellingPrice)}</TableCell>
                               <TableCell className="text-right">
                                 {p.trackInventory ? p.currentStock.toLocaleString(undefined, { maximumFractionDigits: 3 }) : <span className="text-slate-400">n/a</span>}
                               </TableCell>

@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
-import { Building2, Plus, Loader2, TrendingDown, XCircle } from "lucide-react"
+import { Building2, Plus, Loader2, TrendingDown, XCircle, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -116,6 +116,7 @@ export default function GenericAssetsPage() {
         <main className="flex-1 overflow-auto p-3 md:p-4 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-emerald-600" /> Capital Investments / Assets
               </h1>

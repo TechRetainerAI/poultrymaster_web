@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Loader2, Plus, Users2, Pencil, Trash2, KeyRound, CalendarCheck, UserPlus } from "lucide-react"
+import { Loader2, Plus, Users2, Pencil, Trash2, KeyRound, CalendarCheck, UserPlus, ArrowLeft } from "lucide-react"
 import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
 import { EmployeeBadge } from "@/components/employees/link-badges"
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
@@ -186,6 +186,7 @@ export default function GenericStaffPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Users2 className="h-6 w-6 text-emerald-600" /> Staff
               </h1>

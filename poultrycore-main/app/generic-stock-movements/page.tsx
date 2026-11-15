@@ -24,7 +24,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Boxes, TrendingUp, TrendingDown, ArrowUpDown, Download, Plus, Loader2,
+  ArrowLeft, Boxes, TrendingUp, TrendingDown, ArrowUpDown, Download, Plus, Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -224,6 +224,7 @@ export default function GenericStockMovementsPage() {
 
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <ArrowUpDown className="h-6 w-6 text-emerald-600" /> Stock Movements
               </h1>

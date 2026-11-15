@@ -17,7 +17,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { usePagination } from "@/hooks/use-pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  Boxes, TrendingUp, TrendingDown, ArrowUpDown, Download, Package, History,
+  ArrowLeft, Boxes, TrendingUp, TrendingDown, ArrowUpDown, Download, Package, History,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -187,6 +187,7 @@ function ProductTrackerInner() {
         <main className="flex-1 overflow-auto p-3 md:p-4 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <History className="h-6 w-6 text-emerald-600" /> Product Tracker
               </h1>

@@ -45,7 +45,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Wallet, TrendingUp, TrendingDown, Plus, Lightbulb, Info,
-  ExternalLink, Users, Truck, Trash2, Pencil, ChevronDown,
+  ExternalLink, Users, Truck, Trash2, Pencil, ChevronDown, ArrowLeft,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt } from "@/lib/currency"
@@ -325,6 +325,7 @@ export default function GenericCashFlowPage() {
 
           <div className="mb-3">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
                 <Wallet className="h-5 w-5 text-emerald-600" />
                 Cash Flow

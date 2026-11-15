@@ -28,7 +28,7 @@ import { FormSection, FormField } from "@/components/ui/form-section"
 import { ReasonSelect } from "@/components/ui/reason-select"
 import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import {
-  Factory, Loader2, Plus, Undo2, Download, Package,
+  ArrowLeft, Factory, Loader2, Plus, Undo2, Download, Package,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -201,6 +201,7 @@ export default function GenericProductionPage() {
         <main className="flex-1 overflow-auto p-3 md:p-4 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <Factory className="h-6 w-6 text-emerald-600" /> Production Records
               </h1>

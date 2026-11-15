@@ -25,7 +25,7 @@ import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import {
   Loader2, Search, Plus, Minus, X, ShoppingCart, Check, Trash2, Zap,
-  History, DollarSign, Printer,
+  History, DollarSign, Printer, ArrowLeft,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useGenericModules } from "@/hooks/use-generic-modules"
@@ -460,6 +460,7 @@ function GenericPosPageInner() {
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
+                <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
                 <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Sales &amp; Quick Sale</h1>
                 <p className="text-sm text-slate-500">Sell products quickly, and view your sales history.</p>
               </div>

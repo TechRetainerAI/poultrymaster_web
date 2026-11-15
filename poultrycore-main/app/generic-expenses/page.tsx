@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
-import { Check, DollarSign, Loader2, Plus } from "lucide-react"
+import { Check, DollarSign, Loader2, Plus, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useLogout } from "@/hooks/use-logout"
@@ -198,6 +198,7 @@ function GenericExpensesPageInner() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <DollarSign className="h-6 w-6 text-amber-600" /> Expenses
               </h1>

@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Loader2, Plus, Pencil, Trash2, GraduationCap, Users } from "lucide-react"
+import { Loader2, Plus, Pencil, Trash2, GraduationCap, Users, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -98,6 +98,7 @@ export default function GenericClassesPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="max-w-4xl mx-auto space-y-4">
             <div className="flex items-center justify-between">
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
                 <GraduationCap className="h-5 w-5" /> Classes
               </h1>

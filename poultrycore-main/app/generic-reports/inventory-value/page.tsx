@@ -48,6 +48,7 @@ export default function InventoryValuePage() {
           <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
             <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
           </Link>
+          <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
           <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2 mb-4">
             <Boxes className="h-6 w-6 text-orange-600" /> Inventory value
           </h1>

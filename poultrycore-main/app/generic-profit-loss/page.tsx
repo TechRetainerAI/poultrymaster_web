@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Loader2, TrendingUp, FileSpreadsheet, Printer, Mail } from "lucide-react"
+import { Loader2, TrendingUp, FileSpreadsheet, Printer, Mail, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -159,6 +159,7 @@ export default function GenericProfitLossPage() {
 
           {/* Page header — matching poultry P&L "page" chrome: icon, title, subtitle, export buttons */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-10 h-10 shrink-0 rounded-lg bg-emerald-100 flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-emerald-700" />

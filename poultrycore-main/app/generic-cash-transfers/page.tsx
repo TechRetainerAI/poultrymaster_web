@@ -26,7 +26,7 @@ import { FormSection, FormField } from "@/components/ui/form-section"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
-import { ArrowLeftRight, ArrowRight, Check, Loader2, Plus, X, AlertTriangle } from "lucide-react"
+import { ArrowLeftRight, ArrowRight, Check, Loader2, Plus, X, AlertTriangle, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -167,6 +167,7 @@ function GenericCashTransfersPageInner() {
 
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <ArrowLeftRight className="h-6 w-6 text-sky-600" /> Cash Transfers
               </h1>

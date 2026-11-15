@@ -31,7 +31,7 @@ import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import {
   Activity, ArrowLeftRight, BarChart3, ChevronDown, ChevronRight, Download,
-  Loader2, RefreshCw,
+  Loader2, RefreshCw, ArrowLeft,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -298,6 +298,7 @@ function FinancialActivityPageInner() {
         <main className="flex-1 overflow-y-auto min-w-0 overflow-x-hidden p-4 sm:p-6 space-y-4">
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-10 h-10 shrink-0 rounded-lg bg-indigo-100 flex items-center justify-center">
                 <Activity className="w-5 h-5 text-indigo-700" />

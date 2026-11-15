@@ -17,7 +17,7 @@ import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Loader2, Plus, Users, Pencil, Trash2 } from "lucide-react"
+import { Loader2, Plus, Users, Pencil, Trash2, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -189,6 +189,7 @@ export default function GenericCustomersPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Users className="h-6 w-6 text-emerald-600" /> {labels.customerPlural}
               </h1>

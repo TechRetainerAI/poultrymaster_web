@@ -20,7 +20,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   BarChart3, Boxes, CreditCard, DollarSign, Repeat, Scale, ShoppingCart,
-  TrendingUp, Truck, Users, Users2, Wallet, AlertTriangle, Cloud,
+  TrendingUp, Truck, Users, Users2, Wallet, AlertTriangle, Cloud, ArrowLeft,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -109,6 +109,7 @@ export default function GenericReportsHubPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4">
+            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <BarChart3 className="h-6 w-6 text-slate-700" /> Reports
             </h1>

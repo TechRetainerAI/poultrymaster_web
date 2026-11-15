@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import { tabCountCls, tabListCls, tabTriggerCls } from "@/lib/ui/tab-styles"
-import { PiggyBank, Plus, Loader2, Search, RefreshCw, Users } from "lucide-react"
+import { ArrowLeft, PiggyBank, Plus, Loader2, Search, RefreshCw, Users } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -128,6 +128,7 @@ export default function GenericCustomerCreditsPage() {
           {/* Header — matching poultry customer-credits */}
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
                 <PiggyBank className="h-6 w-6 text-blue-600" /> Customer Credits
               </h1>
