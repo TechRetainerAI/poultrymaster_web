@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import {
   approveSale,
+  createCustomer,
   createSale,
   getCashAccounts,
   getCustomers,
@@ -49,6 +50,30 @@ import {
 } from "@/lib/api/generic"
 
 const PAY_METHODS = ["Cash", "MoMo", "Bank", "Card"]
+
+/** Find or create a walk-in customer record so walk-in sales are tracked. */
+async function resolveWalkInCustomer(
+  name: string,
+  existing: GenericCustomer[],
+): Promise<{ id: number; customer: GenericCustomer | null }> {
+  const trimmed = name.trim()
+  // Check if a walk-in customer with this exact name already exists
+  const match = existing.find(
+    (c) => c.customerName.toLowerCase() === trimmed.toLowerCase() && c.customerType === "Walk-in",
+  )
+  if (match) return { id: match.genericCustomerId, customer: match }
+  // Create a new walk-in customer
+  const created = await createCustomer({
+    customerName: trimmed,
+    customerType: "Walk-in",
+    creditLimit: 0,
+    paymentTermsDays: 0,
+    openingBalance: 0,
+    isActive: true,
+    notes: "Auto-created from walk-in sale",
+  })
+  return { id: created?.genericCustomerId ?? 0, customer: created }
+}
 
 /** Extract a walk-in customer name stored in the notes field as "Customer: Name". */
 function displayCustomer(sale: GenericSale): string {
@@ -179,9 +204,21 @@ function GenericPosPageInner() {
     if (items.length === 0) { toast({ title: "Add at least one item", variant: "destructive" }); return }
     setInvoiceSaving(true)
     try {
+      // Auto-create walk-in customer if name provided
+      let invCustomerId = invoiceHeader.genericCustomerId ? Number(invoiceHeader.genericCustomerId) : null
+      if (!invoiceHeader.genericCustomerId && invoiceWalkInName.trim()) {
+        const { id, customer } = await resolveWalkInCustomer(invoiceWalkInName, customers)
+        if (id) {
+          invCustomerId = id
+          if (customer && !customers.some((c) => c.genericCustomerId === id)) {
+            setCustomers((prev) => [...prev, customer])
+          }
+        }
+      }
+
       const created = await createSale({
         saleDate: invoiceHeader.saleDate,
-        genericCustomerId: invoiceHeader.genericCustomerId ? Number(invoiceHeader.genericCustomerId) : null,
+        genericCustomerId: invCustomerId,
         salesType: invoiceHeader.salesType,
         headerDiscountAmount: Number(invoiceHeader.headerDiscountAmount) || 0,
         taxAmount: Number(invoiceHeader.taxAmount) || 0,
@@ -189,9 +226,7 @@ function GenericPosPageInner() {
         paymentMethod: invoiceHeader.paymentMethod,
         genericCashAccountId: invoiceHeader.genericCashAccountId ? Number(invoiceHeader.genericCashAccountId) : null,
         receiptNumber: invoiceHeader.receiptNumber || null,
-        notes: !invoiceHeader.genericCustomerId && invoiceWalkInName.trim()
-          ? (invoiceHeader.notes ? `Customer: ${invoiceWalkInName.trim()} | ${invoiceHeader.notes}` : `Customer: ${invoiceWalkInName.trim()}`)
-          : (invoiceHeader.notes || null),
+        notes: invoiceHeader.notes || null,
         items,
       })
       if (created) {
@@ -354,17 +389,31 @@ function GenericPosPageInner() {
       const rand = String(Math.floor(Math.random() * 10000)).padStart(4, "0")
       const receiptNumber = `SAL-${now.toISOString().slice(0, 10).replace(/-/g, "")}-${pad}${rand}`
 
+      // Auto-create walk-in customer if name provided
+      let resolvedCustomerId = customerId ? Number(customerId) : null
+      let resolvedCustName = selectedCustomer?.customerName ?? "Walk-in"
+      if (!customerId && walkInName.trim()) {
+        const { id, customer } = await resolveWalkInCustomer(walkInName, customers)
+        if (id) {
+          resolvedCustomerId = id
+          resolvedCustName = customer?.customerName ?? walkInName.trim()
+          if (customer && !customers.some((c) => c.genericCustomerId === id)) {
+            setCustomers((prev) => [...prev, customer])
+          }
+        }
+      }
+
       const sale = await createSale({
         saleDate: now.toISOString().slice(0, 10),
-        genericCustomerId: customerId ? Number(customerId) : null,
-        salesType: "WalkInSale",
+        genericCustomerId: resolvedCustomerId,
+        salesType: customerId ? "CustomerSale" : "WalkInSale",
         headerDiscountAmount: 0,
         taxAmount: 0,
         amountPaid: paymentMethod === "Credit" ? 0 : total,
         paymentMethod,
         genericCashAccountId: cashAccountId ? Number(cashAccountId) : null,
         receiptNumber,
-        notes: !customerId && walkInName.trim() ? `Customer: ${walkInName.trim()}` : null,
+        notes: null,
         items,
       })
 
@@ -372,7 +421,7 @@ function GenericPosPageInner() {
         await approveSale(sale.genericSaleId)
 
         // Build receipt before clearing the cart
-        const custName = selectedCustomer?.customerName ?? (walkInName.trim() || "Walk-in")
+        const custName = resolvedCustName
         setReceipt({
           saleId: sale.genericSaleId,
           receiptNumber,
