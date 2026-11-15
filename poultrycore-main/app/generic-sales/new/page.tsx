@@ -99,7 +99,7 @@ export default function NewGenericSalePage() {
         const [cs, ps, as] = await Promise.all([getCustomers(), getProducts(), getCashAccounts()])
         if (cancelled) return
         setCustomers(cs)
-        setProducts(ps)
+        setProducts(ps.filter((p) => p.itemType !== "SupplyItem"))
         setCashAccounts(as)
         // Default to first active cash account
         const defaultId = modules.businessSettings?.defaultCashAccountForPayments

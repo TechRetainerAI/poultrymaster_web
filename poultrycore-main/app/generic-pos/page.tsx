@@ -203,7 +203,7 @@ function GenericPosPageInner() {
         setInvoiceHeader({ saleDate: date, genericCustomerId: "", salesType: "WalkInSale", receiptNumber: `SAL-${date.replace(/-/g, "")}-${pad2}${rand2}`, headerDiscountAmount: "0", taxAmount: "0", amountPaid: "0", paymentMethod: "Cash", genericCashAccountId: invoiceHeader.genericCashAccountId, notes: "" })
         setInvoiceWalkInName("")
         setSalesLoaded(false)
-        getProducts().then((ps) => setProducts(ps.filter((p) => p.isActive))).catch(() => {})
+        getProducts().then((ps) => setProducts(ps.filter((p) => p.isActive && p.itemType !== "SupplyItem"))).catch(() => {})
       }
     } catch (e: any) { toast({ title: "Could not create sale", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setInvoiceSaving(false) }
@@ -224,7 +224,7 @@ function GenericPosPageInner() {
     }
     Promise.all([getProducts(), getCustomers(), getCashAccounts()])
       .then(([ps, cs, as]) => {
-        setProducts(ps.filter((p) => p.isActive))
+        setProducts(ps.filter((p) => p.isActive && p.itemType !== "SupplyItem"))
         setCustomers(cs.filter((c) => c.isActive))
         setCashAccounts(as.filter((a) => a.isActive))
         const defaultId = modules.businessSettings?.defaultCashAccountForPayments
@@ -389,7 +389,7 @@ function GenericPosPageInner() {
           title: `Sale #${sale.genericSaleId} completed`,
           description: change > 0 ? `Change: ${fmt(change)}` : "Paid in full",
         })
-        getProducts().then((ps) => setProducts(ps.filter((p) => p.isActive))).catch(() => {})
+        getProducts().then((ps) => setProducts(ps.filter((p) => p.isActive && p.itemType !== "SupplyItem"))).catch(() => {})
         setSalesLoaded(false)
         clearCart()
       }
