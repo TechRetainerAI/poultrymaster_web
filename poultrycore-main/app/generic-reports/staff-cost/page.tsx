@@ -44,7 +44,7 @@ export default function StaffCostReportPage() {
       { header: "Payroll", key: "payrollPay", width: 80, align: "right" as const, format: "currency" as const },
       { header: "Total", key: "totalPaid", width: 80, align: "right" as const, format: "currency" as const },
     ],
-    rows: people.map((p) => ({ name: p.staffName, role: p.role, staffPayments: p.staffPayments, payrollPay: p.payrollPay, totalPaid: p.totalPaid })),
+    rows: people.map((p) => ({ name: p.staffName, role: p.staffRole ?? "", staffPayments: p.staffPayments, payrollPay: p.payrollPay, totalPaid: p.totalPaid })),
   }), [people, range])
 
   return (

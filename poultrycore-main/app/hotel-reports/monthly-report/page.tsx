@@ -74,7 +74,7 @@ export default function MonthlyReportPage() {
       setStaff(s)
       try {
         const profile = await getHotelProfile()
-        setHotelName(profile.hotelName ?? profile.hotelname ?? "Hotel")
+        setHotelName(profile.hotelName ?? "Hotel")
         setHotelAddress(profile.address ?? profile.city ?? "")
         setHotelPhone(profile.phone ?? "")
         setHotelEmail(profile.email ?? "")

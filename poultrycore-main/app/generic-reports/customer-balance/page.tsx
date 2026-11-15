@@ -60,7 +60,7 @@ export default function CustomerBalanceReportPage() {
       title="Customer Balance Report"
       description="Who owes what, who has credit on account, and which customers are over their limit."
       backHref="/generic-reports"
-      pageIcon={Users}
+      pageIcon={<Users className="h-5 w-5" />}
       busy={busy} error={error} onClearError={() => setError(null)}
       fromDate="" toDate=""
       onFromDateChange={() => {}} onToDateChange={() => {}}

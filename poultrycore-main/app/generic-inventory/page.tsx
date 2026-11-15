@@ -928,7 +928,7 @@ function GenericInventoryPageInner() {
         label="Reason"
         placeholder="Enter rejection reason"
         confirmLabel="Reject"
-        onConfirm={(reason) => rejectTarget !== null && onRejectAdj(rejectTarget, reason)}
+        onSubmit={(reason) => rejectTarget !== null && onRejectAdj(rejectTarget, reason)}
       />
     </div>
   )

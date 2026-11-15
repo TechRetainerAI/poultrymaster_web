@@ -190,6 +190,63 @@ export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, Permission
   // No `water.settings.*` in the catalog — company configuration is the
   // company-neutral office module, same key the poultry Settings flag uses.
   canViewWaterSetup: ["office.settings.view"],
+
+  // Hotel module flags
+  canViewHotelRooms: [
+    "hotel.rooms.view", "hotel.rooms.create", "hotel.rooms.edit", "hotel.rooms.delete",
+  ],
+  canViewHotelBookings: [
+    "hotel.bookings.view", "hotel.bookings.create", "hotel.bookings.edit", "hotel.bookings.delete",
+  ],
+  canViewHotelHousekeeping: [
+    "hotel.housekeeping.view", "hotel.housekeeping.create", "hotel.housekeeping.edit", "hotel.housekeeping.delete",
+  ],
+  canViewHotelBilling: [
+    "hotel.billing.view", "hotel.billing.create", "hotel.billing.edit",
+  ],
+  canViewHotelRestaurant: [
+    "hotel.restaurant.view", "hotel.restaurant.create", "hotel.restaurant.edit",
+  ],
+  canViewHotelStaff: [
+    "hotel.staff.view", "hotel.staff.create", "hotel.staff.edit", "hotel.staff.delete",
+  ],
+  canViewHotelPayroll: [
+    "hotel.payroll.view", "hotel.payroll.create", "hotel.payroll.edit", "hotel.payroll.delete",
+  ],
+  canViewHotelInventory: [
+    "hotel.inventory.view", "hotel.inventory.create", "hotel.inventory.edit", "hotel.inventory.delete",
+  ],
+  canViewHotelMaintenance: [
+    "hotel.maintenance.view", "hotel.maintenance.create", "hotel.maintenance.edit", "hotel.maintenance.delete",
+  ],
+  canViewHotelSetup: ["office.settings.view"],
+
+  // Restaurant module flags
+  canViewRestaurantPOS: [
+    "restaurant.pos.view", "restaurant.pos.create",
+  ],
+  canViewRestaurantKDS: [
+    "restaurant.kds.view",
+  ],
+  canViewRestaurantMenu: [
+    "restaurant.menu.view", "restaurant.menu.create", "restaurant.menu.edit", "restaurant.menu.delete",
+  ],
+  canViewRestaurantFloorPlan: [
+    "restaurant.floor-plan.view", "restaurant.floor-plan.edit",
+  ],
+  canViewRestaurantReservations: [
+    "restaurant.reservations.view", "restaurant.reservations.create", "restaurant.reservations.edit",
+  ],
+  canViewRestaurantOnlineOrders: [
+    "restaurant.online-orders.view", "restaurant.online-orders.create",
+  ],
+  canViewRestaurantDelivery: [
+    "restaurant.delivery.view", "restaurant.delivery.create", "restaurant.delivery.edit",
+  ],
+  canViewRestaurantStaff: [
+    "restaurant.staff.view", "restaurant.staff.create", "restaurant.staff.edit", "restaurant.staff.delete",
+  ],
+  canViewRestaurantSetup: ["office.settings.view"],
 }
 
 /** Every key the legacy flags can produce, for the "is this key legacy-covered?" check. */

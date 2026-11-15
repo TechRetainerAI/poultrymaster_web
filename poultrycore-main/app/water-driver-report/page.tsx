@@ -142,7 +142,7 @@ export default function WaterDriverCollectionReportPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={load} disabled={busy} className="gap-1">
+              <Button onClick={() => load()} disabled={busy} className="gap-1">
                 <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} /> Refresh
               </Button>
             </CardContent>

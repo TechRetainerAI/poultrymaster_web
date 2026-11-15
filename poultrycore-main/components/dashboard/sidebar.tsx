@@ -145,6 +145,7 @@ interface SidebarProps {
 /** A sidebar row. `isButton`/`onClick`/`badge` are for rows that trigger an
  *  action instead of navigating — currently just Alerts. */
 type SidebarItem = {
+  id?: string
   href: string
   label: string
   icon: any

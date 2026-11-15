@@ -667,7 +667,7 @@ export default function GenericCashFlowPage() {
               interestRate: 0,
               loanDate: adjustmentDate,
               genericCashAccountId: accountId,
-              notes: description || null,
+              notes: description || undefined,
             })
             return
           }

@@ -60,7 +60,7 @@ export default function SupplierBalanceReportPage() {
       title="Supplier Balance Report"
       description="What is owed to suppliers, any advances paid, and net payable position."
       backHref="/generic-reports"
-      pageIcon={Truck}
+      pageIcon={<Truck className="h-5 w-5" />}
       busy={busy} error={error} onClearError={() => setError(null)}
       fromDate="" toDate=""
       onFromDateChange={() => {}} onToDateChange={() => {}}

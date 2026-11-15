@@ -122,7 +122,7 @@ export default function RegisterPage() {
       firstName: f.firstName.trim(),
       lastName: f.lastName.trim(),
       phoneNumber: f.phoneNumber.replace(/[\s()-]/g, ""),
-      companyType: createCompany ? (f.companyType || undefined) : undefined,
+      companyType: createCompany ? (f.companyType || undefined) as "Poultry" | "Water" | "Generic" | undefined : undefined,
       roles: ["Admin"], // the registrant is the Business Office owner/admin
       businessOfficeName,
       businessOfficeCurrency: "GHS",

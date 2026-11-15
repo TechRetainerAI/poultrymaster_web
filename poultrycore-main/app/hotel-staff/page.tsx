@@ -173,7 +173,7 @@ export default function HotelStaffPage() {
           <Button variant={filterDept === "all" ? "default" : "outline"} size="sm" onClick={() => setFilterDept("all")} className={filterDept === "all" ? "bg-violet-600" : ""}>All Depts</Button>
           {Object.entries(deptCounts).sort().map(([dept, count]) => (
             <Button key={dept} variant={filterDept === dept ? "default" : "outline"} size="sm" onClick={() => setFilterDept(dept)} className={filterDept === dept ? "bg-violet-600" : ""}>
-              {dept} ({count})
+              {dept} ({count as number})
             </Button>
           ))}
         </div>

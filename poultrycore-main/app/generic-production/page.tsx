@@ -272,7 +272,7 @@ export default function GenericProductionPage() {
             <Card>
               <CardContent className="p-0 md:p-2">
                 <MobileCardList
-                  defaultOpen striped stripeAccent="emerald"
+                  defaultOpen striped stripeAccent="blue"
                   items={pg.pageItems} pagination={pg.paginationProps}
                   getKey={(r: any) => r.genericProductionRecordId}
                   primary={(r: any) => r.productName ?? `Product #${r.genericProductId}`}

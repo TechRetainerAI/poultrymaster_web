@@ -1220,7 +1220,7 @@ export async function getCustomerCredits(): Promise<GenericCustomerCredit[]> {
 export async function createCustomerCredit(input: {
   genericCustomerId: number; creditType: string; amount: number
   creditDate?: string; notes?: string
-}): Promise<number> {
+}): Promise<number | null> {
   return postJson<number>(`${farmBase()}/customer-credits`, withFarmId(input))
 }
 
@@ -1242,7 +1242,7 @@ export async function getSupplierCredits(): Promise<GenericSupplierCredit[]> {
 export async function createSupplierCredit(input: {
   genericSupplierId: number; creditType: string; amount: number
   creditDate?: string; notes?: string
-}): Promise<number> {
+}): Promise<number | null> {
   return postJson<number>(`${farmBase()}/supplier-credits`, withFarmId(input))
 }
 
@@ -1286,7 +1286,7 @@ export async function createLoan(input: {
   lenderName: string; originalPrincipal: number; amountReceived: number; interestRate: number
   loanDate: string; startDate?: string; dueDate?: string
   genericCashAccountId?: number | null; notes?: string
-}): Promise<number> {
+}): Promise<number | null> {
   return postJson<number>(`${farmBase()}/loans`, withFarmId(input))
 }
 
@@ -1297,7 +1297,7 @@ export async function getLoanPayments(loanId: number): Promise<GenericLoanPaymen
 export async function repayLoan(loanId: number, input: {
   principalAmount: number; interestAmount: number; feeAmount: number
   paymentDate?: string; genericCashAccountId?: number | null; notes?: string
-}): Promise<number> {
+}): Promise<number | null> {
   return postJson<number>(`${farmBase()}/loans/${loanId}/repay`, withFarmId(input))
 }
 
@@ -1321,7 +1321,7 @@ export async function createAsset(input: {
   assetName: string; category?: string; purchaseDate: string; purchaseCost: number
   usefulLifeMonths?: number; depreciationMethod?: string
   location?: string; serialNumber?: string; notes?: string
-}): Promise<number> {
+}): Promise<number | null> {
   return postJson<number>(`${farmBase()}/assets`, withFarmId(input))
 }
 
@@ -1379,7 +1379,7 @@ export async function loadDelivery(input: {
   genericProductId: number; quantityLoaded: number; unit: string; unitPrice: number
   driverName: string; vehicleName: string; route: string; deliveryDate: string; notes: string
   customerName?: string; destination?: string; transportMode?: string
-}): Promise<number> {
+}): Promise<number | null> {
   return postJson<number>(`${farmBase()}/deliveries/load`, withFarmId(input))
 }
 
@@ -1445,7 +1445,7 @@ export async function getDrivers(): Promise<GenericDriver[]> {
 export async function createDriver(input: {
   driverName: string; phoneNumber?: string; licenseNumber?: string
   vehicleName?: string; vehicleRegistration?: string; transportMode?: string; notes?: string
-}): Promise<number> {
+}): Promise<number | null> {
   return postJson<number>(`${farmBase()}/drivers`, withFarmId(input))
 }
 
@@ -1477,7 +1477,7 @@ export async function getRoutes(): Promise<GenericRoute[]> {
 export async function createRoute(input: {
   routeName: string; description?: string; startPoint?: string
   endPoint?: string; estimatedTime?: string; notes?: string
-}): Promise<number> {
+}): Promise<number | null> {
   return postJson<number>(`${farmBase()}/routes`, withFarmId(input))
 }
 

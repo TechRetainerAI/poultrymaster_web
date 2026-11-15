@@ -136,7 +136,7 @@ export default function EmployeesPage() {
     setIsDeleting(false); setDeleteDialogOpen(false); setDeletingId(null)
   }
 
-  const formatDate = (dateString: string, row?: unknown) => fmtDateTime(dateString, row)
+  const formatDate = (dateString: string, row?: string | Date | null | object) => fmtDateTime(dateString, row)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token"); localStorage.removeItem("refresh_token")

@@ -137,7 +137,7 @@ function GenericCashTransfersPageInner() {
       })
       // Auto-approve — the poultry page approves immediately too.
       if (id) {
-        try { await approveCashTransfer(id) } catch { /* draft is still fine */ }
+        try { await approveCashTransfer(id.genericCashTransferId) } catch { /* draft is still fine */ }
       }
       toast({ title: "Transfer recorded and approved." })
       setNewOpen(false)

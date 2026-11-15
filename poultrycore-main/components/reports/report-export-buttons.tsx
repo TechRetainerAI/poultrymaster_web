@@ -30,7 +30,7 @@ export function ReportExportButtons({ pdf, csvFilename, disabled }: ReportExport
     const headers = pdf.columns.map((c) => c.header)
     const rows = pdf.rows.map((row: any) =>
       pdf.columns!.map((col) => {
-        const val = row[col.key]
+        const val = col.key ? row[col.key] : undefined
         return val == null ? "" : val
       }),
     )

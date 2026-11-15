@@ -129,7 +129,7 @@ export default function GenericDailyClosingsPage() {
         await submitDailyClosing(created.genericDailyClosingId)
         toast({ title: `Closing #${created.genericDailyClosingId} created and submitted.`, description: "Totals aggregated automatically. Review and approve." })
         setOpen(false)
-        setForm({ closingDate: new Date().toISOString().slice(0, 10), openingCash: "", actualCashCounted: "0", managerNotes: "", differenceReason: "" })
+        setForm({ closingDate: new Date().toISOString().slice(0, 10), openingCash: "", actualCashCounted: "0", managerNotes: "", differenceReason: "", todaySales: 0, todayExpenses: 0, todayPurchasesPaid: 0, expectedCash: 0, customerDebt: 0, supplierDebt: 0 })
         await load()
       }
     } catch (e: any) {

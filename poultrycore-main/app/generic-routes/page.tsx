@@ -54,7 +54,7 @@ export default function GenericRoutesPage() {
   function openCreate() { setEditing(null); setForm(empty()); setDialogOpen(true) }
   function openEdit(r: GenericRoute) {
     setEditing(r)
-    setForm({ routeName: r.routeName, description: r.description ?? "", startPoint: r.startPoint ?? "", endPoint: r.endPoint ?? "", estimatedTime: r.estimatedTime ?? "", notes: r.notes ?? "" })
+    setForm({ routeName: r.routeName, description: r.description ?? "", startPoint: r.startPoint ?? "", endPoint: r.endPoint ?? "", estimatedTime: r.estimatedTime ?? "", notes: r.notes ?? "", startCoords: null, endCoords: null, distance: "" })
     setDialogOpen(true)
   }
 
