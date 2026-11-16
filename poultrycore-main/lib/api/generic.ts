@@ -74,7 +74,13 @@ export interface GenericProduct {
   productName: string
   sku?: string | null
   barcode?: string | null
+  /** Rich item description, separate from operational Notes (migration 441). */
+  description?: string | null
   unitOfMeasure?: string | null
+  /** Unit used when purchasing, e.g. "bag" (migration 441). */
+  purchaseUnit?: string | null
+  /** Unit used when selling, e.g. "piece" (migration 441). */
+  salesUnit?: string | null
   costPrice: number
   sellingPrice: number
   wholesalePrice?: number | null
@@ -92,6 +98,17 @@ export interface GenericProduct {
   trackExpiry?: boolean
   /** Product = things you sell, SupplyItem = things you use internally (migration 440). */
   itemType?: "Product" | "SupplyItem"
+  /** Whether this item can be sold to customers (migration 441). */
+  canSell?: boolean
+  /** Whether this item can be consumed or produced in production workflows (migration 441). */
+  canUseInProduction?: boolean
+  /** Whether this item can be used for internal consumption (migration 441). */
+  canUseInternally?: boolean
+  /** User who last updated this item (migration 441). */
+  updatedBy?: string | null
+  createdBy?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
 export interface GenericCustomer {
@@ -570,7 +587,10 @@ export interface GenericProductInput {
   productName: string
   sku?: string | null
   barcode?: string | null
+  description?: string | null
   unitOfMeasure?: string | null
+  purchaseUnit?: string | null
+  salesUnit?: string | null
   /** Product = things you sell, SupplyItem = things you use internally (migration 440). */
   itemType?: "Product" | "SupplyItem"
   costPrice: number
@@ -586,6 +606,10 @@ export interface GenericProductInput {
   notes?: string | null
   expiryDate?: string | null
   trackExpiry?: boolean
+  /** Capability flags (migration 441) */
+  canSell?: boolean
+  canUseInProduction?: boolean
+  canUseInternally?: boolean
 }
 
 export async function createGenericProduct(input: GenericProductInput): Promise<GenericProduct | null> {
@@ -1543,6 +1567,10 @@ export interface GenericStockMovement {
   createdAt: string
 }
 
+export async function getStockMovementsForProduct(productId: number): Promise<GenericStockMovement[]> {
+  return getJson<GenericStockMovement[]>(`${farmBase()}/inventory/products/${productId}/movements`)
+}
+
 export async function getStockMovements(fromDate?: string, toDate?: string): Promise<GenericStockMovement[]> {
   const qs = new URLSearchParams()
   if (fromDate) qs.append("fromDate", fromDate)
@@ -1866,4 +1894,184 @@ export async function markPayrollRunPaid(id: number, payDate?: string): Promise<
 
 export async function cancelPayrollRun(id: number, reason?: string): Promise<void> {
   await postJson(`${farmBase()}/payroll-runs/${id}/cancel`, reason ? { reason } : {})
+}
+
+// =============================================================================
+// Phase 4: Financial Impact Preview & Reports (migration 442)
+// =============================================================================
+
+export interface GenericFinancialPreview {
+  productName: string
+  transactionType: string
+  quantity: number
+  unitCost: number
+  totalCost: number
+  inventoryChange: number
+  revenueEffect: number
+  cogsEffect: number
+  expenseEffect: number
+  cashEffect: number
+  supplierEffect: number
+  currentStock: number
+  stockAfter: number
+  expenseCategory: string | null
+  notes: string | null
+}
+
+export async function getFinancialPreview(
+  productId: number, quantity: number, transactionType: string
+): Promise<GenericFinancialPreview> {
+  const qs = new URLSearchParams({
+    productId: String(productId),
+    quantity: String(quantity),
+    transactionType,
+  }).toString()
+  return getJson<GenericFinancialPreview>(`${farmBase()}/reports/financial-preview?${qs}`)
+}
+
+export interface GenericPnLBreakdown {
+  totalIncome: number
+  costOfGoodsSold: number
+  grossProfit: number
+  internalUseExpenses: number
+  operatingExpenses: number
+  payrollExpenses: number
+  totalExpenses: number
+  netProfit: number
+  profitMarginPct: number
+  salesCount: number
+  internalUseCount: number
+}
+
+export async function getPnLBreakdown(fromDate: string, toDate: string): Promise<GenericPnLBreakdown> {
+  return getJson<GenericPnLBreakdown>(`${farmBase()}/reports/pnl-breakdown?fromDate=${fromDate}&toDate=${toDate}`)
+}
+
+export interface GenericItemCostReconciliation {
+  productName: string
+  totalPurchasedQty: number
+  totalPurchasedCost: number
+  totalProducedQty: number
+  totalProducedCost: number
+  soldQty: number
+  soldCost: number
+  internalUseQty: number
+  internalUseCost: number
+  productionConsumedQty: number
+  productionConsumedCost: number
+  adjustmentQty: number
+  remainingQty: number
+  remainingCostBasis: number
+  costReconciled: boolean
+}
+
+export async function getItemCostReconciliation(productId: number): Promise<GenericItemCostReconciliation> {
+  return getJson<GenericItemCostReconciliation>(`${farmBase()}/reports/item-cost-reconciliation?productId=${productId}`)
+}
+
+// =============================================================================
+// Phase 5: Reports (migration 443)
+// =============================================================================
+
+export interface GenericInventoryBalanceRow {
+  genericProductId: number
+  productName: string
+  categoryName: string | null
+  purpose: string | null
+  unitOfMeasure: string | null
+  openingQty: number
+  purchasesQty: number
+  productionInQty: number
+  returnsInQty: number
+  salesQty: number
+  internalUseQty: number
+  productionOutQty: number
+  damageQty: number
+  adjustmentQty: number
+  otherQty: number
+  closingQty: number
+  unitCost: number
+  inventoryValue: number
+}
+
+export async function getInventoryBalance(fromDate: string, toDate: string): Promise<GenericInventoryBalanceRow[]> {
+  return getJson<GenericInventoryBalanceRow[]>(`${farmBase()}/reports/inventory-balance?fromDate=${fromDate}&toDate=${toDate}`)
+}
+
+export interface GenericConsumptionRow {
+  usageDate: string
+  genericProductId: number
+  productName: string
+  categoryName: string | null
+  quantityUsed: number
+  unitOfMeasure: string | null
+  unitCost: number
+  totalCost: number
+  expenseCategory: string | null
+  reason: string | null
+  referenceNumber: string | null
+  recordedBy: string | null
+  status: string | null
+  genericInternalUsageId: number
+}
+
+export interface GenericConsumptionSummary {
+  totalConsumptionCost: number
+  totalItemsConsumed: number
+  totalRecords: number
+  topItemName: string | null
+  topItemCost: number
+  categoryBreakdown: string | null
+}
+
+export async function getInternalConsumption(fromDate?: string, toDate?: string, category?: string): Promise<GenericConsumptionRow[]> {
+  const qs = new URLSearchParams()
+  if (fromDate) qs.append("fromDate", fromDate)
+  if (toDate) qs.append("toDate", toDate)
+  if (category) qs.append("category", category)
+  const q = qs.toString()
+  return getJson<GenericConsumptionRow[]>(`${farmBase()}/reports/internal-consumption${q ? `?${q}` : ""}`)
+}
+
+export async function getConsumptionSummary(fromDate?: string, toDate?: string): Promise<GenericConsumptionSummary> {
+  const qs = new URLSearchParams()
+  if (fromDate) qs.append("fromDate", fromDate)
+  if (toDate) qs.append("toDate", toDate)
+  const q = qs.toString()
+  return getJson<GenericConsumptionSummary>(`${farmBase()}/reports/consumption-summary${q ? `?${q}` : ""}`)
+}
+
+export interface GenericReconciliationRow {
+  genericProductId: number
+  productName: string
+  ledgerTotal: number
+  cachedStock: number
+  drift: number
+  isReconciled: boolean
+}
+
+export async function getInventoryReconciliation(): Promise<GenericReconciliationRow[]> {
+  return getJson<GenericReconciliationRow[]>(`${farmBase()}/reports/inventory-reconciliation`)
+}
+
+export interface GenericRestockForecastRow {
+  genericProductId: number
+  productName: string
+  currentStock: number
+  minimumStockAlert: number
+  unitOfMeasure: string | null
+  avgDailySales: number
+  avgDailyInternalUse: number
+  avgDailyProduction: number
+  avgDailyOtherOut: number
+  avgDailyTotalOut: number
+  daysUntilStockout: number
+  daysUntilReorderPoint: number
+  suggestedReorderQty: number
+  urgencyLevel: string
+}
+
+export async function getRestockForecast(lookbackDays?: number): Promise<GenericRestockForecastRow[]> {
+  const qs = lookbackDays ? `?lookbackDays=${lookbackDays}` : ""
+  return getJson<GenericRestockForecastRow[]>(`${farmBase()}/reports/restock-forecast${qs}`)
 }

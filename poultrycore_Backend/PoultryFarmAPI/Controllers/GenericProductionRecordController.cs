@@ -12,10 +12,12 @@ namespace PoultryFarmAPIWeb.Controllers
     public class GenericProductionRecordController : ControllerBase
     {
         private readonly IGenericProductionRecordService _service;
+        private readonly IGenericProductService _products;
 
-        public GenericProductionRecordController(IGenericProductionRecordService service)
+        public GenericProductionRecordController(IGenericProductionRecordService service, IGenericProductService products)
         {
             _service = service;
+            _products = products;
         }
 
         [HttpGet]
@@ -28,6 +30,12 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(string farmId, [FromBody] GenericProductionRecordCreateInput input)
         {
+            // Validate capability: product must have CanUseInProduction = true
+            var product = await _products.GetByIdAsync(input.GenericProductId, farmId);
+            if (product is null) return NotFound($"Product {input.GenericProductId} not found.");
+            if (!product.CanUseInProduction)
+                return BadRequest($"\"{product.ProductName}\" is not marked for production use. Enable 'Use in Production' on the item first.");
+
             var userId = User.FindFirst("sub")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
             var model = new GenericProductionRecordModel

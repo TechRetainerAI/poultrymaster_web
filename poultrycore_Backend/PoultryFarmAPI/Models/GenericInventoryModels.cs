@@ -83,8 +83,19 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(60)]
         public string? Barcode { get; set; }
 
+        /// <summary>Rich item description (migration 441). Separate from operational Notes.</summary>
+        public string? Description { get; set; }
+
         [StringLength(30)]
         public string? UnitOfMeasure { get; set; }
+
+        /// <summary>Unit used when purchasing, e.g. "bag" (migration 441). Base stock unit = UnitOfMeasure.</summary>
+        [StringLength(50)]
+        public string? PurchaseUnit { get; set; }
+
+        /// <summary>Unit used when selling, e.g. "piece" (migration 441). Base stock unit = UnitOfMeasure.</summary>
+        [StringLength(50)]
+        public string? SalesUnit { get; set; }
 
         [Range(0, double.MaxValue)]
         public decimal CostPrice { get; set; }
@@ -107,6 +118,21 @@ namespace PoultryFarmAPIWeb.Models
 
         public int? SupplierId { get; set; }
 
+        /// <summary>Item classification: "Product" or "SupplyItem" (migration 440).</summary>
+        [StringLength(30)]
+        public string ItemType { get; set; } = "Product";
+
+        // ----- Capability flags (migration 441) -----
+
+        /// <summary>Whether this item can be sold to customers.</summary>
+        public bool CanSell { get; set; } = true;
+
+        /// <summary>Whether this item can be consumed or produced in production workflows.</summary>
+        public bool CanUseInProduction { get; set; }
+
+        /// <summary>Whether this item can be used for internal consumption (staff welfare, etc.).</summary>
+        public bool CanUseInternally { get; set; }
+
         public bool IsActive { get; set; } = true;
         public bool IsDeleted { get; set; }
 
@@ -124,6 +150,9 @@ namespace PoultryFarmAPIWeb.Models
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        /// <summary>User who last updated this item (migration 441).</summary>
+        public string? UpdatedBy { get; set; }
     }
 
     public class GenericProductLowStockRowModel

@@ -11,7 +11,7 @@
 
 import {
   Activity, AlertTriangle, ArrowUpDown, Banknote, BarChart3, Boxes, Building2, CalendarClock, CalendarDays,
-  ClipboardCheck, CreditCard, DollarSign, Factory, FileText, Gift, GraduationCap, HandCoins, History, Landmark,
+  CheckCircle2, ClipboardCheck, CreditCard, DollarSign, Factory, FileText, Gift, GraduationCap, HandCoins, History, Landmark,
   MapPin, Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
   PieChart, ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
 } from "lucide-react"
@@ -88,7 +88,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
   const catalog: MegaMenuGroup[] = []
   const catalogStockItems: MegaMenuItem[] = [
     ...(showExisting("enableProducts")
-      ? [item("/generic-products", "Products", ShoppingBag)] : []),
+      ? [item("/generic-products", "Products & Inventory", ShoppingBag)] : []),
     ...(showExisting("enableInventory")
       ? [item("/generic-inventory", "Inventory & Purchases", Boxes)] : []),
     ...(showExisting("enableStockAdjustments")
@@ -219,10 +219,14 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       label: "Sales & Stock",
       items: gated([
         ...(showExisting("enableProducts") ? [
-          item("/generic-reports/sales-by-product",  "Sales by Product",  ShoppingCart, canSee("/generic-reports")),
-          item("/generic-reports/sales-by-customer", "Sales by Customer", Users, canSee("/generic-reports")),
-          item("/generic-reports/inventory-value",   "Inventory Value",   Boxes, canSee("/generic-reports")),
-          item("/generic-reports/delivery-report",   "Delivery Report",   Truck, canSee("/generic-reports")),
+          item("/generic-reports/sales-by-product",        "Sales by Product",        ShoppingCart, canSee("/generic-reports")),
+          item("/generic-reports/sales-by-customer",       "Sales by Customer",       Users, canSee("/generic-reports")),
+          item("/generic-reports/inventory-value",         "Inventory Value",         Boxes, canSee("/generic-reports")),
+          item("/generic-reports/inventory-balance",       "Inventory Balance",       Boxes, canSee("/generic-reports")),
+          item("/generic-reports/internal-consumption",    "Internal Consumption",    PackageMinus, canSee("/generic-reports")),
+          item("/generic-reports/restock-forecast",        "Restock Forecast",        TrendingUp, canSee("/generic-reports")),
+          item("/generic-reports/inventory-reconciliation","Inventory Reconciliation",CheckCircle2, canSee("/generic-reports")),
+          item("/generic-reports/delivery-report",         "Delivery Report",         Truck, canSee("/generic-reports")),
         ] : []),
       ]),
     },
@@ -266,7 +270,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       key: "setup-production",
       label: "Production",
       items: gated([
-        item("/generic-products",    "Products",           ShoppingBag),
+        item("/generic-products",    "Products & Inventory", ShoppingBag),
         item("/generic-production",  "Production Records", Factory),
       ]),
     }] : []),

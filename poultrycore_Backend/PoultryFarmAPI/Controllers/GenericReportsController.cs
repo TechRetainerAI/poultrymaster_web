@@ -175,5 +175,84 @@ namespace PoultryFarmAPIWeb.Controllers
             if (guard is not null) return guard;
             return Ok(await _reports.GetCashSummaryAsync(farmId, fromDate, toDate));
         }
+
+        // ---- Phase 4 (migration 442) ----
+
+        [HttpGet("financial-preview")]
+        public async Task<ActionResult<GenericFinancialPreviewModel>> FinancialPreview(
+            string farmId, [FromQuery] int productId, [FromQuery] decimal quantity, [FromQuery] string transactionType)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            if (productId <= 0) return BadRequest("productId is required.");
+            if (quantity <= 0) return BadRequest("quantity must be positive.");
+            if (string.IsNullOrWhiteSpace(transactionType)) return BadRequest("transactionType is required (Sale, InternalUse, Production, Purchase).");
+            return Ok(await _reports.GetFinancialPreviewAsync(farmId, productId, quantity, transactionType));
+        }
+
+        [HttpGet("pnl-breakdown")]
+        public async Task<ActionResult<GenericPnLBreakdownModel>> PnLBreakdown(
+            string farmId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetPnLBreakdownAsync(farmId, fromDate, toDate));
+        }
+
+        [HttpGet("item-cost-reconciliation")]
+        public async Task<ActionResult<GenericItemCostReconciliationModel>> ItemCostReconciliation(
+            string farmId, [FromQuery] int productId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            if (productId <= 0) return BadRequest("productId is required.");
+            return Ok(await _reports.GetItemCostReconciliationAsync(farmId, productId));
+        }
+
+        // ---- Phase 5 (migration 443) ----
+
+        [HttpGet("inventory-balance")]
+        public async Task<ActionResult<IEnumerable<GenericInventoryBalanceRow>>> InventoryBalance(
+            string farmId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetInventoryBalanceAsync(farmId, fromDate, toDate));
+        }
+
+        [HttpGet("internal-consumption")]
+        public async Task<ActionResult<IEnumerable<GenericConsumptionRow>>> InternalConsumption(
+            string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate, [FromQuery] string? category)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetInternalConsumptionAsync(farmId, fromDate, toDate, category));
+        }
+
+        [HttpGet("consumption-summary")]
+        public async Task<ActionResult<GenericConsumptionSummary>> ConsumptionSummary(
+            string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetConsumptionSummaryAsync(farmId, fromDate, toDate));
+        }
+
+        [HttpGet("inventory-reconciliation")]
+        public async Task<ActionResult<IEnumerable<GenericReconciliationRow>>> InventoryReconciliation(string farmId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetInventoryReconciliationAsync(farmId));
+        }
+
+        [HttpGet("restock-forecast")]
+        public async Task<ActionResult<IEnumerable<GenericRestockForecastRow>>> RestockForecast(
+            string farmId, [FromQuery] int lookbackDays = 30)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetRestockForecastAsync(farmId, lookbackDays));
+        }
     }
 }

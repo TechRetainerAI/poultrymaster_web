@@ -145,7 +145,7 @@ export default function GenericInternalUsePage() {
       variant: "destructive",
     })
 
-    if (prodsRes.status === "fulfilled") setProducts(prodsRes.value)
+    if (prodsRes.status === "fulfilled") setProducts(prodsRes.value.filter((p) => p.canUseInternally === true || (p.canUseInternally == null && p.itemType === "SupplyItem")))
     else toast({
       title: "Couldn't load products",
       description: prodsRes.reason?.message,

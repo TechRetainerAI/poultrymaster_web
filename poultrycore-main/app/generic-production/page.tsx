@@ -104,7 +104,7 @@ export default function GenericProductionPage() {
         getProducts().catch(() => []),
       ])
       setRows(recs)
-      setProducts(prods)
+      setProducts(prods.filter((p) => p.canUseInProduction === true || p.canUseInProduction == null))
     } catch (e: any) {
       toast({ title: "Could not load production records", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setLoading(false) }
