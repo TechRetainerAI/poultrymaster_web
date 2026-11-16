@@ -109,6 +109,13 @@ export default function PoultryPayrollPage() {
   const [itemsRun, setItemsRun] = useState<PoultryPayrollRun | null>(null)
   // 306. Which payslip line's deduction breakdown is open, if any.
   const [deductionsFor, setDeductionsFor] = useState<PayrollDeductionTarget | null>(null)
+  const openDeductions = (it: { poultryPayrollItemId: number; poultryStaffId: number; staffName?: string | null }, runStatus: string) =>
+    setDeductionsFor({
+      poultryPayrollItemId: it.poultryPayrollItemId,
+      poultryStaffId: it.poultryStaffId,
+      staffName: it.staffName ?? `#${it.poultryStaffId}`,
+      runStatus,
+    })
   /**
    * Section 50. Which lines have advances outstanding, keyed by payroll item.
    *
@@ -576,7 +583,7 @@ export default function PoultryPayrollPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Banknote className="w-5 h-5 text-green-600" /> New payroll run</DialogTitle>
             <DialogDescription>
-              {form.templateId ? "Created as a Draft with the template's staff and pay. You can still change any line before approving." : "Create a Draft run, then add staff lines"}
+              {form.templateId ? "Created as a Draft with the template's staff and pay. You can still change any line before approving." : "Create a Draft run, then add staff lines and their deductions"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -664,16 +671,18 @@ export default function PoultryPayrollPage() {
                         <button
                           type="button"
                           className="font-medium tabular-nums underline decoration-dotted underline-offset-2"
-                          onClick={() => setDeductionsFor({
-                            poultryPayrollItemId: it.poultryPayrollItemId,
-                            poultryStaffId: it.poultryStaffId,
-                            staffName: it.staffName ?? `#${it.poultryStaffId}`,
-                            runStatus: itemsRun.status,
-                          })}
+                          onClick={() => openDeductions(it, itemsRun.status)}
                         >
                           {gh(it.deductions)}
                         </button>
-                        <span className="ml-1 text-[11px] text-slate-400">view breakdown</span>
+                        {isEditable(itemsRun.status) ? (
+                          <Button size="sm" variant="outline" className="ml-2 h-7 px-2 text-xs"
+                                  onClick={() => openDeductions(it, itemsRun.status)}>
+                            <Plus className="mr-1 h-3 w-3" /> Add deduction
+                          </Button>
+                        ) : (
+                          <span className="ml-1 text-[11px] text-slate-400">view breakdown</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -727,12 +736,7 @@ export default function PoultryPayrollPage() {
                             type="button"
                             className="underline decoration-dotted underline-offset-2 hover:text-indigo-700"
                             title="What is this made of?"
-                            onClick={() => setDeductionsFor({
-                              poultryPayrollItemId: it.poultryPayrollItemId,
-                              poultryStaffId: it.poultryStaffId,
-                              staffName: it.staffName ?? `#${it.poultryStaffId}`,
-                              runStatus: itemsRun.status,
-                            })}
+                            onClick={() => openDeductions(it, itemsRun.status)}
                           >
                             {gh(it.deductions)}
                           </button>
@@ -741,6 +745,7 @@ export default function PoultryPayrollPage() {
                         <TableCell className="text-right whitespace-nowrap">
                           {isEditable(itemsRun.status) && (
                             <>
+                              <Button size="sm" variant="ghost" onClick={() => openDeductions(it, itemsRun.status)} aria-label="Add deduction" title="Add deduction (advance repayment, other, or keep as employee credit)"><HandCoins className="h-4 w-4 text-indigo-600" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => startEditItem(it)} aria-label="Edit line" title="Edit line"><Pencil className="h-4 w-4 text-slate-600" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => removeItem(it.poultryPayrollItemId)} aria-label="Remove line" title="Remove line"><Trash2 className="h-4 w-4 text-red-500" /></Button>
                             </>
@@ -813,6 +818,15 @@ export default function PoultryPayrollPage() {
                     })()}
                   </FormField>
                   <FormField label="Notes"><Input value={itemForm.notes} onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value })} /></FormField>
+
+                  {editingItemId == null && (
+                    <FormField label="&nbsp;" full>
+                      <p className="text-[11px] text-slate-500">
+                        To keep part of this wage as employee credit, or itemise a deduction, add the line first,
+                        then use <strong>Add deduction</strong> on it above.
+                      </p>
+                    </FormField>
+                  )}
 
                   {/* What this person already owes, BEFORE the line is added.
                       The advance repayment is applied automatically on save, so
