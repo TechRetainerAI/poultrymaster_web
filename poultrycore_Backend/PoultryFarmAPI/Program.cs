@@ -307,6 +307,7 @@ builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(con
 // of the line above. Also serves the structured payroll deductions, because
 // a loan repayment deduction is the reason that table exists.
 builder.Services.AddScoped<IPoultryEmployeeLoanService>(sp => new PoultryEmployeeLoanService(connectionString));
+builder.Services.AddScoped<IPoultryEmployeeCreditService>(sp => new PoultryEmployeeCreditService(connectionString));
 // 318. Per-user, per-company Quick Links. A preference store, not an access one.
 builder.Services.AddScoped<IUserQuickLinkService>(sp => new UserQuickLinkService(connectionString));
 // 329/330. Platform billing: the Business Office's consolidated subscription.
