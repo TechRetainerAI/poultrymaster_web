@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PayrollTemplatesPanel } from "@/components/poultry/payroll-templates"
 import { usePermissions } from "@/hooks/use-permissions"
-import { Plus, Loader2, Banknote, Eye, Users, Trash2, CheckCircle2, RotateCcw, XCircle, HandCoins, Pencil } from "lucide-react"
+import { Plus, Loader2, Banknote, Eye, Users, Trash2, CheckCircle2, RotateCcw, XCircle, HandCoins, Pencil, PiggyBank } from "lucide-react"
 import Link from "next/link"
 import {
   PayrollDeductionsDialog, type PayrollDeductionTarget,
@@ -461,6 +461,12 @@ export default function PoultryPayrollPage() {
               <Button variant="outline" asChild>
                 <Link href="/poultry-employee-loans">
                   <HandCoins className="h-4 w-4 mr-1" /> Employee Loans &amp; Advances
+                </Link>
+              </Button>
+              {/* 441. Wages kept for staff, paid out later. */}
+              <Button variant="outline" asChild>
+                <Link href="/poultry-employee-credit">
+                  <PiggyBank className="h-4 w-4 mr-1" /> Employee Credit
                 </Link>
               </Button>
               <Button onClick={() => { setForm(blankForm()); setOpen(true) }}><Plus className="h-4 w-4 mr-1" /> New payroll run</Button>
