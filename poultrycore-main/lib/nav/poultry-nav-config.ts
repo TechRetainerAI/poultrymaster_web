@@ -283,6 +283,9 @@ export function buildPoultryNavConfig(
           // can equally be repaid in cash, and exists whether or not the
           // worker is on any payroll run. Migrations 305/306.
           { id: "employee-loans", title: "Employee Loans & Advances", icon: HandCoins, href: "/poultry-employee-loans", visible: money("/poultry-employee-loans") },
+          // Migration 441. The mirror of the row above: money the farm is
+          // KEEPING for staff (a liability), paid out later with no expense.
+          { id: "employee-credit", title: "Employee Credit", icon: PiggyBank, href: "/poultry-employee-credit", visible: money("/poultry-employee-credit") },
           // Migration 288. Sits with Expenses because that is what it is about:
           // stock cost that has NOT become an expense yet. It is deliberately
           // not under Inventory -- an owner asking "why is my feed bill low

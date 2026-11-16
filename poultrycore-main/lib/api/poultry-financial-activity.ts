@@ -218,6 +218,8 @@ export const POSITION_LABELS: Record<string, string> = {
   // things, and an owner reading "Customer Receivable" should not find the
   // storeman's advance inside it. Spec section 63, migration 308.
   EmployeeLoanReceivable: "Employee Loan Receivable",
+  // Migration 441: money the farm holds for staff -- a liability.
+  EmployeeCreditLiability: "Employee Credit Owed",
 }
 
 export const positionLabel = (t: string): string => POSITION_LABELS[t] ?? t
@@ -248,6 +250,12 @@ export function activitySourceLink(row: FinancialActivityRow): { href: string; l
     case "PoultryMedicationConsumption":return { href: "/medication-tracker", label: "View medication" }
     case "PoultryInternalUsage":        return { href: "/poultry-internal-use", label: "View internal use" }
     case "Payroll":                     return { href: "/poultry-payroll", label: "View payroll" }
+    // 441. Kept wages are payroll cost; the cash legs belong to Employee Credit.
+    case "PayrollEmployeeCredit":       return { href: "/poultry-payroll", label: "View payroll" }
+    case "EmployeeCreditWages":
+    case "EmployeeCreditDeposit":
+    case "EmployeeCreditPayout":
+    case "EmployeeCreditReversal":      return { href: "/poultry-employee-credit", label: "View employee credit" }
     case "MainFlockBatch":              return { href: "/flocks", label: "View flock batch" }
     default:                            return null
   }
