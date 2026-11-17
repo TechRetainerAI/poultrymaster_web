@@ -187,9 +187,14 @@ namespace PoultryFarmAPIWeb.Models
         public decimal DailyWage { get; set; }
         public decimal Commission { get; set; }
         public decimal Bonus { get; set; }
+        /// <summary>Old meaning: the line's TOTAL deductions. Ignored when OtherDeductions is sent.</summary>
         public decimal Deductions { get; set; }
         [StringLength(20)] public string? PaymentMethod { get; set; }
         [StringLength(500)] public string? Notes { get; set; }
+        /// <summary>442. The typed "Other deductions" only (advances and kept credit are separate rows).</summary>
+        public decimal? OtherDeductions { get; set; }
+        /// <summary>442. Wages kept as employee credit on this line. Null = leave as is, 0 = remove.</summary>
+        public decimal? EmployeeCredit { get; set; }
     }
 
     public class PoultryPayrollRunMarkPaidRequest
