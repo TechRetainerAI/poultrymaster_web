@@ -138,7 +138,7 @@ RETURNS TABLE(
         i.totalcost,
         h.category::TEXT,
         h.reason::TEXT,
-        h.referencenumber::TEXT,
+        h.referenceno::TEXT,
         h.createdby::TEXT,
         h.status::TEXT,
         h.genericinternalusageid
