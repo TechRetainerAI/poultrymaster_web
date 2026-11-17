@@ -6,6 +6,9 @@
 // - Money in & out: sales and approved expenses per day, last 14 days (tap a day: net).
 // - Where the money goes: approved expenses by category, last 30 days.
 // - What sells: sale lines by product, last 30 days.
+// - Above them, the money cards Poultry has (profit or loss, per period, waterfall,
+//   costs, cash in and out, cash at hand, who owes whom): poultry_money_charts.dart
+//   with water: true (user, 2026-11-13).
 // Left out, as the web's own totals do: cancelled sales, expenses that are not
 // Approved, and reversed or cancelled production records.
 
@@ -17,6 +20,7 @@ import '../hotel/hotel_dashboard_charts.dart';
 import '../shared/chart_period.dart';
 import 'package:poultrycore_mobile/design/tone.dart';
 import '../poultry/poultry_dashboard_charts.dart' show dayOf, fieldOf, isoDay, topGroups;
+import '../poultry/poultry_money_charts.dart' show PoultryMoneyCharts;
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../poultry/trackers/tracker_widgets.dart' show rowsOf;
 
@@ -96,6 +100,9 @@ class _WaterDashboardChartsState extends State<WaterDashboardCharts> {
 
     return ChartCardScope(name: 'water', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       ChartPeriodPicker(value: p, now: widget.now(), onChanged: (v) => setState(() => _period = v)),
+      // Money first, as on Poultry: profit or loss, costs, cash, who owes whom
+      // (poultry_money_charts.dart with Water's P&L shape; user, 2026-11-13).
+      PoultryMoneyCharts(session: widget.session, company: widget.company, window: p, now: widget.now, water: true),
       HotelChartCard(
         icon: Icons.water_drop_outlined,
         title: 'Bags produced',

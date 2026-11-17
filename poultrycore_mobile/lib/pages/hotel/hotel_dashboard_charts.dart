@@ -16,6 +16,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../shared/chart_period.dart';
+import '../../models/company.dart';
+import '../../state/session.dart';
+import '../poultry/poultry_money_charts.dart' show PoultryMoneyCharts;
 
 import 'package:poultrycore_mobile/design/tone.dart';
 const chartBlue = Tone(0xFF2A78D6), chartOrange = Tone(0xFFEB6834), chartAqua = Tone(0xFF1BAF7A);
@@ -802,10 +805,18 @@ class HotelDashboardCharts extends StatefulWidget {
     required this.payments,
     required this.expenses,
     required this.today,
+    this.session,
+    this.company,
   });
 
   final List<Map> statusSummary, bookings, payments, expenses;
   final String today;
+
+  /// With both, the money cards (profit or loss, waterfall, costs, cash, who
+  /// owes whom) open the charts, as on Poultry, Water and Generic
+  /// (poultry_money_charts.dart with hotel: true; user, 2026-11-13).
+  final Session? session;
+  final Company? company;
 
   @override
   State<HotelDashboardCharts> createState() => _HotelDashboardChartsState();
@@ -827,6 +838,8 @@ class _HotelDashboardChartsState extends State<HotelDashboardCharts> {
     String fixed(num v) => v.toStringAsFixed(2);
     return ChartCardScope(name: 'hotel', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       ChartPeriodPicker(value: p, now: _parse(today).toLocal(), onChanged: (v) => setState(() => _period = v)),
+      if (widget.session != null && widget.company != null)
+        PoultryMoneyCharts(session: widget.session!, company: widget.company!, window: p, now: () => _parse(today).toLocal(), hotel: true),
       HotelChartCard(
         icon: Icons.donut_large,
         title: 'Room mix',

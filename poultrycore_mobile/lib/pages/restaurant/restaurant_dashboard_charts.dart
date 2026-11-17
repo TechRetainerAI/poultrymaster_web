@@ -6,6 +6,9 @@
 // - Orders: orders placed and orders cancelled or refunded per day, last 14 days (tap a day: average bill).
 // - How orders come in: paid takings by order type (dine-in, takeaway, delivery), last 30 days.
 // - Where the money goes: expenses by category, last 30 days.
+// - Above them, the money cards the other modules have (profit or loss, per period,
+//   waterfall, costs, cash in and out, cash at hand, who owes whom):
+//   poultry_money_charts.dart with restaurant: true (user, 2026-11-13).
 // Takings count paid orders only, as the dashboard's "Today's revenue" does.
 // The orders come from the dashboard; the expenses are loaded here.
 
@@ -17,6 +20,7 @@ import '../hotel/hotel_dashboard_charts.dart';
 import '../shared/chart_period.dart';
 import 'package:poultrycore_mobile/design/tone.dart';
 import '../poultry/poultry_dashboard_charts.dart' show dayOf, fieldOf, isoDay, lastDays, topGroups;
+import '../poultry/poultry_money_charts.dart' show PoultryMoneyCharts;
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../poultry/trackers/tracker_widgets.dart' show rowsOf;
 
@@ -123,6 +127,9 @@ class _RestaurantDashboardChartsState extends State<RestaurantDashboardCharts> {
 
     return ChartCardScope(name: 'restaurant', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       ChartPeriodPicker(value: p, now: widget.now(), onChanged: _pick),
+      // Money first, as on the other modules: profit or loss, costs, cash, who owes whom
+      // (poultry_money_charts.dart with restaurant: true; user, 2026-11-13).
+      PoultryMoneyCharts(session: widget.session, company: widget.company, window: p, now: widget.now, restaurant: true),
       HotelChartCard(
         icon: Icons.bar_chart,
         title: 'Money in & out',

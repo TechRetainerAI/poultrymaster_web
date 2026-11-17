@@ -11,7 +11,7 @@ import 'package:poultrycore_mobile/pages/module_registry.dart';
 import 'support/harness.dart';
 
 final hotel = Company(farmId: 'h1', name: 'Palm Hotel', type: CompanyType.hotel, role: 'Admin');
-const tall = Size(360, 6000);
+const tall = Size(360, 11000);
 
 final now = DateTime.now();
 final today = now.toUtc().toIso8601String().substring(0, 10);

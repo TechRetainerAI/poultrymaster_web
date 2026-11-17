@@ -275,7 +275,15 @@ class _HotelDashboardViewState extends State<HotelDashboardView> {
         else ...[
           // The charts come first (user, 2 Nov): the app's addition sits above the web's figures.
           _heading('Insights'),
-          HotelDashboardCharts(statusSummary: f.statusSummary, bookings: f.bookings, payments: f.payments, expenses: f.expenses, today: f.today),
+          HotelDashboardCharts(
+            statusSummary: f.statusSummary,
+            bookings: f.bookings,
+            payments: f.payments,
+            expenses: f.expenses,
+            today: f.today,
+            session: widget.session,
+            company: widget.company,
+          ),
           const SizedBox(height: 14),
           _heading('Room Status'),
           twoUp([

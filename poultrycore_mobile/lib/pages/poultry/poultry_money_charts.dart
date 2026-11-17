@@ -24,6 +24,55 @@
 // 6. Cash at hand: the cash balance at the end of each period.
 // 7. Who owes whom: what customers owe you and what you owe suppliers.
 // A folded card draws nothing and asks for nothing.
+//
+// Water uses the same cards (user, 2026-11-13: "the same thing for the water
+// company ... make sure that it fits the water company setup"), with `water: true`:
+// - /api/Water/profit-loss puts its totals under `summary`, and has a fourth
+//   profit band, Loss (production losses and driver shortages), between
+//   operating profit and net profit. The waterfall gets that step, and losses
+//   count as costs. Financing and capital lines are informational (cash moved,
+//   profit did not) and stay out of every chart, as on the P&L page.
+// - The headline adds Water's own figures: storefront sales against delivery
+//   collections, bags sold and profit per bag.
+// - Cash flow and the balance summaries are the same shapes under /api/Water.
+//
+// Generic uses them too (user, 2026-11-13: "do similar thing for the generic"),
+// with `generic: true`. Generic's server has no /profit-loss or /cash-flow, so
+// the cards read what the web's Generic Profit & Loss and Cash Flow pages read,
+// all under /api/generic-company/{farmId}:
+// - reports/period-pnl (fromDate, toDate): income, cost of goods sold, gross
+//   profit, expenses, net profit. Its net profit is sales less expenses (cost of
+//   goods sold only shapes gross profit), so the waterfall is Revenue →
+//   Expenses → Net profit, and the headline shows cost of goods sold and gross
+//   profit beside it. The server's figures are used as they come, never redone.
+// - reports/expenses-by-category: the cost list.
+// - reports/cash-summary (fromDate, toDate): cash in and out per account for a
+//   window, and today's cash at hand. Asked once per column; the cash-at-hand
+//   line works back from today's total (each earlier point = today's total less
+//   the net cash of the periods after it).
+// - balances/customer-balances/summary and balances/supplier-balances/summary.
+//
+// Hotel uses them too (user, 2026-11-13: "do similar thing also for the hotel"),
+// with `hotel: true`, on /api/Hotel:
+// - /profit-loss (startDate, endDate) has no band totals of its own, so its lines
+//   are put into bands exactly as the Hotel Profit & Loss page does
+//   (hotelPnlBands / hotelPnlTotals): supplies used are the direct costs, other
+//   expenses (wages, categories) are operating, depreciation and financing come
+//   after. Net profit is the server's. Deposits held are refundable and not
+//   revenue, so the headline shows them apart, beside room and restaurant revenue.
+// - /cash-flow is the shared Cash Flow answer, as on Poultry and Water.
+// - balances/customer-balances/summary and balances/supplier-balances/summary.
+//
+// Restaurant uses them too (user, 2026-11-13: "do the same thing for the
+// restaurant"), with `restaurant: true`, on /api/Restaurant, reading what the
+// Restaurant Profit & Loss page reads (both with from / to):
+// - reports/pnl: the totals (revenue, net profit, food cost %, orders, tips);
+// - finance/pnl-lines: profit-signed lines in four sections (Revenue,
+//   CostOfSales, Expenses, Other), put together by restaurantPnlTotals exactly
+//   as that page does. Cost of sales (food and drink) is the direct cost.
+//   Net profit is the server's. If the lines fail, the totals still show.
+// - /cash-flow and customer-balances/summary / supplier-balances/summary are the
+//   same shapes as Poultry's.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -33,6 +82,8 @@ import 'package:flutter/material.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../hotel/hotel_dashboard_charts.dart' show HotelChartCard, chartBlue, chartOrange, chartKey;
+import '../hotel/hotel_profit_loss_screen.dart' show hotelPnlBands, hotelPnlTotals;
+import '../restaurant/restaurant_profit_loss_screen.dart' show restaurantPnlTotals;
 import '../shared/chart_period.dart';
 import 'package:poultrycore_mobile/design/tone.dart';
 import 'money/cash_flow_screen.dart' show previousRange;
@@ -47,34 +98,151 @@ const profitGreen = Tone(0xFF12916A), lossRed = Tone(0xFFE5484D);
 const _ink = Tone.fg(0xFF0B0B0B), _ink2 = Tone.fg(0xFF52514E), _muted = Tone.fg(0xFF898781);
 const _grid = Tone.line(0x140B0B0B), _base = Tone.line(0x400B0B0B);
 
-const _api = '/api/Poultry';
-
 String _iso(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 /// The P&L figures the charts use, from one /profit-loss answer.
 class PlFigures {
-  PlFigures(Map? r)
-      : revenue = tNum(r?['totalRevenue']),
-        direct = tNum(r?['totalDirectCosts']),
-        operating = tNum(r?['totalOperatingExpenses']),
-        other = tNum(r?['totalOtherCosts']),
-        gross = tNum(r?['grossProfit']),
-        operatingProfit = tNum(r?['operatingProfit']),
-        net = tNum(r?['netProfit']),
+  /// Poultry's answer: the totals at the top level.
+  factory PlFigures(Map? r) => PlFigures._(r, r, false);
+
+  /// Water's answer: the totals under `summary`, plus the Loss band and Water's own figures.
+  factory PlFigures.water(Map? r) => PlFigures._(r?['summary'] is Map ? r!['summary'] as Map : null, r, true);
+
+  /// Generic's reports/period-pnl answer. Net profit is the server's (sales less
+  /// expenses); costs are therefore the expenses, and cost of goods sold is shown
+  /// beside gross profit, not stepped through.
+  factory PlFigures.generic(Map? r) => PlFigures._(
+        r == null
+            ? null
+            : {
+                'totalRevenue': r['totalIncome'],
+                'totalOperatingExpenses': r['totalExpenses'],
+                'grossProfit': r['grossProfit'],
+                'operatingProfit': r['netProfit'],
+                'netProfit': r['netProfit'],
+              },
+        null,
+        false,
+        generic: true,
+        cogs: tNum(r?['costOfGoodsSold']),
+        salesCount: tNum(r?['salesCount']),
+      );
+
+  /// Hotel's /profit-loss answer, put into bands as the Hotel Profit & Loss page does.
+  factory PlFigures.hotel(Map? r) {
+    final t = hotelPnlTotals(r, hotelPnlBands(r));
+    return PlFigures._(
+      r == null
+          ? null
+          : {
+              'totalRevenue': t.revenue,
+              'totalDirectCosts': t.direct,
+              'totalOperatingExpenses': t.operating,
+              'totalOtherCosts': t.other,
+              'grossProfit': t.gross,
+              'operatingProfit': t.operatingProfit,
+              'netProfit': t.net,
+            },
+      r,
+      false,
+      hotel: true,
+      rooms: tNum(r?['roomRevenue']),
+      restaurant: tNum(r?['restaurantRevenue']),
+      deposits: tNum(r?['depositsNet']),
+    );
+  }
+
+  /// Restaurant's reports/pnl [summary] with its finance/pnl-lines [lines]
+  /// (profit-signed), totalled as the Restaurant Profit & Loss page does.
+  factory PlFigures.restaurant(Map? summary, List<Map> lines) {
+    final t = restaurantPnlTotals(lines, summary);
+    const sections = {'CostOfSales': 'DirectCost', 'Expenses': 'OperatingExpense', 'Other': 'OtherCost'};
+    return PlFigures._(
+      summary == null
+          ? null
+          : {
+              'totalRevenue': t.revenue,
+              'totalDirectCosts': t.direct,
+              'totalOperatingExpenses': t.operating,
+              'totalOtherCosts': t.other,
+              'grossProfit': t.gross,
+              'operatingProfit': t.operatingProfit,
+              'netProfit': t.net,
+            },
+      {
+        'lines': [
+          for (final l in lines)
+            if (sections.containsKey(tStr(l['section'])))
+              {'section': sections[tStr(l['section'])], 'lineLabel': tStr(l['label']), 'amount': -tNum(l['amount'])},
+        ],
+      },
+      false,
+      isRestaurant: true,
+      foodCostPct: tNum(summary?['foodCostPct']),
+      orders: tNum(summary?['orderCount']),
+      tips: tNum(summary?['tipsTotal']),
+    );
+  }
+
+  PlFigures._(Map? s, Map? r, this.water,
+      {this.generic = false,
+      this.cogs = 0,
+      this.salesCount = 0,
+      this.hotel = false,
+      this.rooms = 0,
+      this.restaurant = 0,
+      this.deposits = 0,
+      this.isRestaurant = false,
+      this.foodCostPct = 0,
+      this.orders = 0,
+      this.tips = 0})
+      : revenue = tNum(s?['totalRevenue']),
+        direct = tNum(s?['totalDirectCosts']),
+        operating = tNum(s?['totalOperatingExpenses']),
+        other = tNum(s?['totalOtherCosts']),
+        gross = tNum(s?['grossProfit']),
+        operatingProfit = tNum(s?['operatingProfit']),
+        net = tNum(s?['netProfit']),
+        losses = water ? tNum(s?['totalLosses']) : 0,
+        storefront = water ? tNum(s?['storefrontSales']) : 0,
+        delivery = water ? tNum(s?['deliveryCollections']) : 0,
+        bagsSold = water ? tNum(s?['bagsSold']) : 0,
+        profitPerBag = water ? tNum(s?['avgProfitPerBag']) : 0,
         lines = [
           for (final l in (r?['lines'] is List ? r!['lines'] as List : const []))
             if (l is Map) Map<String, dynamic>.from(l),
         ];
-  final num revenue, direct, operating, other, gross, operatingProfit, net;
-  final List<Map<String, dynamic>> lines;
-  num get costs => direct + operating + other;
+  final bool water;
 
-  /// Cost lines (direct, operating, depreciation & financing costs), largest first.
+  /// Generic only: cost of goods sold (inside gross profit) and the number of sales.
+  final bool generic;
+  final num cogs, salesCount;
+
+  /// Hotel only: room and restaurant revenue, and deposits held (refundable, not revenue).
+  final bool hotel;
+  final num rooms, restaurant, deposits;
+
+  /// Restaurant only: food cost as a share of sales, completed orders, tips.
+  final bool isRestaurant;
+  final num foodCostPct, orders, tips;
+  final num revenue, direct, operating, other, gross, operatingProfit, net;
+
+  /// Water only: production losses and driver shortages, between operating and net profit.
+  final num losses;
+
+  /// Water only: the revenue split, bags sold and the server's average profit per bag.
+  final num storefront, delivery, bagsSold, profitPerBag;
+  final List<Map<String, dynamic>> lines;
+  num get costs => direct + operating + other + losses;
+
+  /// Cost lines (direct, operating, depreciation & financing costs, and Water's
+  /// losses), largest first. Informational lines never count.
   List<({String label, num amount})> get costLines {
     final out = <({String label, num amount})>[];
     for (final l in lines) {
+      if (l['isInformational'] == true) continue;
       final s = tStr(l['section']);
-      if (s != 'DirectCost' && s != 'OperatingExpense' && s != 'OtherCost') continue;
+      if (s != 'DirectCost' && s != 'OperatingExpense' && s != 'OtherCost' && !(water && s == 'Loss')) continue;
       final a = tNum(l['amount']);
       if (a <= 0) continue;
       out.add((label: tStr(l['lineLabel']).trim().isEmpty ? 'Other' : tStr(l['lineLabel']).trim(), amount: a));
@@ -108,8 +276,29 @@ Future<List<T>> _pooled<T>(List<Future<T> Function()> jobs, {int limit = 4}) asy
 }
 
 class PoultryMoneyCharts extends StatefulWidget {
-  const PoultryMoneyCharts({super.key, required this.session, required this.company, required this.window, required this.now});
+  const PoultryMoneyCharts(
+      {super.key,
+      required this.session,
+      required this.company,
+      required this.window,
+      required this.now,
+      this.water = false,
+      this.generic = false,
+      this.hotel = false,
+      this.restaurant = false});
   final Session session;
+
+  /// Water's rail (/api/Water) and Water's P&L shape.
+  final bool water;
+
+  /// Generic's reports under /api/generic-company/{farmId} (see the header).
+  final bool generic;
+
+  /// Hotel's rail (/api/Hotel) and its P&L bands (see the header).
+  final bool hotel;
+
+  /// Restaurant's rail (/api/Restaurant) and its P&L (see the header).
+  final bool restaurant;
   final Company company;
   final ChartWindow window;
   final DateTime Function() now;
@@ -127,6 +316,25 @@ class _PoultryMoneyChartsState extends State<PoultryMoneyCharts> {
   final _trend = <String, Future<List<PlFigures?>>>{};
   Future<(Map?, Map?)>? _owed;
 
+  String get _api => widget.restaurant
+      ? '/api/Restaurant'
+      : widget.hotel
+          ? '/api/Hotel'
+          : widget.water
+              ? '/api/Water'
+              : '/api/Poultry';
+  String get _genericBase => '/api/generic-company/${Uri.encodeComponent(widget.company.farmId)}';
+  PlFigures _blank() => widget.generic
+      ? PlFigures.generic(null)
+      : widget.hotel
+          ? PlFigures.hotel(null)
+          : widget.restaurant
+          ? PlFigures.restaurant(null, const [])
+          : widget.water
+              ? PlFigures.water(null)
+              : PlFigures(null);
+  final _costs = <String, Future<List<({String label, num amount})>?>>{};
+
   @override
   void initState() {
     super.initState();
@@ -137,15 +345,81 @@ class _PoultryMoneyChartsState extends State<PoultryMoneyCharts> {
 
   Future<PlFigures?> _plFor(String from, String to) => _pl.putIfAbsent('$from|$to', () async {
         try {
+          if (widget.generic) {
+            final r = await widget.session.farmClient.get('$_genericBase/reports/period-pnl', query: {'fromDate': from, 'toDate': to});
+            return r is Map ? PlFigures.generic(r) : null;
+          }
+          if (widget.restaurant) {
+            final q = {'farmId': widget.company.farmId, 'from': from, 'to': to};
+            final api = widget.session.farmClient;
+            final r = await Future.wait([
+              api.get('$_api/reports/pnl', query: q),
+              api.get('$_api/finance/pnl-lines', query: q).catchError((Object _) => null),
+            ]);
+            return r[0] is Map ? PlFigures.restaurant(r[0] as Map, rowsOf(r[1])) : null;
+          }
           final r = await widget.session.farmClient
               .get('$_api/profit-loss', query: {'farmId': widget.company.farmId, 'startDate': from, 'endDate': to});
-          return r is Map ? PlFigures(r) : null;
+          if (r is! Map) return null;
+          return widget.hotel ? PlFigures.hotel(r) : widget.water ? PlFigures.water(r) : PlFigures(r);
         } catch (_) {
           return null;
         }
       });
 
-  Future<Map?> _cashFor(String from, String to) => _cash.putIfAbsent('$from|$to', () async {
+  /// The cost list: P&L cost lines, or Generic's expenses by category.
+  Future<List<({String label, num amount})>?> _costsFor(String from, String to) => _costs.putIfAbsent('$from|$to', () async {
+        if (!widget.generic) return (await _plFor(from, to))?.costLines;
+        try {
+          final r = await widget.session.farmClient.get('$_genericBase/reports/expenses-by-category', query: {'fromDate': from, 'toDate': to});
+          final out = <({String label, num amount})>[
+            for (final row in rowsOf(r))
+              if (tNum(row['totalAmount']) > 0)
+                (label: tStr(row['categoryName']).trim().isEmpty ? 'Uncategorised' : tStr(row['categoryName']).trim(), amount: tNum(row['totalAmount'])),
+          ]..sort((a, b) => b.amount.compareTo(a.amount));
+          return out;
+        } catch (_) {
+          return null;
+        }
+      });
+
+  /// Generic: one cash-summary per column, turned into the cash-flow shape the
+  /// cards read (an "in" and an "out" row per column, and the opening cash
+  /// worked back from today's cash at hand). Null if any column fails.
+  Future<Map?> _genericCash(List<ChartBucket> cols) async {
+    final answers = await _pooled([
+      for (final c in cols)
+        () async {
+          try {
+            final r = await widget.session.farmClient.get('$_genericBase/reports/cash-summary', query: {'fromDate': c.from, 'toDate': c.to});
+            return r is Map ? r : null;
+          } catch (_) {
+            return null;
+          }
+        },
+    ]);
+    if (answers.isEmpty || answers.any((a) => a == null)) return null;
+    final rows = <Map>[];
+    num net = 0;
+    for (var i = 0; i < cols.length; i++) {
+      num cin = 0, cout = 0;
+      for (final a in rowsOf(answers[i]!['accounts'])) {
+        cin += tNum(a['periodCashIn']);
+        cout += tNum(a['periodCashOut']);
+      }
+      net += cin - cout;
+      rows.add({'transactionDate': cols[i].from, 'amount': cin});
+      rows.add({'transactionDate': cols[i].from, 'amount': -cout});
+    }
+    final atHand = tNum(answers.last!['totalCashAtHand']);
+    return {
+      'summary': {'openingCash': atHand - net},
+      'rows': rows,
+    };
+  }
+
+  Future<Map?> _cashFor(String from, String to, List<ChartBucket> cols) => _cash.putIfAbsent('$from|$to|${cols.length}', () async {
+        if (widget.generic) return _genericCash(cols);
         try {
           final r = await widget.session.farmClient
               .get('$_api/cash-flow', query: {'farmId': widget.company.farmId, 'fromDate': from, 'toDate': to});
@@ -158,7 +432,11 @@ class _PoultryMoneyChartsState extends State<PoultryMoneyCharts> {
   Future<(Map?, Map?)> _owedNow() => _owed ??= () async {
         Future<Map?> one(String path) async {
           try {
-            final r = await widget.session.farmClient.get('$_api/$path', query: {'farmId': widget.company.farmId});
+            final r = widget.generic
+                ? await widget.session.farmClient.get('$_genericBase/balances/$path')
+                : widget.hotel
+                ? await widget.session.farmClient.get('$_api/balances/$path', query: {'farmId': widget.company.farmId})
+                : await widget.session.farmClient.get('$_api/$path', query: {'farmId': widget.company.farmId});
             return r is Map ? r : null;
           } catch (_) {
             return null;
@@ -212,7 +490,7 @@ class _PoultryMoneyChartsState extends State<PoultryMoneyCharts> {
           id: trendKey,
           load: () => _trend.putIfAbsent(trendKey, () => _pooled([for (final c in cols) () => _plFor(c.from, c.to)])),
           builder: (r) {
-            final rows = [for (final f in r) f ?? PlFigures(null)];
+            final rows = [for (final f in r) f ?? _blank()];
             return _SignedColumns(
               labels: [for (final c in cols) c.short],
               longLabels: [for (final c in cols) c.long],
@@ -235,7 +513,9 @@ class _PoultryMoneyChartsState extends State<PoultryMoneyCharts> {
       HotelChartCard(
         icon: Icons.waterfall_chart,
         title: 'From revenue to profit',
-        subtitle: 'How revenue becomes profit, step by step, ${p.window}.',
+        subtitle: widget.generic
+            ? 'Sales less expenses, as the Profit & Loss works it out, ${p.window}.'
+            : 'How revenue becomes profit, step by step, ${p.window}.',
         child: _Loader<PlFigures?>(
           id: '$from|$to',
           load: () => _plFor(from, to),
@@ -245,20 +525,24 @@ class _PoultryMoneyChartsState extends State<PoultryMoneyCharts> {
       HotelChartCard(
         icon: Icons.receipt_long_outlined,
         title: 'What the costs are',
-        subtitle: 'Every cost in the Profit & Loss, largest first, ${p.window}.',
-        child: _Loader<PlFigures?>(
+        subtitle: widget.generic
+            ? 'Expenses by category, largest first, ${p.window}.'
+            : 'Every cost in the Profit & Loss, largest first, ${p.window}.',
+        child: _Loader<List<({String label, num amount})>?>(
           id: '$from|$to',
-          load: () => _plFor(from, to),
-          builder: (f) => _RankedBars(lines: f?.costLines ?? const [], money: money, emptyText: 'No costs ${p.inWindow}'),
+          load: () => _costsFor(from, to),
+          builder: (l) => _RankedBars(lines: l ?? const [], money: money, emptyText: widget.generic ? 'No expenses ${p.inWindow}' : 'No costs ${p.inWindow}'),
         ),
       ),
       HotelChartCard(
         icon: Icons.swap_vert,
         title: 'Cash in and out',
-        subtitle: 'Cash received above the line, cash paid out below, ${p.by}, ${p.window}. Tap a column.',
+        subtitle: widget.generic
+            ? 'Money into all cash accounts above the line, money out below, ${p.by}, ${p.window}. Tap a column.'
+            : 'Cash received above the line, cash paid out below, ${p.by}, ${p.window}. Tap a column.',
         child: _Loader<Map?>(
-          id: '$from|$to',
-          load: () => _cashFor(from, to),
+          id: '$from|$to|${cols.length}',
+          load: () => _cashFor(from, to, cols),
           builder: (r) {
             final rows = rowsOf(r?['rows']);
             final ins = List<num>.filled(cols.length, 0), outs = List<num>.filled(cols.length, 0);
@@ -300,10 +584,14 @@ class _PoultryMoneyChartsState extends State<PoultryMoneyCharts> {
       HotelChartCard(
         icon: Icons.account_balance_wallet_outlined,
         title: 'Cash at hand',
-        subtitle: 'Cash held at the end of each period, ${p.window}. Tap a point.',
+        subtitle: widget.water
+            ? 'Cash held at the end of each period, ${p.window}, from sales, payments, approved expenses and capital records (not account balances). Tap a point.'
+            : widget.generic
+                ? 'Cash held across your cash accounts at the end of each period, ${p.window}, worked back from today\'s cash at hand. Tap a point.'
+                : 'Cash held at the end of each period, ${p.window}. Tap a point.',
         child: _Loader<Map?>(
-          id: '$from|$to',
-          load: () => _cashFor(from, to),
+          id: '$from|$to|${cols.length}',
+          load: () => _cashFor(from, to, cols),
           builder: (r) {
             if (r == null) return const _Empty('Cash Flow is not available right now');
             final rows = rowsOf(r['rows']);
@@ -454,6 +742,49 @@ class _Headline extends StatelessWidget {
         Expanded(child: _Figure('Costs', money(now.costs))),
         Expanded(child: _Figure('Margin', margin == null ? '—' : '${margin.toStringAsFixed(1)}%')),
       ]),
+      if (now.generic) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _Figure('Cost of goods sold', money(now.cogs))),
+          Expanded(child: _Figure('Gross profit', '${now.gross < 0 ? '− ' : ''}${money(now.gross.abs())}')),
+          Expanded(child: _Figure('Sales', '${now.salesCount.toInt()}')),
+        ]),
+      ],
+      if (now.hotel) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _Figure('Rooms', money(now.rooms))),
+          Expanded(child: _Figure('Restaurant', money(now.restaurant))),
+          Expanded(child: _Figure('Deposits held', money(now.deposits))),
+        ]),
+        const SizedBox(height: 4),
+        const Text('Deposits are refundable, so they are not counted as revenue.', style: TextStyle(fontSize: 11.5, color: _muted)),
+      ],
+      if (now.isRestaurant) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _Figure('Food cost', '${now.foodCostPct.toStringAsFixed(1)}%')),
+          Expanded(child: _Figure('Completed orders', '${now.orders.toInt()}')),
+          Expanded(child: _Figure('Tips collected', money(now.tips))),
+        ]),
+      ],
+      if (now.water) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _Figure('Storefront sales', money(now.storefront))),
+          Expanded(child: _Figure('Delivery collections', money(now.delivery))),
+          Expanded(
+            child: _Figure(
+              'Profit per bag',
+              now.bagsSold > 0 ? '${now.profitPerBag < 0 ? '− ' : ''}${money(now.profitPerBag.abs())}' : '—',
+            ),
+          ),
+        ]),
+        if (now.bagsSold > 0) ...[
+          const SizedBox(height: 4),
+          Text('${now.bagsSold.toInt()} bags sold', style: const TextStyle(fontSize: 11.5, color: _muted)),
+        ],
+      ],
       if (share != null) ...[
         const SizedBox(height: 14),
         // A meter: how much of each unit of revenue the costs took.
@@ -514,14 +845,28 @@ class _Waterfall extends StatelessWidget {
   Widget build(BuildContext context) {
     if (f.revenue == 0 && f.costs == 0) return _Empty('No revenue or costs $inWindow');
     // (label, start, end, kind): kind 0 = revenue, 1 = a cost step, 2 = a subtotal.
+    // Water: operating profit is gross less every expense (depreciation and
+    // interest included), and losses come off it to give net profit.
     final steps = <(String, num, num, int)>[
       ('Revenue', 0, f.revenue, 0),
-      ('Direct production costs', f.revenue, f.gross, 1),
+      if (f.generic) ...[
+        ('Expenses', f.revenue, f.net, 1),
+        ('Net profit', 0, f.net, 2),
+      ] else ...[
+      if (f.water)
+        ('Raw materials & production', f.revenue, f.gross, 1)
+      else if (f.hotel)
+        ('Supplies used', f.revenue, f.gross, 1)
+      else if (f.isRestaurant)
+        ('Cost of sales (food & drink)', f.revenue, f.gross, 1)
+      else
+        ('Direct production costs', f.revenue, f.gross, 1),
       ('Gross profit', 0, f.gross, 2),
-      ('Operating expenses', f.gross, f.operatingProfit, 1),
+      if (f.water) ('Expenses, depreciation & interest', f.gross, f.operatingProfit, 1) else ('Operating expenses', f.gross, f.operatingProfit, 1),
       ('Operating profit', 0, f.operatingProfit, 2),
-      ('Depreciation & financing', f.operatingProfit, f.net, 1),
+      if (f.water) ('Losses & driver shortages', f.operatingProfit, f.net, 1) else ('Depreciation & financing', f.operatingProfit, f.net, 1),
       ('Net profit', 0, f.net, 2),
+      ],
     ];
     final lo = steps.fold<num>(0, (m, s) => math.min(m, math.min(s.$2, s.$3)));
     final hi = steps.fold<num>(0, (m, s) => math.max(m, math.max(s.$2, s.$3)));

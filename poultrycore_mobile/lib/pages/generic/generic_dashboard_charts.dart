@@ -6,6 +6,9 @@
 // - Paid & still owed: what approved sales collected and what is still owed, per sale day, last 14 days.
 // - What sells: revenue by product, last 30 days (the Sales by product report).
 // - Where the money goes: approved expenses by category, last 30 days.
+// - Above them, the money cards Poultry and Water have (profit or loss, per period,
+//   waterfall, costs, cash in and out, cash at hand, who owes whom):
+//   poultry_money_charts.dart with generic: true (user, 2026-11-13).
 // Only Approved sales and expenses count, as the web's reports do; drafts,
 // cancelled and refunded sales, and unapproved expenses are left out.
 
@@ -20,6 +23,7 @@ import '../poultry/poultry_dashboard_charts.dart' show dayOf, fieldOf, isoDay, t
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../poultry/trackers/tracker_widgets.dart' show rowsOf;
 import 'generic_kit.dart' show genericBase;
+import '../poultry/poultry_money_charts.dart' show PoultryMoneyCharts;
 
 const _ink2 = Tone.fg(0xFF52514E);
 const _colors = [chartBlue, chartOrange, chartAqua, chartYellow];
@@ -125,6 +129,9 @@ class _GenericDashboardChartsState extends State<GenericDashboardCharts> {
 
     return ChartCardScope(name: 'generic', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       ChartPeriodPicker(value: p, now: widget.now(), onChanged: _pick),
+      // Money first, as on Poultry and Water: profit or loss, costs, cash, who owes whom
+      // (poultry_money_charts.dart with Generic's reports; user, 2026-11-13).
+      PoultryMoneyCharts(session: widget.session, company: widget.company, window: p, now: widget.now, generic: true),
       HotelChartCard(
         icon: Icons.bar_chart,
         title: 'Money in & out',

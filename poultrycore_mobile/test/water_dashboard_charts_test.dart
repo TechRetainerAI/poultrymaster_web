@@ -47,7 +47,7 @@ void main() {
     await open(
       tester,
       Scaffold(body: ListView(children: [WaterDashboardCharts(session: await sessionFor(api), company: water, now: () => now)])),
-      size: const Size(360, 3000),
+      size: const Size(360, 7000),
     );
     for (final t in ['Bags produced', 'Money in & out', 'Where the money goes', 'What sells']) {
       expect(find.text(t), findsOneWidget, reason: t);
@@ -78,7 +78,7 @@ void main() {
     await open(
       tester,
       Scaffold(body: ListView(children: [WaterDashboardCharts(session: await sessionFor(FakeApi()), company: water, now: () => now)])),
-      size: const Size(360, 3000),
+      size: const Size(360, 7000),
     );
     expect(find.text('No approved expenses in the last 12 months'), findsOneWidget);
     expect(find.text('No sales in the last 12 months'), findsOneWidget);
