@@ -616,6 +616,17 @@ namespace PoultryFarmAPIWeb.Controllers
             }
         }
 
+        // GET: api/Flock/positions?farmId=...
+        // 421: every flock's bird position -- originally placed, the opening
+        // historical reduction, what was recorded since and live now -- so list
+        // pages stop reading flock.quantity (the opening LIVE count) as "placed".
+        [HttpGet("positions")]
+        public async Task<ActionResult<List<FlockPositionRow>>> GetPositions([FromQuery] string? userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
+            return Ok(await _flockService.GetFlockPositions(farmId));
+        }
+
         // GET: api/Flock/{id}/edit-context?farmId=...
         // 414: Edit Flock restores the flock from posted records -- mode, opening
         // position, bird position, movement history and what may still change.

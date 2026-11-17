@@ -145,6 +145,7 @@ interface SidebarProps {
 /** A sidebar row. `isButton`/`onClick`/`badge` are for rows that trigger an
  *  action instead of navigating — currently just Alerts. */
 type SidebarItem = {
+  id?: string
   href: string
   label: string
   icon: any
@@ -321,6 +322,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const genericMoneyItems = flat(genericNav.money)
   const genericPeopleItems = flat(genericNav.people)
   const genericSchoolItems = flat(genericNav.school)
+  const genericSetupItems = flat(genericNav.setup)
   const genericAdminItems = flat(genericNav.admin)
 
   // Hotel company nav items (shown when activeFarmType === "Hotel")
@@ -739,15 +741,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 panel beside the rail (SidebarFlyoutMenu), generated from
                 buildWaterNavConfig. Quick Links | Operations | Sales, Expenses &
                 Money | Trackers | Reports | Setup, then System at the foot. */}
-            {renderMenu("Quick Links", Star, [{
-              key: "quick",
-              label: "Quick Links",
-              items: [
-                ...waterNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
-                { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
-              ],
-            }], "menu:waterQuickLinks", {
-              blurb: "The pages you open most days.", columns: 1,
+            {renderMenu("Setup", Settings, waterNav!.setup, "menu:waterSetup", {
+              blurb: "Company configuration, products, delivery, customers and your team.",
+              columns: 3,
             })}
 
             <div className="space-y-1">
@@ -767,20 +763,23 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 viewAll: { href: "/water-reports", label: "View all reports →" },
                 activeHrefs: ["/water-reports"],
               }, [{ key: "waterReports:all", title: "All reports", items: waterReportsItems }])}
-              {renderMenu("Setup", Settings, waterNav!.setup, "menu:waterSetup", {
-                blurb: "Company configuration, products, delivery, customers and your team.",
-                columns: 3,
+              {renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: [
+                  ...waterNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+                  { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
+                ],
+              }], "menu:waterQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
               })}
             </div>
           </>
         ) : isHotel ? (
           <>
-            {renderMenu("Quick Links", Star, [{
-              key: "quick",
-              label: "Quick Links",
-              items: hotelNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
-            }], "menu:hotelQuickLinks", {
-              blurb: "The pages you open most days.", columns: 1,
+            {renderMenu("Setup", Settings, hotelNav!.setup, "menu:hotelSetup", {
+              blurb: "Hotel configuration, staff, finance and facilities.",
+              columns: 2,
             })}
 
             <div className="space-y-1">
@@ -799,20 +798,20 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 viewAll: { href: "/hotel-reports", label: "View all reports →" },
                 activeHrefs: ["/hotel-reports"],
               }, [{ key: "hotelReports:all", title: "All reports", items: hotelReportsItems }])}
-              {renderMenu("Setup", Settings, hotelNav!.setup, "menu:hotelSetup", {
-                blurb: "Hotel configuration, staff, finance and facilities.",
-                columns: 2,
+              {renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: hotelNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+              }], "menu:hotelQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
               })}
             </div>
           </>
         ) : isRestaurant ? (
           <>
-            {renderMenu("Quick Links", Star, [{
-              key: "quick",
-              label: "Quick Links",
-              items: restaurantNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
-            }], "menu:restaurantQuickLinks", {
-              blurb: "The pages you open most days.", columns: 1,
+            {renderMenu("Setup", Settings, restaurantNav!.setup, "menu:restaurantSetup", {
+              blurb: "Menu items, staff, restaurant configuration and suppliers.",
+              columns: 2,
             })}
 
             <div className="space-y-1">
@@ -843,9 +842,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 viewAll: { href: "/restaurant-reports", label: "View all reports →" },
                 activeHrefs: ["/restaurant-reports"],
               }, [{ key: "restaurantReports:all", title: "All reports", items: restaurantReportsItems }])}
-              {renderMenu("Setup", Settings, restaurantNav!.setup, "menu:restaurantSetup", {
-                blurb: "Menu items, staff, restaurant configuration and suppliers.",
-                columns: 2,
+              {renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: restaurantNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+              }], "menu:restaurantQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
               })}
             </div>
           </>
@@ -855,43 +857,55 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 Groups come from buildGenericNavConfig, accent is emerald. */}
             <div className="space-y-1">
               {genericNav.catalog.length > 0 && renderMenu(
-                "Catalog & Stock", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
-                  blurb: "Products, inventory, stock adjustments and internal use.",
-                  columns: 1,
+                "Operations", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
+                  blurb: "Products, inventory, stock adjustments, deliveries and internal use.",
+                  columns: 2,
                 })}
               {genericNav.billing.length > 0 && renderMenu(
                 genericNav.billing[0]?.label ?? "Billing", Receipt, genericNav.billing, "menu:genericBilling", {
                   blurb: `${genericModules.labels.planPlural}, ${genericModules.labels.subscriptionPlural.toLowerCase()} and billing runs.`,
                   columns: 1,
                 })}
+              {/* Sales, Expenses & Money — three sidebar sections matching poultry,
+                  each opening its own flyout with the group's column header. */}
               {renderMenu(
-                genericNav.salesOrStudents[0]?.label ?? "Sales", isSub ? Users : ShoppingCart, genericNav.salesOrStudents, "menu:genericSales", {
+                "Sales", isSub ? Users : ShoppingCart, genericNav.salesOrStudents, "menu:genericSales", {
                   blurb: isSub ? `${genericModules.labels.customerPlural}, payments and balances.` : "Sales, customers and payments.",
                   columns: 1,
                 })}
               {renderMenu(
-                genericNav.expenses[0]?.label ?? "Expenses", DollarSign, genericNav.expenses, "menu:genericExpenses", {
+                isSub ? "Expenses & Vendors" : "Expenses", DollarSign, genericNav.expenses, "menu:genericExpenses", {
                   blurb: isSub ? "Vendors, expenses and recurring costs." : "Suppliers, purchases and expenses.",
                   columns: 1,
                 })}
               {renderMenu(
-                genericNav.money[0]?.label ?? "Money", Wallet, genericNav.money, "menu:genericMoney", {
-                  blurb: "Cash accounts, transfers, daily closing and owner funds.",
+                "Money", Wallet, genericNav.money, "menu:genericMoney", {
+                  blurb: "Cash accounts, transfers, reconciliation, daily closing and owner funds.",
                   columns: 1,
                 })}
               {genericNav.people.length > 0 && renderMenu(
-                genericNav.people[0]?.label ?? "People", Users2, genericNav.people, "menu:genericPeople", {
-                  blurb: "Employees, attendance, payroll and payments.",
-                  columns: 1,
+                isSchool ? "Staff & Teachers" : "Employees", Users2, genericNav.people, "menu:genericPeople", {
+                  blurb: "Staff, attendance, payroll and employee loans.",
+                  columns: 2,
                 })}
               {genericNav.school.length > 0 && renderMenu(
                 "School", GraduationCap, genericNav.school, "menu:genericSchool", {
                   blurb: "Classes, academic terms and student attendance.",
                   columns: 1,
                 })}
-              {renderMenu(
+              {genericNav.reports.length > 0 && renderMenu(
+                "Reports", BarChart3, genericNav.reports, "menu:genericReports", {
+                  blurb: "Profit & loss, cash flow, expense, sales, inventory and balance reports.",
+                  columns: 2,
+                })}
+              {genericNav.setup.length > 0 && renderMenu(
+                "Setup", Settings, genericNav.setup, "menu:genericSetup", {
+                  blurb: "Company profile, finance, delivery and your team.",
+                  columns: 2,
+                })}
+              {genericNav.admin.length > 0 && renderMenu(
                 "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
-                  blurb: "Reports, setup and settings.",
+                  blurb: "Account settings.",
                   columns: 1,
                 })}
             </div>
@@ -907,15 +921,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {/* Quick Links opens on hover like the menus below it. In the top
                 nav it is a plain one-column dropdown with Customise at its foot;
                 here it is the same rows plus Customise as the last row. */}
-            {renderMenu("Quick Links", Star, [{
-              key: "quick",
-              label: "Quick Links",
-              items: [
-                ...poultryNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
-                { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
-              ],
-            }], "menu:poultryQuickLinks", {
-              blurb: "The pages you open most days.", columns: 1,
+            {/* Setup sits first and Quick Links last (swapped at the user's
+                request); the top nav keeps its own order. */}
+            {renderMenu("Setup", Settings, poultryNav!.setup, "menu:poultrySetup", {
+              blurb: "Houses, flocks, products, delivery, customers and your team.",
+              columns: 3,
             })}
 
             {/* Columns per menu are chosen for a panel beside a rail, not a
@@ -940,9 +950,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Jobs run once: onboarding a farm, closing out a finished flock.",
                 columns: 1,
               })}
-              {renderMenu("Setup", Settings, poultryNav!.setup, "menu:poultrySetup", {
-                blurb: "Houses, flocks, products, delivery, customers and your team.",
-                columns: 3,
+              {renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: [
+                  ...poultryNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+                  { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
+                ],
+              }], "menu:poultryQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
               })}
             </div>
           </>

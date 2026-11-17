@@ -57,7 +57,6 @@ export function Setup2FADialog({ open, onClose, onEnable, onSkip }: Setup2FADial
           </AlertDialogAction>
           <AlertDialogCancel
             onClick={onSkip}
-            variant="outline"
           >
             Maybe Later
           </AlertDialogCancel>

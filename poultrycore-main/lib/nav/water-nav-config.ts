@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
   CalendarDays, Cog, Coins, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
-  Users, Users2, Wallet, Wrench, History, Hourglass, Scale, ArrowLeftRight, HandCoins, TrendingUp, Repeat,
+  Users, Users2, Wallet, Wrench, History, Hourglass, Scale, ArrowLeftRight, HandCoins, TrendingUp, Repeat, PiggyBank
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
@@ -175,6 +175,8 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
           // "Who owes us what" — the collections control centre, so it belongs
           // with the money coming in rather than with the cash accounts.
           { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/water-customer-balances" },
+          // 424: credit the business holds for customers (advances, left-over payments).
+          { id: "customer-credits", title: "Customer Credits", icon: PiggyBank, href: "/water-customer-credits" },
         ],
       },
       {
@@ -201,6 +203,8 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/water-supplier-payments" },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/water-supplier-balances" },
+          // 426: credit suppliers hold for us (advances, credit notes).
+          { id: "supplier-credits", title: "Supplier Credits", icon: PiggyBank, href: "/water-supplier-credits" },
           // Sits with Expenses because that is what it is about: stock cost
           // that has NOT become an expense yet. It is deliberately not under
           // Inventory -- an owner asking "why is my packaging bill low this

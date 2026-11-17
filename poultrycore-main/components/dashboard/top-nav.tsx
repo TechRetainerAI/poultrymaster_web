@@ -212,8 +212,21 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavLink item={{ href: "/water-dashboard", label: "Dashboard", icon: Droplets }} />
         <div className="h-5 w-px bg-white/30 mx-1" />
 
-        <NavDropdown group={nav.quickLinks}
-                     footer={<CustomiseQuickLinksButton onClick={() => setCustomiseOpen(true)} />} />
+        <NavMegaMenu
+          label="Setup" icon={Settings}
+          title="Setup"
+          blurb="Company configuration, products, delivery, customers and your team."
+          groups={nav.setup}
+          /* 6 groups over 3 columns = a 2x3 block: Company | Delivery |
+             Production on the first row, Finance | Plant | People on the
+             second. The order lives in lib/nav/water-nav-config.ts and the grid
+             fills row by row, so the two must stay in step. Same layout as the
+             poultry Setup panel.
+             "Users & Permissions" is the longest label at 145px in Geist-Medium
+             (the active row's weight), so a column needs 185px:
+             64 + 3x185 + 2x16 = 651px. */
+          columns={3} widthRem={41} layout="grid"
+        />
 
         {/* Panel widths below are sized to the longest label each one carries,
             not picked by eye. NavMegaMenu's padding is shared with the poultry
@@ -296,21 +309,8 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           columns={4} widthRem={58}
         />
 
-        <NavMegaMenu
-          label="Setup" icon={Settings}
-          title="Setup"
-          blurb="Company configuration, products, delivery, customers and your team."
-          groups={nav.setup}
-          /* 6 groups over 3 columns = a 2x3 block: Company | Delivery |
-             Production on the first row, Finance | Plant | People on the
-             second. The order lives in lib/nav/water-nav-config.ts and the grid
-             fills row by row, so the two must stay in step. Same layout as the
-             poultry Setup panel.
-             "Users & Permissions" is the longest label at 145px in Geist-Medium
-             (the active row's weight), so a column needs 185px:
-             64 + 3x185 + 2x16 = 651px. */
-          columns={3} widthRem={41} layout="grid"
-        />
+        <NavDropdown group={nav.quickLinks}
+                     footer={<CustomiseQuickLinksButton onClick={() => setCustomiseOpen(true)} />} />
 
         <div className="ml-auto flex items-center gap-1">
           {/* Same panel treatment as the other menus, just one column wide —
@@ -347,29 +347,31 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
         <NavLink item={{ href: "/generic-dashboard", label: "Dashboard", icon: Home }} accent="emerald" />
         <div className="h-5 w-px bg-white/30 mx-1" />
 
-        {/* Quick Sale hidden — only Sales is shown */}
-
-        {/* Catalog & Stock — retail businesses */}
+        {/* Operations — products, inventory, deliveries, stock (2 columns like poultry) */}
         {nav.catalog.length > 0 && (
           <NavMegaMenu
-            label="Catalog" icon={ShoppingBag}
-            title="Catalog & Stock"
-            blurb="Products, inventory, stock adjustments and internal use."
+            label="Operations" icon={ShoppingBag}
+            title="Operations"
+            blurb="Products, inventory, stock adjustments, deliveries and internal use."
             groups={nav.catalog}
-            columns={1} widthRem={18} layout="grid" accent="emerald"
+            columns={2} widthRem={36} layout="grid" accent="emerald"
           />
         )}
 
-        {/* Sales / Students & Payments */}
+        {/* Sales, Expenses & Money — combined mega-menu matching poultry pattern.
+            Three columns: Sales | Expenses | Money, so the user sees
+            all financial pages in one place instead of hunting three dropdowns. */}
         <NavMegaMenu
-          label={nav.salesOrStudents[0]?.label ?? "Sales"} icon={isSub ? Users : ShoppingCart}
-          title={nav.salesOrStudents[0]?.label ?? "Sales"}
-          blurb={isSub ? `${modules.labels.customerPlural}, payments and balances.` : "Sales, customers and payments."}
-          groups={nav.salesOrStudents}
-          columns={1} widthRem={18} layout="grid" accent="emerald"
+          label="Sales, Expenses & Money" icon={Wallet}
+          title="Sales, Expenses & Money"
+          blurb={isSub
+            ? `${modules.labels.customerPlural}, vendors, expenses, cash flow and payroll.`
+            : "Sales, customers, suppliers, expenses, cash flow and payroll."}
+          groups={[...nav.salesOrStudents, ...nav.expenses, ...nav.money]}
+          columns={3} widthRem={41} layout="grid" fitColumns accent="emerald"
         />
 
-        {/* Billing — subscription businesses */}
+        {/* Billing — subscription businesses only */}
         {nav.billing.length > 0 && (
           <NavMegaMenu
             label={nav.billing[0]?.label ?? "Billing"} icon={Receipt}
@@ -379,15 +381,6 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
             columns={1} widthRem={18} layout="grid" accent="emerald"
           />
         )}
-
-        {/* Expenses & Vendors / Purchasing */}
-        <NavMegaMenu
-          label={nav.expenses[0]?.label ?? "Expenses"} icon={DollarSign}
-          title={nav.expenses[0]?.label ?? "Expenses"}
-          blurb={isSub ? "Vendors, expenses and recurring costs." : "Suppliers, purchases and expenses."}
-          groups={nav.expenses}
-          columns={1} widthRem={18} layout="grid" accent="emerald"
-        />
 
         {/* School — only for schools */}
         {nav.school.length > 0 && (
@@ -400,34 +393,49 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
           />
         )}
 
-        {/* Money */}
-        <NavMegaMenu
-          label="Money" icon={Wallet}
-          title="Money"
-          blurb="Cash accounts, transfers, reconciliation and daily closing."
-          groups={nav.money}
-          columns={1} widthRem={20} layout="grid" accent="emerald"
-        />
-
-        {/* People / Employees — only when staff features enabled */}
+        {/* People / Employees — 2 columns: Team | Payroll & Advances */}
         {nav.people.length > 0 && (
           <NavMegaMenu
             label="Employees" icon={Users2}
             title={modules.industry === "School" ? "Staff & Teachers" : "Employees"}
             blurb="Staff, attendance, payroll and employee loans."
             groups={nav.people}
-            columns={1} widthRem={20} layout="grid" accent="emerald"
+            columns={2} widthRem={30} layout="grid" accent="emerald"
           />
         )}
 
-        {/* Admin */}
-        <NavMegaMenu
-          label="Admin" icon={Settings}
-          title="Admin"
-          blurb="Reports, setup and settings."
-          groups={nav.admin}
-          columns={1} widthRem={18} layout="grid" accent="emerald"
-        />
+        {/* Reports — Financial, Sales & Stock, Subscription */}
+        {nav.reports.length > 0 && (
+          <NavMegaMenu
+            label="Reports" icon={BarChart3}
+            title="Reports"
+            blurb="Profit & loss, cash flow, expense, sales, inventory and balance reports."
+            groups={nav.reports}
+            columns={nav.reports.length >= 3 ? 3 : 2} widthRem={nav.reports.length >= 3 ? 42 : 30} layout="grid" accent="emerald"
+          />
+        )}
+
+        {/* Setup — Company, Finance, Delivery, People */}
+        {nav.setup.length > 0 && (
+          <NavMegaMenu
+            label="Setup" icon={Settings}
+            title="Setup"
+            blurb="Company profile, finance, delivery and your team."
+            groups={nav.setup}
+            columns={2} widthRem={30} layout="grid" accent="emerald"
+          />
+        )}
+
+        {/* Admin — Account */}
+        {nav.admin.length > 0 && (
+          <NavMegaMenu
+            label="Admin" icon={Settings}
+            title="Admin"
+            blurb="Account settings."
+            groups={nav.admin}
+            columns={1} widthRem={18} layout="grid" accent="emerald"
+          />
+        )}
 
         <div className="ml-auto flex items-center gap-1">
           <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} accent="emerald" />
@@ -446,7 +454,13 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavLink item={{ href: "/hotel-dashboard", label: "Dashboard", icon: Home }} accent="violet" />
         <div className="h-5 w-px bg-white/30 mx-1" />
 
-        <NavDropdown group={nav.quickLinks} accent="violet" />
+        <NavMegaMenu
+          label="Setup" icon={Settings}
+          title="Setup"
+          blurb="Hotel configuration, staff, finance and facilities."
+          groups={nav.setup}
+          columns={2} widthRem={26.5} layout="grid" accent="violet"
+        />
 
         <NavMegaMenu
           label="Operations" icon={Factory}
@@ -482,13 +496,7 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           layout="grid" columns={3} widthRem={46} accent="violet"
         />
 
-        <NavMegaMenu
-          label="Setup" icon={Settings}
-          title="Setup"
-          blurb="Hotel configuration, staff, finance and facilities."
-          groups={nav.setup}
-          columns={2} widthRem={26.5} layout="grid" accent="violet"
-        />
+        <NavDropdown group={nav.quickLinks} accent="violet" />
 
         <div className="ml-auto flex items-center gap-1">
           <NavMegaMenu
@@ -521,7 +529,13 @@ function RestaurantTopNav({ permissions }: { permissions: ReturnType<typeof useP
         <NavLink item={{ href: "/restaurant-dashboard", label: "Dashboard", icon: Home }} accent="rose" />
         <div className="h-5 w-px bg-white/30 mx-1" />
 
-        <NavDropdown group={nav.quickLinks} accent="rose" />
+        <NavMegaMenu
+          label="Setup" icon={Settings}
+          title="Menu & Setup"
+          blurb="Menu items, staff management, and restaurant configuration."
+          groups={nav.setup}
+          columns={2} widthRem={26} layout="grid" accent="rose"
+        />
 
         {/* Orders + Kitchen + Dining merged into one panel so the rail stays
             on one line without a scrollbar. POS is the first row inside. */}
@@ -568,13 +582,7 @@ function RestaurantTopNav({ permissions }: { permissions: ReturnType<typeof useP
           columns={2} widthRem={30} layout="grid" accent="rose"
         />
 
-        <NavMegaMenu
-          label="Setup" icon={Settings}
-          title="Menu & Setup"
-          blurb="Menu items, staff management, and restaurant configuration."
-          groups={nav.setup}
-          columns={2} widthRem={26} layout="grid" accent="rose"
-        />
+        <NavDropdown group={nav.quickLinks} accent="rose" />
 
         <div className="ml-auto flex items-center gap-1">
           <NavMegaMenu
@@ -645,8 +653,20 @@ export function TopNavigation() {
           <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} accent="orange" />
           <div className="h-5 w-px bg-white/30 mx-1" />
 
-          <NavDropdown group={nav.quickLinks} accent="orange"
-                       footer={<CustomiseQuickLinksButton onClick={() => setCustomiseOpen(true)} />} />
+          <NavMegaMenu
+            label="Setup" icon={Settings}
+            title="Setup"
+            blurb="Houses, flocks, products, delivery, customers and your team."
+            groups={nav.setup}
+            /* 6 groups over 3 columns = a 2x3 block: Company | Delivery |
+               Production on the first row, Finance | Farm | People on the
+               second. The order lives in lib/nav/poultry-nav-config.ts and the
+               grid fills row by row, so the two must stay in step.
+               "Users & Permissions" is the longest label at 145px in
+               Geist-Medium (the active row's weight), so a column needs 185px:
+               64 + 3x185 + 2x16 = 651px. */
+            columns={3} widthRem={41} layout="grid" accent="orange"
+          />
 
           <NavMegaMenu
             label="Operations" icon={Factory}
@@ -745,20 +765,8 @@ export function TopNavigation() {
             columns={1} widthRem={19} layout="grid" accent="orange"
           />
 
-          <NavMegaMenu
-            label="Setup" icon={Settings}
-            title="Setup"
-            blurb="Houses, flocks, products, delivery, customers and your team."
-            groups={nav.setup}
-            /* 6 groups over 3 columns = a 2x3 block: Company | Delivery |
-               Production on the first row, Finance | Farm | People on the
-               second. The order lives in lib/nav/poultry-nav-config.ts and the
-               grid fills row by row, so the two must stay in step.
-               "Users & Permissions" is the longest label at 145px in
-               Geist-Medium (the active row's weight), so a column needs 185px:
-               64 + 3x185 + 2x16 = 651px. */
-            columns={3} widthRem={41} layout="grid" accent="orange"
-          />
+          <NavDropdown group={nav.quickLinks} accent="orange"
+                       footer={<CustomiseQuickLinksButton onClick={() => setCustomiseOpen(true)} />} />
 
           <div className="ml-auto flex items-center gap-1">
             {/* Billing, Terms and Help Center used to be pinned here; they now

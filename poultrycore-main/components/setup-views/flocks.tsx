@@ -48,6 +48,9 @@ import { getHouses, type House } from "@/lib/api/house"
 import { HousePicker } from "@/components/poultry/house-picker"
 import { getBatchBirdReconciliation, type BatchBirdReconciliationRow } from "@/lib/api/bird-reconciliation"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
+import { getFlockPositions, type FlockPositionRow } from "@/lib/api/flock-positions"
+import { flockLifetime, positionsById } from "@/lib/flocks/bird-position"
+import { farmBirdTotals, isBatchNotArrived } from "@/lib/flocks/farm-bird-totals"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
 import { getBirdsLeftForFlockFromRecords } from "@/lib/utils/production-records"
 import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultry-farm-setup"
@@ -66,6 +69,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort } from "@/lib/utils"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+
+// Scorecards on a phone: tinted in the card's own colour (as on Flock Batch).
+// sm and up keep the white card.
+const MOBILE_TINT = {
+  emerald: "bg-emerald-50 border-emerald-200 sm:bg-white sm:border-slate-200",
+  red:     "bg-red-50 border-red-200 sm:bg-white sm:border-slate-200",
+  sky:     "bg-sky-50 border-sky-200 sm:bg-white sm:border-slate-200",
+  blue:    "bg-blue-50 border-blue-200 sm:bg-white sm:border-slate-200",
+  amber:   "bg-amber-50 border-amber-200 sm:bg-white sm:border-slate-200",
+  slate:   "bg-slate-50 border-slate-300 sm:bg-white sm:border-slate-200",
+} as const
 
 export function FlocksPage() {
   const embedded = useSetupEmbedded()
@@ -137,6 +151,10 @@ export function FlocksPage() {
   // ORIGINALLY placed, keyed by flock. flock.quantity for such a flock is the
   // live count when it was registered, so it cannot be the "of" figure.
   const [openingByFlock, setOpeningByFlock] = useState<Record<number, OpeningFlockPosition>>({})
+  // 421: every flock's bird position from the server (fnflock_birdposition):
+  // placed, the opening historical reduction, what was recorded since, live
+  // now. Empty when the API predates 421 -- the old per-page figures are used.
+  const [positionByFlock, setPositionByFlock] = useState<Map<number, FlockPositionRow>>(new Map())
   // The server's bird accounting per batch (migration 413): how many of a
   // batch's birds are still not in any flock, after flocks AND birds sold or
   // lost before placing. A batch's size alone says nothing about what is left.
@@ -301,6 +319,10 @@ export function FlocksPage() {
         setOpeningByFlock(map)
       })
       .catch(() => { /* list still shows current birds */ })
+
+    void getFlockPositions(farmId)
+      .then((rows) => setPositionByFlock(positionsById(rows)))
+      .catch(() => setPositionByFlock(new Map()))
 
     try {
       const res = await getProductionRecords(userId, farmId)
@@ -912,20 +934,55 @@ export function FlocksPage() {
   const endIndex = startIndex + itemsPerPage
   const paginatedFlocks = filteredFlocks.slice(startIndex, endIndex)
 
-  // Bottom totals (farm-wide; ignore current filters so the page-level summary stays stable)
+  // Bottom totals (farm-wide; ignore current filters so the page-level summary stays stable).
+  // 421: birds a flock STARTED with -- for an onboarded flock flock.quantity is
+  // the opening LIVE count, which drops every bird lost before tracking began.
+  const startedBirdsOf = (f: Flock): number => {
+    const p = positionByFlock.get(f.flockId)
+    return p ? flockLifetime(p).started : (Number(f.quantity) || 0)
+  }
+  // Active / Inactive: birds ALIVE now in those flocks (deaths and sales
+  // taken off), once the bird positions have loaded; placed before that.
+  const liveOrStartedOf = (f: Flock): number => {
+    const p = positionByFlock.get(f.flockId)
+    return p ? p.currentLiveBirds : startedBirdsOf(f)
+  }
   const totalBirdsCount = useMemo(() =>
-    flocks.filter(f => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [flocks]
+    flocks.filter(f => f.hasArrived).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flocks, positionByFlock]
   )
   const totalActiveBirdsCount = useMemo(() =>
-    flocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [flocks]
+    flocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + liveOrStartedOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flocks, positionByFlock]
   )
   const totalInactiveBirdsCount = useMemo(() =>
-    flocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [flocks]
+    flocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + liveOrStartedOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flocks, positionByFlock]
   )
-  const totalBirdsSoldCount = 0
+  // The whole farm, the reports' rule: bought = died + sold + other + left,
+  // including birds sold or lost straight from a batch before it went into
+  // flocks (summing flocks alone misses those). Null on an older API.
+  // Batches still Pending or starting on a later day: their birds are not on
+  // the farm yet, so the unplaced ones stay out of every bird total.
+  const notArrivedBatchIds = useMemo(
+    () => new Set(flockBatches.filter((b) => isBatchNotArrived(b)).map((b) => b.batchId)),
+    [flockBatches],
+  )
+  const farmTotals = useMemo(
+    () => farmBirdTotals(reconByBatch.values(), positionByFlock.values(), notArrivedBatchIds),
+    [reconByBatch, positionByFlock, notArrivedBatchIds],
+  )
+  // Every bird sold over the flocks' lives: before tracking began + posted sales.
+  const totalBirdsSoldCount = useMemo(() =>
+    flocks.filter(f => f.hasArrived).reduce((sum, f) => {
+      const p = positionByFlock.get(f.flockId)
+      return sum + (p ? flockLifetime(p).sold : 0)
+    }, 0),
+    [flocks, positionByFlock]
+  )
 
   const truncateText = (text: string | undefined, maxLength: number) => {
     if (!text) return 'N/A'
@@ -960,6 +1017,9 @@ export function FlocksPage() {
   // Get the actual current bird count for a flock:
   // Use noOfBirdsLeft from the most recent production record, or fall back to the flock's initial quantity
   const getCurrentBirds = (flock: Flock): number => {
+    // 421: live now -- the last count less sales / closeouts made after it.
+    const p = positionByFlock.get(flock.flockId)
+    if (p) return p.currentLiveBirds
     if (flock.flockId in flockBirdsLeftMap) {
       return flockBirdsLeftMap[flock.flockId]
     }
@@ -969,6 +1029,8 @@ export function FlocksPage() {
   // Birds originally placed: the saved opening position when the flock was
   // registered as already operating, otherwise the flock's own quantity.
   const getPlacedBirds = (flock: Flock): number => {
+    const p = positionByFlock.get(flock.flockId)
+    if (p && p.originallyPlaced > 0) return p.originallyPlaced
     const o = openingByFlock[flock.flockId]
     if (o && o.originallyPlaced > 0) return o.originallyPlaced
     return flock.quantity || 0
@@ -982,43 +1044,81 @@ export function FlocksPage() {
   const overallTotalBirds = useMemo(() => {
     return flocks
       .filter((f) => flockCountsTowardBirdTotals(f))
-      .reduce((sum, flock) => sum + (flock.quantity || 0), 0)
-  }, [flocks])
+      .reduce((sum, flock) => sum + startedBirdsOf(flock), 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flocks, positionByFlock])
 
   // Same flock set as overallTotalBirds / totalBirdsLeft (not farm-wide), so the three cards are comparable.
   const totalMortality = useMemo(() => {
     const eligibleIds = new Set(
       flocks.filter((f) => flockCountsTowardBirdTotals(f)).map((f) => f.flockId)
     )
+    // 421: lifetime deaths -- opening historical mortality + recorded.
+    if (positionByFlock.size > 0) {
+      let total = 0
+      for (const id of eligibleIds) {
+        const p = positionByFlock.get(id)
+        if (p) total += flockLifetime(p).deaths
+      }
+      return total
+    }
     return productionRecordsForFarm.reduce((sum, r) => {
       const fid = r.flockId
       if (fid == null || !eligibleIds.has(fid)) return sum
       return sum + (r.mortality ?? 0)
     }, 0)
-  }, [flocks, productionRecordsForFarm])
+  }, [flocks, productionRecordsForFarm, positionByFlock])
 
-  const totalMortalityAllRowsFarm = useMemo(
-    () => productionRecordsForFarm.reduce((sum, r) => sum + (Number(r.mortality) || 0), 0),
-    [productionRecordsForFarm],
-  )
+  const totalMortalityAllRowsFarm = useMemo(() => {
+    // 421: every flock's lifetime deaths (opening historical + recorded).
+    if (positionByFlock.size > 0) {
+      let total = 0
+      for (const p of positionByFlock.values()) if (!p.isDeleted) total += flockLifetime(p).deaths
+      return total
+    }
+    return productionRecordsForFarm.reduce((sum, r) => sum + (Number(r.mortality) || 0), 0)
+  }, [productionRecordsForFarm, positionByFlock])
 
   // Total birds left = same flocks as overallTotalBirds; per-flock current count from production or placed qty
   const totalBirdsLeft = useMemo(() => {
     return flocks
       .filter((f) => flockCountsTowardBirdTotals(f))
       .reduce((sum, flock) => {
+        const p = positionByFlock.get(flock.flockId)
+        if (p) return sum + p.currentLiveBirds
         if (flock.flockId in flockBirdsLeftMap) {
           return sum + flockBirdsLeftMap[flock.flockId]
         }
         return sum + (flock.quantity || 0)
       }, 0)
-  }, [flocks, flockBirdsLeftMap])
+  }, [flocks, flockBirdsLeftMap, positionByFlock])
 
   /** Same flocks as the three summary cards: placed minus latest birds left (compare to sum of daily deaths). */
   const birdsLostPlacedMinusLeft = useMemo(
     () => Math.max(0, overallTotalBirds - totalBirdsLeft),
     [overallTotalBirds, totalBirdsLeft],
   )
+
+  /**
+   * Birds that left the same flocks WITHOUT dying: sold, culled, transferred
+   * or another opening reduction (lifetime, from the bird position).  A sale
+   * lowers the headcount too, so the deaths-vs-headcount check must allow for
+   * it.  Null before 421 is deployed -- the check then compares deaths only.
+   */
+  const birdsRemovedNotDied = useMemo(() => {
+    if (positionByFlock.size === 0) return null
+    let n = 0
+    for (const f of flocks) {
+      if (!flockCountsTowardBirdTotals(f)) continue
+      const p = positionByFlock.get(f.flockId)
+      if (!p) continue
+      const l = flockLifetime(p)
+      n += l.sold + l.culled + l.transferred + l.other
+    }
+    return n
+  }, [flocks, positionByFlock])
+  /** Deaths plus every other recorded way a bird left: what the headcount drop should equal. */
+  const accountedLosses = totalMortality + (birdsRemovedNotDied ?? 0)
 
   const flockLifecycleBadge = (flock: Flock) => {
     const life = getFlockLifecycleStatus(flock)
@@ -1320,21 +1420,23 @@ export function FlocksPage() {
             {!embedded && !loading && flocks.length > 0 && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
-                  title="Birds placed when each flock was created."
+                  className={cn("rounded-lg border px-3 py-2.5 shadow-sm", MOBILE_TINT.emerald)}
+                  title="Every bird the farm received, including birds that died or were sold before tracking began or before they went into a flock."
                 >
                   <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
                     <Bird className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                     Overall Total Birds
                   </div>
                   <div className="mt-1 text-xl font-bold leading-tight tabular-nums text-emerald-600">
-                    {overallTotalBirds.toLocaleString()}
+                    {(farmTotals?.bought ?? overallTotalBirds).toLocaleString()}
                   </div>
-                  <p className="mt-0.5 truncate text-[11px] text-slate-500">Placed when each flock was created</p>
+                  <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                    {farmTotals ? "Every bird bought, all batches" : "Placed, including history before setup"}
+                  </p>
                 </div>
                 <div
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
-                  title="Sum of Deaths on every production row for the flocks in the other two cards. Each row should be birds lost that day only (not a running total)."
+                  className={cn("rounded-lg border px-3 py-2.5 shadow-sm", MOBILE_TINT.red)}
+                  title="Lifetime deaths: before tracking began (Initial Farm Setup), straight from a batch, plus the Deaths on every production record."
                 >
                   <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
@@ -1342,50 +1444,76 @@ export function FlocksPage() {
                   </div>
                   <div className="mt-1 flex items-baseline justify-between gap-2">
                     <span className="text-xl font-bold leading-tight tabular-nums text-red-600">
-                      {totalMortality.toLocaleString()}
+                      {(farmTotals?.died ?? totalMortality).toLocaleString()}
                     </span>
-                    <span className="text-[11px] text-slate-500">
+                    {!farmTotals && <span className="text-[11px] text-slate-500">
                       + inactive:{" "}
                       <span className="font-semibold tabular-nums text-slate-800">
                         {totalMortalityAllRowsFarm.toLocaleString()}
                       </span>
-                    </span>
+                    </span>}
                   </div>
+                  {farmTotals ? (
+                    <p className="mt-0.5 truncate text-[11px] text-slate-500"
+                       title="Total birds less deaths and sales (and any culled, moved or corrected birds) gives the birds left.">
+                      Sold:{" "}
+                      <span className="font-semibold tabular-nums text-slate-800">{farmTotals.sold.toLocaleString()}</span>
+                      {farmTotals.other !== 0 && (
+                        <> · <span title="Culled, transferred, birds in flocks that were deleted, count corrections, or birds never accounted for.">other</span>:{" "}
+                          <span className="font-semibold tabular-nums text-slate-800">{farmTotals.other.toLocaleString()}</span></>
+                      )}
+                    </p>
+                  ) : (
                   <p className="mt-0.5 truncate text-[11px] text-slate-500">
                     Placed − birds left:{" "}
                     <span className="font-semibold tabular-nums text-slate-800">
                       {birdsLostPlacedMinusLeft.toLocaleString()}
                     </span>
+                    {(birdsRemovedNotDied ?? 0) > 0 && (
+                      <span title="Birds sold, culled or transferred out of these flocks (including before tracking began). They lower the headcount without being deaths.">
+                        {" "}· sold / culled / moved:{" "}
+                        <span className="font-semibold tabular-nums text-slate-800">
+                          {(birdsRemovedNotDied ?? 0).toLocaleString()}
+                        </span>
+                      </span>
+                    )}
                   </p>
-                  {totalMortality > birdsLostPlacedMinusLeft + 1 && (
+                  )}
+                  {!farmTotals && accountedLosses > birdsLostPlacedMinusLeft + 1 && (
                     <p
                       className="mt-0.5 truncate text-[11px] text-amber-800/90"
-                      title="Red total is higher than this drop in headcount — check rows for cumulative death counts or the same day entered twice."
+                      title="Deaths plus sold / culled / moved birds are more than the drop in headcount — check rows for cumulative death counts or the same day entered twice."
                     >
                       Higher than headcount drop — check for cumulative or duplicate rows
                     </p>
                   )}
-                  {birdsLostPlacedMinusLeft > totalMortality + 1 && (
+                  {!farmTotals && birdsLostPlacedMinusLeft > accountedLosses + 1 && (
                     <p
                       className="mt-0.5 truncate text-[11px] text-slate-600"
-                      title="Headcount fell more than summed deaths — some losses may be missing in the Deaths column, or birds were removed another way."
+                      title={`Headcount fell by ${(birdsLostPlacedMinusLeft - accountedLosses).toLocaleString()} more than deaths${birdsRemovedNotDied == null ? "" : " plus sold / culled / moved birds"} — some losses were not recorded, or a bird count was corrected.`}
                     >
-                      Headcount fell more than deaths — some losses may be missing
+                      {(birdsLostPlacedMinusLeft - accountedLosses).toLocaleString()} birds unaccounted for
                     </p>
                   )}
                 </div>
                 <div
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
-                  title="Latest 'birds left' per flock from logs, or placed if no log yet."
+                  className={cn("rounded-lg border px-3 py-2.5 shadow-sm", MOBILE_TINT.blue)}
+                  title="Birds alive now in flocks (latest count). Batch birds not yet put into a flock are shown in their own card below."
                 >
                   <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
                     <Users className="h-3.5 w-3.5 shrink-0 text-blue-600" />
                     Total Birds Left
                   </div>
                   <div className="mt-1 text-xl font-bold leading-tight tabular-nums text-blue-700">
-                    {totalBirdsLeft.toLocaleString()}
+                    {(farmTotals ? farmTotals.left - farmTotals.notInFlock : totalBirdsLeft).toLocaleString()}
                   </div>
-                  <p className="mt-0.5 truncate text-[11px] text-slate-500">Latest birds left per flock, or placed if no log</p>
+                  <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                    {farmTotals
+                      ? (farmTotals.notInFlock > 0
+                          ? `Alive in flocks · ${farmTotals.notInFlock.toLocaleString()} more not yet in a flock`
+                          : "Alive now")
+                      : "Latest birds left per flock, or placed if no log"}
+                  </p>
                 </div>
               </div>
             )}
@@ -1422,8 +1550,10 @@ export function FlocksPage() {
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
-                      {paginatedFlocks.map((flock) => (
-                        <Collapsible key={flock.flockId} defaultOpen className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                      {paginatedFlocks.map((flock, idx) => (
+                        <Collapsible key={flock.flockId} defaultOpen className={cn("group overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md",
+                          // Alternate cards, like Flock Batch, Suppliers and Customers on a phone.
+                          idx % 2 === 0 ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200")}>
                           <div className="p-4 transition-colors active:bg-slate-50/80">
                             <CollapsibleTrigger asChild>
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
@@ -1449,10 +1579,11 @@ export function FlocksPage() {
                             </CollapsibleTrigger>
                             <CollapsibleContent>
                               <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div><span className="text-slate-500">Breed</span> <span className="font-medium text-slate-900">{flock.breed}</span></div>
-                                  <div><span className="text-slate-500">House</span> <span className="font-medium">{getHouseName(flock)}</span></div>
-                                  <div><span className="text-slate-500">Batch</span> <span className="font-medium">{flock.batchName || "N/A"}</span></div>
+                                {/* Each figure in its own tinted box (phone cards). */}
+                                <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 border-violet-200 bg-violet-50"><span className="text-violet-700">Breed</span> <span className="truncate font-medium text-slate-900">{flock.breed || "—"}</span></div>
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 border-sky-200 bg-sky-50"><span className="text-sky-700">House</span> <span className="truncate font-medium text-slate-900">{getHouseName(flock)}</span></div>
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 col-span-2 border-blue-200 bg-blue-50"><span className="text-blue-700">Batch</span> <span className="truncate font-medium text-slate-900">{flock.batchName || "N/A"}</span></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => openEditDialog(flock.flockId)}>
@@ -1724,22 +1855,31 @@ export function FlocksPage() {
 
             {/* Bird totals (page bottom; standalone page only) */}
             {!embedded && !loading && flocks.length > 0 && (
-              <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+              <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : farmTotals ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-2 sm:grid-cols-4")}>
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.blue)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
-                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{totalBirdsCount.toLocaleString()}</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{(farmTotals?.bought ?? totalBirdsCount).toLocaleString()}</div>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.emerald)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Active Birds</div>
-                  <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{totalActiveBirdsCount.toLocaleString()}</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{(farmTotals ? Math.max(0, farmTotals.left - totalInactiveBirdsCount - farmTotals.notInFlock) : totalActiveBirdsCount).toLocaleString()}</div>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.slate)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Inactive Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">{totalInactiveBirdsCount.toLocaleString()}</div>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                {/* Birds alive on the farm but not divided into flocks yet.
+                    Active + Inactive + this = Total Birds Left. */}
+                {farmTotals && (
+                  <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.sky)}
+                       title="Birds of arrived batches that have not been divided into flocks yet. They are alive on the farm but have no production records until they are put into a flock.">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Not Yet in a Flock</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums text-sky-600">{farmTotals.notInFlock.toLocaleString()}</div>
+                  </div>
+                )}
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.amber)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds Sold</div>
-                  <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{totalBirdsSoldCount.toLocaleString()}</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{(farmTotals?.sold ?? totalBirdsSoldCount).toLocaleString()}</div>
                 </div>
               </div>
             )}
@@ -1899,7 +2039,8 @@ export function FlocksPage() {
 
       {/* Edit Flock Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        {/* overflow-x-hidden + min-w-0: never wider than the phone (it scrolled sideways). */}
+        <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden [&>*]:min-w-0">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5 text-blue-600" /> Edit Flock

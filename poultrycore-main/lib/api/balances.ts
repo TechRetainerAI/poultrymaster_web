@@ -408,7 +408,7 @@ export async function recordPayment(
   return String(res?.paymentId ?? "")
 }
 
-/** Poultry (382): keep a debt payment off Profit & Loss, or put it back. Owner / admin only. */
+/** Poultry (382) / Water (425): keep a debt payment off Profit & Loss, or put it back. Owner / admin only. */
 export async function setPaymentPLExclusion(
   side: BalanceSide,
   paymentId: string,
@@ -416,7 +416,7 @@ export async function setPaymentPLExclusion(
 ): Promise<void> {
   const farmId = activeFarmId()
   await jsend<unknown>(
-    `${prefix("poultry", farmId)}/${paymentsPath(side)}/${encodeURIComponent(paymentId)}/pl-exclusion`,
+    `${prefix(typeof window !== "undefined" && localStorage.getItem("farmType") === "Water" ? "water" : "poultry", farmId)}/${paymentsPath(side)}/${encodeURIComponent(paymentId)}/pl-exclusion`,
     "POST",
     { farmId, exclude },
   )

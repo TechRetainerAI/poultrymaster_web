@@ -181,7 +181,7 @@ export function SuppliersPage() {
       setIsCreateDialogOpen(false)
       void loadSuppliers()
     } else {
-      setCreateError(result.message)
+      setCreateError(result.message ?? "")
     }
     setCreateLoading(false)
   }
@@ -248,7 +248,7 @@ export function SuppliersPage() {
       setIsEditDialogOpen(false)
       void loadSuppliers()
     } else {
-      setEditError(result.message)
+      setEditError(result.message ?? "")
     }
     setEditLoading(false)
   }

@@ -13,7 +13,7 @@
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 import { explainHttpError } from "@/lib/api/http-error"
 
-export type CashFlowRail = "Poultry" | "Water" | "Hotel" | "Restaurant"
+export type CashFlowRail = "Poultry" | "Water" | "Hotel" | "Restaurant" | "Generic"
 
 /** OperatingIn | OperatingOut | FinancingIn | FinancingOut. */
 export type FlowGroup = "OperatingIn" | "OperatingOut" | "FinancingIn" | "FinancingOut"
@@ -94,11 +94,14 @@ export async function getCashFlow(
   opts?: { fromDate?: string; toDate?: string; farmId?: string },
 ): Promise<CashFlowResponse> {
   const farmId = opts?.farmId ?? getUserContext().farmId ?? ""
-  const qs = new URLSearchParams({ farmId })
+  const qs = new URLSearchParams()
   if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
   if (opts?.toDate) qs.append("toDate", opts.toDate)
 
-  const path = `/${rail}/cash-flow?${qs.toString()}`
+  // Generic uses /generic-company/{farmId}/cash-flow; other rails use /{Rail}/cash-flow?farmId=...
+  const path = rail === "Generic"
+    ? `/generic-company/${encodeURIComponent(farmId)}/cash-flow${qs.toString() ? `?${qs.toString()}` : ""}`
+    : `/${rail}/cash-flow?farmId=${encodeURIComponent(farmId)}${qs.toString() ? `&${qs.toString()}` : ""}`
   const res = await fetch(farmApiUrl(path), { method: "GET", headers: getAuthHeaders() })
   if (!res.ok) {
     const text = await res.text().catch(() => "")

@@ -64,6 +64,20 @@ namespace PoultryFarmAPIWeb.Controllers
             => CashFlowEndpoint.Handle(this, _svc, "restaurant", farmId, fromDate, toDate);
     }
 
+    [ApiController]
+    [Route("api/generic-company/{farmId}/cash-flow")]
+    [RequireCompanyType("Generic")]
+    public class GenericCashFlowController : ControllerBase
+    {
+        private readonly ICashFlowService _svc;
+        public GenericCashFlowController(ICashFlowService svc) => _svc = svc;
+
+        [HttpGet]
+        public Task<ActionResult<CashFlowResponse>> Get(
+            string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+            => CashFlowEndpoint.Handle(this, _svc, "generic", farmId, fromDate, toDate);
+    }
+
     internal static class CashFlowEndpoint
     {
         public static async Task<ActionResult<CashFlowResponse>> Handle(

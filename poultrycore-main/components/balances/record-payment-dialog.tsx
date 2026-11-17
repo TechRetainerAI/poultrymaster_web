@@ -47,6 +47,7 @@ import { listOpenDocuments, recordPayment } from "@/lib/api/balances"
 import { entryTimestamp } from "@/lib/utils/date-key"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { SALE_PRODUCT_OPTIONS } from "@/components/sales/sale-item-row"
+import { listWaterProducts } from "@/lib/api/water"
 
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank Transfer", "Cheque", "Card", "Other"] as const
 
@@ -92,7 +93,8 @@ export function RecordPaymentDialog({
   const isCustomer = side === "customer"
   // 367 / 370: a poultry payment need not be applied in full -- the rest is
   // kept as the customer's / supplier's credit (applied to nothing = an advance).
-  const allowUnallocated = module === "poultry"
+  // 424 / 426: water customer and supplier payments too.
+  const allowUnallocated = module === "poultry" || module === "water"
   const creditWord = isCustomer ? "customer credit" : "supplier credit"
   const docWord = isCustomer ? "sale" : "purchase"
   const { isAdmin } = usePermissions()
@@ -118,6 +120,19 @@ export function RecordPaymentDialog({
   // 384 (customer): the leftover is credit unless ticked onto P&L with a sale type.
   const [addToPL, setAddToPL] = useState(false)
   const [saleType, setSaleType] = useState("")
+  // 425: on Water, "what was sold" is one of the company's own products.
+  const [waterSaleTypes, setWaterSaleTypes] = useState<string[] | null>(null)
+  useEffect(() => {
+    if (!open || module !== "water" || !remainderAsOldDebt || waterSaleTypes) return
+    listWaterProducts()
+      .then((ps) => setWaterSaleTypes([
+        ...Array.from(new Set(ps.filter((x) => x.isActive && x.productType === "FinishedGood")
+          .map((x) => x.name).filter(Boolean))),
+        "Other",
+      ]))
+      .catch(() => setWaterSaleTypes(["Other"]))
+  }, [open, module, remainderAsOldDebt, waterSaleTypes])
+  const saleTypeOptions = module === "water" ? (waterSaleTypes ?? ["Other"]) : SALE_PRODUCT_OPTIONS
   const [saleTypeOther, setSaleTypeOther] = useState("")
   // "Payment for an earlier sale": on Profit & Loss unless the income was
   // already recorded (owner / admin only -- it is a P&L exclusion).
@@ -185,9 +200,9 @@ export function RecordPaymentDialog({
 
   // 382: the part paid on debts recorded by hand -- the only part that is new to
   // Profit & Loss (a sale or purchase is already on it).
-  const recordedDebtAllocated = useMemo(() => module !== "poultry" ? 0 : documents
+  const recordedDebtAllocated = useMemo(() => !(module === "poultry" || module === "water") ? 0 : documents
     .filter((d) => d.documentType === "CustomerDebt" || d.documentType === "SupplierDebt")
-    .reduce((t, d) => t + (allocation[docKey(d)] ?? 0), 0), [module, documents, allocation])
+    .reduce((t, d) => t + (allocation[docKey(d)] ?? 0), 0), [module, isCustomer, documents, allocation])
 
   const selectedAccount = cashAccounts.find((a) => a.id === cashAccountId) ?? null
 
@@ -627,7 +642,7 @@ export function RecordPaymentDialog({
                           <Select value={saleType} onValueChange={setSaleType}>
                             <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Select sale type or product" /></SelectTrigger>
                             <SelectContent>
-                              {SALE_PRODUCT_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              {saleTypeOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>

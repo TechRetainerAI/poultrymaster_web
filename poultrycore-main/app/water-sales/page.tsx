@@ -18,6 +18,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Plus, Trash2, Loader2, ShoppingCart, X, Wallet, Ban, CheckCircle2, Receipt, History } from "lucide-react"
 import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
+// 424: customer credit can pay a water sale too (an allocation, no new cash).
+import { ApplyCreditDialog, type ApplyCreditTarget } from "@/components/sales/apply-credit-dialog"
+import { listCustomerCredit } from "@/lib/api/customer-credit"
+import { getSelectedCurrency } from "@/lib/utils/currency"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -128,6 +132,11 @@ function WaterSalesPageInner() {
     try {
       const [s, p, c] = await Promise.all([listWaterSales(), listWaterProducts(), listWaterCustomers()])
       setSales(s); setProducts(p); setCustomers(c)
+      // 424: which customers hold credit. Best-effort: before 424 is deployed
+      // the route is missing and the button simply never shows.
+      listCustomerCredit()
+        .then((rows) => setCreditByCustomer(new Map(rows.map((r) => [r.customerId, r.availableCredit]))))
+        .catch(() => setCreditByCustomer(new Map()))
     } catch (e: any) { toast({ title: "Could not load sales", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -247,6 +256,22 @@ function WaterSalesPageInner() {
   // wherever it is opened from.
   const [historySale, setHistorySale] = useState<WaterSale | null>(null)
   const { can } = usePermissions()
+  const [creditByCustomer, setCreditByCustomer] = useState<Map<number, number>>(new Map())
+  const [applyCredit, setApplyCredit] = useState<ApplyCreditTarget | null>(null)
+  /** 424: the sale's customer holds credit that can pay it. */
+  const creditFor = (sale: WaterSale) =>
+    sale.waterCustomerId != null && sale.status !== "Cancelled" && sale.balance > 0
+      ? (creditByCustomer.get(sale.waterCustomerId) ?? 0) : 0
+  function openApplyCredit(sale: WaterSale) {
+    if (sale.waterCustomerId == null) return
+    setApplyCredit({
+      customerId: sale.waterCustomerId,
+      customerName: sale.customerName ?? "Customer",
+      saleId: sale.waterSaleId,
+      saleLabel: `sale W${sale.waterSaleId}`,
+      outstanding: sale.balance,
+    })
+  }
 
   function openPay(sale: WaterSale) {
     setPayForSale(sale)
@@ -431,6 +456,13 @@ function WaterSalesPageInner() {
                                   onClick={() => openPay(s)}
                                 >
                                   <CheckCircle2 className="h-4 w-4 mr-1" /> Mark as Paid
+                                </Button>
+                              )}
+                              {creditFor(s) > 0 && can("water.customer-payments.create") && (
+                                <Button size="sm" variant="outline" className="mr-1 h-8"
+                                        title={`This customer holds ${creditFor(s).toFixed(2)} of credit`}
+                                        onClick={() => openApplyCredit(s)}>
+                                  Apply credit
                                 </Button>
                               )}
                               {/* Offered on settled sales too: a paid-off sale
@@ -644,6 +676,17 @@ function WaterSalesPageInner() {
       {/* The ledger for one sale: every payment that touched it, with the
           balance it moved from and to. Reversing from here reloads the list,
           because the sale balance and status change with it. */}
+      <ApplyCreditDialog
+        target={applyCredit}
+        currencyCode={getSelectedCurrency()}
+        onOpenChange={(o) => { if (!o) setApplyCredit(null) }}
+        onApplied={(amount) => {
+          toast({ title: "Credit applied", description: `${amount.toFixed(2)} of customer credit settled ${applyCredit?.saleLabel}. No new cash was recorded.` })
+          setApplyCredit(null)
+          void loadAll()
+        }}
+      />
+
       <PaymentHistoryDialog
         open={!!historySale}
         onOpenChange={(o) => { if (!o) setHistorySale(null) }}

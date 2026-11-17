@@ -457,6 +457,47 @@ namespace PoultryFarmAPIWeb.Business
             return totalQuantity;
         }
 
+        public async Task<List<FlockPositionRow>> GetFlockPositions(string farmId)
+        {
+            var list = new List<FlockPositionRow>();
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryflock_positions(p_farmid => @FarmId::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            int I(string c) => r.IsDBNull(r.GetOrdinal(c)) ? 0 : r.GetInt32(r.GetOrdinal(c));
+            while (await r.ReadAsync())
+            {
+                list.Add(new FlockPositionRow
+                {
+                    FlockId = I("flockid"),
+                    BatchId = r.IsDBNull(r.GetOrdinal("batchid")) ? null : r.GetInt32(r.GetOrdinal("batchid")),
+                    IsClosed = r.GetBoolean(r.GetOrdinal("isclosed")),
+                    IsDeleted = r.GetBoolean(r.GetOrdinal("isdeleted")),
+                    HasOpeningPosition = r.GetBoolean(r.GetOrdinal("hasopeningposition")),
+                    HistoryKnown = r.GetBoolean(r.GetOrdinal("historyknown")),
+                    OriginallyPlaced = I("originallyplaced"),
+                    OpeningMortality = I("openingmortality"),
+                    OpeningSold = I("openingsold"),
+                    OpeningCulled = I("openingculled"),
+                    OpeningTransferred = I("openingtransferred"),
+                    OpeningOther = I("openingother"),
+                    OpeningLiveBirds = I("openinglivebirds"),
+                    RecordedMortality = I("recordedmortality"),
+                    ProductionRecordCount = I("productionrecordcount"),
+                    LastCountedBirds = I("lastcountedbirds"),
+                    LastCountDate = r.IsDBNull(r.GetOrdinal("lastcountdate")) ? null : r.GetDateTime(r.GetOrdinal("lastcountdate")),
+                    Correction = I("correction"),
+                    BirdsSold = I("birdssold"),
+                    BirdsCulled = I("birdsculled"),
+                    BirdsTransferred = I("birdstransferred"),
+                    CurrentLiveBirds = I("currentlivebirds"),
+                    StartedBirds = I("startedbirds"),
+                });
+            }
+            return list;
+        }
+
         public async Task<string?> DeleteFlock(int flockId, string userId, string farmId)
         {
             // 414: the safe delete. spflock_delete only ever soft-deleted (the

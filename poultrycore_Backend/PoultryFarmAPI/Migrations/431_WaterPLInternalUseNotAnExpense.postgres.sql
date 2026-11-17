@@ -1,0 +1,407 @@
+-- =============================================================================
+-- 431_WaterPLInternalUseNotAnExpense.postgres.sql   (requires 429)
+--
+-- Purpose
+-- -------
+-- Water Internal Use (bags / sachets given to staff, the owner, donations,
+-- samples) books a non-cash 'WaterInternalUsage' expense at the stock's cost.
+-- The Water P&L has no inventory: what those bags cost is ALREADY on it --
+-- raw materials when paid (429) or when a deferred lot is used, and the batch's
+-- production cost when produced. Counting the Internal Use expense as well
+-- charged the same cost twice (user decision 2026-11-12: fix it the same way
+-- as 429).
+--
+-- Now: the 'WaterInternalUsage' expense rows are not read by
+-- spwaterreport_periodpnl, _pllines or _plexpensedetail. The rows stay (the
+-- Expenses page and the Internal Use page still show the cost of what was
+-- given away); Daily Closing already ignored them (non-cash); they were never
+-- payables or on Cash Flow.
+--
+-- On dev one company's profit rises by its Internal Use (150.00).
+-- =============================================================================
+\set ON_ERROR_STOP on
+
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.spwaterreport_periodpnl(p_farmid text, p_fromdate date, p_todate date)
+ RETURNS TABLE(periodstart date, periodend date, totalincome numeric, totalexpenses numeric, rawmaterialcost numeric, productioncost numeric, totallosses numeric, netprofit numeric, profitmarginpct numeric, bagsproduced integer, bagssold integer, avgprofitperbag numeric)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_start             timestamp;
+    v_end               timestamp;
+    v_storefrontincome  numeric;
+    v_driverincome      numeric;
+    v_totalincome       numeric;
+    v_rawmaterialcost   numeric;
+    v_productioncost    numeric;
+    v_generalexpenses   numeric;
+    v_deliveryexpenses  numeric;
+    v_operatingexpenses numeric;
+    v_productionlosses  numeric;
+    v_shortagelosses    numeric;
+    v_totallosses       numeric;
+    v_netprofit         numeric;
+    v_bagsproduced      integer;
+    v_storefrontbagssold numeric;
+    v_driverbagssold    numeric;
+    v_bagssold          integer;
+    v_profitmargin      numeric;
+    v_avgprofitperbag   numeric;
+BEGIN
+    v_start := p_fromdate::timestamp;
+    v_end   := p_todate::timestamp + make_interval(days => 1);
+
+    -- Storefront sales only (exclude DeliveryRun - that income is on the return).
+    v_storefrontincome := COALESCE((
+        SELECT SUM(s.totalamount) FROM watersales s
+        WHERE s.farmid = p_farmid AND s.status NOT IN ('Cancelled')
+          AND COALESCE(s.sourcetype, '') <> 'DeliveryRun'
+          AND s.saledate >= v_start AND s.saledate < v_end), 0);
+
+    -- Driver-return income for the day (cash + momo + bank + credit sold).
+    v_driverincome := COALESCE((
+        SELECT SUM(dr.cashcollected + dr.momocollected + dr.bankcollected + dr.creditsalesamount)
+        FROM waterdriverreturns dr
+        WHERE dr.farmid = p_farmid AND dr.status IN ('Draft','Approved')
+          AND dr.returndate >= v_start AND dr.returndate < v_end), 0);
+
+    -- 424: a credit note is an allowance given -- revenue the business gave up.
+    v_totalincome := (v_storefrontincome + v_driverincome
+                      - COALESCE((SELECT SUM(cn.amount) FROM waterpayments cn
+                                  WHERE cn.farmid = p_farmid AND cn.sourcetype = 'CreditNote'
+                                    AND COALESCE(cn.status, 'Posted') = 'Posted'
+                                    AND cn.paymentdate >= v_start AND cn.paymentdate < v_end), 0)
+                      -- 425 (382): money paid on debts recorded by hand is revenue
+                      + (SELECT dc.total FROM public.fnwaterpl_debtcollections(p_farmid, v_start, v_end) dc))::numeric(14,2);
+
+    -- Cash paid for raw materials (matches the closing's AmountPaid basis).
+    -- 429: cash, on the payment date (fnwaterpl_rawmaterialrows)
+    v_rawmaterialcost := (SELECT x.total FROM public.fnwaterpl_rawmaterials(p_farmid, v_start, v_end) x);
+
+    v_productioncost := COALESCE((
+        SELECT SUM(b.totalproductioncost) FROM waterproductionbatches b
+        WHERE b.farmid = p_farmid AND b.isdeleted = FALSE AND b.status = 'Approved'
+          AND b.productiondate >= p_fromdate AND b.productiondate <= p_todate), 0);
+
+    -- Operating expenses: general approved WaterExpenses (excl. the auto
+    -- raw-material-purchase expense, already in RawMaterialCost) + delivery expenses.
+    v_generalexpenses := COALESCE((
+        SELECT SUM(e.amount) FROM waterexpenses e
+        WHERE e.farmid = p_farmid AND e.isdeleted = FALSE AND e.status = 'Approved'
+          AND COALESCE(e.sourcetype, '') <> 'RawMaterialPurchase'
+          -- 429: a supplier payment's expense row duplicated raw materials (paid later)
+          AND COALESCE(e.sourcetype, '') <> 'WaterSupplierPayment'
+          -- 431: Internal Use is stock whose cost is already in raw materials + production
+          AND COALESCE(e.sourcetype, '') <> 'WaterInternalUsage'
+          AND e.expensedate >= v_start AND e.expensedate < v_end), 0);
+
+    v_deliveryexpenses := COALESCE((
+        SELECT SUM(de.amount) FROM waterdeliveryexpenses de
+        INNER JOIN waterdriverreturns dr ON dr.waterdriverreturnid = de.waterdriverreturnid
+        WHERE dr.farmid = p_farmid AND dr.status IN ('Draft','Approved') AND de.isapproved = TRUE
+          AND dr.returndate >= v_start AND dr.returndate < v_end), 0);
+
+    -- 427 (382): money paid on supplier debts recorded by hand is an operating expense
+    v_operatingexpenses := (v_generalexpenses + v_deliveryexpenses
+                            + (SELECT x.total FROM public.fnwaterpl_supplierdebtpayments(p_farmid, v_start, v_end) x))::numeric(14,2);
+
+    -- Losses: production losses (damaged/rejected) + driver cash shortages.
+    v_productionlosses := COALESCE((
+        SELECT SUM(l.totalvalue) FROM waterproductionlosses l
+        WHERE l.farmid = p_farmid AND l.lossdate >= v_start AND l.lossdate < v_end), 0);
+
+    v_shortagelosses := COALESCE((
+        SELECT SUM(dr.shortageamount) FROM waterdriverreturns dr
+        WHERE dr.farmid = p_farmid AND dr.status IN ('Draft','Approved')
+          AND dr.returndate >= v_start AND dr.returndate < v_end), 0);
+
+    v_totallosses := (v_productionlosses + v_shortagelosses)::numeric(14,2);
+
+    v_netprofit := (v_totalincome - v_rawmaterialcost - v_productioncost
+                    - v_operatingexpenses - v_totallosses)::numeric(14,2);
+
+    v_bagsproduced := COALESCE((
+        SELECT SUM(b.bagsproduced - b.damagedbags)::int FROM waterproductionbatches b
+        WHERE b.farmid = p_farmid AND b.isdeleted = FALSE AND b.status = 'Approved'
+          AND b.productiondate >= p_fromdate AND b.productiondate <= p_todate), 0);
+
+    -- Bags sold = storefront sale items (excl. DeliveryRun) + driver-return bags sold.
+    v_storefrontbagssold := COALESCE((
+        SELECT SUM(si.quantity) FROM watersales s
+        INNER JOIN watersaleitems si ON si.watersaleid = s.watersaleid
+        WHERE s.farmid = p_farmid AND s.status NOT IN ('Cancelled')
+          AND COALESCE(s.sourcetype, '') <> 'DeliveryRun'
+          AND s.saledate >= v_start AND s.saledate < v_end), 0);
+
+    v_driverbagssold := COALESCE((
+        SELECT SUM(dr.bagssold) FROM waterdriverreturns dr
+        WHERE dr.farmid = p_farmid AND dr.status IN ('Draft','Approved')
+          AND dr.returndate >= v_start AND dr.returndate < v_end), 0);
+
+    -- T-SQL CAST(decimal AS INT) truncates toward zero; trunc() keeps that.
+    v_bagssold := trunc(v_storefrontbagssold + v_driverbagssold)::int;
+
+    v_profitmargin := (CASE WHEN v_totalincome > 0 THEN (v_netprofit / v_totalincome) * 100 ELSE 0 END)::numeric(8,2);
+    v_avgprofitperbag := (CASE WHEN v_bagssold > 0 THEN v_netprofit / v_bagssold ELSE 0 END)::numeric(14,2);
+
+    RETURN QUERY
+    SELECT p_fromdate, p_todate,
+           v_totalincome,
+           v_operatingexpenses,   -- operating only
+           v_rawmaterialcost,
+           v_productioncost,
+           v_totallosses,
+           v_netprofit,
+           v_profitmargin,
+           v_bagsproduced,
+           v_bagssold,
+           v_avgprofitperbag;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.spwaterreport_pllines(p_farmid text, p_startdate date, p_enddate date)
+ RETURNS TABLE(section text, linekey text, linelabel text, amount numeric, sortorder integer, isinformational boolean, entrycount integer)
+ LANGUAGE sql
+ STABLE
+AS $function$
+    -- periodpnl's own window, copied: half-open on the timestamp columns.
+    WITH bounds AS (
+        SELECT p_startdate::timestamp                              AS s,
+               p_enddate::timestamp + make_interval(days => 1)     AS e
+    ),
+    -- ---- Revenue -----------------------------------------------------------
+    rev AS (
+        SELECT 'StorefrontSales'::text AS k, 'Storefront sales'::text AS lbl,
+               COALESCE(SUM(s.totalamount), 0) AS amt, COUNT(*)::integer AS n, 1 AS ord
+        FROM   watersales s, bounds b
+        WHERE  s.farmid = p_farmid AND s.status NOT IN ('Cancelled')
+          AND  COALESCE(s.sourcetype, '') <> 'DeliveryRun'
+          AND  s.saledate >= b.s AND s.saledate < b.e
+        UNION ALL
+        -- Collections, not sales. periodpnl takes the driver's money rather than
+        -- the DeliveryRun sale rows so the two cannot double-count, and the
+        -- drilldown shows the returns for the same reason.
+        SELECT 'DeliveryCollections', 'Delivery-run collections',
+               COALESCE(SUM(dr.cashcollected + dr.momocollected
+                          + dr.bankcollected + dr.creditsalesamount), 0),
+               COUNT(*)::integer, 2
+        FROM   waterdriverreturns dr, bounds b
+        WHERE  dr.farmid = p_farmid AND dr.status IN ('Draft', 'Approved')
+          AND  dr.returndate >= b.s AND dr.returndate < b.e
+        UNION ALL
+        -- 425 (382): money paid on customer debts recorded by hand
+        SELECT 'DebtCollections', 'Customer debt collections', dc.total, dc.n, 4
+        FROM   bounds b CROSS JOIN LATERAL public.fnwaterpl_debtcollections(p_farmid, b.s, b.e) dc
+        UNION ALL
+        -- 424: credit notes -- allowances given, negative revenue
+        SELECT 'CreditNotes', 'Credit notes & allowances',
+               -COALESCE(SUM(cn.amount), 0), COUNT(*)::integer, 3
+        FROM   waterpayments cn, bounds b
+        WHERE  cn.farmid = p_farmid AND cn.sourcetype = 'CreditNote'
+          AND  COALESCE(cn.status, 'Posted') = 'Posted'
+          AND  cn.paymentdate >= b.s AND cn.paymentdate < b.e
+    ),
+    -- ---- Direct cost -------------------------------------------------------
+    direct AS (
+        -- 429: cash, on the payment date
+        SELECT 'RawMaterials'::text AS k, 'Raw materials (paid)'::text AS lbl,
+               x.total AS amt, x.n AS n, 11 AS ord
+        FROM   bounds b CROSS JOIN LATERAL public.fnwaterpl_rawmaterials(p_farmid, b.s, b.e) x
+        UNION ALL
+        -- DATE comparison, inclusive both ends. periodpnl's own shape; see header.
+        SELECT 'ProductionCost', 'Production cost',
+               COALESCE(SUM(pb.totalproductioncost), 0), COUNT(*)::integer, 12
+        FROM   waterproductionbatches pb
+        WHERE  pb.farmid = p_farmid AND pb.isdeleted = FALSE AND pb.status = 'Approved'
+          AND  pb.productiondate >= p_startdate AND pb.productiondate <= p_enddate
+    ),
+    -- ---- Operating / other cost -------------------------------------------
+    -- The general expense pool periodpnl counts, itemised by 282's own P&L line
+    -- so the P&L, the Expenses page and Financial Activity agree on the wording.
+    exp AS (
+        SELECT fnwaterexpense_plsection(l.line) AS sec,
+               l.line                           AS k,
+               fnwaterexpense_pllinelabel(l.line) AS lbl,
+               COALESCE(SUM(e.amount), 0)       AS amt,
+               COUNT(*)::integer                AS n
+        FROM   waterexpenses e
+        INNER  JOIN waterexpensecategories ec ON ec.waterexpensecategoryid = e.waterexpensecategoryid,
+               bounds b
+        -- Same four arguments fnwaterexpenserows passes, including the category
+        -- NAME and the item category. Anything less and a legacy row lands on a
+        -- different line here than it does on the Expenses page.
+        CROSS  JOIN LATERAL (SELECT fnwaterexpense_costtype(
+                                        e.financialcosttype::text, e.sourcetype::text,
+                                        ec.name::text, e.paymentmethod::text) AS ct) c
+        CROSS  JOIN LATERAL (SELECT fnwaterexpense_plline(
+                                        c.ct, e.sourcetype::text, ec.name::text,
+                                        fnwaterexpense_itemcategory(e.sourcetype::text, e.sourceid)) AS line) l
+        WHERE  e.farmid = p_farmid
+          AND  COALESCE(e.isdeleted, FALSE) = FALSE AND e.status = 'Approved'
+          AND  COALESCE(e.sourcetype, '') <> 'RawMaterialPurchase'
+          AND  COALESCE(e.sourcetype, '') <> 'WaterSupplierPayment'      -- 429
+          AND  COALESCE(e.sourcetype, '') <> 'WaterInternalUsage'        -- 431
+          AND  e.expensedate >= b.s AND e.expensedate < b.e
+        GROUP  BY 1, 2, 3
+    ),
+    deliv AS (
+        SELECT 'DeliveryExpenses'::text AS k, 'Delivery expenses'::text AS lbl,
+               COALESCE(SUM(de.amount), 0) AS amt, COUNT(*)::integer AS n
+        FROM   waterdeliveryexpenses de
+        JOIN   waterdriverreturns dr ON dr.waterdriverreturnid = de.waterdriverreturnid, bounds b
+        WHERE  dr.farmid = p_farmid AND dr.status IN ('Draft', 'Approved')
+          AND  de.isapproved = TRUE
+          AND  dr.returndate >= b.s AND dr.returndate < b.e
+    ),
+    -- ---- Losses ------------------------------------------------------------
+    loss AS (
+        SELECT 'ProductionLosses'::text AS k, 'Production losses'::text AS lbl,
+               COALESCE(SUM(pl.totalvalue), 0) AS amt, COUNT(*)::integer AS n, 61 AS ord
+        FROM   waterproductionlosses pl, bounds b
+        WHERE  pl.farmid = p_farmid
+          AND  pl.lossdate >= b.s AND pl.lossdate < b.e
+        UNION ALL
+        SELECT 'DriverShortages', 'Driver cash shortages',
+               COALESCE(SUM(dr.shortageamount), 0), COUNT(*) FILTER (WHERE dr.shortageamount <> 0)::integer, 62
+        FROM   waterdriverreturns dr, bounds b
+        WHERE  dr.farmid = p_farmid AND dr.status IN ('Draft', 'Approved')
+          AND  dr.returndate >= b.s AND dr.returndate < b.e
+    ),
+    -- ---- Informational: cash moved, profit did not -------------------------
+    fin AS (
+        SELECT 'OwnerContributions'::text AS k, 'Owner Contributions'::text AS lbl,
+               COALESCE(SUM(o.amount), 0) AS amt, COUNT(*)::integer AS n, 71 AS ord
+        FROM   waterownermoney o, bounds b
+        WHERE  o.farmid = p_farmid AND o.status = 'Posted'
+          AND  o.transactiontype = 'Contribution'
+          AND  o.transactiondate >= b.s AND o.transactiondate < b.e
+        UNION ALL
+        SELECT 'OwnerDraws', 'Owner Draws', COALESCE(SUM(o.amount), 0), COUNT(*)::integer, 72
+        FROM   waterownermoney o, bounds b
+        WHERE  o.farmid = p_farmid AND o.status = 'Posted'
+          AND  o.transactiontype = 'Draw'
+          AND  o.transactiondate >= b.s AND o.transactiondate < b.e
+        UNION ALL
+        SELECT 'LoansReceived', 'Loans Received', COALESCE(SUM(l.amountreceived), 0), COUNT(*)::integer, 73
+        FROM   waterloans l, bounds b
+        WHERE  l.farmid = p_farmid AND l.status NOT IN ('Reversed', 'Cancelled', 'Draft')
+          AND  l.loandate >= b.s AND l.loandate < b.e
+        UNION ALL
+        SELECT 'LoanPrincipalRepaid', 'Loan Principal Repaid',
+               COALESCE(SUM(pm.principalamount), 0), COUNT(*)::integer, 74
+        FROM   waterloanpayments pm, bounds b
+        WHERE  pm.farmid = p_farmid AND pm.status = 'Posted'
+          AND  pm.paymentdate >= b.s AND pm.paymentdate < b.e
+    ),
+    cap AS (
+        SELECT COALESCE(cat.categoryname, 'Other Assets')::text AS k,
+               COALESCE(SUM(cc.amount), 0) AS amt, COUNT(*)::integer AS n
+        FROM   watercapitalassetcosts cc
+        JOIN   watercapitalassets a ON a.watercapitalassetid = cc.watercapitalassetid
+        LEFT   JOIN waterassetcategories cat ON cat.waterassetcategoryid = a.waterassetcategoryid
+        WHERE  cc.farmid = p_farmid AND cc.status = 'Posted'
+          AND  cc.costdate >= p_startdate AND cc.costdate <= p_enddate
+        GROUP  BY COALESCE(cat.categoryname, 'Other Assets')
+    )
+    SELECT 'Revenue', rev.k, rev.lbl, rev.amt::numeric(14,2), rev.ord, FALSE, rev.n
+    FROM   rev WHERE rev.amt <> 0 OR rev.n > 0
+    UNION ALL
+    SELECT 'DirectCost', direct.k, direct.lbl, direct.amt::numeric(14,2), direct.ord, FALSE, direct.n
+    FROM   direct WHERE direct.amt <> 0 OR direct.n > 0
+    UNION ALL
+    -- 282's own section decides which band an expense line sits in, so a
+    -- depreciation or loan-interest row drops below Operating Profit rather
+    -- than inflating it. Both bands together still equal periodpnl's
+    -- totalexpenses, which is what keeps the statement reconciled.
+    SELECT exp.sec, exp.k, exp.lbl, exp.amt::numeric(14,2),
+           CASE exp.sec WHEN 'OperatingExpense' THEN 30 ELSE 50 END
+             + CASE exp.k WHEN 'Payroll' THEN 1 WHEN 'Utilities' THEN 2
+                          WHEN 'Transport' THEN 3 WHEN 'RepairsMaintenance' THEN 4
+                          WHEN 'Depreciation' THEN 1 WHEN 'LoanInterest' THEN 2
+                          WHEN 'LoanFees' THEN 3 ELSE 9 END,
+           FALSE, exp.n
+    FROM   exp WHERE exp.amt <> 0
+    UNION ALL
+    SELECT 'OperatingExpense', deliv.k, deliv.lbl, deliv.amt::numeric(14,2), 40, FALSE, deliv.n
+    FROM   deliv WHERE deliv.amt <> 0 OR deliv.n > 0
+    UNION ALL
+    -- 427 (382): money paid on supplier debts recorded by hand
+    SELECT 'OperatingExpense', 'SupplierDebtPayments', 'Supplier debt payments', x.total, 41, FALSE, x.n
+    FROM   bounds b CROSS JOIN LATERAL public.fnwaterpl_supplierdebtpayments(p_farmid, b.s, b.e) x
+    WHERE  x.total <> 0
+    UNION ALL
+    SELECT 'Loss', loss.k, loss.lbl, loss.amt::numeric(14,2), loss.ord, FALSE, loss.n
+    FROM   loss WHERE loss.amt <> 0
+    UNION ALL
+    SELECT 'Financing', fin.k, fin.lbl, fin.amt::numeric(14,2), fin.ord, TRUE, fin.n
+    FROM   fin WHERE fin.amt <> 0
+    UNION ALL
+    SELECT 'CapitalInvestment', cap.k, cap.k, cap.amt::numeric(14,2), 81, TRUE, cap.n
+    FROM   cap WHERE cap.amt <> 0
+    ORDER  BY 5, 2;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.spwaterreport_plexpensedetail(p_farmid text, p_startdate date, p_enddate date, p_linekey text DEFAULT NULL::text)
+ RETURNS TABLE(entrydate timestamp without time zone, reference text, party text, detail text, amount numeric)
+ LANGUAGE sql
+ STABLE
+AS $function$
+    SELECT e.expensedate, ('Expense #' || e.waterexpenseid)::text,
+           COALESCE(NULLIF(btrim(e.paidto), ''), 'Not recorded')::text,
+           COALESCE(NULLIF(btrim(e.description), ''), 'Expense')::text,
+           e.amount::numeric(14,2)
+    FROM   waterexpenses e
+    INNER  JOIN waterexpensecategories ec ON ec.waterexpensecategoryid = e.waterexpensecategoryid
+    CROSS  JOIN LATERAL (SELECT fnwaterexpense_costtype(
+                                    e.financialcosttype::text, e.sourcetype::text,
+                                    ec.name::text, e.paymentmethod::text) AS ct) c
+    CROSS  JOIN LATERAL (SELECT fnwaterexpense_plline(
+                                    c.ct, e.sourcetype::text, ec.name::text,
+                                    fnwaterexpense_itemcategory(e.sourcetype::text, e.sourceid)) AS line) l
+    WHERE  e.farmid = p_farmid
+      AND  COALESCE(e.isdeleted, FALSE) = FALSE AND e.status = 'Approved'
+      AND  COALESCE(e.sourcetype, '') <> 'RawMaterialPurchase'
+      AND  COALESCE(e.sourcetype, '') <> 'WaterSupplierPayment'          -- 429
+      AND  COALESCE(e.sourcetype, '') <> 'WaterInternalUsage'            -- 431
+      AND  e.expensedate >= p_startdate::timestamp
+      AND  e.expensedate <  p_enddate::timestamp + make_interval(days => 1)
+      AND  (p_linekey IS NULL OR l.line = p_linekey)
+    UNION ALL
+    SELECT dr.returndate, ('Delivery expense #' || de.waterdeliveryexpenseid)::text,
+           COALESCE(NULLIF(btrim(de.expensecategory), ''), 'Delivery')::text,
+           COALESCE(NULLIF(btrim(de.description), ''), 'Delivery expense')::text,
+           de.amount::numeric(14,2)
+    FROM   waterdeliveryexpenses de
+    JOIN   waterdriverreturns dr ON dr.waterdriverreturnid = de.waterdriverreturnid
+    WHERE  dr.farmid = p_farmid AND dr.status IN ('Draft', 'Approved')
+      AND  de.isapproved = TRUE
+      AND  dr.returndate >= p_startdate::timestamp
+      AND  dr.returndate <  p_enddate::timestamp + make_interval(days => 1)
+      AND  (p_linekey IS NULL OR p_linekey = 'DeliveryExpenses')
+    UNION ALL
+    -- 427
+    SELECT r.entrydate, ('SP-' || lpad(r.watersupplierpaymentid::text, 5, '0'))::text,
+           COALESCE(r.suppliername, 'Supplier')::text,
+           ('Paid on debt ' || COALESCE(r.debtnumber, '') || CASE WHEN r.fromcredit THEN ' (from an advance)' ELSE '' END)::text,
+           r.amount
+    FROM   public.fnwaterpl_supplierdebtpaymentrows(p_farmid, p_startdate::timestamp,
+                                                    p_enddate::timestamp + make_interval(days => 1)) r
+    WHERE  (p_linekey IS NULL OR p_linekey = 'SupplierDebtPayments')
+    ORDER  BY 1 DESC, 2;
+$function$;
+
+-- ----------------------------------------------------------- self-test ------
+DO $t$
+DECLARE v_bad integer;
+BEGIN
+    -- no P&L line or drill-down row carries an Internal Use expense any more
+    SELECT COUNT(*) INTO v_bad
+    FROM   (SELECT DISTINCT farmid FROM waterexpenses WHERE sourcetype = 'WaterInternalUsage') x
+    CROSS  JOIN LATERAL spwaterreport_plexpensedetail(x.farmid, DATE '2000-01-01', DATE '2100-01-01', NULL) d
+    WHERE  d.reference ILIKE '%internal use%' OR d.detail ILIKE 'Internal use:%';
+    IF v_bad > 0 THEN RAISE EXCEPTION '431: % Internal Use row(s) still in the P&L expense drill-down', v_bad; END IF;
+END
+$t$;
+
+COMMIT;

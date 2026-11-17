@@ -84,7 +84,8 @@ export default function BatchBirdReconciliationReport() {
     other: t.other + r.batchCulled + r.batchTransferred + r.batchOtherRemovals - r.batchAdditions,
     unalloc: t.unalloc + r.unallocatedLive, flockLive: t.flockLive + r.flockLiveBirds,
     live: t.live + r.totalLiveBirds, unexplained: t.unexplained + r.unexplained,
-  }), { original: 0, allocated: 0, sold: 0, mort: 0, other: 0, unalloc: 0, flockLive: 0, live: 0, unexplained: 0 }), [rows])
+    flockGone: t.flockGone + flockHistory(r) + flockSince(r) + (r.flockOtherChanges ?? 0),
+  }), { original: 0, allocated: 0, sold: 0, mort: 0, other: 0, unalloc: 0, flockLive: 0, live: 0, unexplained: 0, flockGone: 0 }), [rows])
 
   async function runChecks() {
     setChecking(true)
@@ -129,8 +130,9 @@ export default function BatchBirdReconciliationReport() {
 
             {error && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
               <Card label="Birds bought" value={n(totals.original)} />
+              <Card label="Gone from flocks" value={n(totals.flockGone)} />
               <Card label="Live in flocks" value={n(totals.flockLive)} />
               <Card label="Live, not yet in a flock" value={n(totals.unalloc)} />
               <Card label="Total live birds" value={n(totals.live)} tone="text-emerald-700" />
@@ -147,6 +149,10 @@ export default function BatchBirdReconciliationReport() {
                     <TableHead className="text-right">Batch-level sales</TableHead>
                     <TableHead className="text-right">Batch-level mortality</TableHead>
                     <TableHead className="text-right">Other dispositions</TableHead>
+                    <TableHead className="text-right" title="From each flock's opening position in Initial Farm Setup: died, sold, culled, transferred or otherwise lost before tracking began">Lost from flocks before setup</TableHead>
+                    <TableHead className="text-right">Flock deaths since setup</TableHead>
+                    <TableHead className="text-right">Sold / culled / moved from flocks since</TableHead>
+                    <TableHead className="text-right" title="Count corrections on production records, flock quantity adjustments, flock-to-flock transfers, and birds left in closed or deleted flocks">Other flock changes</TableHead>
                     <TableHead className="text-right">Unallocated live</TableHead>
                     <TableHead className="text-right">Current flock live birds</TableHead>
                     <TableHead className="text-right">Total live</TableHead>
@@ -157,9 +163,9 @@ export default function BatchBirdReconciliationReport() {
                 </TableHeader>
                 <TableBody>
                   {rows === null ? (
-                    <TableRow><TableCell colSpan={12} className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={16} className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" /></TableCell></TableRow>
                   ) : rows.length === 0 ? (
-                    <TableRow><TableCell colSpan={12} className="py-10 text-center text-slate-500">No batches yet.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={16} className="py-10 text-center text-slate-500">No batches yet.</TableCell></TableRow>
                   ) : rows.map((r) => (
                     <TableRow key={r.batchId} className="cursor-pointer hover:bg-slate-50" onClick={() => setDrill(r)}>
                       <TableCell>
@@ -171,6 +177,10 @@ export default function BatchBirdReconciliationReport() {
                       <TableCell className="text-right tabular-nums">{n(r.batchSold)}</TableCell>
                       <TableCell className="text-right tabular-nums">{n(r.batchMortality)}</TableCell>
                       <TableCell className="text-right tabular-nums">{n(r.batchCulled + r.batchTransferred + r.batchOtherRemovals - r.batchAdditions)}</TableCell>
+                      <TableCell className="text-right tabular-nums" title={historyBreakdown(r)}>{n(flockHistory(r))}</TableCell>
+                      <TableCell className="text-right tabular-nums">{n(r.flockRecordedMortality ?? 0)}</TableCell>
+                      <TableCell className="text-right tabular-nums" title={`Sold ${n(r.flockPostedSold ?? 0)} · culled ${n(r.flockCulled ?? 0)} · transferred ${n(r.flockTransferred ?? 0)}`}>{n(flockOutSince(r))}</TableCell>
+                      <TableCell className={`text-right tabular-nums ${(r.flockOtherChanges ?? 0) === 0 ? "text-slate-400" : "text-slate-700"}`}>{n(r.flockOtherChanges ?? 0)}</TableCell>
                       <TableCell className="text-right tabular-nums">{n(r.unallocatedLive)}</TableCell>
                       <TableCell className="text-right tabular-nums">{n(r.flockLiveBirds)}</TableCell>
                       <TableCell className="text-right font-medium tabular-nums">{n(r.totalLiveBirds)}</TableCell>
@@ -189,7 +199,8 @@ export default function BatchBirdReconciliationReport() {
               </Table>
             </div>
             <p className="text-xs text-slate-500">
-              Birds placed in a flock and lost later are on the flock (click a batch). Historical sales are history only: they put no cash in today
+              Every row adds up: originally allocated = lost from flocks before setup + flock deaths since + sold / culled / moved since
+              + other flock changes + current flock live birds. Click a batch for each flock. Historical sales are history only: they put no cash in today
               and are not this period&apos;s revenue; only money still owed appears, as an opening customer debt.
             </p>
 
@@ -246,14 +257,14 @@ export default function BatchBirdReconciliationReport() {
       </div>
 
       <Dialog open={drill !== null} onOpenChange={(o) => { if (!o) setDrill(null) }}>
-        <DialogContent className="w-[95vw] max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[96vw] max-h-[90vh] overflow-y-auto sm:max-w-[min(96vw,1440px)]">
           <DialogHeader><DialogTitle>{drill?.batchCode} — where the birds went</DialogTitle></DialogHeader>
           {!detail ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : (
             <div className="space-y-5 text-sm">
               <section>
                 <h3 className="mb-1 font-semibold text-slate-800">Flocks (flock-level history)</h3>
                 <div className="overflow-x-auto rounded-lg border">
-                  <Table>
+                  <Table className="[&_th]:whitespace-normal [&_th]:align-bottom [&_th]:leading-tight">
                     <TableHeader><TableRow>
                       <TableHead>Flock</TableHead><TableHead className="text-right">Originally placed</TableHead>
                       <TableHead className="text-right">Hist. mortality</TableHead><TableHead className="text-right">Hist. sold</TableHead>
@@ -284,7 +295,7 @@ export default function BatchBirdReconciliationReport() {
               <section>
                 <h3 className="mb-1 font-semibold text-slate-800">Bird movements</h3>
                 <div className="overflow-x-auto rounded-lg border">
-                  <Table>
+                  <Table className="[&_th]:whitespace-normal [&_th]:align-bottom [&_th]:leading-tight">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Pool</TableHead><TableHead>Reason</TableHead>
                       <TableHead className="text-right">Birds</TableHead><TableHead className="text-right">Before → after</TableHead>
@@ -312,7 +323,7 @@ export default function BatchBirdReconciliationReport() {
               <section>
                 <h3 className="mb-1 font-semibold text-slate-800">Historical sales</h3>
                 <div className="overflow-x-auto rounded-lg border">
-                  <Table>
+                  <Table className="[&_th]:whitespace-normal [&_th]:align-bottom [&_th]:leading-tight">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>From</TableHead><TableHead className="text-right">Birds</TableHead>
                       <TableHead className="text-right">Price</TableHead><TableHead className="text-right">Value</TableHead>
@@ -354,6 +365,25 @@ export default function BatchBirdReconciliationReport() {
       />
     </div>
   )
+}
+
+// Birds placed in a flock and lost before tracking began (the opening position).
+function flockHistory(r: BatchBirdReconciliationRow): number {
+  return (r.flockHistMortality ?? 0) + (r.flockHistSold ?? 0) + (r.flockHistCulled ?? 0)
+    + (r.flockHistTransferred ?? 0) + (r.flockHistOther ?? 0)
+}
+
+function historyBreakdown(r: BatchBirdReconciliationRow): string {
+  return `Died ${n(r.flockHistMortality ?? 0)} · sold ${n(r.flockHistSold ?? 0)} · culled ${n(r.flockHistCulled ?? 0)}`
+    + ` · transferred ${n(r.flockHistTransferred ?? 0)} · other ${n(r.flockHistOther ?? 0)}`
+}
+
+function flockOutSince(r: BatchBirdReconciliationRow): number {
+  return (r.flockPostedSold ?? 0) + (r.flockCulled ?? 0) + (r.flockTransferred ?? 0)
+}
+
+function flockSince(r: BatchBirdReconciliationRow): number {
+  return (r.flockRecordedMortality ?? 0) + flockOutSince(r)
 }
 
 function Card({ label, value, tone = "text-slate-900" }: { label: string; value: string; tone?: string }) {

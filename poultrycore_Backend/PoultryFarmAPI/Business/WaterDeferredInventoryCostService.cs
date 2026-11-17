@@ -33,6 +33,12 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<WaterDeferredRecognitionModel>> GetHistoryAsync(string farmId, int purchaseId);
 
         Task<List<WaterConsumptionCostLayerModel>> GetCostBreakdownAsync(string farmId, int productionBatchId);
+
+        // 428: cost for stock no purchase covers (poultry 371, same DTOs).
+        Task<List<ManualDeferredCostRow>> GetManualAsync(string farmId);
+        Task<List<UncoveredStockRow>> GetUncoveredStockAsync(string farmId);
+        Task<string> CreateManualAsync(ManualDeferredCostRequest r);
+        Task<decimal> ReverseManualAsync(int entryId, ManualDeferredCostReverseRequest r);
     }
 
     public class WaterDeferredInventoryCostService : IWaterDeferredInventoryCostService
@@ -252,5 +258,105 @@ namespace PoultryFarmAPIWeb.Business
             }
             return list;
         }
+        // ------------------------------------------------ 428 manual deferred cost
+
+        public async Task<List<ManualDeferredCostRow>> GetManualAsync(string farmId)
+        {
+            await using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT * FROM spwatermanualdeferredcost_list(p_farmid => @FarmId::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            var list = new List<ManualDeferredCostRow>();
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new ManualDeferredCostRow
+                {
+                    EntryId = Int(r, "entryid"),
+                    EntryNumber = StrN(r, "entrynumber") ?? string.Empty,
+                    PoultryRawMaterialPurchaseId = Int(r, "waterrawmaterialpurchaseid"),
+                    PoultryRawMaterialItemId = Int(r, "waterrawmaterialitemid"),
+                    ItemName = StrN(r, "itemname"),
+                    UnitOfMeasure = StrN(r, "unitofmeasure"),
+                    EntryType = StrN(r, "entrytype") ?? string.Empty,
+                    Amount = Dec(r, "amount"),
+                    Quantity = Dec(r, "quantity"),
+                    EffectiveDate = DtN(r, "effectivedate"),
+                    Recognised = Dec(r, "recognised"),
+                    Remaining = Dec(r, "remaining"),
+                    RemainingQuantity = Dec(r, "remainingquantity"),
+                    Reason = StrN(r, "reason") ?? string.Empty,
+                    Reference = StrN(r, "reference"),
+                    Notes = StrN(r, "notes"),
+                    Status = StrN(r, "status") ?? "Posted",
+                    CreatedBy = StrN(r, "createdby"),
+                    CreatedAt = DtN(r, "createdat"),
+                    ReversedBy = StrN(r, "reversedby"),
+                    ReversedAt = DtN(r, "reversedat"),
+                    ReversalReason = StrN(r, "reversalreason"),
+                    ReversedAmount = DecN(r, "reversedamount"),
+                });
+            }
+            return list;
+        }
+
+        public async Task<List<UncoveredStockRow>> GetUncoveredStockAsync(string farmId)
+        {
+            await using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT * FROM spwaterrawmaterial_uncoveredstock(p_farmid => @FarmId::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            var list = new List<UncoveredStockRow>();
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new UncoveredStockRow
+                {
+                    PoultryRawMaterialItemId = Int(r, "waterrawmaterialitemid"),
+                    ItemName = StrN(r, "itemname") ?? string.Empty,
+                    UnitOfMeasure = StrN(r, "unitofmeasure"),
+                    CurrentQuantity = Dec(r, "currentquantity"),
+                    UncoveredQuantity = Dec(r, "uncoveredquantity"),
+                });
+            }
+            return list;
+        }
+
+        public async Task<string> CreateManualAsync(ManualDeferredCostRequest q)
+        {
+            await using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                "SELECT spwatermanualdeferredcost_create(p_farmid => @FarmId::text, p_itemid => @Item::int, " +
+                "p_amount => @Amount::numeric, p_quantity => @Qty::numeric, p_effectivedate => @Date::date, " +
+                "p_entrytype => @Type::text, p_reason => @Reason::text, p_reference => @Ref::text, " +
+                "p_notes => @Notes::text, p_by => @By::text)::text", conn);
+            cmd.Parameters.AddWithValue("@FarmId", q.FarmId);
+            cmd.Parameters.AddWithValue("@Item", q.PoultryRawMaterialItemId);
+            cmd.Parameters.AddWithValue("@Amount", q.Amount);
+            cmd.Parameters.AddWithValue("@Qty", q.Quantity);
+            cmd.Parameters.AddWithValue("@Date", q.EffectiveDate.HasValue ? q.EffectiveDate.Value.Date : DBNull.Value);
+            cmd.Parameters.AddWithValue("@Type", q.EntryType ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Reason", q.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Ref", (object?)q.Reference ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes", (object?)q.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)q.CreatedBy ?? DBNull.Value);
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        public async Task<decimal> ReverseManualAsync(int entryId, ManualDeferredCostReverseRequest q)
+        {
+            await using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                "SELECT spwatermanualdeferredcost_reverse(p_farmid => @FarmId::text, p_entryid => @Id::int, " +
+                "p_reason => @Reason::text, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", q.FarmId);
+            cmd.Parameters.AddWithValue("@Id", entryId);
+            cmd.Parameters.AddWithValue("@Reason", q.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", (object?)q.ReversedBy ?? DBNull.Value);
+            return Convert.ToDecimal(await cmd.ExecuteScalarAsync());
+        }
+
     }
 }

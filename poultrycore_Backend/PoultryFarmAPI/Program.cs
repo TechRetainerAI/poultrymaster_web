@@ -307,6 +307,7 @@ builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(con
 // of the line above. Also serves the structured payroll deductions, because
 // a loan repayment deduction is the reason that table exists.
 builder.Services.AddScoped<IPoultryEmployeeLoanService>(sp => new PoultryEmployeeLoanService(connectionString));
+builder.Services.AddScoped<IPoultryEmployeeCreditService>(sp => new PoultryEmployeeCreditService(connectionString));
 // 318. Per-user, per-company Quick Links. A preference store, not an access one.
 builder.Services.AddScoped<IUserQuickLinkService>(sp => new UserQuickLinkService(connectionString));
 // 329/330. Platform billing: the Business Office's consolidated subscription.
@@ -377,6 +378,7 @@ builder.Services.AddScoped<IWaterProfitLossService>(sp => new WaterProfitLossSer
 builder.Services.AddScoped<IPoultryStaffService>(sp => new PoultryStaffService(connectionString));
 builder.Services.AddScoped<IPoultryStaffAttendanceService>(sp => new PoultryStaffAttendanceService(connectionString));
 builder.Services.AddScoped<IPoultryPayrollService>(sp => new PoultryPayrollService(connectionString));
+builder.Services.AddScoped<IPoultryPayrollTemplateService>(sp => new PoultryPayrollTemplateService(connectionString));   // 419
 
 // Phase W5: Water Company profile (setup metadata: brand, business type,
 // water source, default currency/bag-sachet count, owner contact). Setup SP
@@ -432,6 +434,7 @@ builder.Services.AddScoped<IGenericCompanyService>(sp => new GenericCompanyServi
 builder.Services.AddScoped<IGenericProductService>(sp => new GenericProductService(connectionString));
 builder.Services.AddScoped<IGenericServiceCatalogService>(sp => new GenericServiceCatalogService(connectionString));
 builder.Services.AddScoped<IGenericInventoryService>(sp => new GenericInventoryService(connectionString));
+builder.Services.AddScoped<IGenericProductionRecordService>(sp => new GenericProductionRecordService(connectionString));
 builder.Services.AddScoped<IGenericDeliveryService>(sp => new GenericDeliveryService(connectionString));
 builder.Services.AddScoped<IGenericDriverService>(sp => new GenericDriverService(connectionString));
 builder.Services.AddScoped<IGenericRouteService>(sp => new GenericRouteService(connectionString));
@@ -522,6 +525,7 @@ builder.Services.AddScoped<IHotelMoneyService>(sp => new HotelMoneyService(conne
 builder.Services.AddScoped<IHotelBalanceService>(sp => new HotelBalanceService(connectionString));
 builder.Services.AddScoped<IHotelSuppliesService>(sp => new HotelSuppliesService(connectionString));
 builder.Services.AddScoped<IHotelFinancialActivityService>(sp => new HotelFinancialActivityService(connectionString));
+builder.Services.AddScoped<IGenericFinancialActivityService>(sp => new GenericFinancialActivityService(connectionString));
 // =================================================================
 
 // =================================================================

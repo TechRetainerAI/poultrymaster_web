@@ -18,8 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatCurrency } from "@/lib/utils/currency"
-import { getSuppliers } from "@/lib/api/supplier"
-import { getUserContext } from "@/lib/api/config"
+import { listCreditSuppliers } from "@/lib/api/credit-module"
 import {
   createSupplierDebt, SUPPLIER_DEBT_ENTRY_LABEL, type SupplierDebtEntryType,
 } from "@/lib/api/supplier-credit"
@@ -54,12 +53,8 @@ export function SupplierDebtDialog({ open, currencyCode, onOpenChange, onCreated
     if (!open) return
     setSupplierId(""); setAmount(""); setDate(today()); setEntryType("OpeningBalance")
     setDescription(""); setReference(""); setNotes(""); setError(null)
-    const { userId, farmId } = getUserContext()
-    getSuppliers(userId, farmId)
-      .then((r) => setSuppliers((r?.data ?? [])
-        .map((x) => ({ id: Number(x.supplierId), name: String(x.name ?? "") }))
-        .filter((x) => x.id > 0 && x.name)
-        .sort((a, b) => a.name.localeCompare(b.name))))
+    listCreditSuppliers()
+      .then(setSuppliers)
       .catch(() => setSuppliers([]))
   }, [open])
 

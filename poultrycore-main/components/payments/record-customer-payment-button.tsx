@@ -22,6 +22,7 @@ import { getSuppliers } from "@/lib/api/supplier"
 import { getUserContext } from "@/lib/api/config"
 import { listPoultryCashAccounts } from "@/lib/api/poultry-finance"
 import type { PartyBalanceRow } from "@/lib/api/balances"
+import { creditModule, listCreditCashAccounts, listCreditCustomers, listCreditSuppliers } from "@/lib/api/credit-module"
 
 export function RecordCustomerPaymentButton({ onPosted }: { onPosted: () => void }) {
   return <RecordPartyPaymentButton side="customer" onPosted={onPosted} />
@@ -40,19 +41,28 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
     if (!pickOpen) return
     setCustomerId("")
     const { userId, farmId } = getUserContext()
-    const people: Promise<{ id: number; name: string }[]> = isCustomer
+    // 425: on a Water company the customers are water customers, and a customer
+    // payment posts no cash (it is counted at the daily closing) -- no accounts.
+    const water = creditModule() === "Water"
+    const people: Promise<{ id: number; name: string }[]> = isCustomer && water
+      ? listCreditCustomers()
+      : isCustomer
       ? getCustomers(userId, farmId).then((r: any) => {
           const list = (r?.success ? r.data : r) ?? []
           return (Array.isArray(list) ? list : [])
             .map((c: any) => ({ id: Number(c.customerId ?? c.id), name: String(c.name ?? c.customerName ?? "") }))
         })
+      : water
+      ? listCreditSuppliers()
       : getSuppliers(userId, farmId).then((r) => (r?.data ?? []).map((x) => ({ id: Number(x.supplierId), name: String(x.name ?? "") })))
     people
       .then((list) => setCustomers(list
         .filter((c) => c.id > 0 && c.name)
         .sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => setCustomers([]))
-    listPoultryCashAccounts()
+    if (water && isCustomer) { setCashAccounts([]); return }
+    // 426: water supplier payments post cash from a water account
+    ;(water ? listCreditCashAccounts() : listPoultryCashAccounts())
       .then((accounts) => setCashAccounts(accounts
         .filter((a) => a.isActive)
         .map((a) => ({
@@ -115,7 +125,7 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
       <RecordPaymentDialog
         open={!!party}
         onOpenChange={(o) => { if (!o) setParty(null) }}
-        module="poultry"
+        module={creditModule() === "Water" ? "water" : "poultry"}
         side={side}
         party={party}
         cashAccounts={cashAccounts}

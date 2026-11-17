@@ -32,7 +32,7 @@ import { usePagination } from "@/hooks/use-pagination"
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
-import { Loader2, Play, Receipt, RefreshCw } from "lucide-react"
+import { Loader2, Play, Receipt, RefreshCw, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -159,6 +159,7 @@ export default function GenericBillingRunsPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Receipt className="h-6 w-6 text-indigo-600" /> Billing runs
               </h1>

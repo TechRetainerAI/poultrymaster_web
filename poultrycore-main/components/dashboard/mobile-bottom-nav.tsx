@@ -66,7 +66,7 @@ import {
   Repeat,
   CalendarClock,
   ArrowLeftRight,
-  HandCoins, TrendingUp, Hourglass,
+  HandCoins, TrendingUp, Hourglass, PiggyBank
 } from "lucide-react"
 import {
   Sheet,
@@ -292,12 +292,14 @@ export function MobileBottomNav() {
               { href: "/water-sales",             label: "Sales",             icon: ShoppingCart },
               { href: "/water-payments",          label: "Payments",          icon: CreditCard },
               { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
+              { href: "/water-customer-credits",  label: "Customer Credits",  icon: PiggyBank },
             ] as NavItem[]) },
             { title: "Expenses", items: gateWater([
               { href: "/water-expenses",          label: "Expenses",          icon: Receipt },
               { href: "/water-payroll",           label: "Payroll",           icon: Banknote },
               { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
               { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+              { href: "/water-supplier-credits",  label: "Supplier Credits",  icon: PiggyBank },
               // Stock cost that has not become an expense yet — filed beside
               // the expenses it explains, matching the sidebar and top nav.
               { href: "/water-deferred-costs",    label: "Deferred inventory cost", icon: Hourglass },

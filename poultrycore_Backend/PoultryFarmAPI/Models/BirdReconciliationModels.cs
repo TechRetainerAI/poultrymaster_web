@@ -93,6 +93,22 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
     }
 
+    /// <summary>436: correct a historical bird sale. The birds are not changed
+    /// here -- a different count is Reverse, then enter it again.</summary>
+    public class HistoricalSaleUpdateRequest
+    {
+        [Required] public string FarmId { get; set; } = string.Empty;
+        [Required] public DateTime SaleDate { get; set; }
+        public bool ValueUnknown { get; set; }
+        public decimal? PricePerBird { get; set; }
+        /// <summary>Null = the full value was received.</summary>
+        public decimal? AmountReceived { get; set; }
+        public int? CustomerId { get; set; }
+        [StringLength(200)] public string? Reference { get; set; }
+        public string? Notes { get; set; }
+        public string? UpdatedBy { get; set; }
+    }
+
     public class BatchReconciliationReverseRequest
     {
         [Required] public string FarmId { get; set; } = string.Empty;
@@ -148,6 +164,22 @@ namespace PoultryFarmAPIWeb.Models
         public string Status { get; set; } = string.Empty;
         public DateTime? LastReconciledAt { get; set; }
         public string? LastReconciliationNo { get; set; }
+
+        // 420: where the birds PLACED IN FLOCKS went. Together with FlockLiveBirds
+        // these add up to OriginallyAllocated exactly.
+        /// <summary>Opening position (Initial Farm Setup): lost before tracking began.</summary>
+        public int FlockHistMortality { get; set; }
+        public int FlockHistSold { get; set; }
+        public int FlockHistCulled { get; set; }
+        public int FlockHistTransferred { get; set; }
+        public int FlockHistOther { get; set; }
+        /// <summary>Since tracking began: production-record deaths, posted bird sales, closeout culls / transfers.</summary>
+        public int FlockRecordedMortality { get; set; }
+        public int FlockPostedSold { get; set; }
+        public int FlockCulled { get; set; }
+        public int FlockTransferred { get; set; }
+        /// <summary>Signed remainder: count corrections, quantity adjustments, birds left in closed or deleted flocks.</summary>
+        public int FlockOtherChanges { get; set; }
     }
 
     public class BirdRepairDiagnosticRow

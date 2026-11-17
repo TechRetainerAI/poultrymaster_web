@@ -20,7 +20,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   BarChart3, Boxes, CreditCard, DollarSign, Repeat, Scale, ShoppingCart,
-  TrendingUp, Truck, Users, Users2, Wallet, AlertTriangle, Cloud,
+  TrendingUp, Truck, Users, Users2, Wallet, AlertTriangle, Cloud, ArrowLeft,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -41,10 +41,16 @@ interface ReportCard {
 function coreReports(l: TemplateLabels): ReportCard[] {
   return [
     { href: "/generic-reports/period-pnl", title: "Profit & loss", description: "Income, expenses, cost-of-goods-sold and profit for any date range.", icon: DollarSign, accent: "emerald" },
+    { href: "/generic-reports/daily-summary", title: "Daily business summary", description: "Today's snapshot: sales, expenses, profit, cash positions and alerts.", icon: BarChart3, accent: "sky" },
     { href: "/generic-reports/cash-summary", title: "Cash flow", description: "Money in, money out and the closing balance of every cash account.", icon: Wallet, accent: "slate" },
     { href: "/generic-reports/expenses-by-category", title: "Expense report", description: "Where the money went — by category, by supplier, and month by month.", icon: BarChart3, accent: "amber" },
-    { href: "/generic-customer-balances", title: `${l.customerBalance} report`, description: `Who owes what, how old it is, and every open ${l.invoice.toLowerCase()} behind it.`, icon: Scale, accent: "cyan" },
-    { href: "/generic-supplier-balances", title: "Supplier balances", description: "What is owed to suppliers, aged, with the bills behind each balance.", icon: Truck, accent: "orange" },
+    { href: "/generic-reports/closing-report", title: "Closing report", description: "Every daily closing with cash reconciliation and approval status.", icon: BarChart3, accent: "slate" },
+    { href: "/generic-reports/closing-by-category", title: "Closing by category", description: "Period totals from approved daily closings, grouped into financial categories.", icon: BarChart3, accent: "slate" },
+    { href: "/generic-reports/customer-balance", title: "Customer balance", description: "Who owes what, who has credit on account, and which customers are over their limit.", icon: Users, accent: "cyan" },
+    { href: "/generic-reports/supplier-balance", title: "Supplier balance", description: "What is owed to suppliers, any advances paid, and net payable position.", icon: Truck, accent: "orange" },
+    { href: "/generic-reports/cash-accounts", title: "Cash account report", description: "Per-account opening, money in, money out and closing, with reconciliation status.", icon: Wallet, accent: "slate" },
+    { href: "/generic-reports/cash-movement", title: "Cash movement", description: "Every cash inflow and outflow across all accounts, by type and source.", icon: Wallet, accent: "sky" },
+    { href: "/generic-reports/money-movement", title: "Money movement", description: "Cash transfers, owner money and loans — what moved but is not income or expense.", icon: Wallet, accent: "violet" },
     { href: "/generic-reports/staff-cost", title: "Staff & contractor cost", description: "Everything paid to people — staff payments and payroll — by person, month and role.", icon: Users2, accent: "violet" },
   ]
 }
@@ -103,6 +109,7 @@ export default function GenericReportsHubPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4">
+            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <BarChart3 className="h-6 w-6 text-slate-700" /> Reports
             </h1>

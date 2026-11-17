@@ -19,6 +19,7 @@ import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
+  createCustomer,
   createSale,
   getCashAccounts,
   getCustomers,
@@ -28,6 +29,28 @@ import {
   type GenericProduct,
   type GenericSaleItem,
 } from "@/lib/api/generic"
+
+/** Find or create a walk-in customer record so walk-in sales are tracked. */
+async function resolveWalkInCustomer(
+  name: string,
+  existing: GenericCustomer[],
+): Promise<{ id: number; customer: GenericCustomer | null }> {
+  const trimmed = name.trim()
+  const match = existing.find(
+    (c) => c.customerName.toLowerCase() === trimmed.toLowerCase() && c.customerType === "Walk-in",
+  )
+  if (match) return { id: match.genericCustomerId, customer: match }
+  const created = await createCustomer({
+    customerName: trimmed,
+    customerType: "Walk-in",
+    creditLimit: 0,
+    paymentTermsDays: 0,
+    openingBalance: 0,
+    isActive: true,
+    notes: "Auto-created from walk-in sale",
+  })
+  return { id: created?.genericCustomerId ?? 0, customer: created }
+}
 
 const SALES_TYPES = [
   "WalkInSale", "CustomerSale", "ProductSale", "ServiceSale", "MixedSale",
@@ -99,7 +122,7 @@ export default function NewGenericSalePage() {
         const [cs, ps, as] = await Promise.all([getCustomers(), getProducts(), getCashAccounts()])
         if (cancelled) return
         setCustomers(cs)
-        setProducts(ps)
+        setProducts(ps.filter((p) => p.canSell === true || (p.canSell == null && p.itemType !== "SupplyItem")))
         setCashAccounts(as)
         // Default to first active cash account
         const defaultId = modules.businessSettings?.defaultCashAccountForPayments
@@ -158,9 +181,21 @@ export default function NewGenericSalePage() {
 
     setSaving(true)
     try {
+      // Auto-create walk-in customer if name provided
+      let resolvedCustomerId = header.genericCustomerId ? Number(header.genericCustomerId) : null
+      if (!header.genericCustomerId && walkInName.trim()) {
+        const { id, customer } = await resolveWalkInCustomer(walkInName, customers)
+        if (id) {
+          resolvedCustomerId = id
+          if (customer && !customers.some((c) => c.genericCustomerId === id)) {
+            setCustomers((prev) => [...prev, customer])
+          }
+        }
+      }
+
       const created = await createSale({
         saleDate: header.saleDate,
-        genericCustomerId: header.genericCustomerId ? Number(header.genericCustomerId) : null,
+        genericCustomerId: resolvedCustomerId,
         salesType: header.salesType,
         salesChannel: null,
         headerDiscountAmount: Number(header.headerDiscountAmount) || 0,
@@ -169,9 +204,7 @@ export default function NewGenericSalePage() {
         paymentMethod: header.paymentMethod,
         genericCashAccountId: header.genericCashAccountId ? Number(header.genericCashAccountId) : null,
         receiptNumber: header.receiptNumber || null,
-        notes: !header.genericCustomerId && walkInName.trim()
-          ? (header.notes ? `Customer: ${walkInName.trim()} | ${header.notes}` : `Customer: ${walkInName.trim()}`)
-          : (header.notes || null),
+        notes: header.notes || null,
         items,
       })
       if (created) {
@@ -194,6 +227,7 @@ export default function NewGenericSalePage() {
           <Link href="/generic-sales" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
             <ArrowLeft className="h-3 w-3 mr-1" /> Back to sales
           </Link>
+          <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
           <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2 mb-4">
             <ShoppingCart className="h-6 w-6 text-emerald-600" /> New sale
           </h1>

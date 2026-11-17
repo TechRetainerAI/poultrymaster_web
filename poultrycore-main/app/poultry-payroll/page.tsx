@@ -2,7 +2,7 @@
 
 import { CANCEL_REASONS, REOPEN_REASONS } from "@/lib/reversal-reasons"
 import { ReasonSelect } from "@/components/ui/reason-select"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -18,7 +18,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Loader2, Banknote, Eye, Users, Trash2, CheckCircle2, RotateCcw, XCircle, HandCoins } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PayrollTemplatesPanel } from "@/components/poultry/payroll-templates"
+import { usePermissions } from "@/hooks/use-permissions"
+import { Plus, Loader2, Banknote, Eye, Users, Trash2, CheckCircle2, RotateCcw, XCircle, HandCoins, Pencil, PiggyBank } from "lucide-react"
 import Link from "next/link"
 import {
   PayrollDeductionsDialog, type PayrollDeductionTarget,
@@ -38,7 +41,9 @@ import {
   unapprovePoultryPayrollRun, deletePoultryPayrollRun,
   listPoultryCashAccounts, listPoultryStaff,
   POULTRY_PAYMENT_METHODS,
-  type PoultryPayrollRun, type PoultryCashAccount, type PoultryStaff,
+  listPoultryPayrollTemplates, createPoultryPayrollRunFromTemplate, nextPayrollPeriod,
+  type PoultryPayrollTemplate,
+  type PoultryPayrollRun, type PoultryPayrollItem, type PoultryCashAccount, type PoultryStaff,
 } from "@/lib/api/poultry-finance"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
@@ -55,7 +60,7 @@ const STATUS_STYLE: Record<string, string> = {
  * What payroll will take off for one advance.
  *
  * ONE definition, used by three things that must agree: the panel that promises
- * it before the line is saved, the Deductions box that is pre-filled with it,
+ * it before the line is saved, the net pay preview on the line form,
  * and autoAddSuggestedDeductions which actually posts it. Three copies of this
  * arithmetic would eventually promise one number and deduct another.
  *
@@ -82,6 +87,11 @@ export default function PoultryPayrollPage() {
   const [staff, setStaff] = useState<PoultryStaff[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
+  // 419. Payroll templates.
+  const { canEdit } = usePermissions()
+  const [tab, setTab] = useState<"runs" | "templates">("runs")
+  const [templates, setTemplates] = useState<PoultryPayrollTemplate[]>([])
+  const [templatesRefresh, setTemplatesRefresh] = useState(0)
 
   const visible = useMemo(() => statusFilter === "all" ? runs : runs.filter(r => r.status === statusFilter), [runs, statusFilter])
 
@@ -91,13 +101,21 @@ export default function PoultryPayrollPage() {
 
   // create run
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ periodStart: today(), periodEnd: today(), payDate: "", poultryCashAccountId: 0, notes: "" })
+  const blankForm = () => ({ templateId: 0, periodStart: today(), periodEnd: today(), payDate: "", poultryCashAccountId: 0, notes: "" })
+  const [form, setForm] = useState(blankForm())
   const [saving, setSaving] = useState(false)
 
   // items dialog
   const [itemsRun, setItemsRun] = useState<PoultryPayrollRun | null>(null)
   // 306. Which payslip line's deduction breakdown is open, if any.
   const [deductionsFor, setDeductionsFor] = useState<PayrollDeductionTarget | null>(null)
+  const openDeductions = (it: { poultryPayrollItemId: number; poultryStaffId: number; staffName?: string | null }, runStatus: string) =>
+    setDeductionsFor({
+      poultryPayrollItemId: it.poultryPayrollItemId,
+      poultryStaffId: it.poultryStaffId,
+      staffName: it.staffName ?? `#${it.poultryStaffId}`,
+      runStatus,
+    })
   /**
    * Section 50. Which lines have advances outstanding, keyed by payroll item.
    *
@@ -116,8 +134,28 @@ export default function PoultryPayrollPage() {
    */
   const [staffLoans, setStaffLoans] = useState<PoultryEmployeeLoanEligible[]>([])
   const [staffLoansBusy, setStaffLoansBusy] = useState(false)
-  const [itemForm, setItemForm] = useState({ poultryStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash", notes: "" })
+  // 442. `deductions` is the typed "Other deductions" ONLY. Advance repayments
+  // and the kept wage are separate rows the server keeps; `keepCredit` is the
+  // kept wage, saved in the same call as the line.
+  const blankItemForm = () => ({ poultryStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, keepCredit: 0, paymentMethod: "Cash", notes: "" })
+  /**
+   * What is already on the line being edited, besides the typed figure:
+   * advance repayments and items added from the Deductions breakdown. Shown
+   * read-only so the net pay preview adds up.
+   */
+  const [lineFixed, setLineFixed] = useState({ advances: 0, otherItems: 0 })
+  const [itemForm, setItemForm] = useState(blankItemForm())
   const [itemSaving, setItemSaving] = useState(false)
+  /**
+   * The line being edited, if any. Saving still goes through the same upsert
+   * (the server matches on run + staff), so this only changes what the form
+   * shows: the line's own figures instead of the staff defaults, the staff
+   * locked, and "Save changes" instead of "Add line".
+   */
+  const [editingItemId, setEditingItemId] = useState<number | null>(null)
+  /** Advances already deducted on the line being edited -- shown as such, not as "will deduct". */
+  const [onLineLoanIds, setOnLineLoanIds] = useState<Set<number>>(new Set())
+  const itemFormRef = useRef<HTMLDivElement>(null)
 
   // mark paid
   const [paidRun, setPaidRun] = useState<PoultryPayrollRun | null>(null)
@@ -138,13 +176,29 @@ export default function PoultryPayrollPage() {
   async function load() {
     setLoading(true)
     try {
-      const [r, a, s] = await Promise.all([listPoultryPayrollRuns(), listPoultryCashAccounts(), listPoultryStaff()])
-      setRuns(r); setAccounts(a); setStaff(s)
+      const [r, a, s, t] = await Promise.all([
+        listPoultryPayrollRuns(), listPoultryCashAccounts(), listPoultryStaff(),
+        listPoultryPayrollTemplates().catch(() => [] as PoultryPayrollTemplate[]),   // 419; empty until migrated
+      ])
+      setRuns(r); setAccounts(a); setStaff(s); setTemplates(t)
     } catch (e: any) { toast({ title: "Could not load payroll", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
+  /** 419. Pick a template in New payroll run: next period + its cash account. */
+  function pickTemplate(templateId: number, t?: PoultryPayrollTemplate) {
+    const tpl = t ?? templates.find((x) => x.poultryPayrollTemplateId === templateId)
+    if (!tpl) { setForm((f) => ({ ...f, templateId: 0 })); return }
+    const p = nextPayrollPeriod(tpl, today())
+    setForm((f) => ({ ...f, templateId: tpl.poultryPayrollTemplateId, periodStart: p.periodStart, periodEnd: p.periodEnd,
+      payDate: p.periodEnd, poultryCashAccountId: tpl.poultryCashAccountId ?? 0 }))
+  }
+  function startFromTemplate(t: PoultryPayrollTemplate) {
+    setForm(blankForm()); pickTemplate(t.poultryPayrollTemplateId, t); setTab("runs"); setOpen(true)
+  }
+
   async function createRun() {
+    if (form.templateId) return createRunFromTemplate()
     setSaving(true)
     try {
       await createPoultryPayrollRun({
@@ -154,8 +208,39 @@ export default function PoultryPayrollPage() {
         notes: form.notes || null,
       })
       toast({ title: "Payroll run created" })
-      setOpen(false); setForm({ periodStart: today(), periodEnd: today(), payDate: "", poultryCashAccountId: 0, notes: "" })
+      setOpen(false); setForm(blankForm())
       await load()
+    } catch (e: any) { toast({ title: "Could not create run", description: e?.message, variant: "destructive" }) }
+    finally { setSaving(false) }
+  }
+
+  /**
+   * 419. Create the run from the template (one Draft line per active staff
+   * member), then add each worker's scheduled advance repayments exactly as
+   * adding a line by hand does, and open the lines for review.
+   */
+  async function createRunFromTemplate() {
+    setSaving(true)
+    try {
+      const { poultryPayrollRunId } = await createPoultryPayrollRunFromTemplate(form.templateId, {
+        periodStart: form.periodStart, periodEnd: form.periodEnd,
+        payDate: form.payDate || null,
+        poultryCashAccountId: form.poultryCashAccountId || null,
+        notes: form.notes || null,
+      })
+      const created = await getPoultryPayrollRun(poultryPayrollRunId)
+      const added: string[] = []
+      for (const it of created.items ?? []) added.push(...await autoAddSuggestedDeductions(it, it.poultryStaffId))
+      toast({
+        title: `Payroll run created with ${(created.items ?? []).length} staff`,
+        description: added.length > 0
+          ? `Advance repayments added: ${added.join(", ")}. Review the lines, then approve.`
+          : "Review the lines (change anything different this period), then approve.",
+      })
+      setOpen(false); setForm(blankForm())
+      setTemplatesRefresh((n) => n + 1)
+      await load()
+      await openItems(created)
     } catch (e: any) { toast({ title: "Could not create run", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -176,7 +261,7 @@ export default function PoultryPayrollPage() {
     try {
       const full = await getPoultryPayrollRun(run.poultryPayrollRunId)
       setItemsRun(full)
-      setItemForm({ poultryStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash", notes: "" })
+      resetItemForm()
       void loadLoanHints(run.poultryPayrollRunId)
     } catch (e: any) { toast({ title: "Could not open run", description: e?.message, variant: "destructive" }) }
   }
@@ -258,16 +343,26 @@ export default function PoultryPayrollPage() {
     if (!itemForm.poultryStaffId) return toast({ title: "Pick a staff member", variant: "destructive" })
     setItemSaving(true)
     try {
+      const other = Number(itemForm.deductions) || 0
+      const keep = Number(itemForm.keepCredit) || 0
       const saved = await upsertPoultryPayrollItem(itemsRun.poultryPayrollRunId, {
         poultryStaffId: itemForm.poultryStaffId,
         basicPay: Number(itemForm.basicPay) || 0, dailyWage: Number(itemForm.dailyWage) || 0,
         commission: Number(itemForm.commission) || 0, bonus: Number(itemForm.bonus) || 0,
-        deductions: Number(itemForm.deductions) || 0, paymentMethod: itemForm.paymentMethod, notes: itemForm.notes || null,
+        deductions: other + keep, paymentMethod: itemForm.paymentMethod, notes: itemForm.notes || null,
+        otherDeductions: other, employeeCredit: keep,
       })
       const added = await autoAddSuggestedDeductions(saved, itemForm.poultryStaffId)
-      setItemForm({ poultryStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash", notes: "" })
-      setStaffLoans([])
+      const wasEditing = editingItemId != null
+      const staffName = staff.find(s => s.poultryStaffId === itemForm.poultryStaffId)
+      resetItemForm()
       await refreshItems(itemsRun.poultryPayrollRunId)
+      if (keep > 0) {
+        toast({
+          title: wasEditing ? "Line updated" : "Line added",
+          description: `${gh(keep)} will be kept for ${staffName ? `${staffName.firstName} ${staffName.lastName}` : "this worker"} as employee credit when the payroll is approved.`,
+        })
+      } else if (wasEditing && added.length === 0) toast({ title: "Line updated" })
       if (added.length > 0) {
         toast({
           title: added.length === 1 ? "Advance repayment added" : `${added.length} advance repayments added`,
@@ -279,25 +374,83 @@ export default function PoultryPayrollPage() {
   }
   async function removeItem(itemId: number) {
     if (!itemsRun) return
-    try { await deletePoultryPayrollItem(itemId); await refreshItems(itemsRun.poultryPayrollRunId) }
+    try {
+      await deletePoultryPayrollItem(itemId)
+      if (editingItemId === itemId) resetItemForm()
+      await refreshItems(itemsRun.poultryPayrollRunId)
+    }
     catch (e: any) { toast({ title: "Could not remove line", description: e?.message, variant: "destructive" }) }
   }
+  function resetItemForm() {
+    setItemForm(blankItemForm())
+    setEditingItemId(null)
+    setOnLineLoanIds(new Set())
+    setStaffLoans([])
+    setLineFixed({ advances: 0, otherItems: 0 })
+  }
   function prefillFromStaff(staffId: number) {
+    // Already on this run? Then this is an edit, not a new line -- load what
+    // the line holds, or saving would reset its other figures to 0.
+    const existing = (itemsRun?.items ?? []).find(it => it.poultryStaffId === staffId)
+    if (existing) { startEditItem(existing); return }
     const s = staff.find(x => x.poultryStaffId === staffId)
     setItemForm((f) => ({ ...f, poultryStaffId: staffId, basicPay: s ? s.basePay : f.basicPay }))
     void loadStaffLoans(staffId)
   }
+  function startEditItem(it: PoultryPayrollItem) {
+    setEditingItemId(it.poultryPayrollItemId)
+    setItemForm({
+      poultryStaffId: it.poultryStaffId,
+      basicPay: Number(it.basicPay) || 0, dailyWage: Number(it.dailyWage) || 0,
+      commission: Number(it.commission) || 0, bonus: Number(it.bonus) || 0,
+      // Split into other / kept by loadStaffLoans once the breakdown arrives.
+      deductions: 0, keepCredit: 0,
+      paymentMethod: it.paymentMethod || "Cash", notes: it.notes ?? "",
+    })
+    void loadStaffLoans(it.poultryStaffId, it.poultryPayrollItemId)
+    itemFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
 
-  async function loadStaffLoans(staffId: number) {
+  /**
+   * Advances for the staff in the form. For a NEW line the auto repayment is
+   * shown in the net pay preview and added as its own row on save. For a line
+   * being EDITED (442) the line's breakdown is split back into the two boxes
+   * the form edits -- typed Other deductions and the kept wage -- and the rest
+   * (advances, items from the breakdown dialog) is shown, not edited. Advances
+   * already on the line are marked so the hint does not promise a second
+   * deduction.
+   */
+  async function loadStaffLoans(staffId: number, editingId?: number) {
     if (!staffId) { setStaffLoans([]); return }
     setStaffLoansBusy(true)
     try {
-      const list = await listEligiblePoultryEmployeeLoans(staffId)
+      const [list, onLine] = await Promise.all([
+        listEligiblePoultryEmployeeLoans(staffId),
+        editingId ? listPoultryPayrollDeductions(editingId).catch(() => []) : Promise.resolve([]),
+      ])
       setStaffLoans(list)
-      // Put the figure in the box, so the line shows what it will actually
-      // deduct rather than 0 followed by a number appearing after saving.
-      const auto = list.reduce((sum, e) => sum + payrollDeductionFor(e), 0)
-      setItemForm((f) => ({ ...f, deductions: auto }))
+      if (editingId) {
+        const live = onLine.filter((d) => d.status !== "Reversed")
+        setOnLineLoanIds(new Set(
+          live.filter((d) => d.poultryEmployeeLoanId != null)
+              .map((d) => d.poultryEmployeeLoanId as number)))
+        // 442. Split the line's total back into what the form edits (typed
+        // other deductions, kept wage) and what it only shows.
+        const sum = (f: (d: (typeof live)[number]) => boolean) =>
+          live.filter(f).reduce((s, d) => s + (Number(d.amount) || 0), 0)
+        setItemForm((f) => ({
+          ...f,
+          deductions: sum((d) => d.isLegacy),
+          keepCredit: sum((d) => !d.isLegacy && d.deductionType === "EmployeeCredit"),
+        }))
+        setLineFixed({
+          advances: sum((d) => d.poultryEmployeeLoanId != null),
+          otherItems: sum((d) => !d.isLegacy && d.poultryEmployeeLoanId == null && d.deductionType !== "EmployeeCredit"),
+        })
+      } else {
+        setOnLineLoanIds(new Set())
+        setLineFixed({ advances: 0, otherItems: 0 })
+      }
     } catch {
       // Not knowing about an advance must never stop a line being added.
       setStaffLoans([])
@@ -350,7 +503,13 @@ export default function PoultryPayrollPage() {
                   <HandCoins className="h-4 w-4 mr-1" /> Employee Loans &amp; Advances
                 </Link>
               </Button>
-              <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New payroll run</Button>
+              {/* 441. Wages kept for staff, paid out later. */}
+              <Button variant="outline" asChild>
+                <Link href="/poultry-employee-credit">
+                  <PiggyBank className="h-4 w-4 mr-1" /> Employee Credit
+                </Link>
+              </Button>
+              <Button onClick={() => { setForm(blankForm()); setOpen(true) }}><Plus className="h-4 w-4 mr-1" /> New payroll run</Button>
             </div>
           </div>
 
@@ -361,6 +520,16 @@ export default function PoultryPayrollPage() {
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total net paid</div><div className="text-xl font-semibold tabular-nums text-green-700">{gh(totalNetPaid)}</div></CardContent></Card>
           </div>
 
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "runs" | "templates")}>
+          <TabsList className="mb-3">
+            <TabsTrigger value="runs">Payroll runs</TabsTrigger>
+            <TabsTrigger value="templates">Templates{templates.length > 0 ? ` (${templates.length})` : ""}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="templates">
+            <PayrollTemplatesPanel staff={staff} accounts={accounts} canEdit={canEdit} onUse={startFromTemplate}
+              refreshKey={templatesRefresh} />
+          </TabsContent>
+          <TabsContent value="runs">
           <div className="mb-3 flex items-center gap-2">
             <span className="text-sm text-slate-600">Status</span>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -436,6 +605,8 @@ export default function PoultryPayrollPage() {
               )}
             </CardContent>
           </Card>
+          </TabsContent>
+          </Tabs>
         </main>
       </div>
 
@@ -444,9 +615,29 @@ export default function PoultryPayrollPage() {
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Banknote className="w-5 h-5 text-green-600" /> New payroll run</DialogTitle>
-            <DialogDescription>Create a Draft run, then add staff lines</DialogDescription>
+            <DialogDescription>
+              {form.templateId ? "Created as a Draft with the template's staff and pay. You can still change any line before approving." : "Create a Draft run, then add staff lines and their deductions"}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <FormSection title="Start from" color="green" columns={1}>
+              <FormField label="Payroll template">
+                <Select value={String(form.templateId)} onValueChange={(v) => pickTemplate(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Blank run (add staff one by one)</SelectItem>
+                    {templates.map((t) => (
+                      <SelectItem key={t.poultryPayrollTemplateId} value={String(t.poultryPayrollTemplateId)}>
+                        {t.name} · {t.frequency} · {t.lineCount} staff · {gh(t.totalNet)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              {templates.length === 0 && (
+                <p className="text-xs text-slate-500">Tip: set up a template on the Templates tab so the same staff don&apos;t have to be entered every period.</p>
+              )}
+            </FormSection>
             <FormSection title="Period" color="indigo">
               <FormField label="Period start *"><Input type="date" value={form.periodStart} onChange={(e) => setForm({ ...form, periodStart: e.target.value })} /></FormField>
               <FormField label="Period end *"><Input type="date" value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} /></FormField>
@@ -486,16 +677,21 @@ export default function PoultryPayrollPage() {
                 {(itemsRun.items ?? []).length === 0 ? (
                   <p className="py-4 text-center text-sm text-slate-500">No lines yet.</p>
                 ) : (itemsRun.items ?? []).map((it) => (
-                  <div key={it.poultryPayrollItemId} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                  <div key={it.poultryPayrollItemId} className={`rounded-lg border p-3 shadow-sm ${editingItemId === it.poultryPayrollItemId ? "border-amber-400 bg-amber-50" : "border-slate-200 bg-white"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="font-medium text-slate-900 break-words">{it.staffName ?? `#${it.poultryStaffId}`}</div>
                         <div className="text-xs text-slate-500">Net <span className="font-semibold tabular-nums text-slate-700">{gh(it.netPay)}</span></div>
                       </div>
                       {isEditable(itemsRun.status) && (
-                        <Button size="sm" variant="ghost" className="shrink-0" onClick={() => removeItem(it.poultryPayrollItemId)} aria-label="Remove line">
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+                        <div className="flex shrink-0">
+                          <Button size="sm" variant="ghost" onClick={() => startEditItem(it)} aria-label="Edit line" title="Edit line">
+                            <Pencil className="h-4 w-4 text-slate-600" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => removeItem(it.poultryPayrollItemId)} aria-label="Remove line">
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-1.5 text-sm">
@@ -508,16 +704,18 @@ export default function PoultryPayrollPage() {
                         <button
                           type="button"
                           className="font-medium tabular-nums underline decoration-dotted underline-offset-2"
-                          onClick={() => setDeductionsFor({
-                            poultryPayrollItemId: it.poultryPayrollItemId,
-                            poultryStaffId: it.poultryStaffId,
-                            staffName: it.staffName ?? `#${it.poultryStaffId}`,
-                            runStatus: itemsRun.status,
-                          })}
+                          onClick={() => openDeductions(it, itemsRun.status)}
                         >
                           {gh(it.deductions)}
                         </button>
-                        <span className="ml-1 text-[11px] text-slate-400">view breakdown</span>
+                        {isEditable(itemsRun.status) ? (
+                          <Button size="sm" variant="outline" className="ml-2 h-7 px-2 text-xs"
+                                  onClick={() => openDeductions(it, itemsRun.status)}>
+                            <Plus className="mr-1 h-3 w-3" /> Add deduction
+                          </Button>
+                        ) : (
+                          <span className="ml-1 text-[11px] text-slate-400">view breakdown</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -542,7 +740,7 @@ export default function PoultryPayrollPage() {
                     {(itemsRun.items ?? []).length === 0 ? (
                       <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-4">No lines yet.</TableCell></TableRow>
                     ) : (itemsRun.items ?? []).map((it) => (
-                      <TableRow key={it.poultryPayrollItemId}>
+                      <TableRow key={it.poultryPayrollItemId} className={editingItemId === it.poultryPayrollItemId ? "bg-amber-50 hover:bg-amber-50" : undefined}>
                         <TableCell className="font-medium min-w-[9rem]">
                           {it.staffName ?? `#${it.poultryStaffId}`}
                           {/* Subtle on purpose: it is a prompt to open the
@@ -571,19 +769,20 @@ export default function PoultryPayrollPage() {
                             type="button"
                             className="underline decoration-dotted underline-offset-2 hover:text-indigo-700"
                             title="What is this made of?"
-                            onClick={() => setDeductionsFor({
-                              poultryPayrollItemId: it.poultryPayrollItemId,
-                              poultryStaffId: it.poultryStaffId,
-                              staffName: it.staffName ?? `#${it.poultryStaffId}`,
-                              runStatus: itemsRun.status,
-                            })}
+                            onClick={() => openDeductions(it, itemsRun.status)}
                           >
                             {gh(it.deductions)}
                           </button>
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-semibold px-2 whitespace-nowrap">{gh(it.netPay)}</TableCell>
-                        <TableCell className="text-right">
-                          {isEditable(itemsRun.status) && <Button size="sm" variant="ghost" onClick={() => removeItem(it.poultryPayrollItemId)}><Trash2 className="h-4 w-4 text-red-500" /></Button>}
+                        <TableCell className="text-right whitespace-nowrap">
+                          {isEditable(itemsRun.status) && (
+                            <>
+                              <Button size="sm" variant="ghost" onClick={() => openDeductions(it, itemsRun.status)} aria-label="Add deduction" title="Add deduction (advance repayment, other, or keep as employee credit)"><HandCoins className="h-4 w-4 text-indigo-600" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => startEditItem(it)} aria-label="Edit line" title="Edit line"><Pencil className="h-4 w-4 text-slate-600" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => removeItem(it.poultryPayrollItemId)} aria-label="Remove line" title="Remove line"><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                            </>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -592,11 +791,28 @@ export default function PoultryPayrollPage() {
               </div>
 
               {isEditable(itemsRun.status) ? (
-                <FormSection title="Add / update a line" color="amber" columns={4} stackOnMobile>
+                <div ref={itemFormRef} className="scroll-mt-4">
+                <FormSection
+                  title={editingItemId != null
+                    ? `Editing ${(itemsRun.items ?? []).find(i => i.poultryPayrollItemId === editingItemId)?.staffName ?? "line"}`
+                    : "Add a line"}
+                  color="amber" columns={4} stackOnMobile
+                  action={editingItemId != null ? (
+                    <Button size="sm" variant="ghost" className="h-7 text-white hover:bg-white/20 hover:text-white" onClick={resetItemForm}>Cancel</Button>
+                  ) : undefined}
+                >
                   <FormField label="Staff">
-                    <Select value={String(itemForm.poultryStaffId)} onValueChange={(v) => prefillFromStaff(Number(v))}>
+                    <Select value={String(itemForm.poultryStaffId)} onValueChange={(v) => prefillFromStaff(Number(v))} disabled={editingItemId != null}>
                       <SelectTrigger><SelectValue placeholder="Pick staff" /></SelectTrigger>
-                      <SelectContent>{staff.filter(s => s.isActive).map(s => <SelectItem key={s.poultryStaffId} value={String(s.poultryStaffId)}>{s.firstName} {s.lastName}</SelectItem>)}</SelectContent>
+                      <SelectContent>{staff.filter(s => s.isActive || (itemsRun.items ?? []).some(i => i.poultryStaffId === s.poultryStaffId)).map(s => {
+                        const onRun = (itemsRun.items ?? []).some(i => i.poultryStaffId === s.poultryStaffId)
+                        return (
+                          <SelectItem key={s.poultryStaffId} value={String(s.poultryStaffId)}>
+                            {s.firstName} {s.lastName}
+                            {onRun && <span className="ml-1 text-xs text-slate-500">· already on this run</span>}
+                          </SelectItem>
+                        )
+                      })}</SelectContent>
                     </Select>
                   </FormField>
                   <FormField label="Payment method">
@@ -609,23 +825,60 @@ export default function PoultryPayrollPage() {
                   <FormField label="Daily wage"><NumberInput step="0.01" value={itemForm.dailyWage} onChange={(e) => setItemForm({ ...itemForm, dailyWage: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="Commission"><NumberInput step="0.01" value={itemForm.commission} onChange={(e) => setItemForm({ ...itemForm, commission: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="Bonus"><NumberInput step="0.01" value={itemForm.bonus} onChange={(e) => setItemForm({ ...itemForm, bonus: Number(e.target.value) || 0 })} /></FormField>
-                  <FormField label="Deductions">
+                  <FormField label="Other deductions">
+                    {/* 442. Typed deductions only (uniform, damage...). Advance
+                        repayments are their own rows, listed below and added
+                        on save, so this box no longer has to be locked. */}
                     <NumberInput step="0.01" value={itemForm.deductions}
                                  onChange={(e) => setItemForm({ ...itemForm, deductions: Number(e.target.value) || 0 })} />
-                    {/* Where the figure came from. Without this the box quietly
-                        fills itself and looks like something the user typed and
-                        forgot. Raising it above the advances adds the extra as
-                        an ordinary deduction; lowering it does NOT cancel the
-                        advance repayment, which is the one thing worth saying
-                        out loud -- remove that from the breakdown instead. */}
-                    {itemForm.poultryStaffId > 0 && staffLoans.some((e) => payrollDeductionFor(e) > 0) && (
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        Includes {gh(staffLoans.reduce((t, e) => t + payrollDeductionFor(e), 0))} of
-                        advance repayment. Anything above that is recorded as an other deduction.
-                      </p>
-                    )}
+                  </FormField>
+                  <FormField label="Keep as employee credit">
+                    <NumberInput step="0.01" value={itemForm.keepCredit}
+                                 onChange={(e) => setItemForm({ ...itemForm, keepCredit: Number(e.target.value) || 0 })} />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Part of the wage the worker asked the farm to hold. Paid out later from{" "}
+                      <a href="/poultry-employee-credit" className="underline underline-offset-2 hover:text-indigo-700">Employee Credit</a>.
+                    </p>
                   </FormField>
                   <FormField label="Notes"><Input value={itemForm.notes} onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value })} /></FormField>
+
+                  {/* What the worker gets now, worked out as they type. */}
+                  {itemForm.poultryStaffId > 0 && (() => {
+                    const gross = (Number(itemForm.basicPay) || 0) + (Number(itemForm.dailyWage) || 0)
+                      + (Number(itemForm.commission) || 0) + (Number(itemForm.bonus) || 0)
+                    const advances = editingItemId != null
+                      ? lineFixed.advances
+                      : staffLoans.reduce((s, e) => s + payrollDeductionFor(e), 0)
+                    const other = (Number(itemForm.deductions) || 0) + lineFixed.otherItems
+                    const keep = Number(itemForm.keepCredit) || 0
+                    const paidNow = gross - advances - other - keep
+                    const who = staff.find(s => s.poultryStaffId === itemForm.poultryStaffId)
+                    const row = (label: string, v: number, cls = "") => (
+                      <div className={`flex justify-between gap-4 ${cls}`}>
+                        <span>{label}</span><span className="tabular-nums">{gh(v)}</span>
+                      </div>
+                    )
+                    return (
+                      <FormField label="&nbsp;" full>
+                        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+                          {row("Gross pay", gross)}
+                          {advances > 0 && row("− Advance repayments", advances, "text-slate-600")}
+                          {other > 0 && row("− Other deductions", other, "text-slate-600")}
+                          {keep > 0 && row(`− Kept for ${who ? who.firstName : "worker"} (employee credit)`, keep, "text-emerald-700")}
+                          <div className={`flex justify-between gap-4 border-t pt-1 font-semibold ${paidNow < 0 ? "text-rose-600" : "text-slate-900"}`}>
+                            <span>Paid now</span><span className="tabular-nums">{gh(paidNow)}</span>
+                          </div>
+                          {paidNow < 0 && <p className="text-xs text-rose-600">Deductions are more than the pay.</p>}
+                          {keep > 0 && paidNow >= 0 && (
+                            <p className="text-[11px] text-slate-500">
+                              The full gross is still payroll cost. The kept {gh(keep)} is added to the worker&apos;s
+                              Employee Credit when this payroll is approved.
+                            </p>
+                          )}
+                        </div>
+                      </FormField>
+                    )
+                  })()}
 
                   {/* What this person already owes, BEFORE the line is added.
                       The advance repayment is applied automatically on save, so
@@ -663,7 +916,9 @@ export default function PoultryPayrollPage() {
                                       <span className="text-indigo-700/70"> · {gh(e.outstandingBalance)} outstanding</span>
                                     </span>
                                     <span className="text-xs">
-                                      {willDeduct > 0
+                                      {onLineLoanIds.has(e.poultryEmployeeLoanId)
+                                        ? "already deducted on this line"
+                                        : willDeduct > 0
                                         ? <>will deduct <strong className="tabular-nums">{gh(willDeduct)}</strong></>
                                         : byPayroll
                                           ? "no amount set — add it by hand"
@@ -674,8 +929,9 @@ export default function PoultryPayrollPage() {
                               })}
                             </ul>
                             <p className="mt-2 text-[11px] text-indigo-700/80">
-                              Added automatically when you add the line, and editable afterwards from the
-                              Deductions figure. Nothing is repaid until the payroll is approved.
+                              {editingItemId != null
+                                ? "Advances already on this line are not added again. Nothing is repaid until the payroll is approved."
+                                : "Added automatically when you add the line. Nothing is repaid until the payroll is approved."}
                             </p>
                           </>
                         )}
@@ -684,9 +940,17 @@ export default function PoultryPayrollPage() {
                   )}
 
                   <FormField label="&nbsp;" full>
-                    <Button onClick={addItem} disabled={itemSaving} className="w-full">{itemSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Add / update line"}</Button>
+                    <div className="flex gap-2">
+                      {editingItemId != null && (
+                        <Button variant="outline" onClick={resetItemForm} disabled={itemSaving}>Cancel</Button>
+                      )}
+                      <Button onClick={addItem} disabled={itemSaving} className="flex-1">
+                        {itemSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : editingItemId != null ? "Save changes" : "Add line"}
+                      </Button>
+                    </div>
                   </FormField>
                 </FormSection>
+                </div>
               ) : (
                 <p className="text-sm text-slate-500">Lines can only be edited while the run is a Draft.</p>
               )}

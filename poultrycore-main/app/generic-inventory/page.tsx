@@ -21,7 +21,6 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
@@ -31,8 +30,8 @@ import { REJECT_REASONS, STOCK_ADJUSTMENT_REASONS } from "@/lib/reversal-reasons
 import { ReasonSelect } from "@/components/ui/reason-select"
 import {
   Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle,
-  History, MoreHorizontal, Check, Package, ArrowUpCircle, ArrowDownCircle,
-  Boxes, ExternalLink,
+  History, Check, Package, ArrowUpCircle, ArrowDownCircle,
+  Boxes, ExternalLink, ArrowLeft,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -227,6 +226,7 @@ function GenericInventoryPageInner() {
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [unitFilter, setUnitFilter] = useState("all")
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "out" | "inactive">("all")
+  const [itemTypeFilter, setItemTypeFilter] = useState<"all" | "Product" | "SupplyItem">("all")
   const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all")
   const [purchaseStatusFilter, setPurchaseStatusFilter] = useState<"all" | "Draft" | "Approved" | "Cancelled">("all")
 
@@ -340,13 +340,18 @@ function GenericInventoryPageInner() {
   // ---- Filtered items ----
   const filteredItems = useMemo(() => {
     let rows = filterByDateAndSearch(products, { search, searchKeys: ["productName", "sku", "barcode", "categoryName"] })
+    if (itemTypeFilter !== "all") rows = rows.filter((p) => (p.itemType ?? "Product") === itemTypeFilter)
     if (categoryFilter !== "all") rows = rows.filter((p) => p.categoryName === categoryFilter)
     if (unitFilter !== "all") rows = rows.filter((p) => p.unitOfMeasure === unitFilter)
     if (stockFilter === "low") rows = rows.filter((p) => stockStatus(p) === "low")
     else if (stockFilter === "out") rows = rows.filter((p) => stockStatus(p) === "out")
     else if (stockFilter === "inactive") rows = rows.filter((p) => !p.isActive)
     return rows
-  }, [products, search, categoryFilter, unitFilter, stockFilter])
+  }, [products, search, itemTypeFilter, categoryFilter, unitFilter, stockFilter])
+
+  // Counts for item type chips
+  const productCount = useMemo(() => products.filter((p) => (p.itemType ?? "Product") === "Product").length, [products])
+  const supplyCount = useMemo(() => products.filter((p) => p.itemType === "SupplyItem").length, [products])
 
   // ---- Filtered purchases ----
   const filteredPurchases = useMemo(() => {
@@ -486,6 +491,7 @@ function GenericInventoryPageInner() {
         <main className="flex-1 p-4 sm:p-6 space-y-4">
           <Tabs value={tab} onValueChange={selectTab} className="gap-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <div className="min-w-0">
                 <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Inventory &amp; Supply Purchases</h1>
                 <p className="text-sm text-slate-500">Products, purchases, and stock adjustments — what you hold, what you bought, what changed.</p>
@@ -497,22 +503,15 @@ function GenericInventoryPageInner() {
                 <Button className="flex-1 sm:flex-none" asChild>
                   <Link href="/generic-purchases/new"><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Link>
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" aria-label="More actions"><MoreHorizontal className="w-4 h-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => setAdjOpen(true)}>
-                      <ArrowUpCircle className="w-4 h-4 mr-2" /> Adjust stock
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => router.push("/generic-products")}>
-                      <Package className="w-4 h-4 mr-2" /> Manage products
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => router.push("/generic-suppliers")}>
-                      <Wallet className="w-4 h-4 mr-2" /> Manage suppliers
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setAdjOpen(true)}>
+                  <ArrowUpCircle className="w-4 h-4 mr-1" /> Adjust Stock
+                </Button>
+                <Button variant="outline" className="flex-1 sm:flex-none" asChild>
+                  <Link href="/generic-products"><Package className="w-4 h-4 mr-1" /> Manage Products</Link>
+                </Button>
+                <Button variant="outline" className="flex-1 sm:flex-none" asChild>
+                  <Link href="/generic-suppliers"><Wallet className="w-4 h-4 mr-1" /> Manage Suppliers</Link>
+                </Button>
               </div>
             </div>
 
@@ -556,8 +555,15 @@ function GenericInventoryPageInner() {
                 {/* ===== ITEMS TAB ===== */}
                 <TabsContent value="items">
                   <Card><CardContent className="space-y-3 p-3 sm:p-4">
+                    {/* Item type: Products vs Supply Items */}
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      <Chip active={itemTypeFilter === "all"} onClick={() => setItemTypeFilter("all")} count={products.length}>All Items</Chip>
+                      <Chip active={itemTypeFilter === "Product"} onClick={() => setItemTypeFilter("Product")} count={productCount}>Products (for sale)</Chip>
+                      <Chip active={itemTypeFilter === "SupplyItem"} onClick={() => setItemTypeFilter("SupplyItem")} count={supplyCount}>Supply Items (internal use)</Chip>
+                    </div>
+                    {/* Stock status */}
                     <div className="flex flex-wrap gap-1.5">
-                      <Chip active={stockFilter === "all"} onClick={() => setStockFilter("all")} count={products.length}>All</Chip>
+                      <Chip active={stockFilter === "all"} onClick={() => setStockFilter("all")} count={filteredItems.length}>All</Chip>
                       <Chip active={stockFilter === "low"} onClick={() => setStockFilter("low")} count={stats.low} tone="warn">Low stock</Chip>
                       <Chip active={stockFilter === "out"} onClick={() => setStockFilter("out")} count={stats.out} tone="bad">Out of stock</Chip>
                       <Chip active={stockFilter === "inactive"} onClick={() => setStockFilter("inactive")} count={stats.inactive}>Inactive</Chip>
@@ -922,7 +928,7 @@ function GenericInventoryPageInner() {
         label="Reason"
         placeholder="Enter rejection reason"
         confirmLabel="Reject"
-        onConfirm={(reason) => rejectTarget !== null && onRejectAdj(rejectTarget, reason)}
+        onSubmit={(reason) => rejectTarget !== null && onRejectAdj(rejectTarget, reason)}
       />
     </div>
   )

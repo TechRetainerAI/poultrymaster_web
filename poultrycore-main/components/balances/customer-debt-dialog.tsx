@@ -7,6 +7,7 @@
 // why; the balance is derived. Not a sale: no revenue, no stock, no cash.
 
 import { useEffect, useState } from "react"
+import { listCreditCustomers } from "@/lib/api/credit-module"
 import { FileWarning, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
@@ -18,7 +19,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatCurrency } from "@/lib/utils/currency"
-import { getCustomers } from "@/lib/api"
 import { getUserContext } from "@/lib/api/config"
 import {
   createCustomerDebt, CUSTOMER_DEBT_ENTRY_LABEL, type CustomerDebtEntryType,
@@ -55,14 +55,8 @@ export function CustomerDebtDialog({ open, currencyCode, onOpenChange, onCreated
     setCustomerId(""); setAmount(""); setDate(today()); setEntryType("OpeningBalance")
     setDescription(""); setReference(""); setNotes(""); setError(null)
     const { userId, farmId } = getUserContext()
-    getCustomers(userId, farmId)
-      .then((r: any) => {
-        const list = (r?.success ? r.data : r) ?? []
-        setCustomers((Array.isArray(list) ? list : [])
-          .map((c: any) => ({ id: Number(c.customerId ?? c.id), name: String(c.name ?? c.customerName ?? "") }))
-          .filter((c: { id: number; name: string }) => c.id > 0 && c.name)
-          .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)))
-      })
+    listCreditCustomers()
+      .then(setCustomers)
       .catch(() => setCustomers([]))
   }, [open])
 

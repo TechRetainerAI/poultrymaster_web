@@ -6,6 +6,7 @@
 // to stock. Only the part not yet recognised can be reversed. Owner / admin.
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+import { creditModule } from "./credit-module"
 
 export type ManualDeferredEntryType =
   | "OpeningDeferredCost" | "HistoricalDeferredCost" | "CostAdjustment" | "Migration" | "Other"
@@ -69,25 +70,26 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T
 }
 
-const root = "Poultry/deferred-inventory-costs"
+// 428: the same routes exist under Water/ -- the prefix follows the active company.
+const root = () => `${creditModule()}/deferred-inventory-costs`
 
 export const listManualDeferredCosts = () =>
-  call<ManualDeferredCostRow[]>(`${root}/manual?farmId=${encodeURIComponent(farm())}`)
+  call<ManualDeferredCostRow[]>(`${root()}/manual?farmId=${encodeURIComponent(farm())}`)
 
 export const listUncoveredStock = () =>
-  call<UncoveredStockRow[]>(`${root}/uncovered-stock?farmId=${encodeURIComponent(farm())}`)
+  call<UncoveredStockRow[]>(`${root()}/uncovered-stock?farmId=${encodeURIComponent(farm())}`)
 
 export function createManualDeferredCost(input: {
   poultryRawMaterialItemId: number; amount: number; quantity: number; effectiveDate: string
   entryType: ManualDeferredEntryType; reason: string; reference?: string | null; notes?: string | null
 }): Promise<{ entryId: number; entryNumber: string }> {
   const farmId = farm()
-  return call(`${root}/manual?farmId=${encodeURIComponent(farmId)}`, { method: "POST", body: JSON.stringify({ ...input, farmId }) })
+  return call(`${root()}/manual?farmId=${encodeURIComponent(farmId)}`, { method: "POST", body: JSON.stringify({ ...input, farmId }) })
 }
 
 export function reverseManualDeferredCost(entryId: number, reason: string): Promise<{ reversedAmount: number }> {
   const farmId = farm()
-  return call(`${root}/manual/${entryId}/reverse?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${root()}/manual/${entryId}/reverse?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST", body: JSON.stringify({ farmId, reason }),
   })
 }

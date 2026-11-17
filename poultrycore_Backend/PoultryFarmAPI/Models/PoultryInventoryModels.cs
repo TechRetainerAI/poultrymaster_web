@@ -214,6 +214,14 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
     }
 
+    // 418. Reverse a supply purchase.
+    public class PoultryRawMaterialPurchaseReverseRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public string? ReversedBy { get; set; }
+    }
+
     // A manual stock adjustment on a raw material / supply. Signed Quantity:
     // positive increases stock, negative decreases it.
     public class PoultryRawMaterialAdjustmentModel

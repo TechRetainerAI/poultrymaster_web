@@ -14,7 +14,7 @@ export default function ChatPage() {
   const [active, setActive] = useState<ChatThread | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [text, setText] = useState("")
-  const connRef = useRef<any>()
+  const connRef = useRef<any>(undefined)
 
   useEffect(() => {
     if (!userId || !farmId) return

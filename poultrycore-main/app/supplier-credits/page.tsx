@@ -10,6 +10,7 @@
 // what the supplier refunded. Applying credit to a purchase moves no cash (it
 // left with the advance); a supplier refund is real Money In.
 
+import { creditPerm, supplierCreditRoutes } from "@/lib/api/credit-module"
 import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { ReasonSelect } from "@/components/ui/reason-select"
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
@@ -75,9 +76,10 @@ export default function SupplierCreditsPage() {
   const currencyCode = code || getSelectedCurrency()
   const money = (n: number) => formatCurrency(Number(n) || 0, currencyCode)
 
-  const canView = can("poultry.supplier-balances.view")
+  // 426: the same page serves Water (water-supplier-credits re-exports it).
+  const canView = can(creditPerm("supplier-balances.view"))
   // Paying an advance, applying credit and taking a refund are supplier-payment actions.
-  const canPay = can("poultry.supplier-payments.create")
+  const canPay = can(creditPerm("supplier-payments.create"))
   // Added by hand, and every reversal or unapply: the owner / an admin.
   const canManage = isAdmin
 
@@ -277,7 +279,7 @@ export default function SupplierCreditsPage() {
                 </Button>
               )}
               <Button asChild variant="outline" className="h-10">
-                <Link href="/supplier-balances"><Truck className="mr-1 h-4 w-4" /> Supplier Balances</Link>
+                <Link href={supplierCreditRoutes().balances}><Truck className="mr-1 h-4 w-4" /> Supplier Balances</Link>
               </Button>
               <Button variant="outline" onClick={load} disabled={loading} className="h-10">
                 <RefreshCw className={loading ? "mr-1 h-4 w-4 animate-spin" : "mr-1 h-4 w-4"} /> Refresh

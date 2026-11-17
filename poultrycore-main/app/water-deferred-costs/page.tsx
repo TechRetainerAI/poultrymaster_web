@@ -67,6 +67,7 @@ import {
   type WaterDeferredRecognition, type WaterDeferredCostScope,
 } from "@/lib/api/water-deferred-costs"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ManualDeferredCostPanel } from "@/components/poultry/manual-deferred-cost-panel"
 
 // The stored category codes, spelled the way the raw-materials page spells
 // them. Anything the server sends that is not in this map falls through as-is,
@@ -299,6 +300,9 @@ function WaterDeferredCostsInner() {
           <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
             {DEFERRED_PAGE_INTRO}
           </div>
+
+          {/* 428: cost for stock no purchase covers (e.g. opening stock), recorded as an event. */}
+          <ManualDeferredCostPanel onChanged={() => { void load() }} />
 
           {/* Filters */}
           <Card><CardContent className="p-3">

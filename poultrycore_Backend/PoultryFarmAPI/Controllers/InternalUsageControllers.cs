@@ -248,7 +248,12 @@ namespace PoultryFarmAPIWeb.Controllers
     public class GenericInternalUsageController : ControllerBase
     {
         private readonly IGenericInternalUsageService _svc;
-        public GenericInternalUsageController(IGenericInternalUsageService svc) => _svc = svc;
+        private readonly IGenericProductService _products;
+        public GenericInternalUsageController(IGenericInternalUsageService svc, IGenericProductService products)
+        {
+            _svc = svc;
+            _products = products;
+        }
 
         private static bool IsFutureDate(DateTime d) => d.Date > DateTime.UtcNow.Date;
 
@@ -315,6 +320,19 @@ namespace PoultryFarmAPIWeb.Controllers
             int id, [FromQuery] string farmId, [FromQuery] string? postedBy)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+
+            // Validate capability: all items must have CanUseInternally = true
+            var draft = await _svc.GetByIdAsync(id, farmId);
+            if (draft?.Items is not null)
+            {
+                foreach (var item in draft.Items)
+                {
+                    var product = await _products.GetByIdAsync(item.GenericProductId, farmId);
+                    if (product is not null && !product.CanUseInternally)
+                        return BadRequest($"\"{product.ProductName}\" is not marked for internal use. Enable 'Use Internally' on the item first.");
+                }
+            }
+
             await _svc.PostAsync(id, farmId, postedBy);
             return Ok(await _svc.GetByIdAsync(id, farmId));
         }

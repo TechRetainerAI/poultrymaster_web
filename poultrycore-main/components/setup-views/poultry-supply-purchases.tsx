@@ -28,6 +28,8 @@ import {
 } from "@/lib/api/poultry-inventory"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
+import { PromptDialog } from "@/components/ui/prompt-dialog"
+import { STOCK_REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
@@ -38,7 +40,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import Link from "next/link"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History, MoreHorizontal, RefreshCw, PackageCheck, Wheat, Package, Search } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History, MoreHorizontal, RefreshCw, PackageCheck, Wheat, Package, Search, Undo2 } from "lucide-react"
 import { feedItemKind } from "@/lib/utils/feed-item-ledger"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
@@ -47,7 +49,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
   listPoultryRawMaterialItems, createPoultryRawMaterialItem, updatePoultryRawMaterialItem, deletePoultryRawMaterialItem,
-  listPoultryRawMaterialPurchases, createPoultryRawMaterialPurchase, updatePoultryRawMaterialPurchase, deletePoultryRawMaterialPurchase,
+  listPoultryRawMaterialPurchases, createPoultryRawMaterialPurchase, updatePoultryRawMaterialPurchase, reversePoultryRawMaterialPurchase,
   payPoultryRawMaterialPurchaseBalance, listPoultryRawMaterialUsageHistory, listPoultryRawMaterialAdjustments,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage, type RawMaterialUsageMethod,
 } from "@/lib/api/poultry-inventory"
@@ -332,7 +334,7 @@ function PoultryRawMaterialsPageInner() {
   const [editingPurchase, setEditingPurchase] = useState<PoultryRawMaterialPurchase | null>(null)
   // Seeds a new purchase — set by the Feed Production deep link.
   const [purchaseDefaults, setPurchaseDefaults] = useState<{ itemId?: number | null; quantity?: number | null } | undefined>(undefined)
-  const [deletePurchaseTarget, setDeletePurchaseTarget] = useState<PoultryRawMaterialPurchase | null>(null)
+  const [reversePurchaseTarget, setReversePurchaseTarget] = useState<PoultryRawMaterialPurchase | null>(null)
 
   const [payTarget, setPayTarget] = useState<PoultryRawMaterialPurchase | null>(null)
   const [payForm, setPayForm] = useState({ amount: 0, paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
@@ -640,10 +642,17 @@ function PoultryRawMaterialsPageInner() {
   // ---- Purchase CRUD ----
   function openNewPurchase() { setEditingPurchase(null); setPurchaseDefaults(undefined); setPurchaseOpen(true) }
   function openEditPurchase(p: PoultryRawMaterialPurchase) { setEditingPurchase(p); setPurchaseDefaults(undefined); setPurchaseOpen(true) }
-  async function confirmDeletePurchase() {
-    if (!deletePurchaseTarget) return
-    try { await deletePoultryRawMaterialPurchase(deletePurchaseTarget.poultryRawMaterialPurchaseId); toast({ title: "Purchase removed" }); setDeletePurchaseTarget(null); await load() }
-    catch (e: any) { toast({ title: "Delete failed", description: e?.message, variant: "destructive" }) }
+  // 418. Purchases are reversed, never deleted: the row stays, marked Reversed.
+  async function confirmReversePurchase(reason: string) {
+    if (!reversePurchaseTarget) return
+    try {
+      await reversePoultryRawMaterialPurchase(reversePurchaseTarget.poultryRawMaterialPurchaseId, reason)
+      toast({ title: "Purchase reversed", description: "Its stock was taken back out and any money paid on it returned." })
+      setReversePurchaseTarget(null); await load()
+    } catch (e: any) {
+      toast({ title: "Could not reverse the purchase", description: e?.message, variant: "destructive" })
+      throw e
+    }
   }
 
   function openPayBalance(p: PoultryRawMaterialPurchase) {
@@ -707,7 +716,7 @@ function PoultryRawMaterialsPageInner() {
         <IconAction label="Pay balance" onClick={() => openPayBalance(p)}><Wallet className="w-4 h-4 text-emerald-600" /></IconAction>
       )}
       <IconAction label="Edit purchase" onClick={() => openEditPurchase(p)}><Pencil className="w-4 h-4" /></IconAction>
-      <IconAction label="Delete purchase" onClick={() => setDeletePurchaseTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></IconAction>
+      <IconAction label="Reverse purchase" onClick={() => setReversePurchaseTarget(p)}><Undo2 className="w-4 h-4 text-rose-600" /></IconAction>
     </>
   )
 
@@ -1340,7 +1349,23 @@ function PoultryRawMaterialsPageInner() {
       </Dialog>
 
       <ConfirmDeleteDialog open={!!deleteItemTarget} onOpenChange={(o) => !o && setDeleteItemTarget(null)} onConfirm={confirmDeleteItem} title="Remove item?" description={`Remove "${deleteItemTarget?.itemName}"? If it has purchase/usage history it will be deactivated instead.`} />
-      <ConfirmDeleteDialog open={!!deletePurchaseTarget} onOpenChange={(o) => !o && setDeletePurchaseTarget(null)} onConfirm={confirmDeletePurchase} title="Delete purchase?" description="This will reverse the stock it added." />
+      <PromptDialog
+        open={reversePurchaseTarget != null}
+        onOpenChange={(o) => { if (!o) setReversePurchaseTarget(null) }}
+        title={reversePurchaseTarget ? `Reverse purchase of ${reversePurchaseTarget.itemName ?? "this item"}?` : "Reverse purchase"}
+        options={STOCK_REVERSAL_REASONS}
+        description={
+          <span>
+            The stock it added comes back out, any money paid on it returns to the cash account, and the supplier no
+            longer owes anything for it. Nothing is deleted: the purchase stays in this list marked Reversed.
+          </span>
+        }
+        label="Reason"
+        placeholder="e.g. Entered twice"
+        confirmLabel="Reverse purchase"
+        confirmVariant="destructive"
+        onSubmit={confirmReversePurchase}
+      />
     </div>
   )
 }

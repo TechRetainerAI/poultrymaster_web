@@ -12,8 +12,11 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Home, Plus, Pencil, Trash2, Loader2, Layers, LayoutGrid, List, Search, MapPin } from "lucide-react"
+import { Home, Plus, Pencil, Trash2, Loader2, Layers, LayoutGrid, List, Search, MapPin, X } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SortableHeader, toggleSort, sortData, type SortDirection } from "@/components/ui/sortable-header"
+import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { houseOccupancy, type HouseOccupancy } from "@/components/poultry/house-picker"
 import { cn } from "@/lib/utils"
 import { usePagination } from "@/hooks/use-pagination"
@@ -46,15 +49,28 @@ export function HousesPage() {
   const [capacity, setCapacity] = useState<string>("")
   const [location, setLocation] = useState<string>("")
   const [saving, setSaving] = useState(false)
-  // Cards or table; remembered per browser.
-  const [view, setView] = useState<"cards" | "table">("cards")
+  // Table by default; a switch to cards is remembered per browser.
+  const [view, setView] = useState<"cards" | "table">("table")
   const [search, setSearch] = useState("")
   useEffect(() => {
-    try { const v = localStorage.getItem("houses-view"); if (v === "table" || v === "cards") setView(v) } catch {}
+    try { const v = localStorage.getItem("houses-view-v2"); if (v === "table" || v === "cards") setView(v) } catch {}
   }, [])
   const changeView = (v: "cards" | "table") => {
     setView(v)
-    try { localStorage.setItem("houses-view", v) } catch {}
+    try { localStorage.setItem("houses-view-v2", v) } catch {}
+  }
+  // Filters (both views) and table sorting.
+  const [batches, setBatches] = useState<FlockBatch[]>([])
+  const [statusFilter, setStatusFilter] = useState("ALL")
+  const [batchFilter, setBatchFilter] = useState("ALL")
+  const [flockFilter, setFlockFilter] = useState("ALL")
+  const [locationFilter, setLocationFilter] = useState("ALL")
+  const [capacityFilter, setCapacityFilter] = useState("ALL")
+  const [sortKey, setSortKey] = useState<string | null>("name")
+  const [sortDir, setSortDir] = useState<SortDirection>("asc")
+  const onSort = (key: string) => {
+    const next = toggleSort(key, sortKey, sortDir)
+    setSortKey(next.key); setSortDir(next.direction)
   }
 
   const handleLogout = () => {
@@ -69,10 +85,12 @@ export function HousesPage() {
       const { userId, farmId } = getUserContext()
       if (!userId) throw new Error("User not found")
       if (!farmId) throw new Error("Farm not selected")
-      const [res, flockRes] = await Promise.all([
+      const [res, flockRes, batchRes] = await Promise.all([
         getHouses(userId, farmId),
         getFlocks(userId, farmId),
+        getFlockBatches(userId, farmId).catch(() => ({ success: false, data: [] as FlockBatch[] })),
       ])
+      setBatches(batchRes.success && Array.isArray(batchRes.data) ? batchRes.data : [])
       if (res.success && res.data) setHouses(res.data as any[])
       else toast({ title: "Could not load houses", description: res.message || "Failed to load houses", variant: "destructive" })
       if (flockRes.success && flockRes.data) setFlocks(flockRes.data)
@@ -140,12 +158,92 @@ export function HousesPage() {
     return map
   }, [flocks])
 
+  // The active flocks in each house, with their batch names.
+  const batchNameById = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const b of batches) m.set(b.batchId, b.batchName || b.batchCode || `Batch ${b.batchId}`)
+    return m
+  }, [batches])
+  const houseFlocks = useMemo(() => {
+    const m = new Map<number, Flock[]>()
+    for (const f of flocks) {
+      if (f.houseId == null || !f.active) continue
+      const list = m.get(f.houseId) ?? []
+      list.push(f)
+      m.set(f.houseId, list)
+    }
+    return m
+  }, [flocks])
+  const batchOfFlock = (f: Flock) =>
+    f.batchId != null ? (batchNameById.get(Number(f.batchId)) ?? f.batchName ?? `Batch ${f.batchId}`) : null
+  const batchesIn = (houseId: number) =>
+    Array.from(new Set((houseFlocks.get(houseId) ?? []).map(batchOfFlock).filter((x): x is string => !!x)))
+  const flocksIn = (houseId: number) => (houseFlocks.get(houseId) ?? []).map((f) => f.name || `Flock ${f.flockId}`)
+
+  // Dropdown choices: only batches / flocks that are in a house now.
+  const activeHoused = useMemo(() => flocks.filter((f) => f.active && f.houseId != null), [flocks])
+  const batchOptions = useMemo(() => {
+    const ids = new Set(activeHoused.map((f) => f.batchId).filter((x) => x != null).map(Number))
+    return Array.from(ids).map((id) => ({ id, name: batchNameById.get(id) ?? `Batch ${id}` }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [activeHoused, batchNameById])
+  const flockOptions = useMemo(() =>
+    activeHoused
+      .filter((f) => batchFilter === "ALL" || Number(f.batchId) === Number(batchFilter))
+      .map((f) => ({ id: f.flockId, name: f.name || `Flock ${f.flockId}` }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  [activeHoused, batchFilter])
+  const locationOptions = useMemo(() =>
+    Array.from(new Set(houses.map((h) => String(h.location || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+  [houses])
+  // Picking a batch clears a flock that is not in it.
+  useEffect(() => {
+    if (flockFilter !== "ALL" && !flockOptions.some((f) => String(f.id) === flockFilter)) setFlockFilter("ALL")
+  }, [flockOptions, flockFilter])
+
+  const filtersActive = statusFilter !== "ALL" || batchFilter !== "ALL" || flockFilter !== "ALL"
+    || locationFilter !== "ALL" || capacityFilter !== "ALL" || search.trim() !== ""
+  const clearFilters = () => {
+    setSearch(""); setStatusFilter("ALL"); setBatchFilter("ALL"); setFlockFilter("ALL")
+    setLocationFilter("ALL"); setCapacityFilter("ALL")
+  }
+
   const shown = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return houses.filter((h) => !term
-      || String(h.name || h.houseName || "").toLowerCase().includes(term)
-      || String(h.location || "").toLowerCase().includes(term))
-  }, [houses, search])
+    const list = houses.filter((h) => {
+      const inHouse = houseFlocks.get(h.houseId) ?? []
+      if (term) {
+        const hay = [h.name, h.houseName, h.location, ...inHouse.map((f) => f.name), ...inHouse.map(batchOfFlock)]
+          .map((x) => String(x ?? "").toLowerCase())
+        if (!hay.some((x) => x.includes(term))) return false
+      }
+      if (statusFilter !== "ALL" && houseOccupancy(h, flocks).state !== statusFilter) return false
+      if (batchFilter !== "ALL" && !inHouse.some((f) => Number(f.batchId) === Number(batchFilter))) return false
+      if (flockFilter !== "ALL" && !inHouse.some((f) => f.flockId === Number(flockFilter))) return false
+      if (locationFilter !== "ALL" && String(h.location || "").trim() !== locationFilter) return false
+      if (capacityFilter === "set" && !(Number(h.capacity) > 0)) return false
+      if (capacityFilter === "notset" && Number(h.capacity) > 0) return false
+      return true
+    })
+    const STATE_ORDER: Record<string, number> = { empty: 0, free: 1, full: 2, unknown: 3 }
+    return sortData(list, sortKey, sortDir, (h, key) => {
+      const o = houseOccupancy(h, flocks)
+      switch (key) {
+        case "name": return String(h.name || h.houseName || "")
+        case "location": return h.location ? String(h.location) : null
+        case "batch": return batchesIn(h.houseId).join(", ") || null
+        case "flock": return flocksIn(h.houseId).join(", ") || null
+        case "capacity": return o.capacity > 0 ? o.capacity : null
+        case "flocks": return o.flockCount
+        case "birds": return o.occupied
+        case "used": return o.capacity > 0 ? o.occupied / o.capacity : null
+        case "free": return o.free
+        case "status": return STATE_ORDER[o.state]
+        default: return null
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [houses, flocks, houseFlocks, batchNameById, search, statusFilter, batchFilter, flockFilter, locationFilter, capacityFilter, sortKey, sortDir])
 
   // One pager for both views; it snaps back to page 1 when the search changes.
   const pg = usePagination(shown, 10)
@@ -224,7 +322,7 @@ export function HousesPage() {
               <SetupTabTools standaloneClassName="flex flex-wrap items-center gap-2">
                 <div className={cn("relative", embedded ? "w-full sm:w-64" : "min-w-[220px] flex-1 sm:max-w-sm")}>
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input className="h-9 bg-white pl-9" placeholder="Search by name or location" value={search} onChange={(e) => setSearch(e.target.value)} />
+                  <Input className="h-9 bg-white pl-9" placeholder="Search house, location, flock or batch" value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
                 <span className="whitespace-nowrap text-sm text-slate-500">{shown.length} of {houses.length} houses</span>
                 <div className={cn("ml-auto inline-flex rounded-lg border border-slate-200 bg-white p-0.5")}>
@@ -239,6 +337,29 @@ export function HousesPage() {
               </SetupTabTools>
             )}
 
+            {!loading && houses.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} allLabel="All statuses"
+                  options={[["empty", "Empty"], ["free", "Has space"], ["full", "Full"], ["unknown", "In use (no capacity)"]]} />
+                <FilterSelect label="Batch" value={batchFilter} onChange={setBatchFilter} allLabel="All batches"
+                  options={batchOptions.map((b) => [String(b.id), b.name] as [string, string])} />
+                <FilterSelect label="Flock" value={flockFilter} onChange={setFlockFilter}
+                  allLabel={batchFilter === "ALL" ? "All flocks" : "All flocks in this batch"}
+                  options={flockOptions.map((f) => [String(f.id), f.name] as [string, string])} />
+                {locationOptions.length > 0 && (
+                  <FilterSelect label="Location" value={locationFilter} onChange={setLocationFilter} allLabel="All locations"
+                    options={locationOptions.map((l) => [l, l] as [string, string])} />
+                )}
+                <FilterSelect label="Capacity" value={capacityFilter} onChange={setCapacityFilter} allLabel="Any"
+                  options={[["set", "Capacity set"], ["notset", "Capacity not set"]]} />
+                {filtersActive && (
+                  <Button size="sm" variant="ghost" className="h-8 gap-1 text-slate-600" onClick={clearFilters}>
+                    <X className="h-3.5 w-3.5" /> Clear filters
+                  </Button>
+                )}
+              </div>
+            )}
+
             {loading ? (
               <div className="text-center py-12 text-slate-600">Loading houses...</div>
             ) : houses.length === 0 ? (
@@ -250,21 +371,29 @@ export function HousesPage() {
               </Card>
             ) : shown.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white py-10 text-center text-sm text-slate-500">
-                No house matches &quot;{search}&quot;.
+                No house matches these filters.{" "}
+                <button type="button" className="font-medium text-blue-600 hover:underline" onClick={clearFilters}>Clear filters</button>
               </div>
             ) : view === "table" ? (
               <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
-                      <TableHead className="font-semibold text-slate-900">House</TableHead>
-                      <TableHead className="font-semibold text-slate-900">Location</TableHead>
-                      <TableHead className="text-right font-semibold text-slate-900">Capacity</TableHead>
-                      <TableHead className="text-right font-semibold text-slate-900">Active flocks</TableHead>
-                      <TableHead className="text-right font-semibold text-slate-900">Birds in house</TableHead>
-                      <TableHead className="min-w-[160px] font-semibold text-slate-900">Used</TableHead>
-                      <TableHead className="text-right font-semibold text-slate-900">Free</TableHead>
-                      <TableHead className="font-semibold text-slate-900">Status</TableHead>
+                      {([
+                        ["name", "House", ""],
+                        ["location", "Location", ""],
+                        ["batch", "Batch", ""],
+                        ["flock", "Flock", ""],
+                        ["capacity", "Capacity", "text-right"],
+                        ["flocks", "Active flocks", "text-right"],
+                        ["birds", "Birds in house", "text-right"],
+                        ["used", "Used", "min-w-[160px]"],
+                        ["free", "Free", "text-right"],
+                        ["status", "Status", ""],
+                      ] as const).map(([k, label, cls]) => (
+                        <SortableHeader key={k} label={label} sortKey={k} currentSort={sortKey} currentDirection={sortDir}
+                          onSort={onSort} className={cn("font-semibold text-slate-900", cls)} />
+                      ))}
                       <TableHead className="text-center font-semibold text-slate-900">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -279,6 +408,12 @@ export function HousesPage() {
                           </TableCell>
                           <TableCell className="text-slate-600">
                             {h.location ? <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-slate-400" />{h.location}</span> : <span className="text-slate-400">—</span>}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] text-slate-700">
+                            <NameList names={batchesIn(h.houseId)} />
+                          </TableCell>
+                          <TableCell className="max-w-[220px] text-slate-700">
+                            <NameList names={flocksIn(h.houseId)} />
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{o.capacity > 0 ? o.capacity.toLocaleString() : <span className="text-slate-400">Not set</span>}</TableCell>
                           <TableCell className="text-right tabular-nums">{o.flockCount}</TableCell>
@@ -309,7 +444,7 @@ export function HousesPage() {
                       )
                     })}
                     <TableRow className="bg-slate-50 font-semibold">
-                      <TableCell colSpan={2} className="text-slate-700">Total, all {shown.length} houses{totals.full > 0 ? ` (${totals.full} full)` : ""}</TableCell>
+                      <TableCell colSpan={4} className="text-slate-700">Total, {filtersActive ? "" : "all "}{shown.length} house{shown.length === 1 ? "" : "s"}{totals.full > 0 ? ` (${totals.full} full)` : ""}</TableCell>
                       <TableCell className="text-right tabular-nums">{totals.capacity.toLocaleString()}</TableCell>
                       <TableCell />
                       <TableCell className="text-right tabular-nums">{totals.birds.toLocaleString()}</TableCell>
@@ -351,6 +486,14 @@ export function HousesPage() {
                           <StatusPill state={o.state} />
                           <span className="text-xs text-slate-500">{o.flockCount} active {o.flockCount === 1 ? "flock" : "flocks"}</span>
                         </div>
+                        {o.flockCount > 0 && (
+                          <div className="space-y-0.5 text-xs text-slate-600">
+                            <p className="truncate" title={flocksIn(h.houseId).join(", ")}><span className="text-slate-400">Flock:</span> {flocksIn(h.houseId).join(", ")}</p>
+                            {batchesIn(h.houseId).length > 0 && (
+                              <p className="truncate" title={batchesIn(h.houseId).join(", ")}><span className="text-slate-400">Batch:</span> {batchesIn(h.houseId).join(", ")}</p>
+                            )}
+                          </div>
+                        )}
                         {o.capacity > 0 && pct != null ? (
                           <div className="space-y-1.5">
                             <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
@@ -492,4 +635,38 @@ const STATUS: Record<HouseOccupancy["state"], [string, string]> = {
 function StatusPill({ state }: { state: HouseOccupancy["state"] }) {
   const [text, cls] = STATUS[state]
   return <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-xs font-medium", cls)}>{text}</span>
+}
+
+/** Names in a cell: first two, then "+N more" (all in the tooltip). */
+function NameList({ names }: { names: string[] }) {
+  if (names.length === 0) return <span className="text-slate-400">—</span>
+  const head = names.slice(0, 2).join(", ")
+  return (
+    <span className="block truncate" title={names.join(", ")}>
+      {head}{names.length > 2 && <span className="text-slate-500"> +{names.length - 2} more</span>}
+    </span>
+  )
+}
+
+function FilterSelect({ label, value, onChange, allLabel, options }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  allLabel: string
+  options: [string, string][]
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className={cn("h-8 w-[150px] bg-white text-sm", value !== "ALL" && "border-blue-300 bg-blue-50")}>
+          <SelectValue placeholder={allLabel} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="ALL">{allLabel}</SelectItem>
+          {options.map(([v, text]) => <SelectItem key={v} value={v}>{text}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  )
 }

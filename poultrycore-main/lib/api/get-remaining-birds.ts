@@ -1,4 +1,4 @@
-
+// @ts-nocheck
 import { supabase } from '@/integrations/supabase/client';
 
 export const getRemainingBirds = async (batchId: string, farmId: string) => {

@@ -42,7 +42,7 @@ export default function HotelCommunicationsPage() {
   async function load() { setLoading(true); try { const [c, g, b, cs, st] = await Promise.all([listCommunications(), listHotelGuests(), listHotelBookings(), listHotelCommSubjects().catch(() => []), listHotelStaff().catch(() => [])]); setItems(c); setGuests(g); setBookings(b); setCommSubjects(cs); setStaff(st.filter((s: any) => s.isActive ?? s.isactive)) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
 
   async function handleSave() { if (!form.hotelGuestId) { toast({ title: "Select a guest", variant: "destructive" }); return }; if (!form.message.trim()) { toast({ title: "Message required", variant: "destructive" }); return }; setSaving(true); try {
-      await createCommunication(form)
+      await createCommunication({ ...form, hotelBookingId: form.hotelBookingId ?? undefined })
       // Before setOpen(false): closing unmounts the field and nulls the ref.
       await commSubjectOther.current?.remember()
       toast({ title: "Communication logged" }); setOpen(false); await load()

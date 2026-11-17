@@ -20,6 +20,7 @@ import { formatCurrency, getSelectedCurrency } from "@/lib/utils/currency"
 import { useCurrency } from "@/lib/currency"
 import { listCustomerCredit, type CustomerCreditSummaryRow } from "@/lib/api/customer-credit"
 import { RefundCreditDialog, type RefundTarget } from "@/components/sales/refund-credit-dialog"
+import { creditPerm, creditRoutes } from "@/lib/api/credit-module"
 
 // refreshKey: reload whenever it changes -- the page bumps it after a payment
 // is posted or reversed, since an overpayment becomes credit.
@@ -31,7 +32,7 @@ export function CustomerCreditPanel({ refreshKey = 0 }: { refreshKey?: number })
   const [rows, setRows] = useState<CustomerCreditSummaryRow[]>([])
   const [loaded, setLoaded] = useState(false)
   const [refundFor, setRefundFor] = useState<RefundTarget | null>(null)
-  const canRefund = can("poultry.customer-payments.create")
+  const canRefund = can(creditPerm("customer-payments.create"))
 
   const load = useCallback(() => {
     listCustomerCredit()
@@ -58,7 +59,7 @@ export function CustomerCreditPanel({ refreshKey = 0 }: { refreshKey?: number })
           </h2>
           <span className="flex items-center gap-3">
             <span className="text-sm font-semibold tabular-nums text-blue-700">{money(total)} held</span>
-            <Link href="/customer-credits" className="text-xs font-medium text-blue-700 hover:underline">Open Customer Credits</Link>
+            <Link href={creditRoutes().credits} className="text-xs font-medium text-blue-700 hover:underline">Open Customer Credits</Link>
           </span>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">

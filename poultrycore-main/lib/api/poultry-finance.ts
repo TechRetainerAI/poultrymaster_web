@@ -900,6 +900,10 @@ export const createPoultryPayrollRun = (input: {
 export const upsertPoultryPayrollItem = (runId: number, input: {
   poultryStaffId: number; basicPay: number; dailyWage: number; commission: number
   bonus: number; deductions: number; paymentMethod?: string | null; notes?: string | null
+  /** 442. The typed "Other deductions" only; when sent, `deductions` is ignored. */
+  otherDeductions?: number | null
+  /** 442. Wages kept as employee credit. null/undefined = leave as is, 0 = remove. */
+  employeeCredit?: number | null
 }) =>
   jsend<PoultryPayrollItem>(`/Poultry/payroll-runs/${runId}/items?farmId=${fid()}`, "POST", input)
 
@@ -923,6 +927,98 @@ export const unapprovePoultryPayrollRun = (id: number, reason: string) =>
 
 export const deletePoultryPayrollRun = (id: number) =>
   jsend<void>(`/Poultry/payroll-runs/${id}?farmId=${fid()}&deletedBy=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
+
+// ----- Payroll templates (419) -------------------------------------------------
+// The standard payroll, set up once. Each period's run is created from it as a
+// Draft and can still be adjusted; editing a template changes future runs only.
+export const PAYROLL_FREQUENCIES = ["Monthly", "Fortnightly", "Weekly"] as const
+export type PayrollFrequency = typeof PAYROLL_FREQUENCIES[number]
+
+export interface PoultryPayrollTemplateLine {
+  poultryPayrollTemplateLineId?: number
+  poultryStaffId: number
+  staffName?: string | null
+  staffRole?: string | null
+  staffIsActive?: boolean
+  basicPay: number
+  dailyWage: number
+  commission: number
+  bonus: number
+  deductions: number
+  netPay?: number
+  paymentMethod?: string | null
+  notes?: string | null
+}
+
+export interface PoultryPayrollTemplate {
+  poultryPayrollTemplateId: number
+  name: string
+  frequency: PayrollFrequency | string
+  poultryCashAccountId?: number | null
+  cashAccountName?: string | null
+  notes?: string | null
+  isActive: boolean
+  lineCount: number
+  staffInactiveCount: number
+  totalGross: number
+  totalDeductions: number
+  totalNet: number
+  runCount: number
+  lastPeriodStart?: string | null
+  lastPeriodEnd?: string | null
+  createdBy?: string | null
+  createdAt: string
+  updatedBy?: string | null
+  updatedAt?: string | null
+  lines: PoultryPayrollTemplateLine[]
+}
+
+export const listPoultryPayrollTemplates = (includeInactive = false) =>
+  jget<PoultryPayrollTemplate[]>(`/Poultry/payroll-templates?farmId=${fid()}&includeInactive=${includeInactive}`)
+
+export const getPoultryPayrollTemplate = (id: number) =>
+  jget<PoultryPayrollTemplate>(`/Poultry/payroll-templates/${id}?farmId=${fid()}`)
+
+export const savePoultryPayrollTemplate = (id: number | null, input: {
+  name: string; frequency: string; poultryCashAccountId?: number | null; notes?: string | null
+  lines: PoultryPayrollTemplateLine[]
+}) =>
+  jsend<{ poultryPayrollTemplateId: number }>(
+    id ? `/Poultry/payroll-templates/${id}` : `/Poultry/payroll-templates`,
+    id ? "PUT" : "POST",
+    {
+      ...input, farmId: activeFarmId(), savedBy: currentUserId() || null,
+      lines: input.lines.map((l) => ({
+        poultryStaffId: l.poultryStaffId, basicPay: Number(l.basicPay) || 0, dailyWage: Number(l.dailyWage) || 0,
+        commission: Number(l.commission) || 0, bonus: Number(l.bonus) || 0, deductions: Number(l.deductions) || 0,
+        paymentMethod: l.paymentMethod || null, notes: l.notes || null,
+      })),
+    })
+
+export const setPoultryPayrollTemplateActive = (id: number, isActive: boolean) =>
+  jsend<void>(`/Poultry/payroll-templates/${id}/active`, "POST",
+    { farmId: activeFarmId(), isActive, by: currentUserId() || null })
+
+export const createPoultryPayrollRunFromTemplate = (id: number, input: {
+  periodStart: string; periodEnd: string; payDate?: string | null
+  poultryCashAccountId?: number | null; notes?: string | null
+}) =>
+  jsend<{ poultryPayrollRunId: number }>(`/Poultry/payroll-templates/${id}/create-run`, "POST",
+    { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+/** The period after the template's last run (or the current one if it has none). */
+export function nextPayrollPeriod(t: Pick<PoultryPayrollTemplate, "frequency" | "lastPeriodEnd">, todayIso: string) {
+  const iso = (d: Date) => d.toISOString().split("T")[0]
+  const parse = (s: string) => { const [y, m, d] = s.split("T")[0].split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)) }
+  let start: Date
+  if (t.lastPeriodEnd) { start = parse(t.lastPeriodEnd); start.setUTCDate(start.getUTCDate() + 1) }
+  else if (t.frequency === "Monthly") { const n = parse(todayIso); start = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), 1)) }
+  else start = parse(todayIso)
+  const end = new Date(start)
+  if (t.frequency === "Monthly") { end.setUTCMonth(end.getUTCMonth() + 1); end.setUTCDate(end.getUTCDate() - 1) }
+  else end.setUTCDate(end.getUTCDate() + (t.frequency === "Fortnightly" ? 13 : 6))
+  return { periodStart: iso(start), periodEnd: iso(end) }
+}
 
 // ----- Customer payments (partial payments against a sale) --------------------
 // Port of the Water payment client (lib/api/water.ts).
@@ -1274,13 +1370,15 @@ export const reversePoultryEmployeeLoanRepayment = (
 // Structured payroll deductions (306)
 // -----------------------------------------------------------------------------
 export const PAYROLL_DEDUCTION_TYPES = [
-  "EmployeeLoanRepayment", "SalaryAdvanceRepayment", "OtherDeduction",
+  "EmployeeLoanRepayment", "SalaryAdvanceRepayment", "OtherDeduction", "EmployeeCredit",
 ] as const
 
 export const PAYROLL_DEDUCTION_TYPE_LABELS: Record<string, string> = {
   EmployeeLoanRepayment: "Employee loan repayment",
   SalaryAdvanceRepayment: "Salary advance repayment",
   OtherDeduction: "Other deduction",
+  // 441: not money taken FROM the worker -- wages the farm keeps FOR her.
+  EmployeeCredit: "Keep as employee credit",
 }
 
 export interface PoultryPayrollDeduction {
@@ -1350,3 +1448,108 @@ export const deletePoultryPayrollDeduction = (deductionId: number) =>
   jsend<void>(
     `/Poultry/payroll-deductions/${deductionId}?farmId=${fid()}` +
     `&deletedBy=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
+
+// =============================================================================
+// Employee Credit (441): money the farm is holding for a member of staff.
+// A LIABILITY. The wage cost is recognised when credit goes up (payroll or
+// wages owed); paying it out is cash only, never an expense.
+// =============================================================================
+export const EMPLOYEE_CREDIT_ENTRY_LABELS: Record<string, string> = {
+  PayrollSaving: "Kept from payroll",
+  WagesOwed: "Wages owed",
+  OpeningBalance: "Opening balance",
+  Deposit: "Money handed in",
+  Payout: "Paid out",
+}
+
+/** The three kinds an owner can add by hand. Payroll savings come from payroll. */
+export const EMPLOYEE_CREDIT_MANUAL_TYPES = ["OpeningBalance", "Deposit", "WagesOwed"] as const
+export type EmployeeCreditManualType = (typeof EMPLOYEE_CREDIT_MANUAL_TYPES)[number]
+
+export interface PoultryEmployeeCreditBalance {
+  poultryStaffId: number
+  staffName?: string | null
+  staffRole?: string | null
+  isActive: boolean
+  balance: number
+  totalIn: number
+  totalPaidOut: number
+  lastEntryDate?: string | null
+  entryCount: number
+}
+
+export interface PoultryEmployeeCreditEntry {
+  poultryEmployeeCreditId: number
+  poultryStaffId: number
+  staffName?: string | null
+  entryType: string
+  amount: number
+  signedAmount: number
+  runningBalance: number
+  entryDate: string
+  poultryCashAccountId?: number | null
+  accountName?: string | null
+  paymentMethod?: string | null
+  reference?: string | null
+  description?: string | null
+  poultryPayrollRunId?: number | null
+  payrollPeriod?: string | null
+  expenseId?: number | null
+  status: string
+  createdBy?: string | null
+  createdAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface PoultryEmployeeCreditTotal {
+  totalHeld: number
+  staffCount: number
+}
+
+export const listPoultryEmployeeCreditBalances = () =>
+  jget<PoultryEmployeeCreditBalance[]>(`/Poultry/employee-credit/balances?farmId=${fid()}`)
+
+export const listPoultryEmployeeCreditEntries = (staffId?: number | null) =>
+  jget<PoultryEmployeeCreditEntry[]>(
+    `/Poultry/employee-credit/entries?farmId=${fid()}` + (staffId ? `&staffId=${staffId}` : ""))
+
+export const getPoultryEmployeeCreditTotal = () =>
+  jget<PoultryEmployeeCreditTotal>(`/Poultry/employee-credit/total?farmId=${fid()}`)
+
+export interface PoultryEmployeeCreditAddInput {
+  poultryStaffId: number
+  entryType: EmployeeCreditManualType
+  amount: number
+  entryDate?: string | null
+  poultryCashAccountId?: number | null
+  paymentMethod?: string | null
+  reference?: string | null
+  description?: string | null
+}
+
+export const addPoultryEmployeeCredit = (input: PoultryEmployeeCreditAddInput) =>
+  jsend<{ poultryEmployeeCreditId: number }>(`/Poultry/employee-credit`, "POST", {
+    ...input, farmId: activeFarmId(), createdBy: currentUserId() || null,
+  })
+
+export interface PoultryEmployeeCreditPayoutInput {
+  poultryStaffId: number
+  amount: number
+  poultryCashAccountId: number
+  entryDate?: string | null
+  paymentMethod?: string | null
+  reference?: string | null
+  description?: string | null
+}
+
+export const payoutPoultryEmployeeCredit = (input: PoultryEmployeeCreditPayoutInput) =>
+  jsend<{ poultryEmployeeCreditId: number }>(`/Poultry/employee-credit/payout`, "POST", {
+    ...input, farmId: activeFarmId(), createdBy: currentUserId() || null,
+  })
+
+export const reversePoultryEmployeeCredit = (id: number, reason: string) =>
+  jsend<void>(`/Poultry/employee-credit/${id}/reverse`, "POST", {
+    farmId: activeFarmId(), reason, actionBy: currentUserId() || null,
+  })

@@ -35,6 +35,8 @@ export interface PoultryReportParams {
   endDate?: string
   datePreset?: string
   flockId?: number | null
+  /** 432: the flocks of one batch. */
+  batchId?: number | null
   customerName?: string | null
   supplierName?: string | null
   category?: string | null
@@ -85,6 +87,7 @@ export async function fetchPoultryReport<TSummary = any, TRow = any>(
   if (params.endDate) qs.set("endDate", params.endDate)
   if (params.datePreset) qs.set("datePreset", params.datePreset)
   if (params.flockId != null) qs.set("flockId", String(params.flockId))
+  if (params.batchId != null) qs.set("batchId", String(params.batchId))
   if (params.customerName) qs.set("customerName", params.customerName)
   if (params.supplierName) qs.set("supplierName", params.supplierName)
   if (params.category) qs.set("category", params.category)
@@ -167,6 +170,8 @@ export interface PoultryBirdsOnHandReportSummary {
 export interface PoultryBirdsOnHandReportRow {
   flockId: number | null; flockName: string; birdsPlaced: number; transfersIn: number | null
   deaths: number; culls: number | null; birdsSold: number | null; transfersOut: number | null
+  /** 421: opening "other" reduction from Initial Farm Setup. Absent on an older API. */
+  otherReductions?: number | null
   expectedBirdsOnHand: number; currentRecordedBirds: number; variance: number; status: string
 }
 

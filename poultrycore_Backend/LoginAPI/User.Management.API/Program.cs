@@ -46,8 +46,8 @@ connectionString = PoultryCore.Db.DbConnectionFallback.Resolve(configuration, "C
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, sql =>
         sql.EnableRetryOnFailure(
-            maxRetryCount: 5,
-            maxRetryDelay: TimeSpan.FromSeconds(30),
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
             errorCodesToAdd: null)));
 // Lowercase identifier mapping is done explicitly in
 // ApplicationDbContext.OnModelCreating — a naming convention cannot override the

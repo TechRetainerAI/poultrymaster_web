@@ -19,6 +19,9 @@ namespace PoultryFarmAPIWeb.Business
         Task<string> GetDetailAsync(string farmId, int batchId);
         Task<string> PostAsync(BatchReconciliationRequest request);
         Task<string> ReverseAsync(int reconciliationId, BatchReconciliationReverseRequest request);
+        Task<string> ListHistoricalSalesAsync(string farmId);
+        Task<string> UpdateHistoricalSaleAsync(int historicalSaleId, HistoricalSaleUpdateRequest request);
+        Task<string> ReverseHistoricalSaleAsync(int historicalSaleId, BatchReconciliationReverseRequest request);
         Task<string> TransferAsync(BirdTransferRequest request);
         Task<List<BirdRepairDiagnosticRow>> DiagnoseAsync(string farmId);
         Task<List<BirdRepairAppliedRow>> RepairAsync(BirdRepairApplyRequest request);
@@ -84,9 +87,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var list = new List<BatchBirdReconciliationRow>();
             using var c = new NpgsqlConnection(_cs);
-            // flocksold: birds sold out of the batch's live flocks (opening history +
-            // posted sales), from the same fnflock_birdposition the summary uses.
-            // batchsold only covers birds sold before they were placed in a flock.
+            // 420 adds the flock-side columns. Before 420 they are absent, so
+            // fall back to the old inline flock-sold join (opening + posted sales).
             using var cmd = new NpgsqlCommand(@"
                 SELECT s.*, COALESCE(fs.sold, 0)::int AS flocksold
                 FROM   sppoultrybatchreconcile_summary(p_farmid => @FarmId::text) s
@@ -118,9 +120,27 @@ namespace PoultryFarmAPIWeb.Business
                     HistoricalReceived = r.Dec("historicalreceived"), HistoricalOwed = r.Dec("historicalowed"),
                     Status = r.Str("status"), LastReconciledAt = r.DateN("lastreconciledat"),
                     LastReconciliationNo = r.StrN("lastreconciliationno"),
+                    FlockHistMortality = IntOr0(r, "flockhistmortality"),
+                    FlockHistSold = IntOr0(r, "flockhistsold"),
+                    FlockHistCulled = IntOr0(r, "flockhistculled"),
+                    FlockHistTransferred = IntOr0(r, "flockhisttransferred"),
+                    FlockHistOther = IntOr0(r, "flockhistother"),
+                    FlockRecordedMortality = IntOr0(r, "flockrecordedmortality"),
+                    FlockPostedSold = IntOr0(r, "flockpostedsold"),
+                    FlockCulled = IntOr0(r, "flockculled"),
+                    FlockTransferred = IntOr0(r, "flocktransferred"),
+                    FlockOtherChanges = IntOr0(r, "flockotherchanges"),
                 });
             }
             return list;
+        }
+
+        // A column 420 added; 0 when the database predates it.
+        private static int IntOr0(NpgsqlDataReader r, string name)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (r.GetName(i) == name) return r.IsDBNull(i) ? 0 : r.GetInt32(i);
+            return 0;
         }
 
         public async Task<string> GetDetailAsync(string farmId, int batchId)
@@ -149,6 +169,52 @@ namespace PoultryFarmAPIWeb.Business
                 "p_reason => @Reason::text, p_by => @By::text)::text", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Id", reconciliationId);
+            cmd.Parameters.AddWithValue("@Reason", m.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", (object?)m.ReversedBy ?? DBNull.Value);
+            await c.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        // ---- 436: historical sales on the Sales page -----------------------
+        public async Task<string> ListHistoricalSalesAsync(string farmId)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT sppoultryhistoricalsale_list(p_farmid => @FarmId::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "[]";
+        }
+
+        public async Task<string> UpdateHistoricalSaleAsync(int historicalSaleId, HistoricalSaleUpdateRequest m)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryhistoricalsale_update(p_farmid => @FarmId::text, p_historicalsaleid => @Id::int, " +
+                "p_saledate => @Date::date, p_valueunknown => @Unknown::boolean, p_priceperbird => @Price::numeric, " +
+                "p_amountreceived => @Received::numeric, p_customerid => @Customer::int, p_reference => @Ref::text, " +
+                "p_notes => @Notes::text, p_by => @By::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@Id", historicalSaleId);
+            cmd.Parameters.AddWithValue("@Date", m.SaleDate.Date);
+            cmd.Parameters.AddWithValue("@Unknown", m.ValueUnknown);
+            cmd.Parameters.AddWithValue("@Price", (object?)m.PricePerBird ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Received", (object?)m.AmountReceived ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Customer", m.CustomerId is > 0 ? m.CustomerId.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@Ref", (object?)m.Reference ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)m.UpdatedBy ?? DBNull.Value);
+            await c.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        public async Task<string> ReverseHistoricalSaleAsync(int historicalSaleId, BatchReconciliationReverseRequest m)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryhistoricalsale_reverse(p_farmid => @FarmId::text, p_historicalsaleid => @Id::int, " +
+                "p_reason => @Reason::text, p_by => @By::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@Id", historicalSaleId);
             cmd.Parameters.AddWithValue("@Reason", m.Reason ?? string.Empty);
             cmd.Parameters.AddWithValue("@By", (object?)m.ReversedBy ?? DBNull.Value);
             await c.OpenAsync();

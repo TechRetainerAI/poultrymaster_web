@@ -137,6 +137,7 @@ export default function GenericStaffDetailPage() {
           ) : (
             <Card className="max-w-3xl">
               <CardHeader>
+                <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
                 <CardTitle>Edit staff member</CardTitle>
               </CardHeader>
               <CardContent>

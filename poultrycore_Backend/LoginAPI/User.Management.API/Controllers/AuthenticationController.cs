@@ -34,12 +34,14 @@ namespace User.Management.API.Controllers
         private readonly string _webAppBaseUrl;
         private readonly string _frontendAppBaseUrl;
         private readonly string? _connStr;
+        private readonly IAuditLogger _audit;
 
         public AuthenticationController(UserManager<ApplicationUser> userManager,
             IEmailService emailService,
             IUserManagement user,
             IConfiguration configuration,
-            ILogger<AuthenticationController> logger)
+            ILogger<AuthenticationController> logger,
+            IAuditLogger audit)
         {
             _userManager = userManager;
             _emailService = emailService;
@@ -48,6 +50,7 @@ namespace User.Management.API.Controllers
             _webAppBaseUrl = configuration["WebApp:BaseUrl"];
             _frontendAppBaseUrl = configuration["FrontendApp:BaseUrl"] ?? "http://localhost:3000";
             _connStr = configuration.GetConnectionString("ConnStr");
+            _audit = audit;
         }
 
         // Prompt 3 — live availability check for an Organization Code (signup).
@@ -90,6 +93,20 @@ namespace User.Management.API.Controllers
             if (tokenResponse.IsSuccess && tokenResponse.Response != null)
             {
                 await _user.AssignRoleToUserAsync(registerUser.Roles, tokenResponse.Response.User);
+
+                // Record the signup in the shared audit trail so it shows on the
+                // Platform Activity Audit. Best-effort; never fails registration.
+                var newUser = tokenResponse.Response.User;
+                await _audit.LogAsync(
+                    userId: newUser.Id,
+                    userName: newUser.UserName ?? newUser.Email ?? registerUser.Email ?? "new user",
+                    action: "REGISTERED",
+                    resource: "Account",
+                    resourceId: newUser.Id,
+                    farmId: newUser.FarmId,
+                    details: $"New signup: {(string.IsNullOrWhiteSpace(registerUser.FarmName) ? newUser.FarmName : registerUser.FarmName) ?? "—"}"
+                             + $" ({registerUser.CompanyType ?? "—"}) · {newUser.Email ?? registerUser.Email}",
+                    status: "Success");
 
                 // Account is auto-confirmed at creation time (see UserManagement.CreateUserWithTokenAsync),
                 // so we send a welcome email rather than a verification link. A mail failure must NOT

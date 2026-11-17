@@ -74,7 +74,7 @@ export default function NewFlockBatchPage() {
       })
       router.push("/flock-batch")
     } else {
-      setError(result.message)
+      setError(result.message ?? "")
       setLoading(false)
     }
   }

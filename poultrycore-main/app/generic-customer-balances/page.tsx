@@ -2,33 +2,32 @@
 
 // Generic Customer Balances (Sales & Money → Customer Balances).
 //
-// Thin, like the poultry and water twins: everything lives in <BalancesPage>.
-// All this file decides is which module it is, where a customer and an invoice
-// live, and which permission keys apply.
-//
-// This page is what migration 244 unlocked. Before it, an approved Generic
-// customer payment moved the customer's balance and the cash account but left
-// every sale showing its original unpaid balance, because
-// GenericCustomerPayments.LinkedSaleId was written by _Insert and read by
-// nothing.
+// Deep copy of the poultry version: uses the shared <BalancesPage> with
+// sale lines dialog, customer credit panel, and clickable document rows.
+// The only poultry feature NOT replicated is customer debts (no backend
+// support yet on the generic side).
 
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { BalancesPage } from "@/components/balances/balances-page"
+import { GenericSaleLinesDialog } from "@/components/generic/generic-sale-lines-dialog"
+import { GenericCustomerCreditPanel } from "@/components/generic/generic-customer-credit-panel"
 import { getCashAccounts } from "@/lib/api/generic"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 
 export default function GenericCustomerBalancesPage() {
-  // The shared page speaks "customer" and "sale" by default. A gym's owner
-  // reads "member" and "membership bill" instead -- same table, same API, same
-  // permissions, different words.
+  const router = useRouter()
   const { labels } = useGenericModules()
 
+  // Click a sale row: show what was sold, without leaving the page.
+  const [detailSaleId, setDetailSaleId] = useState<number | null>(null)
+
   return (
+    <>
     <BalancesPage
       module="generic"
       side="customer"
       companyType="Generic"
-      // Unlike water, a Generic payment DOES post cash: the recording function
-      // writes exactly one CashIn against the account chosen here.
       loadCashAccounts={async () => {
         const accounts = await getCashAccounts()
         return accounts
@@ -40,10 +39,10 @@ export default function GenericCustomerBalancesPage() {
             allowNegativeBalance: a.allowNegativeBalance,
           }))
       }}
-      partyHref={() => "/generic-customers"}
-      // Invoices and counter sales are the same table, so both deep-link into
-      // the Sales page with the row highlighted.
+      partyHref={(customerId) => `/generic-customers/${customerId}/ledger`}
       documentHref={(doc) => `/generic-sales?saleId=${doc.documentId}`}
+      onDocumentDetails={(doc) => setDetailSaleId(doc.documentId)}
+      afterTable={(_reload, paymentsVersion) => <GenericCustomerCreditPanel refreshKey={paymentsVersion} />}
       permissions={{
         view: "generic.customer-balances.view",
         pay: "generic.customer-payments.create",
@@ -57,5 +56,11 @@ export default function GenericCustomerBalancesPage() {
         document: labels.invoice.toLowerCase(),
       }}
     />
+    <GenericSaleLinesDialog
+      saleIds={detailSaleId ? [detailSaleId] : null}
+      onOpenChange={(o) => { if (!o) setDetailSaleId(null) }}
+      onOpenSale={(id) => router.push(`/generic-sales?saleId=${id}`)}
+    />
+    </>
   )
 }

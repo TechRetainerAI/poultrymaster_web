@@ -72,8 +72,21 @@ export function PayrollDeductionsDialog({
   const [amount, setAmount] = useState(0)
   const [description, setDescription] = useState("")
 
-  const editable = target?.runStatus === "Draft" || target?.runStatus === "Reopened"
+  const runEditable = target?.runStatus === "Draft" || target?.runStatus === "Reopened"
+  // Staff with an advance: the deduction comes from Employee Loans & Advances,
+  // so it is shown here, not changed -- the same rule as the Deductions box on
+  // the Add/Edit line form. Staff without one may add and remove their own
+  // other deductions. An advance row already on the line counts too, even if
+  // that advance has since been paid off.
+  const hasAdvance = eligible.length > 0
+    || rows.some((r) => r.poultryEmployeeLoanId != null && r.status !== "Reversed")
+  const editable = runEditable && !hasAdvance
+  // 441. Wages kept as employee credit are the worker's own choice, not a
+  // charge against an advance, so they can be added even when an advance is
+  // being repaid from this line.
+  const canAdd_ = runEditable
   const isLoanType = type === "EmployeeLoanRepayment" || type === "SalaryAdvanceRepayment"
+  const isCredit = type === "EmployeeCredit"
   const chosen = eligible.find((e) => String(e.poultryEmployeeLoanId) === loanId)
 
   const load = useCallback(async () => {
@@ -95,6 +108,10 @@ export function PayrollDeductionsDialog({
         setLoanId("")
         setType("OtherDeduction")
       }
+      if (elig.length > 0 || ded.some((r) => r.poultryEmployeeLoanId != null && r.status !== "Reversed")) {
+        // The only kind this dialog can add for someone repaying an advance.
+        setType("EmployeeCredit")
+      }
     } catch (e: any) {
       toast({ title: "Could not load the breakdown", description: e?.message, variant: "destructive" })
     } finally {
@@ -111,7 +128,7 @@ export function PayrollDeductionsDialog({
   // the same advance is the server's job to police -- this is the first line of
   // defence, not the only one.
   const over = isLoanType && chosen ? amount > chosen.outstandingBalance : false
-  const canAdd = editable && amount > 0 && !over && (!isLoanType || !!loanId)
+  const canAdd = canAdd_ && (editable || isCredit) && amount > 0 && !over && (!isLoanType || !!loanId)
 
   const run = async (fn: () => Promise<void>, ok: string) => {
     setBusy(true)
@@ -185,7 +202,8 @@ export function PayrollDeductionsDialog({
                       {/* Draft rows only. A posted one has a repayment behind it
                           and is undone by reopening the payroll; a legacy row is
                           a leftover, not a record, so there is nothing to delete. */}
-                      {editable && !r.isLegacy && r.status === "Draft" && r.poultryPayrollItemDeductionId && (
+                      {(editable || (runEditable && r.deductionType === "EmployeeCredit"))
+                        && !r.isLegacy && r.status === "Draft" && r.poultryPayrollItemDeductionId && (
                         <Button size="sm" variant="ghost" disabled={busy}
                                 onClick={() => void run(
                                   () => deletePoultryPayrollDeduction(r.poultryPayrollItemDeductionId!),
@@ -204,7 +222,7 @@ export function PayrollDeductionsDialog({
               </TableBody>
             </Table>
 
-            {editable ? (
+            {canAdd_ ? (
               <div className="rounded-md border p-3 space-y-3">
                 <div className="text-sm font-medium">Add a deduction</div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -214,9 +232,12 @@ export function PayrollDeductionsDialog({
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {PAYROLL_DEDUCTION_TYPES.map((t) => (
-                          <SelectItem key={t} value={t} disabled={t !== "OtherDeduction" && eligible.length === 0}>
+                          <SelectItem key={t} value={t}
+                                      disabled={t === "EmployeeCredit" ? false
+                                        : !editable ? true
+                                        : t !== "OtherDeduction" && eligible.length === 0}>
                             {PAYROLL_DEDUCTION_TYPE_LABELS[t]}
-                            {t !== "OtherDeduction" && eligible.length === 0 ? " (no active advances)" : ""}
+                            {t !== "OtherDeduction" && t !== "EmployeeCredit" && eligible.length === 0 ? " (no active advances)" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -260,10 +281,26 @@ export function PayrollDeductionsDialog({
                     <div className="space-y-1">
                       <Label>What is it</Label>
                       <Input value={description} onChange={(e) => setDescription(e.target.value)}
-                             placeholder="Uniform, tools, damage…" />
+                             placeholder={isCredit ? "Saving for school fees…" : "Uniform, tools, damage…"} />
                     </div>
                   )}
                 </div>
+
+                {isCredit && (
+                  <p className="rounded-md bg-emerald-50 p-2 text-xs text-emerald-900">
+                    This part of the wage is <strong>kept for {target.staffName}</strong>, not paid
+                    out now. It still counts as payroll cost on the day the payroll is approved,
+                    and is paid out later from <a href="/poultry-employee-credit" className="underline underline-offset-2">Employee Credit</a>{" "}
+                    with no new expense.
+                  </p>
+                )}
+
+                {runEditable && hasAdvance && (
+                  <p className="text-[11px] text-slate-500">
+                    Advance deductions for {target.staffName} come from{" "}
+                    <a href="/poultry-employee-loans" className="underline underline-offset-2">Employee Loans &amp; Advances</a>.
+                  </p>
+                )}
 
                 <div className="flex justify-end">
                   <Button disabled={busy || !canAdd} onClick={() => void run(async () => {
@@ -293,8 +330,9 @@ export function PayrollDeductionsDialog({
             <div className="flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 p-3">
               <Info className="h-4 w-4 text-sky-700 mt-0.5 shrink-0" />
               <p className="text-xs text-sky-900">
-                Nothing here changes what a worker owes yet. Advances are only repaid when this
-                payroll is <strong>approved</strong> — and reopening it puts them back.
+                Nothing here changes what a worker owes, or what the farm is keeping for them, yet.
+                Advances are repaid and employee credit is added only when this payroll is{" "}
+                <strong>approved</strong> — and reopening it puts both back.
               </p>
             </div>
           </>

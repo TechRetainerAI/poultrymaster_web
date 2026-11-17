@@ -39,6 +39,9 @@ namespace PoultryFarmAPIWeb.Business
         Task<string?> GetFlockEditContext(int flockId, string farmId);
         Task<int> GetBirdsConsumedFromBatch(int batchId, string userId, string farmId, int? flockIdToExclude = null);
 
+        /// <summary>421: every flock's bird position (fnflock_birdposition) in one call.</summary>
+        Task<List<FlockPositionRow>> GetFlockPositions(string farmId);
+
         /// <summary>
         /// Divide a batch into many flocks in one transaction: all of them or none.
         /// Every row goes through the same <c>spflock_insert</c> as

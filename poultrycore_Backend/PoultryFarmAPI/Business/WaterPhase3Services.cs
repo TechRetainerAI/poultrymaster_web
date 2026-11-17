@@ -293,12 +293,35 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<List<WaterRawMaterialPurchaseModel>> GetAllAsync(string farmId, DateTime? fromDate, DateTime? toDate)
         {
-            return await WaterRawMaterialItemService.ReadList("spWaterRawMaterialPurchase_GetAll", _cs, c =>
+            var list = await WaterRawMaterialItemService.ReadList("spWaterRawMaterialPurchase_GetAll", _cs, c =>
             {
                 c.Parameters.AddWithValue("@FarmId", farmId);
                 c.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
                 c.Parameters.AddWithValue("@ToDate", (object?)toDate ?? DBNull.Value);
             }, Read);
+
+            // The cash account a purchase was paid from is not stored on the
+            // purchase -- it is on the expense the purchase created. Attach it,
+            // so editing a purchase opens on the account that was actually used.
+            if (list.Count > 0)
+            {
+                var byPurchase = new Dictionary<int, int>();
+                using var conn = new NpgsqlConnection(_cs);
+                using var cmd = new NpgsqlCommand(@"
+                    SELECT p.waterrawmaterialpurchaseid, e.watercashaccountid
+                    FROM   waterrawmaterialpurchases p
+                    JOIN   waterexpenses e
+                           ON e.waterexpenseid = p.linkedwaterexpenseid AND e.farmid = p.farmid
+                    WHERE  p.farmid = @FarmId AND e.watercashaccountid IS NOT NULL", conn);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                await conn.OpenAsync();
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) byPurchase[r.GetInt32(0)] = r.GetInt32(1);
+                foreach (var p in list)
+                    if (p.WaterCashAccountId == null && byPurchase.TryGetValue(p.WaterRawMaterialPurchaseId, out var acct))
+                        p.WaterCashAccountId = acct;
+            }
+            return list;
         }
 
         public async Task<int> InsertAsync(WaterRawMaterialPurchaseModel m)
@@ -332,7 +355,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateAsync(WaterRawMaterialPurchaseModel m)
         {
             using var conn = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterrawmaterialpurchase_update(p_waterrawmaterialpurchaseid => @WaterRawMaterialPurchaseId::int, p_farmid => @FarmId::text, p_suppliername => @SupplierName::text, p_purchasedate => @PurchaseDate::timestamp, p_quantity => @Quantity::numeric, p_unitcost => @UnitCost::numeric, p_paymentmethod => @PaymentMethod::text, p_amountpaid => @AmountPaid::numeric, p_receipturl => @ReceiptUrl::text, p_notes => @Notes::text, p_supplierid => @SupplierId::int, p_totalcost => @TotalCost::numeric, p_watercashaccountid => @WaterCashAccountId::int, p_productionunit => @ProductionUnit::text, p_productionunitsperpurchaseunit => @ProductionUnitsPerPurchaseUnit::numeric)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterrawmaterialpurchase_update(p_waterrawmaterialpurchaseid => @WaterRawMaterialPurchaseId::int, p_farmid => @FarmId::text, p_suppliername => @SupplierName::text, p_purchasedate => @PurchaseDate::timestamp, p_quantity => @Quantity::numeric, p_unitcost => @UnitCost::numeric, p_paymentmethod => @PaymentMethod::text, p_amountpaid => @AmountPaid::numeric, p_receipturl => @ReceiptUrl::text, p_notes => @Notes::text, p_supplierid => @SupplierId::int, p_totalcost => @TotalCost::numeric, p_watercashaccountid => @WaterCashAccountId::int, p_productionunit => @ProductionUnit::text, p_productionunitsperpurchaseunit => @ProductionUnitsPerPurchaseUnit::numeric, p_waterrawmaterialitemid => @WaterRawMaterialItemId::int)", conn);
             cmd.Parameters.AddWithValue("@WaterRawMaterialPurchaseId", m.WaterRawMaterialPurchaseId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@SupplierName", (object?)m.SupplierName ?? DBNull.Value);
@@ -350,6 +373,9 @@ namespace PoultryFarmAPIWeb.Business
             // Migration 116: production-unit conversion (persisted).
             cmd.Parameters.AddWithValue("@ProductionUnit", (object?)m.ProductionUnit ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ProductionUnitsPerPurchaseUnit", (object?)m.ProductionUnitsPerPurchaseUnit ?? DBNull.Value);
+            // Migration 434: the item the purchase should be under. 0 / absent =
+            // keep the current item; a different id moves the purchase and its stock.
+            cmd.Parameters.AddWithValue("@WaterRawMaterialItemId", m.WaterRawMaterialItemId > 0 ? m.WaterRawMaterialItemId : (object)DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }

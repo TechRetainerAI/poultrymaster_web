@@ -185,11 +185,13 @@ namespace PoultryFarmAPIWeb.Controllers
     {
         private readonly IGenericSaleService _sales;
         private readonly IGenericCompanyService _companies;
+        private readonly IGenericProductService _products;
 
-        public GenericSaleController(IGenericSaleService sales, IGenericCompanyService companies)
+        public GenericSaleController(IGenericSaleService sales, IGenericCompanyService companies, IGenericProductService products)
         {
             _sales = sales;
             _companies = companies;
+            _products = products;
         }
 
         [HttpGet]
@@ -220,6 +222,20 @@ namespace PoultryFarmAPIWeb.Controllers
 
             if (req.Items is null || req.Items.Count == 0)
                 return BadRequest("Sale must have at least one item.");
+
+            // Validate capability: all product items must have CanSell = true
+            var productIds = req.Items
+                .Where(i => string.Equals(i.ItemType, "Product", StringComparison.OrdinalIgnoreCase) && i.GenericProductId.HasValue)
+                .Select(i => i.GenericProductId!.Value)
+                .Distinct().ToList();
+            if (productIds.Count > 0)
+            {
+                var sellable = await _products.GetSellableAsync(farmId);
+                var sellableIds = new HashSet<int>(sellable.Select(p => p.GenericProductId));
+                var blocked = productIds.Where(id => !sellableIds.Contains(id)).ToList();
+                if (blocked.Count > 0)
+                    return BadRequest($"The following item(s) are not marked as sellable: {string.Join(", ", blocked)}. Enable 'Sell to Customers' on each item first.");
+            }
 
             var newId = await _sales.InsertAsync(farmId, req, createdBy);
             var created = await _sales.GetByIdAsync(newId, farmId);

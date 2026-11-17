@@ -36,6 +36,7 @@ import {
 } from "@/lib/api/poultry-finance"
 import { cashByAccount } from "@/lib/cash/cash-flow"
 import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
+import { EmployeeCreditHeldNote } from "@/components/poultry/employee-credit-held-note"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const ACCOUNT_TYPES = [...POULTRY_CASH_ACCOUNT_TYPES]
@@ -291,6 +292,8 @@ export function PoultryCashAccountsPage() {
             <StatCard label="Pending transfers" value={transfers.filter(t => t.status === "Draft").length} accent="amber" />
             <StatCard label="Approved transfers" value={transfers.filter(t => t.status === "Approved").length} accent="blue" />
           </div>}
+          {/* 441: how much of that cash is really staff's money. */}
+          {!embedded && <EmployeeCreditHeldNote totalCash={totalCash} fmt={fmt} className="mb-3" />}
 
           {!embedded && <ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search account name or type" />}
 

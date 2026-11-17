@@ -112,7 +112,7 @@ export function FlockHistoryPanel({ ctx, draft, onDraftChange, disabled }: {
   const sinceLost = (p?.recordedmortality ?? 0) + (p?.birdssold ?? 0) + (p?.birdsculled ?? 0) + (p?.birdstransferred ?? 0)
 
   return (
-    <div className="rounded-xl border border-slate-200 overflow-hidden">
+    <div className="min-w-0 rounded-xl border border-slate-200 overflow-hidden">
       <div className="bg-slate-700 px-4 py-2 text-sm font-semibold text-white">
         {o ? "Bird history — originally placed, current and the difference" : "Bird history"}
       </div>
@@ -120,7 +120,7 @@ export function FlockHistoryPanel({ ctx, draft, onDraftChange, disabled }: {
         <FlockModeSelector mode={ctx.mode === "Existing" ? "existing" : "new"} onChange={() => {}} disabled />
 
         {d ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 [&>*]:min-w-0">
             <L label="Originally placed">
               <NumberInput min="0" value={d.placed} disabled={disabled} onChange={(e) => set({ placed: e.target.value })} />
             </L>
@@ -131,7 +131,7 @@ export function FlockHistoryPanel({ ctx, draft, onDraftChange, disabled }: {
             <Figure label="Live birds now" value={liveNow} tone="emerald" />
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 [&>*]:min-w-0">
             <Figure label="Originally placed" value={placed} />
             {o && <Figure label={`Birds on ${day(o.effectiveDate)}`} value={live} />}
             {o && <Figure label="Difference" value={reduction} tone={reduction > 0 ? "amber" : undefined} />}
@@ -153,7 +153,7 @@ export function FlockHistoryPanel({ ctx, draft, onDraftChange, disabled }: {
                   We know what happened to them
                 </label>
                 {d.known && (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 [&>*]:min-w-0">
                     <L label="Died"><NumberInput min="0" value={d.mort} disabled={disabled} onChange={(e) => set({ mort: e.target.value })} /></L>
                     <L label="Sold (historical)"><NumberInput min="0" value={d.sold} disabled={disabled} onChange={(e) => set({ sold: e.target.value })} /></L>
                     <L label="Culled"><NumberInput min="0" value={d.culled} disabled={disabled} onChange={(e) => set({ culled: e.target.value })} /></L>

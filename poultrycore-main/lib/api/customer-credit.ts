@@ -9,6 +9,8 @@
 //   refund  real Money Out from the account the business chooses; no stock moves
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+// 424: the same routes exist under Water/ -- the prefix follows the active company.
+import { creditModule } from "./credit-module"
 
 export interface CustomerCreditSummaryRow {
   customerId: number
@@ -98,11 +100,11 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function listCustomerCredit(): Promise<CustomerCreditSummaryRow[]> {
-  return call(`Poultry/customer-payments/credit?farmId=${encodeURIComponent(farm())}`)
+  return call(`${creditModule()}/customer-payments/credit?farmId=${encodeURIComponent(farm())}`)
 }
 
 export function getCustomerCredit(customerId: number): Promise<CustomerCreditRow[]> {
-  return call(`Poultry/customer-payments/credit/${customerId}?farmId=${encodeURIComponent(farm())}`)
+  return call(`${creditModule()}/customer-payments/credit/${customerId}?farmId=${encodeURIComponent(farm())}`)
 }
 
 /** Total credit a customer holds (0 when none). */
@@ -115,12 +117,12 @@ export async function customerCreditTotal(customerId: number): Promise<number> {
 export function listCustomerCreditEvents(customerId?: number): Promise<CustomerCreditEvent[]> {
   const q = new URLSearchParams({ farmId: farm() })
   if (customerId) q.set("customerId", String(customerId))
-  return call(`Poultry/customer-payments/credit/events?${q.toString()}`)
+  return call(`${creditModule()}/customer-payments/credit/events?${q.toString()}`)
 }
 
 export function applyCustomerCredit(customerId: number, saleId: number, amount: number): Promise<{ applied: number }> {
   const farmId = farm()
-  return call(`Poultry/customer-payments/apply-credit?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${creditModule()}/customer-payments/apply-credit?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ farmId, customerId, saleId, amount }),
   })
@@ -139,7 +141,7 @@ export interface CustomerRefundInput {
 
 export function recordCustomerRefund(input: CustomerRefundInput): Promise<{ refundId: number }> {
   const farmId = farm()
-  return call(`Poultry/customer-payments/refunds?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${creditModule()}/customer-payments/refunds?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ ...input, farmId }),
   })
@@ -151,7 +153,7 @@ export function recordCustomerRefund(input: CustomerRefundInput): Promise<{ refu
  */
 export function reverseCustomerRefund(refundId: number, reason: string): Promise<{ refundId: number }> {
   const farmId = farm()
-  return call(`Poultry/customer-payments/refunds/${refundId}/reverse?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${creditModule()}/customer-payments/refunds/${refundId}/reverse?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ farmId, reason }),
   })
@@ -160,7 +162,7 @@ export function reverseCustomerRefund(refundId: number, reason: string): Promise
 export function listCustomerRefunds(customerId?: number): Promise<CustomerRefundRow[]> {
   const q = new URLSearchParams({ farmId: farm() })
   if (customerId) q.set("customerId", String(customerId))
-  return call(`Poultry/customer-payments/refunds?${q.toString()}`)
+  return call(`${creditModule()}/customer-payments/refunds?${q.toString()}`)
 }
 
 // ------------------------------------------------------------- 363 manual credit
@@ -217,12 +219,12 @@ export interface ManualCreditRow {
 }
 
 export function listManualCredits(): Promise<ManualCreditRow[]> {
-  return call(`Poultry/customer-payments/credit/manual?farmId=${encodeURIComponent(farm())}`)
+  return call(`${creditModule()}/customer-payments/credit/manual?farmId=${encodeURIComponent(farm())}`)
 }
 
 export function createManualCredit(input: ManualCreditInput): Promise<{ paymentGroupId: string; paymentNumber: string | null }> {
   const farmId = farm()
-  return call(`Poultry/customer-payments/credit/manual?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${creditModule()}/customer-payments/credit/manual?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ ...input, farmId }),
   })
@@ -230,7 +232,7 @@ export function createManualCredit(input: ManualCreditInput): Promise<{ paymentG
 
 export function reverseManualCredit(paymentGroupId: string, reason: string): Promise<{ reversed: number }> {
   const farmId = farm()
-  return call(`Poultry/customer-payments/credit/manual/${encodeURIComponent(paymentGroupId)}/reverse?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${creditModule()}/customer-payments/credit/manual/${encodeURIComponent(paymentGroupId)}/reverse?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ farmId, reason }),
   })

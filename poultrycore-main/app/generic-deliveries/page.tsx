@@ -22,7 +22,7 @@ import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
 import {
-  Plus, Loader2, CheckCircle2, Undo2, XCircle, Truck, Send, PackageCheck,
+  ArrowLeft, Plus, Loader2, CheckCircle2, Undo2, XCircle, Truck, Send, PackageCheck,
   LocateFixed, Search, MapPin, Users2, Package, TrendingUp,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -250,6 +250,7 @@ export default function GenericDeliveriesPage() {
           {/* Header */}
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
                 <Truck className="h-5 w-5 text-emerald-600" /> Deliveries
               </h1>

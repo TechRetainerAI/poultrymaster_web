@@ -20,10 +20,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils/currency"
-import { getUserContext } from "@/lib/api/config"
-import { getSuppliers } from "@/lib/api/supplier"
 import { listOpenDocuments, recordPayment, type OpenDocumentRow } from "@/lib/api/balances"
-import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { creditBalanceModule, listCreditCashAccounts, listCreditSuppliers } from "@/lib/api/credit-module"
 import { entryTimestamp } from "@/lib/utils/date-key"
 import {
   applySupplierCredit, createSupplierCredit, recordSupplierRefund, SUPPLIER_CREDIT_KIND_LABEL,
@@ -41,13 +40,7 @@ function useSuppliers(open: boolean) {
   const [list, setList] = useState<{ id: number; name: string }[]>([])
   useEffect(() => {
     if (!open) return
-    const { userId, farmId } = getUserContext()
-    getSuppliers(userId, farmId)
-      .then((r) => setList((r?.data ?? [])
-        .map((s) => ({ id: Number(s.supplierId), name: String(s.name ?? "") }))
-        .filter((s) => s.id > 0 && s.name)
-        .sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => setList([]))
+    listCreditSuppliers().then(setList).catch(() => setList([]))
   }, [open])
   return list
 }
@@ -56,7 +49,7 @@ function useAccounts(open: boolean) {
   const [list, setList] = useState<PoultryCashAccount[]>([])
   useEffect(() => {
     if (!open) return
-    listPoultryCashAccounts()
+    listCreditCashAccounts()
       .then((a) => setList(a.filter((x) => x.isActive !== false)))
       .catch(() => setList([]))
   }, [open])
@@ -99,7 +92,7 @@ export function PaySupplierAdvanceDialog({ open, currencyCode, onOpenChange, onP
     if (!valid || saving) return
     setSaving(true); setError(null)
     try {
-      await recordPayment("poultry", "supplier", {
+      await recordPayment(creditBalanceModule(), "supplier", {
         partyId: Number(supplierId), amount: value, paymentDate: entryTimestamp(date), paymentMethod: method,
         cashAccountId: Number(accountId), reference: reference.trim() || null, notes: notes.trim() || null,
         sourceType: "SupplierCredits",
@@ -307,7 +300,7 @@ export function ApplySupplierCreditDialog({ credit, currencyCode, onOpenChange, 
   useEffect(() => {
     setDocs(null); setDocKey(""); setAmount(""); setError(null)
     if (!credit) return
-    listOpenDocuments("poultry", "supplier", credit.supplierId)
+    listOpenDocuments(creditBalanceModule(), "supplier", credit.supplierId)
       .then((d) => setDocs(d))
       .catch(() => setDocs([]))
   }, [credit])

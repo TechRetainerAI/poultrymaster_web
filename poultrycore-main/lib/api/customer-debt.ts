@@ -10,6 +10,8 @@
 // Recording and reversing are owner / admin only.
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+// 425: the same routes exist under Water/.
+import { creditModule } from "./credit-module"
 
 export type CustomerDebtEntryType =
   | "OpeningBalance" | "HistoricalDebt" | "Adjustment" | "Migration" | "ExternalTransaction" | "Other"
@@ -73,12 +75,12 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 export function listCustomerDebts(customerId?: number): Promise<CustomerDebtRow[]> {
   const q = new URLSearchParams({ farmId: farm() })
   if (customerId) q.set("customerId", String(customerId))
-  return call(`Poultry/customer-debts?${q.toString()}`)
+  return call(`${creditModule()}/customer-debts?${q.toString()}`)
 }
 
 export function createCustomerDebt(input: CustomerDebtInput): Promise<{ debtId: number; debtNumber: string }> {
   const farmId = farm()
-  return call(`Poultry/customer-debts?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${creditModule()}/customer-debts?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ ...input, farmId }),
   })
@@ -86,7 +88,7 @@ export function createCustomerDebt(input: CustomerDebtInput): Promise<{ debtId: 
 
 export function reverseCustomerDebt(debtId: number, reason: string): Promise<{ debtId: number }> {
   const farmId = farm()
-  return call(`Poultry/customer-debts/${debtId}/reverse?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${creditModule()}/customer-debts/${debtId}/reverse?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ farmId, reason }),
   })

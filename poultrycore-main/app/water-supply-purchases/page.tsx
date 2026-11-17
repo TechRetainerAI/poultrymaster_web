@@ -21,7 +21,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, Ban } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -296,6 +296,8 @@ function WaterRawMaterialsPageInner() {
     try {
       if (editPurchaseId != null) {
         await updateWaterRawMaterialPurchase(editPurchaseId, {
+          // 434: a different item moves the purchase and its stock to it.
+          waterRawMaterialItemId: purchaseForm.waterRawMaterialItemId,
           purchaseDate: purchaseForm.purchaseDate,
           quantity: qty,
           unitCost,
@@ -309,7 +311,14 @@ function WaterRawMaterialsPageInner() {
           productionUnit,
           productionUnitsPerPurchaseUnit,
         } as any)
-        toast({ title: "Purchase updated — stock adjusted" })
+        const movedFrom = purchases.find(x => x.waterRawMaterialPurchaseId === editPurchaseId)
+        const moved = movedFrom != null && movedFrom.waterRawMaterialItemId !== purchaseForm.waterRawMaterialItemId
+        toast({
+          title: moved ? "Purchase moved to another item — stock adjusted" : "Purchase updated — stock adjusted",
+          description: moved
+            ? `Stock taken off ${movedFrom!.itemName ?? "the old item"} and added to ${items.find(i => i.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId)?.itemName ?? "the new item"}.`
+            : undefined,
+        })
       } else {
         await createWaterRawMaterialPurchase({
           waterRawMaterialItemId: purchaseForm.waterRawMaterialItemId,
@@ -497,9 +506,12 @@ function WaterRawMaterialsPageInner() {
                           <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEditItem(it)}>
                             <Pencil className="h-4 w-4 mr-1" /> Edit
                           </Button>
-                          <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteItemTarget(it)}>
-                            <Trash2 className="h-4 w-4 mr-1" /> Delete
-                          </Button>
+                          {/* 430: this only deactivates the item -- it never deletes or undoes a purchase. */}
+                          {it.isActive && (
+                            <Button size="sm" variant="outline" className="flex-1 h-10 text-slate-600" onClick={() => setDeleteItemTarget(it)}>
+                              <Ban className="h-4 w-4 mr-1" /> Deactivate
+                            </Button>
+                          )}
                         </>
                       )}
                       desktopTable={
@@ -533,7 +545,11 @@ function WaterRawMaterialsPageInner() {
                                   <TableCell>{it.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                                   <TableCell className="text-right">
                                     <Button size="sm" variant="ghost" onClick={() => openEditItem(it)}><Pencil className="h-4 w-4" /></Button>
-                                    <Button size="sm" variant="ghost" onClick={() => setDeleteItemTarget(it)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                                    {it.isActive && (
+                                      <Button size="sm" variant="ghost" title="Deactivate item (does not delete or undo any purchase)" onClick={() => setDeleteItemTarget(it)}>
+                                        <Ban className="h-4 w-4 text-slate-500" />
+                                      </Button>
+                                    )}
                                   </TableCell>
                                 </TableRow>
                               )
@@ -852,11 +868,23 @@ function WaterRawMaterialsPageInner() {
           </DialogHeader>
           <div className="space-y-4">
             <FormSection title="Item, Supplier & Date" color="indigo">
-              <FormField label={`Item${editPurchaseId != null ? " (fixed — delete and recreate to change item)" : ""}`} full>
-                <Select value={String(purchaseForm.waterRawMaterialItemId)} onValueChange={(v) => { const id = Number(v); const it = items.find(i => i.waterRawMaterialItemId === id); setPurchaseForm({ ...purchaseForm, waterRawMaterialItemId: id, purchaseUnit: it?.purchaseUnitOfMeasure || it?.unitOfMeasure || purchaseForm.purchaseUnit, productionUnit: it?.unitOfMeasure || purchaseForm.productionUnit }) }} disabled={editPurchaseId != null}>
+              <FormField label="Item" full>
+                <Select value={String(purchaseForm.waterRawMaterialItemId)} onValueChange={(v) => { const id = Number(v); const it = items.find(i => i.waterRawMaterialItemId === id); setPurchaseForm({ ...purchaseForm, waterRawMaterialItemId: id, purchaseUnit: it?.purchaseUnitOfMeasure || it?.unitOfMeasure || purchaseForm.purchaseUnit, productionUnit: it?.unitOfMeasure || purchaseForm.productionUnit }) }}>
                   <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
                   <SelectContent>{items.filter(i => i.isActive || i.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId).map(i => <SelectItem key={i.waterRawMaterialItemId} value={String(i.waterRawMaterialItemId)}>{i.itemName} ({i.unitOfMeasure ?? "—"})</SelectItem>)}</SelectContent>
                 </Select>
+                {(() => {
+                  if (editPurchaseId == null) return null
+                  const orig = purchases.find(x => x.waterRawMaterialPurchaseId === editPurchaseId)
+                  if (!orig || orig.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId) return null
+                  const newName = items.find(i => i.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId)?.itemName ?? "the new item"
+                  return (
+                    <p className="mt-1 text-xs text-amber-700">
+                      On save, this purchase&apos;s stock comes off {orig.itemName ?? "the old item"} and goes onto {newName}, and the linked expense is renamed.
+                      Check the units below — they now follow {newName}.
+                    </p>
+                  )
+                })()}
               </FormField>
               <FormField label="Supplier" full>
                 <SupplierSelect
@@ -1054,10 +1082,10 @@ function WaterRawMaterialsPageInner() {
         open={!!deleteItemTarget}
         onOpenChange={(o) => { if (!o) setDeleteItemTarget(null) }}
         title="Deactivate raw material item?"
-        description={deleteItemTarget ? `"${deleteItemTarget.itemName}" will be hidden from new purchases. Existing purchases and usage history stay intact. You can reactivate it later by editing and ticking Active.` : undefined}
+        description={deleteItemTarget ? `"${deleteItemTarget.itemName}" will be hidden from new purchases. This does NOT delete or undo any purchase, and its stock stays as it is. To correct a purchase, use the Purchases tab instead. You can reactivate the item later by editing it and ticking Active.` : undefined}
         confirmLabel="Deactivate"
         successTitle="Item deactivated"
-        errorTitle="Delete failed"
+        errorTitle="Deactivate failed"
         onConfirm={async () => {
           if (deleteItemTarget) {
             await deleteWaterRawMaterialItem(deleteItemTarget.waterRawMaterialItemId)
