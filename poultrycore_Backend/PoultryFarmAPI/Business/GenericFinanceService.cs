@@ -115,7 +115,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<GenericAssetModel>> ListAsync(string farmId);
         Task<int> CreateAsync(GenericAssetCreateRequest r);
         Task DisposeAsync(int assetId, GenericAssetDisposeRequest r);
-        Task DepreciateAsync(int assetId, string farmId, decimal amount);
+        Task<bool> DepreciateAsync(int assetId, string farmId, decimal amount);
     }
 
     public class GenericAssetService : IGenericAssetService
@@ -181,15 +181,44 @@ namespace PoultryFarmAPIWeb.Business
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task DepreciateAsync(int assetId, string farmId, decimal amount)
+        public async Task<bool> DepreciateAsync(int assetId, string farmId, decimal amount)
         {
-            using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand(
-                "SELECT * FROM spgenericasset_depreciate(@AssetId::int, @FarmId::text, @Amount::numeric)", c);
-            cmd.Parameters.AddWithValue("@AssetId", assetId);
-            cmd.Parameters.AddWithValue("@FarmId", farmId);
-            cmd.Parameters.AddWithValue("@Amount", amount);
-            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+            using var connection = new NpgsqlConnection(_cs);
+            await connection.OpenAsync();
+            using var transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+
+            // The register stores only cumulative depreciation. Record each new charge
+            // as a dated non-cash expense in the same transaction as the register update.
+            using var lookup = new NpgsqlCommand("""
+                SELECT "AssetName" FROM spgenericasset_list(@farm)
+                WHERE "GenericAssetId" = @id AND "Status" = 'Active' AND "CurrentValue" >= @amount
+                """, connection, transaction);
+            lookup.Parameters.AddWithValue("farm", farmId);
+            lookup.Parameters.AddWithValue("id", assetId);
+            lookup.Parameters.AddWithValue("amount", amount);
+            if (await lookup.ExecuteScalarAsync() is not string name) return false;
+
+            using var post = new NpgsqlCommand("""
+                SELECT spgenericasset_depreciate(@id, @farm, @amount);
+                WITH category AS (
+                    INSERT INTO genericexpensecategories (farmid, name) VALUES (@farm, 'Depreciation')
+                    ON CONFLICT (farmid, name) DO UPDATE SET name = excluded.name
+                    RETURNING genericexpensecategoryid
+                )
+                INSERT INTO genericexpenses
+                    (farmid, expensedate, genericexpensecategoryid, description, amount, amountpaid,
+                     paymentmethod, status, approvedat, sourcetype)
+                SELECT @farm, now() AT TIME ZONE 'UTC', genericexpensecategoryid, @description,
+                       @amount, @amount, 'NonCash', 'Approved', now() AT TIME ZONE 'UTC', 'AssetDepreciation'
+                FROM category
+                """, connection, transaction);
+            post.Parameters.AddWithValue("id", assetId);
+            post.Parameters.AddWithValue("farm", farmId);
+            post.Parameters.AddWithValue("amount", amount);
+            post.Parameters.AddWithValue("description", $"Depreciation for {name} (asset #{assetId})");
+            await post.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+            return true;
         }
     }
 }

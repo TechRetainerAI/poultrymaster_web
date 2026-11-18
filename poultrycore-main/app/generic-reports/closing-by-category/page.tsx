@@ -151,7 +151,6 @@ export default function ClosingByCategoryPage() {
               <ReportExportButtons pdf={pdfOpts} disabled={loading || inRange.length === 0} csvFilename="closing-by-category" />
             </div>
 
-            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <ReportPageHeader title="Closing by Category" description="Period totals from approved daily closings, grouped into financial categories." period={{ from, to }} />
 
             <Card className="mb-4">

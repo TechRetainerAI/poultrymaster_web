@@ -72,7 +72,10 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpPost("{assetId:int}/depreciate")]
         public async Task<IActionResult> Depreciate(string farmId, int assetId, [FromBody] decimal amount)
         {
-            await _svc.DepreciateAsync(assetId, farmId, amount);
+            if (amount <= 0 || decimal.Round(amount, 2) != amount)
+                return BadRequest("Enter a positive amount with at most two decimal places.");
+            if (!await _svc.DepreciateAsync(assetId, farmId, amount))
+                return BadRequest("Choose an active asset and an amount within its remaining book value.");
             return Ok();
         }
     }

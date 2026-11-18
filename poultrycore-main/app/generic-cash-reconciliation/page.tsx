@@ -165,7 +165,6 @@ export default function GenericCashReconciliationPage() {
             </Button>
 
             <div className="mt-0.5">
-              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
                 <Scale className="h-5 w-5 text-sky-600" />
                 Reconciliation

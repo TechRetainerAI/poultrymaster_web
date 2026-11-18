@@ -6,6 +6,7 @@ namespace PoultryFarmAPIWeb.Business
     {
         Task<GenericDashboardModel> GetDashboardAsync(string farmId, DateTime? asOf);
         Task<GenericPeriodPnLModel> GetPeriodPnLAsync(string farmId, DateTime fromDate, DateTime toDate);
+        Task<List<GenericProfitLossEntry>> GetProfitLossEntriesAsync(string farmId, DateOnly from, DateOnly to, CancellationToken cancellationToken);
 
         Task<List<GenericSalesByProductRow>>  GetSalesByProductAsync(string farmId, DateTime fromDate, DateTime toDate);
         Task<List<GenericSalesByCustomerRow>> GetSalesByCustomerAsync(string farmId, DateTime fromDate, DateTime toDate);
