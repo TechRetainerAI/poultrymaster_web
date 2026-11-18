@@ -279,7 +279,9 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<PoultryPayrollItemModel?> UpsertItemAsync(int runId, string farmId, PoultryPayrollItemUpsertRequest req)
         {
             using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollitem_upsert(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text, p_poultrystaffid => @PoultryStaffId::int, p_basicpay => @BasicPay::numeric, p_dailywage => @DailyWage::numeric, p_commission => @Commission::numeric, p_bonus => @Bonus::numeric, p_deductions => @Deductions::numeric, p_paymentmethod => @PaymentMethod::text, p_notes => @Notes::text)", c);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollitem_upsert(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text, p_poultrystaffid => @PoultryStaffId::int, p_basicpay => @BasicPay::numeric, p_dailywage => @DailyWage::numeric, p_commission => @Commission::numeric, p_bonus => @Bonus::numeric, p_deductions => @Deductions::numeric, p_paymentmethod => @PaymentMethod::text, p_notes => @Notes::text, p_otherdeductions => @OtherDeductions::numeric, p_employeecredit => @EmployeeCredit::numeric)", c);
+            cmd.Parameters.AddWithValue("@OtherDeductions", (object?)req.OtherDeductions ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@EmployeeCredit",  (object?)req.EmployeeCredit  ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@PoultryPayrollRunId", runId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryStaffId", req.PoultryStaffId);

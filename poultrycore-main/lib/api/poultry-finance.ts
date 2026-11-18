@@ -900,6 +900,10 @@ export const createPoultryPayrollRun = (input: {
 export const upsertPoultryPayrollItem = (runId: number, input: {
   poultryStaffId: number; basicPay: number; dailyWage: number; commission: number
   bonus: number; deductions: number; paymentMethod?: string | null; notes?: string | null
+  /** 442. The typed "Other deductions" only; when sent, `deductions` is ignored. */
+  otherDeductions?: number | null
+  /** 442. Wages kept as employee credit. null/undefined = leave as is, 0 = remove. */
+  employeeCredit?: number | null
 }) =>
   jsend<PoultryPayrollItem>(`/Poultry/payroll-runs/${runId}/items?farmId=${fid()}`, "POST", input)
 
