@@ -4,7 +4,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
 {
-    public class GenericReportService : IGenericReportService
+    public partial class GenericReportService : IGenericReportService
     {
         private readonly string _connectionString;
         public GenericReportService(string connectionString) => _connectionString = connectionString;

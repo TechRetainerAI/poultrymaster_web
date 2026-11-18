@@ -123,6 +123,27 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await _reports.GetDashboardAsync(farmId, asOf));
         }
 
+        [HttpGet("profit-loss")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public async Task<ActionResult<List<GenericProfitLossEntry>>> ProfitLoss(
+            string farmId, [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
+            [FromServices] IIamService iam, CancellationToken cancellationToken)
+        {
+            if (fromDate == default || toDate == default || fromDate > toDate)
+                return BadRequest("Choose a valid start and end date.");
+            if (Request.Query.ContainsKey("farmId"))
+                return BadRequest("Specify the company in the report URL.");
+            if (!string.Equals(User.FindFirst("FarmId")?.Value, farmId, StringComparison.OrdinalIgnoreCase))
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (userId is null || !await iam.HasPermissionAsync(userId, farmId, "generic.reports.view"))
+                    return Forbid();
+            }
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetProfitLossEntriesAsync(farmId, fromDate, toDate, cancellationToken));
+        }
+
         [HttpGet("period-pnl")]
         public async Task<ActionResult<GenericPeriodPnLModel>> PeriodPnL(
             string farmId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)

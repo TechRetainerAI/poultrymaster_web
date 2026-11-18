@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 
 namespace PoultryFarmAPIWeb.Models
 {
+    public record GenericProfitLossEntry(string Section, string Line, DateOnly Date, string Reference, string Description, decimal Amount);
+
     // =========================================================================
     // Status constants
     // =========================================================================

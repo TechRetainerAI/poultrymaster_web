@@ -1622,6 +1622,20 @@ export async function getSupplierLedger(supplierId: number): Promise<GenericSupp
 // Part 2: reports
 // =============================================================================
 
+export interface GenericProfitLossEntry {
+  section: "revenue" | "direct" | "operating" | "other" | "owner" | "borrowing" | "capital"
+  line: string
+  date: string
+  reference: string
+  description: string
+  amount: number
+}
+
+export async function getProfitLossEntries(farmId: string, fromDate: string, toDate: string): Promise<GenericProfitLossEntry[]> {
+  const params = new URLSearchParams({ fromDate, toDate })
+  return getJson<GenericProfitLossEntry[]>(`/generic-company/${encodeURIComponent(farmId)}/reports/profit-loss?${params}`)
+}
+
 export async function getPeriodPnL(fromDate: string, toDate: string): Promise<GenericPeriodPnL> {
   return getJson<GenericPeriodPnL>(
     `${farmBase()}/reports/period-pnl?fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`
