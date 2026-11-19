@@ -88,7 +88,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
   const catalog: MegaMenuGroup[] = []
   const catalogStockItems: MegaMenuItem[] = [
     ...(showExisting("enableProducts")
-      ? [item("/generic-products", "Products & Inventory", ShoppingBag)] : []),
+      ? [item("/generic-products", "Products", ShoppingBag)] : []),
     ...(showExisting("enableInventory")
       ? [item("/generic-inventory", "Inventory & Purchases", Boxes)] : []),
     ...(showExisting("enableStockAdjustments")
@@ -277,7 +277,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       key: "setup-production",
       label: "Production",
       items: gated([
-        item("/generic-products",    "Products & Inventory", ShoppingBag),
+        item("/generic-products",    "Products", ShoppingBag),
         item("/generic-production",  "Production Records", Factory),
       ]),
     }] : []),

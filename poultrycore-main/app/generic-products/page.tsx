@@ -372,7 +372,7 @@ export default function GenericProductsPage() {
                 <ArrowLeft className="w-5 h-5 text-slate-600" />
               </button>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <Package className="h-6 w-6 text-blue-600" /> Products & Inventory
+                <Package className="h-6 w-6 text-blue-600" /> Products
               </h1>
               <p className="text-sm text-slate-500">Manage the items your business buys, sells, produces and uses.</p>
             </div>
