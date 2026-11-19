@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 
 namespace PoultryFarmAPIWeb.Models
 {
+    public record GenericProfitLossEntry(string Section, string Line, DateOnly Date, string Reference, string Description, decimal Amount);
+
     // =========================================================================
     // Status constants
     // =========================================================================
@@ -246,5 +248,149 @@ namespace PoultryFarmAPIWeb.Models
     {
         public List<GenericCashSummaryRow> Accounts { get; set; } = new();
         public decimal TotalCashAtHand { get; set; }
+    }
+
+    // =========================================================================
+    // Financial Impact Preview (migration 442)
+    // =========================================================================
+    public class GenericFinancialPreviewModel
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public string TransactionType { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
+        public decimal UnitCost { get; set; }
+        public decimal TotalCost { get; set; }
+        public decimal InventoryChange { get; set; }
+        public decimal RevenueEffect { get; set; }
+        public decimal COGSEffect { get; set; }
+        public decimal ExpenseEffect { get; set; }
+        public decimal CashEffect { get; set; }
+        public decimal SupplierEffect { get; set; }
+        public decimal CurrentStock { get; set; }
+        public decimal StockAfter { get; set; }
+        public string? ExpenseCategory { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    // =========================================================================
+    // P&L Expense Breakdown (migration 442)
+    // =========================================================================
+    public class GenericPnLBreakdownModel
+    {
+        public decimal TotalIncome { get; set; }
+        public decimal CostOfGoodsSold { get; set; }
+        public decimal GrossProfit { get; set; }
+        public decimal InternalUseExpenses { get; set; }
+        public decimal OperatingExpenses { get; set; }
+        public decimal PayrollExpenses { get; set; }
+        public decimal TotalExpenses { get; set; }
+        public decimal NetProfit { get; set; }
+        public decimal ProfitMarginPct { get; set; }
+        public int SalesCount { get; set; }
+        public int InternalUseCount { get; set; }
+    }
+
+    // =========================================================================
+    // Item Cost Reconciliation (migration 442)
+    // =========================================================================
+    public class GenericItemCostReconciliationModel
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public decimal TotalPurchasedQty { get; set; }
+        public decimal TotalPurchasedCost { get; set; }
+        public decimal TotalProducedQty { get; set; }
+        public decimal TotalProducedCost { get; set; }
+        public decimal SoldQty { get; set; }
+        public decimal SoldCost { get; set; }
+        public decimal InternalUseQty { get; set; }
+        public decimal InternalUseCost { get; set; }
+        public decimal ProductionConsumedQty { get; set; }
+        public decimal ProductionConsumedCost { get; set; }
+        public decimal AdjustmentQty { get; set; }
+        public decimal RemainingQty { get; set; }
+        public decimal RemainingCostBasis { get; set; }
+        public bool CostReconciled { get; set; }
+    }
+
+    // =========================================================================
+    // Phase 5 Reports (migration 443)
+    // =========================================================================
+
+    public class GenericInventoryBalanceRow
+    {
+        public int GenericProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public string? CategoryName { get; set; }
+        public string? Purpose { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public decimal OpeningQty { get; set; }
+        public decimal PurchasesQty { get; set; }
+        public decimal ProductionInQty { get; set; }
+        public decimal ReturnsInQty { get; set; }
+        public decimal SalesQty { get; set; }
+        public decimal InternalUseQty { get; set; }
+        public decimal ProductionOutQty { get; set; }
+        public decimal DamageQty { get; set; }
+        public decimal AdjustmentQty { get; set; }
+        public decimal OtherQty { get; set; }
+        public decimal ClosingQty { get; set; }
+        public decimal UnitCost { get; set; }
+        public decimal InventoryValue { get; set; }
+    }
+
+    public class GenericConsumptionRow
+    {
+        public DateTime UsageDate { get; set; }
+        public int GenericProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public string? CategoryName { get; set; }
+        public decimal QuantityUsed { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public decimal UnitCost { get; set; }
+        public decimal TotalCost { get; set; }
+        public string? ExpenseCategory { get; set; }
+        public string? Reason { get; set; }
+        public string? ReferenceNumber { get; set; }
+        public string? RecordedBy { get; set; }
+        public string? Status { get; set; }
+        public int GenericInternalUsageId { get; set; }
+    }
+
+    public class GenericConsumptionSummary
+    {
+        public decimal TotalConsumptionCost { get; set; }
+        public int TotalItemsConsumed { get; set; }
+        public int TotalRecords { get; set; }
+        public string? TopItemName { get; set; }
+        public decimal TopItemCost { get; set; }
+        public string? CategoryBreakdown { get; set; } // JSON
+    }
+
+    public class GenericReconciliationRow
+    {
+        public int GenericProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public decimal LedgerTotal { get; set; }
+        public decimal CachedStock { get; set; }
+        public decimal Drift { get; set; }
+        public bool IsReconciled { get; set; }
+    }
+
+    public class GenericRestockForecastRow
+    {
+        public int GenericProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public decimal CurrentStock { get; set; }
+        public decimal MinimumStockAlert { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public decimal AvgDailySales { get; set; }
+        public decimal AvgDailyInternalUse { get; set; }
+        public decimal AvgDailyProduction { get; set; }
+        public decimal AvgDailyOtherOut { get; set; }
+        public decimal AvgDailyTotalOut { get; set; }
+        public decimal DaysUntilStockout { get; set; }
+        public decimal DaysUntilReorderPoint { get; set; }
+        public decimal SuggestedReorderQty { get; set; }
+        public string UrgencyLevel { get; set; } = "OK";
     }
 }

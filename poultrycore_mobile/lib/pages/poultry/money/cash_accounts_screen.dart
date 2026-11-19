@@ -16,10 +16,23 @@ import '../trackers/tracker_widgets.dart';
 import 'cash_account_dialogs.dart';
 import 'money_widgets.dart';
 import 'reconciliation_screen.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
+import 'cash_flow_screen.dart' show sourceTypeLabel;
+import '../../shared/reason_select.dart' show ReasonSelectField;
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
+import '../setup/setup_embed.dart';
 
 /// Poultry → Money → Cash Account, as `app/poultry-cash-accounts/page.tsx`
-/// (list) and `[id]/page.tsx` (one account's ledger).
+/// (list) and `[id]/page.tsx` (one account's ledger). On hotelMoneyRail it is
+/// `app/hotel-cash-accounts/page.tsx`: the Hotel's types and "Used for" link,
+/// View details opening the account's transactions (with Reverse on an
+/// adjustment), Delete deactivating, and one-step transfers, in violet.
+
+/// CASH_COUNT_REVERSAL_REASONS.
+const cashCountReversalReasons = [
+  'Miscounted', 'Counted the wrong account', 'Wrong amount entered', 'Wrong date', 'Duplicate count',
+  'Cash located afterwards', 'Posted by mistake', 'Other',
+];
 
 const _ledgerTypeLabels = {
   'CashIn': 'Money in',
@@ -79,7 +92,7 @@ List<Map> accountLedger(List<Map> rows, num opening, [String p = 'poultry']) {
   return out.reversed.toList();
 }
 
-const _sky600 = Color(0xFF0284C7);
+const _sky600 = Tone.fg(0xFF0284C7);
 
 class CashAccountsScreen extends StatefulWidget {
   const CashAccountsScreen({super.key, required this.session, required this.company, this.rail = poultryMoneyRail});
@@ -127,16 +140,16 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
     setState(() => _loading = true);
     try {
       final q = {'farmId': _farmId};
-      final r = await Future.wait([_api.get('${_r.api}/cash-accounts', query: q), _api.get('${_r.api}/cash-transfers', query: q)]);
+      final r = await Future.wait([_api.get(_r.cashAccountsApi, query: q), _api.get('${_r.api}/cash-transfers', query: q)]);
       if (!mounted) return;
       setState(() {
-        _accounts = rowsOf(r[0]);
+        _accounts = _r.accountsOf(r[0]);
         _transfers = rowsOf(r[1]);
       });
       // The status feed may not exist on an older database; the page still renders.
       List<Map> st = [];
       try {
-        st = rowsOf(await _api.get('${_r.api}/cash-reconciliations/account-status', query: q));
+        st = rowsOf(await _api.get(_r.isHotel ? '${_r.cashAccountsApi}/status' : '${_r.api}/cash-reconciliations/account-status', query: q));
       } on ApiException {
         st = [];
       }
@@ -159,9 +172,9 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
     }
     setState(() => _saving = true);
     try {
-      await _api.post('${_r.api}/cash-accounts', body: {
+      await _api.post(_r.cashAccountsApi, body: {
         'accountName': name,
-        'accountType': cashAccountTypesFor(_r).first,
+        'accountType': _r.isHotel ? 'CashBox' : cashAccountTypesFor(_r).first,
         'openingBalance': 0,
         'allowNegativeBalance': false,
         'notes': 'Default cash account',
@@ -177,6 +190,15 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
 
   Future<void> _recalculate() async {
     try {
+      if (_r.isHotel) {
+        final res = await _api.post('${_r.cashAccountsApi}/recalculate', query: {'farmId': _farmId}, body: {'farmId': _farmId});
+        if (mounted) {
+          trackerToast(context, 'Balances recalculated',
+              description: '${tIntOrNull(res is Map ? res['changed'] : null) ?? 0} account(s) rebuilt from their transactions.');
+        }
+        await _load();
+        return;
+      }
       await _api.post('${_r.api}/cash-accounts/reconcile-balances', query: {'farmId': _farmId});
       if (mounted) trackerToast(context, 'Balances recalculated');
       await _load();
@@ -192,7 +214,20 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
         confirmLabel: 'Remove account');
     if (!ok) return;
     try {
-      await _api.delete('${_r.api}/cash-accounts/${tStr(a['${_r.idPrefix}CashAccountId'])}?farmId=${Uri.encodeQueryComponent(_farmId)}');
+      if (_r.isHotel) {
+        // Remove = deactivate: the history stays intact.
+        await _api.put('${_r.cashAccountsApi}/${tStr(a['hotelCashAccountId'])}', body: {
+          'farmId': _farmId,
+          'accountName': a['accountName'],
+          'accountType': a['accountType'],
+          'allowNegativeBalance': a['allowNegativeBalance'] == true,
+          'isActive': false,
+          'notes': a['notes'],
+          'purpose': a['purpose'],
+        });
+      } else {
+        await _api.delete('${_r.api}/cash-accounts/${tStr(a['${_r.idPrefix}CashAccountId'])}?farmId=${Uri.encodeQueryComponent(_farmId)}');
+      }
       if (mounted) trackerToast(context, 'Cash account removed');
       await _load();
     } on ApiException catch (e) {
@@ -219,6 +254,8 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
   }
 
   Future<void> _details(Map a) async {
+    // The Hotel has no account page: View details opens its transactions.
+    if (_r.isHotel) return _hotelTransactions(a);
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => CashAccountDetailScreen(
         session: widget.session,
@@ -266,7 +303,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: Text(_fmt(tNum(r['amount'])),
-                            style: TextStyle(color: tNum(r['amount']) < 0 ? TColors.rose600 : const Color(0xFF15803D))),
+                            style: TextStyle(color: tNum(r['amount']) < 0 ? TColors.rose600 : const Tone.fg(0xFF15803D))),
                       ),
                       Text(tStr(r['description']).isEmpty ? '—' : tStr(r['description'])),
                     ],
@@ -280,13 +317,126 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
   }
 
   bool get _water => _r.idPrefix == 'water';
+  bool get _hotel => _r.isHotel;
+
+  /// The Hotel's transactions view: /finance/cash-transactions (lower-case
+  /// keys), each with its balance after, and Reverse on an adjustment not yet reversed.
+  Future<void> _hotelTransactions(Map a) async {
+    final id = tStr(a['hotelCashAccountId']);
+    List<Map>? rows;
+    Future<void> fetch(void Function(void Function()) set) async {
+      try {
+        final r = rowsOf(await _api.get('/api/Hotel/finance/cash-transactions', query: {'farmId': _farmId, 'accountId': id}));
+        set(() => rows = r);
+      } on ApiException catch (e) {
+        set(() => rows = []);
+        if (mounted) trackerToast(context, 'Failed to load transactions', description: e.message, error: true);
+      }
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, set) {
+        if (rows == null) fetch(set);
+        final reversed = {for (final r in rows ?? const <Map>[]) if (r['sourcetype'] == 'CashAdjustmentReversal') tStr(r['sourceid'])};
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: .8,
+          builder: (ctx, sc) => ListView(controller: sc, padding: const EdgeInsets.all(16), children: [
+            Text('Transactions — ${tStr(a['accountName'])}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            if (rows == null || rows!.isEmpty)
+              const Padding(padding: EdgeInsets.all(16), child: Text('No transactions yet.', style: TextStyle(color: TColors.slate500)))
+            else
+              for (final r in rows!)
+                () {
+                  final credit = r['txntype'] == 'Credit';
+                  final signed = credit ? tNum(r['amount']) : -tNum(r['amount']);
+                  final adj = r['sourcetype'] == 'CashAdjustment' && r['sourceid'] != null && !reversed.contains(tStr(r['sourceid']));
+                  return Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: TColors.slate100))),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('${credit ? 'Money in' : 'Money out'} · ${sourceTypeLabel(r['sourcetype'])}',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.slate900)),
+                          Text(fmtDateTime(r['txndate'], {'createdAt': r['createdat']}, _offset), style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                          if (tStr(r['description']).isNotEmpty) Text(tStr(r['description']), style: const TextStyle(fontSize: 12, color: TColors.slate600)),
+                        ]),
+                      ),
+                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        Text(_fmt(signed), style: TextStyle(fontWeight: FontWeight.w600, color: signed < 0 ? TColors.rose600 : const Tone.fg(0xFF15803D))),
+                        Text(_fmt(tNum(r['balanceafter'])), style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                        if (adj)
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              if (await _reverseAdjustment(tStr(r['sourceid']))) {
+                                set(() => rows = null);
+                                _load();
+                              }
+                            },
+                            icon: const Icon(Icons.undo, size: 14),
+                            label: const Text('Reverse'),
+                          ),
+                      ]),
+                    ]),
+                  );
+                }(),
+          ]),
+        );
+      }),
+    );
+  }
+
+  /// "Reverse this adjustment?": an opposite transaction is posted and the original kept.
+  Future<bool> _reverseAdjustment(String adjustmentId) async {
+    final reason = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        scrollable: true,
+        title: const Text('Reverse this adjustment?'),
+        content: SizedBox(
+          width: 420,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Text('An opposite transaction is posted and the original is kept.', style: TextStyle(fontSize: 13, color: TColors.slate500)),
+            const SizedBox(height: 12),
+            FilterLabel('Reason for reversal', ReasonSelectField(controller: reason, options: cashCountReversalReasons)),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white),
+            onPressed: () {
+              if (reason.text.trim().isEmpty) return trackerToast(ctx, 'A reason is required', error: true);
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Reverse'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return false;
+    try {
+      await _api.post('/api/Hotel/finance/cash-adjustments/$adjustmentId/reverse',
+          query: {'farmId': _farmId}, body: {'farmId': _farmId, 'reason': reason.text.trim()});
+      if (mounted) trackerToast(context, 'Adjustment reversed');
+      return true;
+    } on ApiException catch (e) {
+      if (mounted) trackerToast(context, "Couldn't reverse", description: e.message, error: true);
+      return false;
+    }
+  }
 
   Widget _statCard(String label, String value, Accent accent) {
     // Water's page uses plain cards: a small slate label over the figure.
     if (_water) {
       return Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -305,8 +455,8 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
   }
 
   Widget _activeBadge(Map a) => a['isActive'] == true
-      ? const TBadge('Active', bg: Color(0xFFDCFCE7), fg: Color(0xFF15803D))
-      : const TBadge('Inactive', bg: Colors.white, fg: TColors.slate700, border: TColors.slate300);
+      ? const TBadge('Active', bg: Tone.bg(0xFFDCFCE7), fg: Tone.fg(0xFF15803D))
+      : const TBadge('Inactive', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300);
 
   Widget _accountsTable(List<Map> items, Map<String, Map> statusById) => TrackerTable(
         columns: const [
@@ -331,8 +481,12 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                     child: Text(label),
                   );
               return <Widget>[
-                Text(tStr(a['accountName']), style: const TextStyle(fontWeight: FontWeight.w500)),
-                cellText(tStr(a['accountType'])),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(tStr(a['accountName']), style: const TextStyle(fontWeight: FontWeight.w500)),
+                  if (_hotel && hotelPurposeLabel(a['purpose']) != null)
+                    Text(hotelPurposeLabel(a['purpose'])!, style: const TextStyle(fontSize: 11, color: TColors.violet700)),
+                ]),
+                cellText(cashAccountTypeLabel(_r, a['accountType'])),
                 Align(alignment: Alignment.centerRight, child: Text(_fmt(tNum(a['openingBalance'])))),
                 Align(
                   alignment: Alignment.centerRight,
@@ -364,10 +518,10 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                 Align(alignment: Alignment.centerLeft, child: _activeBadge(a)),
                 Wrap(alignment: WrapAlignment.end, children: [
                   IconButton(tooltip: 'View details', onPressed: () => _details(a), icon: const Icon(Icons.visibility_outlined, size: 18)),
-                  Tooltip(message: 'Quick transactions', child: act('Txns', () => _quickTransactions(a))),
+                  if (!_hotel) Tooltip(message: 'Quick transactions', child: act('Txns', () => _quickTransactions(a))),
                   act('Reconcile', () => _reconcile(tIntOrNull(a['${_r.idPrefix}CashAccountId']))),
                   act('Edit', () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r, editing: a))),
-                  IconButton(tooltip: 'Delete account', onPressed: () => _delete(a), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
+                  IconButton(tooltip: 'Delete account', onPressed: () => _delete(a), icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444))),
                 ]),
               ];
             }(),
@@ -396,18 +550,39 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
         );
 
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(_water ? 'Cash accounts' : 'Cash Account')),
+      appBar: isSetupEmbedded(context) ? null : AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(_water ? 'Cash accounts' : 'Cash Account')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            Row(children: [
-              const Icon(Icons.account_balance_wallet_outlined, size: 24, color: _sky600),
-              const SizedBox(width: 8),
-              Expanded(child: Text(_water ? 'Cash accounts' : 'Cash Account', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
-            ]),
-            const SizedBox(height: 10),
+            if (!isSetupEmbedded(context)) ...[
+              Row(children: [
+                Icon(Icons.account_balance_wallet_outlined, size: 24, color: _r.accent ?? _sky600),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_water ? 'Cash accounts' : 'Cash Account', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
+              ]),
+              const SizedBox(height: 10),
+            ],
+            // Poultry (9 Nov pull, setup-views/poultry-cash-accounts.tsx): the
+            // buttons as one task row, in the web's order and groups; on Farm
+            // Setup's task bar inside a tab. Water and Hotel keep theirs.
+            if (!_water && !_hotel)
+              SetupTaskBar(tasks: [
+                SetupTask(id: 'new', label: 'New account', icon: Icons.add, primary: true,
+                    onTap: () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r))),
+                SetupTask(id: 'transfer', label: 'Transfer', icon: Icons.swap_horiz, group: 'money',
+                    onTap: () => _dialog(CashTransferQuickDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts))),
+                SetupTask(id: 'adjust', label: 'Record Cash Adjustment', icon: Icons.balance, group: 'money',
+                    onTap: () => _dialog(RecordCashAdjustmentDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts, fmt: _fmt))),
+                SetupTask(id: 'reconcile', label: 'Reconcile', icon: Icons.balance, group: 'check', onTap: () => _reconcile(null)),
+                SetupTask(id: 'recalc', label: 'Recalculate', icon: Icons.refresh, group: 'check', onTap: _recalculate),
+                SetupTask(id: 'report', label: 'Cash Account Report', icon: Icons.description_outlined, group: 'check',
+                    onTap: () => _href(_r.cashAccountsHref, 'Cash Account Report')),
+                SetupTask(id: 'default', label: 'Create default account', icon: Icons.account_balance_wallet_outlined,
+                    disabled: _saving, more: true, onTap: _createDefault),
+              ])
+            else
             Wrap(spacing: 8, runSpacing: 8, children: [
               headerButton(Icons.balance, 'Record Cash Adjustment',
                   () => _dialog(RecordCashAdjustmentDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts, fmt: _fmt))),
@@ -418,6 +593,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                   () => _dialog(CashTransferQuickDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts))),
               headerButton(Icons.account_balance_wallet_outlined, 'Create default account', _saving ? null : _createDefault),
               FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
                 onPressed: () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r)),
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('New account'),
@@ -429,7 +605,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: () => _href(_r.cashFlowHref, 'Cash Flow'),
-                style: TextButton.styleFrom(foregroundColor: _sky600, padding: EdgeInsets.zero),
+                style: TextButton.styleFrom(foregroundColor: _r.accent ?? _sky600, padding: EdgeInsets.zero),
                 icon: const Icon(Icons.swap_horiz, size: 16),
                 label: const Text("See the whole company's cash flow →"),
               ),
@@ -438,7 +614,9 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
             twoUp([
               _statCard('Total cash at hand', _fmt(totalCashAtHand(_accounts, statusById, _r.idPrefix)), Accent.violet),
               _statCard('Active accounts', '${_accounts.where((a) => a['isActive'] == true).length}', Accent.emerald),
-              _statCard('Pending transfers', '${_transfers.where((t) => tStr(t['status']) == 'Draft').length}', Accent.amber),
+              _hotel
+                  ? _statCard('Reversed transfers', '${_transfers.where((t) => tStr(t['status']) == 'Reversed').length}', Accent.amber)
+                  : _statCard('Pending transfers', '${_transfers.where((t) => tStr(t['status']) == 'Draft').length}', Accent.amber),
               _statCard('Approved transfers', '${_transfers.where((t) => tStr(t['status']) == 'Approved').length}', Accent.blue),
             ]),
             const SizedBox(height: 12),
@@ -462,11 +640,12 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
             else if (_accounts.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Column(children: [
                   const Text('No cash accounts yet.', style: TextStyle(color: TColors.slate500)),
                   const SizedBox(height: 12),
                   FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
                     onPressed: _saving ? null : _createDefault,
                     icon: const Icon(Icons.account_balance_wallet_outlined, size: 16),
                     label: const Text('Create default account'),
@@ -479,22 +658,33 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                 items: pageRows,
                 keyOf: (a) => tStr(a['${_r.idPrefix}CashAccountId']),
                 primary: (a) => tStr(a['accountName']),
-                secondary: (a) => tStr(a['accountType']),
+                secondary: (a) => cashAccountTypeLabel(_r, a['accountType']),
                 trailing: (a) => Padding(padding: const EdgeInsets.only(left: 6), child: _activeBadge(a)),
                 highlights: (a) => [
                   Highlight('Opening', _fmt(tNum(a['openingBalance'])), accent: Accent.blue),
                   Highlight('Current', _fmt(tNum(a['currentBalance'])), accent: tNum(a['currentBalance']) < 0 ? Accent.rose : Accent.emerald),
                 ],
-                details: (a) => [('Type', tStr(a['accountType'])), ('Status', a['isActive'] == true ? 'Active' : 'Inactive')],
+                details: (a) {
+                  if (!_hotel) return [('Type', tStr(a['accountType'])), ('Status', a['isActive'] == true ? 'Active' : 'Inactive')];
+                  final s = statusById[tStr(a['hotelCashAccountId'])];
+                  return [
+                    ('Type', hotelAccountTypeLabel(a['accountType'])),
+                    ('Used for', hotelPurposeLabel(a['purpose']) ?? '—'),
+                    ('Calculated', s == null ? '—' : _fmt(tNum(s['ledgerBalance']))),
+                    ('Reconciled', s == null ? '—' : accountAttention(s) ?? '${tStr(s['daysSinceReconciled'])}d ago'),
+                    ('Status', a['isActive'] == true ? 'Active' : 'Inactive'),
+                  ];
+                },
                 actions: (a) => [
                   OutlinedButton.icon(onPressed: () => _details(a), icon: const Icon(Icons.visibility_outlined, size: 16), label: const Text('View details')),
+                  if (_hotel) OutlinedButton(onPressed: () => _reconcile(tIntOrNull(a['hotelCashAccountId'])), child: const Text('Reconcile')),
                   OutlinedButton(
                     onPressed: () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r, editing: a)),
                     child: const Text('Edit'),
                   ),
                   OutlinedButton.icon(
                     onPressed: () => _delete(a),
-                    style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+                    style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
                     icon: const Icon(Icons.delete_outline, size: 16),
                     label: const Text('Delete'),
                   ),
@@ -515,9 +705,16 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  const Text('Recent transfers', style: TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700)),
+                  Row(children: [
+                    const Expanded(child: Text('Recent transfers', style: TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700))),
+                    if (_hotel)
+                      InkWell(
+                        onTap: () => _href('/hotel-cash-transfers', 'Cash Transfers'),
+                        child: const Text('All transfers →', style: TextStyle(fontSize: 12, color: TColors.violet700)),
+                      ),
+                  ]),
                   const SizedBox(height: 8),
                   MobileCardList<Map>(
                     items: recent,
@@ -528,7 +725,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                     secondary: (t) => fmtDateTime(t['transferDate'], t, _offset),
                     trailing: (t) => Padding(
                       padding: const EdgeInsets.only(left: 6),
-                      child: TBadge(tStr(t['status']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                      child: TBadge(tStr(t['status']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
                     ),
                     details: (t) => [
                       ('Date', fmtDateTime(t['transferDate'], t, _offset)),
@@ -541,12 +738,12 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                       if (tStr(t['status']) == 'Draft') ...[
                         OutlinedButton(
                           onPressed: () => _transferAction(t, 'approve'),
-                          style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF15803D), side: const BorderSide(color: Color(0xFFBBF7D0))),
+                          style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFF15803D), side: const BorderSide(color: Tone.line(0xFFBBF7D0))),
                           child: const Text('Approve'),
                         ),
                         OutlinedButton(
                           onPressed: () => _transferAction(t, 'cancel'),
-                          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+                          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
                           child: const Text('Cancel'),
                         ),
                       ],
@@ -569,7 +766,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                             Align(alignment: Alignment.centerRight, child: Text(_fmt(tNum(t['amount'])))),
                             Align(
                               alignment: Alignment.centerLeft,
-                              child: TBadge(tStr(t['status']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                              child: TBadge(tStr(t['status']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
                             ),
                             Wrap(alignment: WrapAlignment.end, children: [
                               if (tStr(t['status']) == 'Draft') ...[
@@ -592,9 +789,9 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
 }
 
 const _clearingTones = {
-  'Uncleared': (TColors.slate100, TColors.slate600),
-  'Cleared': (TColors.emerald100, TColors.emerald700),
-  'Disputed': (Color(0xFFFFE4E6), Color(0xFFBE123C)),
+  'Uncleared': (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF475569)),
+  'Cleared': (TColors.emerald100, Tone.fg(0xFF047857)),
+  'Disputed': (Tone.bg(0xFFFFE4E6), Tone.fg(0xFFBE123C)),
 };
 
 class CashAccountDetailScreen extends StatefulWidget {
@@ -769,7 +966,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
     final pageRows = pageSlice(visible, _page, _pageSize);
     Widget stat(String label, num v, {Color? color}) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             Text(gh(v), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: color)),
@@ -798,10 +995,10 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
               ),
             ),
             Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              const Icon(Icons.account_balance_wallet_outlined, size: 24, color: _sky600),
+              Icon(Icons.account_balance_wallet_outlined, size: 24, color: _r.accent ?? _sky600),
               Text(a != null ? tStr(a['accountName']) : (_loading ? 'Loading…' : 'Account #$_id'),
                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900)),
-              if (a != null) TBadge(tStr(a['accountType']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+              if (a != null) TBadge(tStr(a['accountType']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
               if (a != null && a['isActive'] != true) const TBadge('Inactive', bg: TColors.amber100, fg: TColors.amber700),
             ]),
             const SizedBox(height: 10),
@@ -815,7 +1012,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
               FilledButton.icon(onPressed: _adjust, icon: const Icon(Icons.balance, size: 16), label: const Text('Adjust balance')),
               OutlinedButton.icon(
                 onPressed: _delete,
-                style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+                style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
                 icon: const Icon(Icons.delete_outline, size: 16),
                 label: const Text('Delete'),
               ),
@@ -832,7 +1029,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
             else ...[
               twoUp([
                 stat('Opening balance', tNum(a['openingBalance'])),
-                stat('Total money in', totalIn, color: const Color(0xFF15803D)),
+                stat('Total money in', totalIn, color: const Tone(0xFF15803D)),
                 stat('Total money out', totalOut, color: TColors.rose600),
                 stat('Current balance', tNum(a['currentBalance'])),
               ]),
@@ -905,7 +1102,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
                           cellText(categoryLabel(r['sourceType'])),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: Text(tNum(r['amount']) > 0 ? gh(tNum(r['amount'])) : '—', style: const TextStyle(color: Color(0xFF15803D))),
+                            child: Text(tNum(r['amount']) > 0 ? gh(tNum(r['amount'])) : '—', style: const TextStyle(color: Tone.fg(0xFF15803D))),
                           ),
                           Align(
                             alignment: Alignment.centerRight,

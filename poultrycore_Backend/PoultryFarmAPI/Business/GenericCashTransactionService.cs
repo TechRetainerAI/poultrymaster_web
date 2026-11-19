@@ -115,26 +115,139 @@ namespace PoultryFarmAPIWeb.Business
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                list.Add(new GenericCashReconciliationModel
+                list.Add(ReadCount(reader));
+            }
+            return list;
+        }
+
+        private static T? N<T>(NpgsqlDataReader r, string col)
+        {
+            var o = r.GetOrdinal(col);
+            return r.IsDBNull(o) ? default : r.GetFieldValue<T>(o);
+        }
+
+        private static GenericCashReconciliationModel ReadCount(NpgsqlDataReader r) => new()
+        {
+            GenericCashReconciliationId = r.GetInt32(r.GetOrdinal("GenericCashReconciliationId")),
+            FarmId                  = r.GetString(r.GetOrdinal("FarmId")),
+            GenericCashAccountId    = r.GetInt32(r.GetOrdinal("GenericCashAccountId")),
+            AccountName             = N<string>(r, "AccountName"),
+            AccountType             = N<string>(r, "AccountType"),
+            ReferenceNo             = N<string>(r, "ReferenceNo"),
+            ReconciliationDate      = r.GetDateTime(r.GetOrdinal("ReconciliationDate")),
+            SystemBalance           = r.GetDecimal(r.GetOrdinal("SystemBalance")),
+            SystemBalanceCached     = N<decimal?>(r, "SystemBalanceCached"),
+            ActualBalance           = N<decimal?>(r, "ActualBalance"),
+            Difference              = r.GetDecimal(r.GetOrdinal("Difference")),
+            AdjustmentTransactionId = N<long?>(r, "AdjustmentTransactionId"),
+            ReversalTransactionId   = N<long?>(r, "ReversalTransactionId"),
+            Reason                  = N<string>(r, "Reason"),
+            Notes                   = N<string>(r, "Notes"),
+            Status                  = r.GetString(r.GetOrdinal("Status")),
+            RequestedBy             = N<string>(r, "RequestedBy"),
+            ApprovedBy              = N<string>(r, "ApprovedBy"),
+            CreatedBy               = N<string>(r, "CreatedBy"),
+            CreatedAt               = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+            UpdatedAt               = N<DateTime?>(r, "UpdatedAt"),
+            PostedBy                = N<string>(r, "PostedBy"),
+            PostedAt                = N<DateTime?>(r, "PostedAt"),
+            ReversedBy              = N<string>(r, "ReversedBy"),
+            ReversedAt              = N<DateTime?>(r, "ReversedAt"),
+            ReversalReason          = N<string>(r, "ReversalReason"),
+        };
+
+        private NpgsqlCommand Cmd(NpgsqlConnection conn, string sql, params (string, object?)[] ps)
+        {
+            var cmd = new NpgsqlCommand(sql, conn);
+            foreach (var (k, v) in ps) cmd.Parameters.AddWithValue(k, v ?? DBNull.Value);
+            return cmd;
+        }
+
+        // ---- Draft -> edit -> post -> discard -> reverse (migration 456) ----
+        public async Task<int> InsertCountAsync(string farmId, GenericCashCountInput req, string? createdBy)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = Cmd(conn, "SELECT spgenericcashreconciliation_insert(p_farmid => @FarmId::text, p_genericcashaccountid => @Acct::int, p_reconciliationdate => @Date::timestamp, p_actualbalance => @Actual::numeric, p_reason => @Reason::text, p_notes => @Notes::text, p_createdby => @By::text)",
+                ("@FarmId", farmId), ("@Acct", req.GenericCashAccountId), ("@Date", req.ReconciliationDate),
+                ("@Actual", req.ActualBalance), ("@Reason", req.Reason), ("@Notes", req.Notes), ("@By", createdBy));
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task UpdateCountAsync(int id, string farmId, GenericCashCountInput req, string? updatedBy)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = Cmd(conn, "SELECT spgenericcashreconciliation_update(p_genericcashreconciliationid => @Id::int, p_farmid => @FarmId::text, p_reconciliationdate => @Date::timestamp, p_actualbalance => @Actual::numeric, p_reason => @Reason::text, p_notes => @Notes::text, p_updatedby => @By::text)",
+                ("@Id", id), ("@FarmId", farmId), ("@Date", req.ReconciliationDate),
+                ("@Actual", req.ActualBalance), ("@Reason", req.Reason), ("@Notes", req.Notes), ("@By", updatedBy));
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteCountAsync(int id, string farmId, string? userId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = Cmd(conn, "SELECT spgenericcashreconciliation_delete(p_genericcashreconciliationid => @Id::int, p_farmid => @FarmId::text, p_userid => @By::text)",
+                ("@Id", id), ("@FarmId", farmId), ("@By", userId));
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<long?> PostCountAsync(int id, string farmId, string? postedBy)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = Cmd(conn, "SELECT spgenericcashreconciliation_post(p_genericcashreconciliationid => @Id::int, p_farmid => @FarmId::text, p_postedby => @By::text)",
+                ("@Id", id), ("@FarmId", farmId), ("@By", postedBy));
+            await conn.OpenAsync();
+            var o = await cmd.ExecuteScalarAsync();
+            return o is null || o is DBNull ? null : Convert.ToInt64(o);
+        }
+
+        public async Task ReverseCountAsync(int id, string farmId, string reason, string? reversedBy)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = Cmd(conn, "SELECT spgenericcashreconciliation_reverse(p_genericcashreconciliationid => @Id::int, p_farmid => @FarmId::text, p_reason => @Reason::text, p_reversedby => @By::text)",
+                ("@Id", id), ("@FarmId", farmId), ("@Reason", reason), ("@By", reversedBy));
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<GenericCashAccountCountStatusModel>> GetCountStatusAsync(string farmId)
+        {
+            var list = new List<GenericCashAccountCountStatusModel>();
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = Cmd(conn, "SELECT * FROM spgenericcashreconciliation_getaccountstatus(p_farmid => @FarmId::text)", ("@FarmId", farmId));
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new GenericCashAccountCountStatusModel
                 {
-                    GenericCashReconciliationId = reader.GetInt32(reader.GetOrdinal("GenericCashReconciliationId")),
-                    FarmId                  = reader.GetString(reader.GetOrdinal("FarmId")),
-                    GenericCashAccountId    = reader.GetInt32(reader.GetOrdinal("GenericCashAccountId")),
-                    AccountName             = reader.IsDBNull(reader.GetOrdinal("AccountName")) ? null : reader.GetString(reader.GetOrdinal("AccountName")),
-                    ReconciliationDate      = reader.GetDateTime(reader.GetOrdinal("ReconciliationDate")),
-                    SystemBalance           = reader.GetDecimal(reader.GetOrdinal("SystemBalance")),
-                    ActualBalance           = reader.GetDecimal(reader.GetOrdinal("ActualBalance")),
-                    Difference              = reader.GetDecimal(reader.GetOrdinal("Difference")),
-                    AdjustmentTransactionId = reader.IsDBNull(reader.GetOrdinal("AdjustmentTransactionId")) ? null : reader.GetInt64(reader.GetOrdinal("AdjustmentTransactionId")),
-                    Reason                  = reader.IsDBNull(reader.GetOrdinal("Reason")) ? null : reader.GetString(reader.GetOrdinal("Reason")),
-                    Notes                   = reader.IsDBNull(reader.GetOrdinal("Notes")) ? null : reader.GetString(reader.GetOrdinal("Notes")),
-                    Status                  = reader.GetString(reader.GetOrdinal("Status")),
-                    RequestedBy             = reader.IsDBNull(reader.GetOrdinal("RequestedBy")) ? null : reader.GetString(reader.GetOrdinal("RequestedBy")),
-                    ApprovedBy              = reader.IsDBNull(reader.GetOrdinal("ApprovedBy")) ? null : reader.GetString(reader.GetOrdinal("ApprovedBy")),
-                    CreatedAt               = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
+                    GenericCashAccountId  = r.GetInt32(r.GetOrdinal("GenericCashAccountId")),
+                    AccountName           = N<string>(r, "AccountName") ?? string.Empty,
+                    AccountType           = N<string>(r, "AccountType"),
+                    IsActive              = r.GetBoolean(r.GetOrdinal("IsActive")),
+                    CurrentBalance        = r.GetDecimal(r.GetOrdinal("CurrentBalance")),
+                    LedgerBalance         = r.GetDecimal(r.GetOrdinal("LedgerBalance")),
+                    CacheDrift            = r.GetDecimal(r.GetOrdinal("CacheDrift")),
+                    LastReconciledAt      = N<DateTime?>(r, "LastReconciledAt"),
+                    LastReconciledBalance = N<decimal?>(r, "LastReconciledBalance"),
+                    DaysSinceReconciled   = N<int?>(r, "DaysSinceReconciled"),
+                    UnclearedCount        = r.GetInt32(r.GetOrdinal("UnclearedCount")),
+                    UnclearedAmount       = r.GetDecimal(r.GetOrdinal("UnclearedAmount")),
+                    OpenDraftId           = N<int?>(r, "OpenDraftId"),
                 });
             }
             return list;
+        }
+
+        // Recalculate: rebuild cached balances from the ledger. Moves no money.
+        public async Task<int> RecalculateBalancesAsync(string farmId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = Cmd(conn, "SELECT spgenericcashaccount_reconcilebalance(p_farmid => @FarmId::text)", ("@FarmId", farmId));
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
 
         public async Task UpsertDefaultAsync(string farmId, string defaultKey, int accountId)

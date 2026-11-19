@@ -22,7 +22,7 @@ import { getSuppliers } from "@/lib/api/supplier"
 import { getUserContext } from "@/lib/api/config"
 import { listPoultryCashAccounts } from "@/lib/api/poultry-finance"
 import type { PartyBalanceRow } from "@/lib/api/balances"
-import { creditModule, listCreditCashAccounts, listCreditCustomers, listCreditSuppliers } from "@/lib/api/credit-module"
+import { creditModule, listCreditCashAccounts, listCreditCustomers, listCreditSuppliers, supplierCreditModule } from "@/lib/api/credit-module"
 
 export function RecordCustomerPaymentButton({ onPosted }: { onPosted: () => void }) {
   return <RecordPartyPaymentButton side="customer" onPosted={onPosted} />
@@ -44,6 +44,8 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
     // 425: on a Water company the customers are water customers, and a customer
     // payment posts no cash (it is counted at the daily closing) -- no accounts.
     const water = creditModule() === "Water"
+    // 449: Generic supplier payments -- generic suppliers and cash accounts.
+    const generic = !isCustomer && supplierCreditModule() === "Generic"
     const people: Promise<{ id: number; name: string }[]> = isCustomer && water
       ? listCreditCustomers()
       : isCustomer
@@ -52,7 +54,7 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
           return (Array.isArray(list) ? list : [])
             .map((c: any) => ({ id: Number(c.customerId ?? c.id), name: String(c.name ?? c.customerName ?? "") }))
         })
-      : water
+      : water || generic
       ? listCreditSuppliers()
       : getSuppliers(userId, farmId).then((r) => (r?.data ?? []).map((x) => ({ id: Number(x.supplierId), name: String(x.name ?? "") })))
     people
@@ -62,7 +64,7 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
       .catch(() => setCustomers([]))
     if (water && isCustomer) { setCashAccounts([]); return }
     // 426: water supplier payments post cash from a water account
-    ;(water ? listCreditCashAccounts() : listPoultryCashAccounts())
+    ;(water || generic ? listCreditCashAccounts() : listPoultryCashAccounts())
       .then((accounts) => setCashAccounts(accounts
         .filter((a) => a.isActive)
         .map((a) => ({
@@ -125,7 +127,7 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
       <RecordPaymentDialog
         open={!!party}
         onOpenChange={(o) => { if (!o) setParty(null) }}
-        module={creditModule() === "Water" ? "water" : "poultry"}
+        module={!isCustomer && supplierCreditModule() === "Generic" ? "generic" : creditModule() === "Water" ? "water" : "poultry"}
         side={side}
         party={party}
         cashAccounts={cashAccounts}

@@ -20,6 +20,7 @@ import '../shared/reason_select.dart' show reversalReasons;
 import 'restaurant_money_kit.dart';
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// mostUsed: the value that appears most often, or null.
 String? mostUsed(Iterable<Object?> values) {
   final counts = <String, int>{};
@@ -57,7 +58,7 @@ String _day(Object? d) => tStr(d).length >= 10 ? tStr(d).substring(0, 10) : tStr
 String _number(Map t) => tStr(t['transferNumber']).isNotEmpty ? tStr(t['transferNumber']) : '#${tIntOrNull(t['transferId'])}';
 
 Widget _transferStatus(Object? s) => tStr(s) == 'Posted'
-    ? rStatusBadge('Posted', bg: const Color(0xFFDCFCE7), fg: const Color(0xFF166534), border: const Color(0xFFBBF7D0))
+    ? rStatusBadge('Posted', bg: const Tone.bg(0xFFDCFCE7), fg: const Tone.fg(0xFF166534), border: const Tone.line(0xFFBBF7D0))
     : rStatusBadge(tStr(s), bg: TColors.slate100, fg: TColors.slate600);
 
 class RestaurantCashTransfersScreen extends StatefulWidget {

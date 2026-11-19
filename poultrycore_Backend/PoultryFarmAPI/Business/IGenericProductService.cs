@@ -10,12 +10,17 @@ namespace PoultryFarmAPIWeb.Business
         Task UpdateCategoryAsync(GenericProductCategoryModel m);
         Task DeleteCategoryAsync(int id, string farmId);
 
-        // Products
+        // Products / unified items
         Task<List<GenericProductModel>> GetAllAsync(string farmId);
         Task<GenericProductModel?> GetByIdAsync(int id, string farmId);
         Task<int> InsertAsync(GenericProductModel m);
         Task UpdateAsync(GenericProductModel m);
         Task DeleteAsync(int id, string farmId);
+
+        // Filtered by capability (migration 441)
+        Task<List<GenericProductModel>> GetSellableAsync(string farmId);
+        Task<List<GenericProductModel>> GetProductionItemsAsync(string farmId);
+        Task<List<GenericProductModel>> GetInternalUseItemsAsync(string farmId);
 
         // Inventory reports
         Task<List<GenericProductLowStockRowModel>> GetLowStockAsync(string farmId);

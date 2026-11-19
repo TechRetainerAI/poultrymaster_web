@@ -2,6 +2,7 @@
 // columns, filters, and the optional breakdown / analysis. A port of the web's
 // `lib/reports/poultry-report-defs.ts`, card for card and column for column.
 
+import '../egg_packaging.dart' show PackagedQuantity, currentEggPackaging, eggBoxesHint, formatPackaged;
 import 'report_format.dart';
 
 typedef SummaryFn = String Function(Map s, FmtCtx c);
@@ -127,6 +128,15 @@ ColumnDef _yesNo(String h, String f) => ColumnDef(h, (r, c) => r[f] == true ? 'Y
 
 CardDef _cNum(String l, String f, {String? accent, String? note}) =>
     CardDef(l, (s, c) => c.number(s[f]), accent: accent, note: note);
+
+/// 393: an egg count with " · ≈ 20 boxes" on a farm that shows boxes; exactly
+/// as before on every other farm. An equivalent in TODAY's box size.
+String _eggsHint(Object? n) => eggBoxesHint(n == null ? null : toNum(n), currentEggPackaging);
+CardDef _cEggs(String l, String f, {String? accent}) => CardDef(l, (s, c) => '${c.number(s[f])}${_eggsHint(s[f])}', accent: accent);
+
+/// 394: a quantity as it was entered ("2 boxes + 3 crates + 10 pcs").
+String _packaged(Object? boxes, Object? crates, Object? pieces) =>
+    formatPackaged(PackagedQuantity(boxes: toNum(boxes).toInt(), crates: toNum(crates).toInt(), pieces: toNum(pieces).toInt()));
 CardDef _cPair(String l, String a, String b) => CardDef(l, (s, c) => '${c.number(s[a])} / ${c.number(s[b])}');
 CardDef _cMoney(String l, String f, {String? accent, String? note}) =>
     CardDef(l, (s, c) => c.money(s[f]), accent: accent, note: note);
@@ -172,8 +182,8 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
     description: 'High-level snapshot of poultry operations for the selected period.',
     filters: const ReportFilters(flock: true, includeClosedFlocks: true),
     cards: [
-      _cNum('Total eggs produced', 'totalEggsProduced'),
-      _cNum('Saleable eggs', 'saleableEggs', accent: 'green'),
+      _cEggs('Total eggs produced', 'totalEggsProduced'),
+      _cEggs('Saleable eggs', 'saleableEggs', accent: 'green'),
       _cNum('Broken / rejected', 'brokenRejectedEggs', accent: 'rose'),
       _cNum('Active flocks', 'activeFlocks'),
       _cNum('Active birds', 'activeBirds'),
@@ -208,7 +218,7 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
     description: 'Egg production by day and flock, including collection times and breakages.',
     filters: const ReportFilters(flock: true),
     cards: [
-      _cNum('Total eggs', 'totalEggs', accent: 'green'),
+      _cEggs('Total eggs', 'totalEggs', accent: 'green'),
       _cNum('Avg eggs / day', 'averageEggsPerDay'),
       _cDay('Best day', 'bestProductionDay', 'bestProductionDayEggs'),
       _cDay('Lowest day', 'lowestProductionDay', 'lowestProductionDayEggs'),
@@ -243,7 +253,7 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _cNum('Active flocks', 'activeFlocks'),
       _cText('Best producing flock', 'bestProducingFlock'),
       _cText('Lowest producing flock', 'lowestProducingFlock'),
-      _cNum('Total eggs', 'totalEggs', accent: 'green'),
+      _cEggs('Total eggs', 'totalEggs', accent: 'green'),
       _cNum('Avg eggs / flock', 'averageEggsPerFlock'),
       _cPct('Avg production %', 'averageProductionPercent'),
       _cNum('Broken eggs generated', 'brokenEggsGenerated', accent: 'rose'),
@@ -414,9 +424,9 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
   'egg-stock-balance': PoultryReportDef(
     slug: 'egg-stock-balance',
     title: 'Poultry Egg Stock Balance Report',
-    description: 'Egg inventory on hand, in eggs and crate equivalents.',
+    description: 'Egg inventory on hand, in eggs with crate (and box) equivalents. Equivalents are counts, not packed stock.',
     cards: [
-      _cNum('Total eggs in stock', 'totalEggsInStock', accent: 'green'),
+      _cEggs('Total eggs in stock', 'totalEggsInStock', accent: 'green'),
       _cNum('Total crates', 'totalCrates'),
       _cNum('Loose eggs', 'looseEggs'),
       _cNum('Saleable eggs', 'saleableEggs'),
@@ -430,7 +440,7 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _number('Produced', 'productionAdded'),
       _number('Sold', 'salesRemoved'),
       _number('Losses/adj.', 'lossesAdjustments'),
-      _number('Current (eggs)', 'currentStockEggs'),
+      ColumnDef('Current (eggs)', (r, c) => '${c.number(r['currentStockEggs'])}${_eggsHint(r['currentStockEggs'])}', right: true),
       _number('Crates', 'currentStockCrates'),
       _number('Loose', 'looseEggs'),
       _text('Status', 'status', badge: true),
@@ -476,7 +486,18 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
     filters: const ReportFilters(flock: true, customer: true),
     cards: [
       _cMoney('Total sales revenue', 'totalSalesRevenue', accent: 'green'),
-      _cNum('Total eggs sold', 'totalEggsSold'),
+      _cEggs('Total eggs sold', 'totalEggsSold'),
+      // 396: two different questions. Sold as = what customers were sold in
+      // boxes / crates / pieces; equivalent = the eggs in today's boxes.
+      CardDef(
+        'Sold as (entered)',
+        (s, c) => toNum(s['actualBoxesSold']) != 0 || toNum(s['actualCratesSold']) != 0 || toNum(s['actualPiecesSold']) != 0
+            ? _packaged(s['actualBoxesSold'], s['actualCratesSold'], s['actualPiecesSold'])
+            : '—',
+        note: 'Only sales entered in boxes / crates / pieces',
+      ),
+      CardDef('Equivalent boxes', (s, c) => s['equivalentBoxes'] == null ? '—' : c.number(s['equivalentBoxes']),
+          note: "All eggs sold, in today's box size — not boxes sold"),
       _cMoney('Paid in period', 'totalPaid', accent: 'green'),
       _cMoney('Unpaid in period', 'totalUnpaid', accent: 'rose'),
       _cText('Top customer', 'topCustomer'),
@@ -489,6 +510,8 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _text('Customer', 'customer'),
       _text('Product', 'productGrade'),
       _number('Qty', 'quantitySold'),
+      // 396: as entered, with its own box size; "—" for a sale entered before 394.
+      ColumnDef('Sold as', (r, c) => r['cratesSold'] == null ? '—' : _packaged(r['boxesSold'], r['cratesSold'], r['piecesSold'])),
       _money('Unit price', 'unitPrice'),
       _money('Total', 'totalAmount'),
       _money('Paid', 'amountPaid'),
@@ -785,7 +808,7 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
     cards: [
       _cNum('Birds placed', 'birdsPlaced'),
       _cNum('Birds remaining', 'birdsRemaining'),
-      _cNum('Total eggs', 'totalEggs', accent: 'green'),
+      _cEggs('Total eggs', 'totalEggs', accent: 'green'),
       _cNum('Total feed (kg)', 'totalFeedConsumedKg'),
       _cMoney('Total revenue', 'totalRevenue', accent: 'green'),
       _cMoney('Total cost', 'totalCost', accent: 'rose'),

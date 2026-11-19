@@ -5,11 +5,15 @@ import '../design/web_mobile.dart';
 import '../models/company.dart';
 import '../pages/registry.dart';
 import '../pages/shared/setup_admin_routes.dart';
+import '../pages/generic/generic_kit.dart' show gateGenericCatalog;
+import '../pages/shared/billing_nav.dart';
+import '../pages/poultry/poultry_features.dart';
 import '../pages/web_nav.dart';
 import '../state/session.dart';
 import 'module_sidebar.dart';
 import 'quick_links_dialog.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The web's "All pages" panel: a dark sheet with a search box and orange
 /// uppercase section headers, each showing how many pages it holds and
 /// collapsing to keep the list scannable.
@@ -21,7 +25,7 @@ Future<void> showAllPages(
   Session session,
   Company company,
 ) {
-  final groups = gateSetupLinks(webNavGroups[PageRegistry.moduleOf(company.type)] ?? const [], company);
+  final groups = gateGenericCatalog(gateBillingLinks(gatePoultryFeatureLinks(gateSetupLinks(webNavGroups[PageRegistry.moduleOf(company.type)] ?? const [], company), company)), company);
 
   return showModalBottomSheet<void>(
     context: context,
@@ -230,11 +234,11 @@ class _AllPagesSheetState extends State<_AllPagesSheet> {
                       const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(9),
-                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                    borderSide: const BorderSide(color: Tone.line(0xFF334155)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(9),
-                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                    borderSide: const BorderSide(color: Tone.line(0xFF334155)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(9),
@@ -283,7 +287,7 @@ class _AllPagesSheetState extends State<_AllPagesSheet> {
                         if (sub.title.isNotEmpty)
                           Container(
                             width: double.infinity,
-                            color: const Color(0xFF172033),
+                            color: const Tone.bg(0xFF172033),
                             padding:
                                 const EdgeInsets.fromLTRB(20, 12, 20, 6),
                             child: Text(
@@ -342,7 +346,7 @@ class _SectionHeader extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 52),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: Color(0xFF334155))),
+          border: Border(bottom: BorderSide(color: Tone.line(0xFF334155))),
         ),
         child: Row(
           children: [
@@ -381,7 +385,7 @@ class _TileGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF172033),
+      color: const Tone.bg(0xFF172033),
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
       child: Column(
         children: [
@@ -443,7 +447,7 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFF223049),
+      color: const Tone.bg(0xFF223049),
       borderRadius: BorderRadius.circular(9),
       child: InkWell(
         borderRadius: BorderRadius.circular(9),

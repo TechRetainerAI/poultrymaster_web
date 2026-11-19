@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PayrollTemplatesPanel } from "@/components/poultry/payroll-templates"
 import { usePermissions } from "@/hooks/use-permissions"
-import { Plus, Loader2, Banknote, Eye, Users, Trash2, CheckCircle2, RotateCcw, XCircle, HandCoins, Pencil } from "lucide-react"
+import { Plus, Loader2, Banknote, Eye, Users, Trash2, CheckCircle2, RotateCcw, XCircle, HandCoins, Pencil, PiggyBank } from "lucide-react"
 import Link from "next/link"
 import {
   PayrollDeductionsDialog, type PayrollDeductionTarget,
@@ -60,7 +60,7 @@ const STATUS_STYLE: Record<string, string> = {
  * What payroll will take off for one advance.
  *
  * ONE definition, used by three things that must agree: the panel that promises
- * it before the line is saved, the Deductions box that is pre-filled with it,
+ * it before the line is saved, the net pay preview on the line form,
  * and autoAddSuggestedDeductions which actually posts it. Three copies of this
  * arithmetic would eventually promise one number and deduct another.
  *
@@ -109,6 +109,13 @@ export default function PoultryPayrollPage() {
   const [itemsRun, setItemsRun] = useState<PoultryPayrollRun | null>(null)
   // 306. Which payslip line's deduction breakdown is open, if any.
   const [deductionsFor, setDeductionsFor] = useState<PayrollDeductionTarget | null>(null)
+  const openDeductions = (it: { poultryPayrollItemId: number; poultryStaffId: number; staffName?: string | null }, runStatus: string) =>
+    setDeductionsFor({
+      poultryPayrollItemId: it.poultryPayrollItemId,
+      poultryStaffId: it.poultryStaffId,
+      staffName: it.staffName ?? `#${it.poultryStaffId}`,
+      runStatus,
+    })
   /**
    * Section 50. Which lines have advances outstanding, keyed by payroll item.
    *
@@ -127,7 +134,16 @@ export default function PoultryPayrollPage() {
    */
   const [staffLoans, setStaffLoans] = useState<PoultryEmployeeLoanEligible[]>([])
   const [staffLoansBusy, setStaffLoansBusy] = useState(false)
-  const blankItemForm = () => ({ poultryStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash", notes: "" })
+  // 442. `deductions` is the typed "Other deductions" ONLY. Advance repayments
+  // and the kept wage are separate rows the server keeps; `keepCredit` is the
+  // kept wage, saved in the same call as the line.
+  const blankItemForm = () => ({ poultryStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, keepCredit: 0, paymentMethod: "Cash", notes: "" })
+  /**
+   * What is already on the line being edited, besides the typed figure:
+   * advance repayments and items added from the Deductions breakdown. Shown
+   * read-only so the net pay preview adds up.
+   */
+  const [lineFixed, setLineFixed] = useState({ advances: 0, otherItems: 0 })
   const [itemForm, setItemForm] = useState(blankItemForm())
   const [itemSaving, setItemSaving] = useState(false)
   /**
@@ -327,17 +343,26 @@ export default function PoultryPayrollPage() {
     if (!itemForm.poultryStaffId) return toast({ title: "Pick a staff member", variant: "destructive" })
     setItemSaving(true)
     try {
+      const other = Number(itemForm.deductions) || 0
+      const keep = Number(itemForm.keepCredit) || 0
       const saved = await upsertPoultryPayrollItem(itemsRun.poultryPayrollRunId, {
         poultryStaffId: itemForm.poultryStaffId,
         basicPay: Number(itemForm.basicPay) || 0, dailyWage: Number(itemForm.dailyWage) || 0,
         commission: Number(itemForm.commission) || 0, bonus: Number(itemForm.bonus) || 0,
-        deductions: Number(itemForm.deductions) || 0, paymentMethod: itemForm.paymentMethod, notes: itemForm.notes || null,
+        deductions: other + keep, paymentMethod: itemForm.paymentMethod, notes: itemForm.notes || null,
+        otherDeductions: other, employeeCredit: keep,
       })
       const added = await autoAddSuggestedDeductions(saved, itemForm.poultryStaffId)
       const wasEditing = editingItemId != null
+      const staffName = staff.find(s => s.poultryStaffId === itemForm.poultryStaffId)
       resetItemForm()
       await refreshItems(itemsRun.poultryPayrollRunId)
-      if (wasEditing && added.length === 0) toast({ title: "Line updated" })
+      if (keep > 0) {
+        toast({
+          title: wasEditing ? "Line updated" : "Line added",
+          description: `${gh(keep)} will be kept for ${staffName ? `${staffName.firstName} ${staffName.lastName}` : "this worker"} as employee credit when the payroll is approved.`,
+        })
+      } else if (wasEditing && added.length === 0) toast({ title: "Line updated" })
       if (added.length > 0) {
         toast({
           title: added.length === 1 ? "Advance repayment added" : `${added.length} advance repayments added`,
@@ -361,6 +386,7 @@ export default function PoultryPayrollPage() {
     setEditingItemId(null)
     setOnLineLoanIds(new Set())
     setStaffLoans([])
+    setLineFixed({ advances: 0, otherItems: 0 })
   }
   function prefillFromStaff(staffId: number) {
     // Already on this run? Then this is an edit, not a new line -- load what
@@ -377,7 +403,8 @@ export default function PoultryPayrollPage() {
       poultryStaffId: it.poultryStaffId,
       basicPay: Number(it.basicPay) || 0, dailyWage: Number(it.dailyWage) || 0,
       commission: Number(it.commission) || 0, bonus: Number(it.bonus) || 0,
-      deductions: Number(it.deductions) || 0,
+      // Split into other / kept by loadStaffLoans once the breakdown arrives.
+      deductions: 0, keepCredit: 0,
       paymentMethod: it.paymentMethod || "Cash", notes: it.notes ?? "",
     })
     void loadStaffLoans(it.poultryStaffId, it.poultryPayrollItemId)
@@ -386,10 +413,12 @@ export default function PoultryPayrollPage() {
 
   /**
    * Advances for the staff in the form. For a NEW line the auto repayment is
-   * put in the Deductions box. For a line being EDITED the box keeps the
-   * line's own total -- it already includes any advance on it, and adding the
-   * auto figure again would take it twice. Advances already on the line are
-   * marked so the hint does not promise a second deduction.
+   * shown in the net pay preview and added as its own row on save. For a line
+   * being EDITED (442) the line's breakdown is split back into the two boxes
+   * the form edits -- typed Other deductions and the kept wage -- and the rest
+   * (advances, items from the breakdown dialog) is shown, not edited. Advances
+   * already on the line are marked so the hint does not promise a second
+   * deduction.
    */
   async function loadStaffLoans(staffId: number, editingId?: number) {
     if (!staffId) { setStaffLoans([]); return }
@@ -401,15 +430,26 @@ export default function PoultryPayrollPage() {
       ])
       setStaffLoans(list)
       if (editingId) {
+        const live = onLine.filter((d) => d.status !== "Reversed")
         setOnLineLoanIds(new Set(
-          onLine.filter((d) => d.poultryEmployeeLoanId != null && d.status !== "Reversed")
-                .map((d) => d.poultryEmployeeLoanId as number)))
+          live.filter((d) => d.poultryEmployeeLoanId != null)
+              .map((d) => d.poultryEmployeeLoanId as number)))
+        // 442. Split the line's total back into what the form edits (typed
+        // other deductions, kept wage) and what it only shows.
+        const sum = (f: (d: (typeof live)[number]) => boolean) =>
+          live.filter(f).reduce((s, d) => s + (Number(d.amount) || 0), 0)
+        setItemForm((f) => ({
+          ...f,
+          deductions: sum((d) => d.isLegacy),
+          keepCredit: sum((d) => !d.isLegacy && d.deductionType === "EmployeeCredit"),
+        }))
+        setLineFixed({
+          advances: sum((d) => d.poultryEmployeeLoanId != null),
+          otherItems: sum((d) => !d.isLegacy && d.poultryEmployeeLoanId == null && d.deductionType !== "EmployeeCredit"),
+        })
       } else {
         setOnLineLoanIds(new Set())
-        // Put the figure in the box, so the line shows what it will actually
-        // deduct rather than 0 followed by a number appearing after saving.
-        const auto = list.reduce((sum, e) => sum + payrollDeductionFor(e), 0)
-        setItemForm((f) => ({ ...f, deductions: auto }))
+        setLineFixed({ advances: 0, otherItems: 0 })
       }
     } catch {
       // Not knowing about an advance must never stop a line being added.
@@ -461,6 +501,12 @@ export default function PoultryPayrollPage() {
               <Button variant="outline" asChild>
                 <Link href="/poultry-employee-loans">
                   <HandCoins className="h-4 w-4 mr-1" /> Employee Loans &amp; Advances
+                </Link>
+              </Button>
+              {/* 441. Wages kept for staff, paid out later. */}
+              <Button variant="outline" asChild>
+                <Link href="/poultry-employee-credit">
+                  <PiggyBank className="h-4 w-4 mr-1" /> Employee Credit
                 </Link>
               </Button>
               <Button onClick={() => { setForm(blankForm()); setOpen(true) }}><Plus className="h-4 w-4 mr-1" /> New payroll run</Button>
@@ -570,7 +616,7 @@ export default function PoultryPayrollPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Banknote className="w-5 h-5 text-green-600" /> New payroll run</DialogTitle>
             <DialogDescription>
-              {form.templateId ? "Created as a Draft with the template's staff and pay. You can still change any line before approving." : "Create a Draft run, then add staff lines"}
+              {form.templateId ? "Created as a Draft with the template's staff and pay. You can still change any line before approving." : "Create a Draft run, then add staff lines and their deductions"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -658,16 +704,18 @@ export default function PoultryPayrollPage() {
                         <button
                           type="button"
                           className="font-medium tabular-nums underline decoration-dotted underline-offset-2"
-                          onClick={() => setDeductionsFor({
-                            poultryPayrollItemId: it.poultryPayrollItemId,
-                            poultryStaffId: it.poultryStaffId,
-                            staffName: it.staffName ?? `#${it.poultryStaffId}`,
-                            runStatus: itemsRun.status,
-                          })}
+                          onClick={() => openDeductions(it, itemsRun.status)}
                         >
                           {gh(it.deductions)}
                         </button>
-                        <span className="ml-1 text-[11px] text-slate-400">view breakdown</span>
+                        {isEditable(itemsRun.status) ? (
+                          <Button size="sm" variant="outline" className="ml-2 h-7 px-2 text-xs"
+                                  onClick={() => openDeductions(it, itemsRun.status)}>
+                            <Plus className="mr-1 h-3 w-3" /> Add deduction
+                          </Button>
+                        ) : (
+                          <span className="ml-1 text-[11px] text-slate-400">view breakdown</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -721,12 +769,7 @@ export default function PoultryPayrollPage() {
                             type="button"
                             className="underline decoration-dotted underline-offset-2 hover:text-indigo-700"
                             title="What is this made of?"
-                            onClick={() => setDeductionsFor({
-                              poultryPayrollItemId: it.poultryPayrollItemId,
-                              poultryStaffId: it.poultryStaffId,
-                              staffName: it.staffName ?? `#${it.poultryStaffId}`,
-                              runStatus: itemsRun.status,
-                            })}
+                            onClick={() => openDeductions(it, itemsRun.status)}
                           >
                             {gh(it.deductions)}
                           </button>
@@ -735,6 +778,7 @@ export default function PoultryPayrollPage() {
                         <TableCell className="text-right whitespace-nowrap">
                           {isEditable(itemsRun.status) && (
                             <>
+                              <Button size="sm" variant="ghost" onClick={() => openDeductions(it, itemsRun.status)} aria-label="Add deduction" title="Add deduction (advance repayment, other, or keep as employee credit)"><HandCoins className="h-4 w-4 text-indigo-600" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => startEditItem(it)} aria-label="Edit line" title="Edit line"><Pencil className="h-4 w-4 text-slate-600" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => removeItem(it.poultryPayrollItemId)} aria-label="Remove line" title="Remove line"><Trash2 className="h-4 w-4 text-red-500" /></Button>
                             </>
@@ -781,32 +825,60 @@ export default function PoultryPayrollPage() {
                   <FormField label="Daily wage"><NumberInput step="0.01" value={itemForm.dailyWage} onChange={(e) => setItemForm({ ...itemForm, dailyWage: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="Commission"><NumberInput step="0.01" value={itemForm.commission} onChange={(e) => setItemForm({ ...itemForm, commission: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="Bonus"><NumberInput step="0.01" value={itemForm.bonus} onChange={(e) => setItemForm({ ...itemForm, bonus: Number(e.target.value) || 0 })} /></FormField>
-                  <FormField label="Deductions">
-                    {/* Staff with an advance: the deduction comes from Employee
-                        Loans & Advances, so it is shown, not typed. Typing over
-                        it would make the payslip disagree with what the advance
-                        repays on approval. Staff without one: typed as before.
-                        Also locked while the advances are still being checked,
-                        so a figure typed in that moment is not overwritten. */}
-                    {(() => {
-                      const locked = itemForm.poultryStaffId > 0
-                        && (staffLoansBusy || staffLoans.length > 0 || onLineLoanIds.size > 0)
-                      return (
-                        <>
-                          <NumberInput step="0.01" value={itemForm.deductions} disabled={locked}
-                                       title={locked ? "Set from Employee Loans & Advances" : undefined}
-                                       onChange={(e) => setItemForm({ ...itemForm, deductions: Number(e.target.value) || 0 })} />
-                          {locked && !staffLoansBusy && (
-                            <p className="mt-1 text-[11px] text-slate-500">
-                              Comes from this staff member&apos;s advance. To change it, go to{" "}
-                              <a href="/poultry-employee-loans" className="underline underline-offset-2 hover:text-indigo-700">Employee Loans &amp; Advances</a>.
-                            </p>
-                          )}
-                        </>
-                      )
-                    })()}
+                  <FormField label="Other deductions">
+                    {/* 442. Typed deductions only (uniform, damage...). Advance
+                        repayments are their own rows, listed below and added
+                        on save, so this box no longer has to be locked. */}
+                    <NumberInput step="0.01" value={itemForm.deductions}
+                                 onChange={(e) => setItemForm({ ...itemForm, deductions: Number(e.target.value) || 0 })} />
+                  </FormField>
+                  <FormField label="Keep as employee credit">
+                    <NumberInput step="0.01" value={itemForm.keepCredit}
+                                 onChange={(e) => setItemForm({ ...itemForm, keepCredit: Number(e.target.value) || 0 })} />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Part of the wage the worker asked the farm to hold. Paid out later from{" "}
+                      <a href="/poultry-employee-credit" className="underline underline-offset-2 hover:text-indigo-700">Employee Credit</a>.
+                    </p>
                   </FormField>
                   <FormField label="Notes"><Input value={itemForm.notes} onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value })} /></FormField>
+
+                  {/* What the worker gets now, worked out as they type. */}
+                  {itemForm.poultryStaffId > 0 && (() => {
+                    const gross = (Number(itemForm.basicPay) || 0) + (Number(itemForm.dailyWage) || 0)
+                      + (Number(itemForm.commission) || 0) + (Number(itemForm.bonus) || 0)
+                    const advances = editingItemId != null
+                      ? lineFixed.advances
+                      : staffLoans.reduce((s, e) => s + payrollDeductionFor(e), 0)
+                    const other = (Number(itemForm.deductions) || 0) + lineFixed.otherItems
+                    const keep = Number(itemForm.keepCredit) || 0
+                    const paidNow = gross - advances - other - keep
+                    const who = staff.find(s => s.poultryStaffId === itemForm.poultryStaffId)
+                    const row = (label: string, v: number, cls = "") => (
+                      <div className={`flex justify-between gap-4 ${cls}`}>
+                        <span>{label}</span><span className="tabular-nums">{gh(v)}</span>
+                      </div>
+                    )
+                    return (
+                      <FormField label="&nbsp;" full>
+                        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+                          {row("Gross pay", gross)}
+                          {advances > 0 && row("− Advance repayments", advances, "text-slate-600")}
+                          {other > 0 && row("− Other deductions", other, "text-slate-600")}
+                          {keep > 0 && row(`− Kept for ${who ? who.firstName : "worker"} (employee credit)`, keep, "text-emerald-700")}
+                          <div className={`flex justify-between gap-4 border-t pt-1 font-semibold ${paidNow < 0 ? "text-rose-600" : "text-slate-900"}`}>
+                            <span>Paid now</span><span className="tabular-nums">{gh(paidNow)}</span>
+                          </div>
+                          {paidNow < 0 && <p className="text-xs text-rose-600">Deductions are more than the pay.</p>}
+                          {keep > 0 && paidNow >= 0 && (
+                            <p className="text-[11px] text-slate-500">
+                              The full gross is still payroll cost. The kept {gh(keep)} is added to the worker&apos;s
+                              Employee Credit when this payroll is approved.
+                            </p>
+                          )}
+                        </div>
+                      </FormField>
+                    )
+                  })()}
 
                   {/* What this person already owes, BEFORE the line is added.
                       The advance repayment is applied automatically on save, so

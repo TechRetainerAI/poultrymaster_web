@@ -2,17 +2,13 @@
 
 // Generic Supplier Balances (Purchases & Suppliers → Supplier Balances).
 //
-// Thin, like the poultry and water twins: everything lives in <BalancesPage>.
-// All this file decides is which module it is, where a supplier and a bill
-// live, and which permission keys apply.
-//
-// This page is what migration 248 unlocked. Before it, genericexpenses had no
-// amountpaid, duedate or paymentstatus at all, so a Generic company could
-// record what it spent but never what it still owed — and an approved supplier
-// payment moved the supplier's balance and the cash account while every
-// purchase it was meant to settle kept its original balance.
+// The Poultry page on the shared <BalancesPage>. 449 (Report 40): supplier debts
+// (record in the header, reverse on the debt's row) and Poultry's supplier
+// credit panel under the table, as on Poultry.
 
 import { BalancesPage } from "@/components/balances/balances-page"
+import { RecordSupplierDebtButton, ReverseSupplierDebtButton } from "@/components/balances/supplier-debts-panel"
+import { SupplierCreditPanel } from "@/components/suppliers/supplier-credit-panel"
 import { getCashAccounts } from "@/lib/api/generic"
 
 export default function GenericSupplierBalancesPage() {
@@ -21,8 +17,6 @@ export default function GenericSupplierBalancesPage() {
       module="generic"
       side="supplier"
       companyType="Generic"
-      // A Generic supplier payment posts exactly one CashOut against the
-      // account chosen here.
       loadCashAccounts={async () => {
         const accounts = await getCashAccounts()
         return accounts
@@ -34,14 +28,18 @@ export default function GenericSupplierBalancesPage() {
             allowNegativeBalance: a.allowNegativeBalance,
           }))
       }}
-      partyHref={() => "/generic-suppliers"}
-      // Generic payables span TWO tables, so the link depends on which kind of
-      // bill the row is. Expenses and purchases have separate pages.
+      partyHref={(supplierId) => `/generic-suppliers/${supplierId}/ledger`}
       documentHref={(doc) =>
-        doc.documentType === "Expense"
+        doc.documentType === "SupplierDebt" ? null
+          : doc.documentType === "Expense"
           ? `/generic-expenses?expenseId=${doc.documentId}`
           : `/generic-purchases?purchaseId=${doc.documentId}`
       }
+      headerActions={(reload) => <RecordSupplierDebtButton onChanged={reload} />}
+      documentActions={(doc, party, compact, reload) => (
+        <ReverseSupplierDebtButton doc={doc} partyName={party.partyName} compact={compact} onChanged={reload} />
+      )}
+      afterTable={(_reload, paymentsVersion) => <SupplierCreditPanel refreshKey={paymentsVersion} />}
       permissions={{
         view: "generic.supplier-balances.view",
         pay: "generic.supplier-payments.create",

@@ -12,6 +12,7 @@ import '../../web_nav.dart';
 import '../../web_page_screen.dart';
 import '../sales/sales_screen.dart';
 import '../trackers/tracker_routes.dart';
+import 'batch_bird_reconciliation_screen.dart';
 import 'closing_reports.dart';
 import 'dashboard_screen.dart';
 import 'money_reports.dart';
@@ -42,6 +43,8 @@ final Map<String, PageScreenBuilder> poultryReportScreens = {
   '/poultry/reports/batch-production-summary': (s, c) => BatchProductionSummaryScreen(session: s, company: c),
   '/poultry-feed-production/reports': (s, c) => FeedProductionReportsScreen(session: s, company: c),
   '/poultry/reports/changes': (s, c) => ChangesReportScreen(session: s, company: c),
+  // 413: every bird each batch bought, accounted for.
+  reconciliationReportHref: (s, c) => BatchBirdReconciliationScreen(session: s, company: c),
 };
 
 /// Opens a report link: its native screen, or the web page in-app.

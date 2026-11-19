@@ -96,7 +96,7 @@ export default function HotelGuestRequestsPage() {
     if (!form.requestType) { toast({ title: "Select a request type", variant: "destructive" }); return }
     setSaving(true)
     try {
-      await createGuestRequest(form)
+      await createGuestRequest({ ...form, hotelBookingId: form.hotelBookingId ?? undefined, hotelRoomId: form.hotelRoomId ?? undefined })
       // Before setOpen(false): closing unmounts the field and nulls the ref.
       await requestTypeOther.current?.remember()
       toast({ title: "Request created" })

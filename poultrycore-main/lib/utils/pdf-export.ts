@@ -1,7 +1,11 @@
 export interface PdfExportColumn {
   header: string
+  /** Object key used to extract the value from row objects (when rows are records). */
+  key?: string
   align?: "left" | "right" | "center"
   width?: number
+  /** Display format hint (e.g. "currency"). Informational — callers pre-format values. */
+  format?: string
 }
 
 export interface PdfExportFilter {
@@ -20,7 +24,7 @@ export interface PdfExportSummaryCard {
 
 export interface PdfExportOptions {
   title: string
-  filename: string
+  filename?: string
   farmName?: string
   /** Optional explicit subtitle line. When omitted, a "Generated … | Records …" line is built. */
   subtitle?: string
@@ -33,7 +37,13 @@ export interface PdfExportOptions {
   summaryCards?: PdfExportSummaryCard[]
   summaryLines?: string[]
   columns: PdfExportColumn[]
-  rows: (string | number | null | undefined)[][]
+  /**
+   * Table rows. Two formats are accepted:
+   *  - `(string|number|null|undefined)[][]` — positional arrays (classic format)
+   *  - `Record<string, any>[]` — object arrays where each column's `key` names
+   *    the property to read (used by report pages that pass data objects directly)
+   */
+  rows: (string | number | null | undefined)[][] | Record<string, any>[]
   totalsRow?: (string | number | null | undefined)[]
   orientation?: "portrait" | "landscape"
   /** Override the table header fill (defaults to the brand colour). */
@@ -332,7 +342,12 @@ async function buildPdfDoc(opts: PdfExportOptions) {
 
   // ---- Table ----
   const head = [opts.columns.map((c) => c.header)]
-  const body: string[][] = opts.rows.map((r) => r.map((c) => (c == null ? "" : String(c))))
+  // Support both positional arrays and keyed object rows.
+  const body: string[][] = (opts.rows as any[]).map((r) =>
+    Array.isArray(r)
+      ? (r as (string | number | null | undefined)[]).map((c) => (c == null ? "" : String(c)))
+      : opts.columns.map((col) => { const v = col.key != null ? r[col.key] : undefined; return v == null ? "" : String(v) })
+  )
   if (opts.totalsRow) {
     body.push(opts.totalsRow.map((c) => (c == null ? "" : String(c))))
   }
@@ -395,13 +410,13 @@ export function pdfDownloadFilename(filename: string): string {
 
 export async function exportTableToPdf(opts: PdfExportOptions): Promise<void> {
   const { doc } = await buildPdfDoc(opts)
-  doc.save(pdfDownloadFilename(opts.filename))
+  doc.save(pdfDownloadFilename(opts.filename || opts.title))
 }
 
 export async function generatePdfBlob(opts: PdfExportOptions): Promise<{ blob: Blob; filename: string; farmName: string }> {
   const { doc, farmName } = await buildPdfDoc(opts)
   const blob = doc.output("blob") as Blob
-  return { blob, filename: pdfDownloadFilename(opts.filename), farmName }
+  return { blob, filename: pdfDownloadFilename(opts.filename || opts.title), farmName }
 }
 
 function readUserEmailFromStorage(): string {
@@ -463,7 +478,7 @@ export async function emailTableAsPdf(
 export interface PdfTableSection {
   heading?: string
   columns: PdfExportColumn[]
-  rows: (string | number | null | undefined)[][]
+  rows: (string | number | null | undefined)[][] | Record<string, any>[]
 }
 
 export interface MultiTablePdfOptions {
@@ -591,7 +606,11 @@ async function buildMultiTablePdfDoc(opts: MultiTablePdfOptions) {
     }
 
     const head = [t.columns.map((c) => c.header)]
-    const body: string[][] = t.rows.map((r) => r.map((c) => (c == null ? "" : String(c))))
+    const body: string[][] = (t.rows as any[]).map((r) =>
+      Array.isArray(r)
+        ? (r as (string | number | null | undefined)[]).map((c) => (c == null ? "" : String(c)))
+        : t.columns.map((col) => { const v = col.key != null ? r[col.key] : undefined; return v == null ? "" : String(v) })
+    )
     const columnStyles: Record<number, Record<string, unknown>> = {}
     t.columns.forEach((c, i) => {
       const styles: Record<string, unknown> = {}

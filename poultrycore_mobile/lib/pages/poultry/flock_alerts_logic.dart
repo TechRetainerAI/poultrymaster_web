@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../shared/business_dates.dart' show fmtNum;
 import 'trackers/tracker_logic.dart' show tStr;
 import 'trackers/tracker_widgets.dart' show TColors;
@@ -15,8 +16,8 @@ int severityRank(Object? s) => _severityRank[tStr(s)] ?? 0;
 /// severityStyle: (label, badge border, badge bg, badge fg, left edge).
 ({String label, Color border, Color bg, Color fg, Color edge}) alertSeverityStyle(Object? s) => switch (s) {
       'Critical' => (label: 'Critical', border: TColors.rose200, bg: TColors.rose50, fg: TColors.rose700, edge: TColors.rose500),
-      'Warning' => (label: 'Warning', border: TColors.amber200, bg: TColors.amber50, fg: TColors.amber800, edge: const Color(0xFFF59E0B)),
-      'Information' => (label: 'Information', border: const Color(0xFFBAE6FD), bg: const Color(0xFFF0F9FF), fg: TColors.sky700, edge: const Color(0xFF0EA5E9)),
+      'Warning' => (label: 'Warning', border: TColors.amber200, bg: TColors.amber50, fg: TColors.amber800, edge: const Tone.line(0xFFF59E0B)),
+      'Information' => (label: 'Information', border: const Tone.line(0xFFBAE6FD), bg: const Tone.bg(0xFFF0F9FF), fg: TColors.sky700, edge: const Tone.line(0xFF0EA5E9)),
       _ => (label: '—', border: TColors.slate200, bg: TColors.slate50, fg: TColors.slate600, edge: TColors.slate300),
     };
 

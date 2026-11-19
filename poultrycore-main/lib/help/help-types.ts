@@ -10,6 +10,21 @@ export interface HelpLink {
   href: string
 }
 
+/**
+ * One annotated screenshot under an answer. Produced by
+ * `npm run screenshots` (scripts/help-screenshots/) into
+ * lib/help/help-shots.json -- never hand-written, so a picture always exists
+ * on disk and matches the screen it was taken from.
+ */
+export interface HelpShot {
+  /** Public path, e.g. /help/record-sale-1.jpg */
+  src: string
+  /** What the picture shows; read aloud and shown under it. */
+  caption: string
+  width: number
+  height: number
+}
+
 export interface HelpEntry {
   /** Stable, URL-safe. Used as the #anchor, so do not rename once shipped. */
   id: string

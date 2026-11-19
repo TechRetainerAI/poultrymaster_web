@@ -21,6 +21,7 @@ import 'restaurant_money_kit.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 class RestaurantOwnerMoneyScreen extends StatefulWidget {
   const RestaurantOwnerMoneyScreen({super.key, required this.session, required this.company});
   final Session session;
@@ -234,7 +235,7 @@ class _RestaurantOwnerMoneyScreenState extends State<RestaurantOwnerMoneyScreen>
                 Align(
                   alignment: Alignment.centerLeft,
                   child: contribution
-                      ? rStatusBadge('Contribution', bg: const Color(0xFFF0FDF4), fg: const Color(0xFF15803D), border: const Color(0xFFBBF7D0))
+                      ? rStatusBadge('Contribution', bg: const Tone.bg(0xFFF0FDF4), fg: const Tone.fg(0xFF15803D), border: const Tone.line(0xFFBBF7D0))
                       : rStatusBadge('Draw', bg: TColors.amber50, fg: TColors.amber700, border: TColors.amber200),
                 ),
                 cellText(tStr(e['accountName']), color: grey),
@@ -243,7 +244,7 @@ class _RestaurantOwnerMoneyScreenState extends State<RestaurantOwnerMoneyScreen>
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: reversed ? TColors.slate400 : (contribution ? const Color(0xFF15803D) : TColors.amber700),
+                      color: reversed ? TColors.slate400 : (contribution ? const Tone.fg(0xFF15803D) : TColors.amber700),
                       decoration: reversed ? TextDecoration.lineThrough : null,
                     )),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [

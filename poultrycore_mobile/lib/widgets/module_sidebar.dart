@@ -6,12 +6,16 @@ import '../pages/list_screen.dart';
 import '../pages/module_registry.dart';
 import '../pages/registry.dart';
 import '../pages/shared/setup_admin_routes.dart';
+import '../pages/generic/generic_kit.dart' show gateGenericCatalog;
+import '../pages/shared/billing_nav.dart';
+import '../pages/poultry/poultry_features.dart';
 import '../pages/web_nav.dart';
 import '../pages/web_page_screen.dart';
 import '../state/session.dart';
 import 'quick_links_dialog.dart';
 
-/// The web's sidebar as it appears on a phone, for Poultry, Water and Restaurant (`components/dashboard/sidebar.tsx`,
+import 'package:poultrycore_mobile/design/tone.dart';
+/// The web's sidebar as it appears on a phone, for Poultry, Water, Restaurant and Hotel (`components/dashboard/sidebar.tsx`,
 /// the `lg:hidden` drawer): a slate-900 panel that slides in from the left,
 /// 85% of the screen wide and never more than 320, over a black/50 backdrop.
 ///
@@ -109,7 +113,8 @@ String? hrefForSpec(String specKey, Company company) {
 bool hasSidebar(CompanyType type) =>
     type == CompanyType.poultry ||
     type == CompanyType.water ||
-    type == CompanyType.restaurant;
+    type == CompanyType.restaurant ||
+    type == CompanyType.hotel;
 
 /// Nav groups that exist only for the All pages sheet — pages the web's
 /// sidebar does not list (Water's individual reports, Restaurant's top-nav
@@ -141,20 +146,21 @@ void openNavLink(
 }
 
 // Tailwind slate, as the web sidebar uses it.
-const _slate900 = Color(0xFF0F172A);
-const _slate800 = Color(0xFF1E293B);
-const _slate700 = Color(0xFF334155);
-const _slate500 = Color(0xFF64748B);
-const _slate400 = Color(0xFF94A3B8);
-const _slate300 = Color(0xFFCBD5E1);
-const _slate200 = Color(0xFFE2E8F0);
-const _blue400 = Color(0xFF60A5FA);
-const _orange400 = Color(0xFFFB923C);
+const _slate900 = Tone.bg(0xFF0F172A);
+const _slate800 = Tone(0xFF1E293B);
+const _slate700 = Tone.bg(0xFF334155);
+const _slate500 = Tone.fg(0xFF64748B);
+const _slate400 = Tone.fg(0xFF94A3B8);
+const _slate300 = Tone.fg(0xFFCBD5E1);
+const _slate200 = Tone.fg(0xFFE2E8F0);
+const _orange400 = Tone.fg(0xFFFB923C);
 
 /// The web's lucide icon for each row, in Material terms.
 const Map<String, IconData> _iconByHref = {
   '/production-records': Icons.description_outlined,
   '/batch-production-records': Icons.widgets_outlined,
+  '/poultry-weigh-ins': Icons.scale_outlined,
+  '/poultry-broiler-performance': Icons.set_meal_outlined,
   '/egg-production': Icons.egg_outlined,
   '/poultry-egg-sorting': Icons.egg_outlined,
   '/poultry-supply-purchases': Icons.inventory_outlined,
@@ -217,6 +223,8 @@ const Map<String, IconData> _iconByHref = {
   '/poultry-alerts': Icons.notifications_outlined,
   '/poultry-purchase-receipts': Icons.receipt_long_outlined,
   '/poultry-setup': Icons.settings_outlined,
+  '/poultry-setup?section=production': Icons.settings_outlined,
+  '/poultry-setup?section=business': Icons.settings_outlined,
   '/poultry-company-setup': Icons.settings_outlined,
   '/poultry-financial-settings': Icons.toll_outlined,
   '/companies': Icons.business_outlined,
@@ -225,7 +233,7 @@ const Map<String, IconData> _iconByHref = {
   '/poultry-routes': Icons.local_shipping_outlined,
   '/poultry-products': Icons.inventory_2_outlined,
   '/poultry-feed-formulas': Icons.grass,
-  '/business-office/egg-pick-settings': Icons.schedule,
+  '/business-office/egg-pick-settings': Icons.egg_outlined,
   '/customers': Icons.people_outline,
   '/suppliers': Icons.local_shipping_outlined,
   '/houses': Icons.business_outlined,
@@ -238,6 +246,7 @@ const Map<String, IconData> _iconByHref = {
   '/audit-logs': Icons.show_chart,
   '/resources': Icons.menu_book_outlined,
   '/help': Icons.help_outline,
+  '/poultry-videos': Icons.play_circle_outline,
   '/terms': Icons.checklist,
   // Water
   '/water-production-batches': Icons.factory_outlined,
@@ -326,6 +335,85 @@ const Map<String, IconData> _iconByHref = {
   '/restaurant-staff': Icons.manage_accounts_outlined,
   '/restaurant-setup': Icons.settings_outlined,
   '/business-office/billing': Icons.credit_card,
+  // Hotel (lib/nav/hotel-nav-config.ts; report rows from lib/reports/hotel-reports-config.ts)
+  '/hotel-daily-closing': Icons.description_outlined,
+  '/hotel-night-audit': Icons.shield_outlined,
+  '/hotel-shift-handover': Icons.receipt_long_outlined,
+  '/hotel-bookings': Icons.description_outlined,
+  '/hotel-guests': Icons.people_outline,
+  '/hotel-check-in': Icons.show_chart,
+  '/hotel-check-out': Icons.fact_check_outlined,
+  '/hotel-availability': Icons.search,
+  '/hotel-guest-folio': Icons.receipt_long_outlined,
+  '/hotel-billing': Icons.receipt_outlined,
+  '/hotel-invoices': Icons.description_outlined,
+  '/hotel-stay-history': Icons.description_outlined,
+  '/hotel-communications': Icons.chat_bubble_outline,
+  '/hotel-guest-requests': Icons.notifications_none,
+  '/hotel-lost-found': Icons.inventory_2_outlined,
+  '/hotel-rooms': Icons.business_outlined,
+  '/hotel-housekeeping': Icons.fact_check_outlined,
+  '/hotel-housekeeping-schedule': Icons.calendar_month_outlined,
+  '/hotel-room-service': Icons.local_shipping_outlined,
+  '/hotel-restaurant': Icons.shopping_cart_outlined,
+  '/hotel-menu': Icons.restaurant,
+  '/hotel-kitchen': Icons.restaurant,
+  '/hotel-restaurant-tables': Icons.business_outlined,
+  '/hotel-sales': Icons.shopping_cart_outlined,
+  '/hotel-payments': Icons.account_balance_wallet_outlined,
+  '/hotel-customer-balances': Icons.people_outline,
+  '/hotel-expenses': Icons.attach_money,
+  '/hotel-supplier-payments': Icons.receipt_outlined,
+  '/hotel-supplier-balances': Icons.local_shipping_outlined,
+  '/hotel-recurring-expenses': Icons.repeat,
+  '/hotel-internal-use': Icons.inventory_outlined,
+  '/hotel-payroll': Icons.payments_outlined,
+  '/hotel-employee-loans': Icons.volunteer_activism_outlined,
+  '/hotel-deferred-costs': Icons.hourglass_empty,
+  '/hotel-assets': Icons.business_outlined,
+  '/hotel-cash-flow': Icons.account_balance_wallet_outlined,
+  '/hotel-financial-activity': Icons.show_chart,
+  '/hotel-profit-loss': Icons.trending_up,
+  '/hotel-owner-money': Icons.payments_outlined,
+  '/hotel-loans': Icons.volunteer_activism_outlined,
+  '/hotel-cash-accounts': Icons.account_balance_wallet_outlined,
+  '/hotel-cash-transfers': Icons.swap_horiz,
+  '/hotel-cash-reconciliation': Icons.balance,
+  '/hotel-reports': Icons.bar_chart,
+  '/hotel-reports/revenue-summary': Icons.bar_chart,
+  '/hotel-reports/expense-report': Icons.attach_money,
+  '/hotel-reports/billing-report': Icons.credit_card,
+  '/hotel-reports/payroll-report': Icons.account_balance_wallet_outlined,
+  '/hotel-reports/cash-flow-report': Icons.account_balance_outlined,
+  '/hotel-reports/guest-ledger': Icons.receipt_outlined,
+  '/hotel-reports/ancillary-revenue': Icons.shopping_cart_outlined,
+  '/hotel-reports/staff-loans': Icons.volunteer_activism_outlined,
+  '/hotel-reports/bookings-report': Icons.event_available_outlined,
+  '/hotel-reports/guest-report': Icons.people_outline,
+  '/hotel-reports/occupancy-report': Icons.bed_outlined,
+  '/hotel-reports/maintenance-report': Icons.build_outlined,
+  '/hotel-reports/loyalty-report': Icons.workspace_premium_outlined,
+  '/hotel-reports/restaurant-sales': Icons.shopping_cart_outlined,
+  '/hotel-reports/menu-performance': Icons.description_outlined,
+  '/hotel-reports/daily-report': Icons.calendar_today_outlined,
+  '/hotel-reports/weekly-report': Icons.calendar_today_outlined,
+  '/hotel-reports/monthly-report': Icons.calendar_today_outlined,
+  '/hotel-reports/housekeeping-report': Icons.fact_check_outlined,
+  '/hotel-reports/inventory-report': Icons.description_outlined,
+  '/hotel-reports/housekeeping-productivity': Icons.timer_outlined,
+  '/hotel-reports/performance-kpis': Icons.speed,
+  '/hotel-reports/source-of-business': Icons.public,
+  '/hotel-reports/booking-pace': Icons.history_toggle_off,
+  '/hotel-reports/room-type-performance': Icons.grid_view,
+  '/hotel-reports/length-of-stay': Icons.nightlight_outlined,
+  '/hotel-reports/cancellations': Icons.event_busy_outlined,
+  '/hotel-company-setup': Icons.business_outlined,
+  '/hotel-setup': Icons.settings_outlined,
+  '/hotel-staff': Icons.groups_outlined,
+  '/hotel-customers': Icons.people_outline,
+  '/hotel-suppliers': Icons.local_shipping_outlined,
+  '/hotel-inventory': Icons.widgets_outlined,
+  '/hotel-maintenance': Icons.build_outlined,
 };
 
 /// "System Alerts and Notifications" (components/dashboard/charts.tsx). The
@@ -337,17 +425,17 @@ Future<void> showSystemAlertsDialog(BuildContext context, {List<({String title, 
         title: const Text('System Alerts and Notifications'),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (alerts.isEmpty)
-            const Text('No alerts', style: TextStyle(color: Color(0xFF475569)))
+            const Text('No alerts', style: TextStyle(color: Tone.fg(0xFF475569)))
           else
             for (final a in alerts)
               Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(border: Border.all(color: const Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(a.title, style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF0F172A))),
-                  if (a.description != null) Text(a.description!, style: const TextStyle(fontSize: 14, color: Color(0xFF475569))),
-                  if (a.time != null) Text(a.time!, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                  Text(a.title, style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A))),
+                  if (a.description != null) Text(a.description!, style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF475569))),
+                  if (a.time != null) Text(a.time!, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF64748B))),
                 ]),
               ),
         ]),
@@ -360,6 +448,14 @@ IconData sidebarIconFor(String href) => _iconByHref[href] ?? Icons.insert_chart_
 const Map<String, IconData> _menuIcons = {
   'Quick Links': Icons.star_border,
   'Operations': Icons.factory_outlined,
+  // Restaurant's menus (sidebar.tsx: ShoppingCart, Building2, Truck, Boxes, Users).
+  'Orders & Kitchen': Icons.shopping_cart_outlined,
+  'Dining': Icons.business_outlined,
+  'Delivery & Online': Icons.local_shipping_outlined,
+  'Inventory': Icons.inventory_2_outlined,
+  'Growth': Icons.people_outline,
+  // Hotel's (sidebar.tsx: UtensilsCrossed).
+  'Restaurant & Bar': Icons.restaurant,
   'Sales, Expenses & Money': Icons.account_balance_wallet_outlined,
   'Trackers': Icons.bar_chart,
   'Reports': Icons.bar_chart,
@@ -404,16 +500,20 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
 
   /// The generated nav, with the default Quick Links.
   late final List<NavGroup> _base =
-      gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company);
+      gateGenericCatalog(gateBillingLinks(gatePoultryFeatureLinks(gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company), widget.company)), widget.company);
 
   /// The user's stored Quick Links (318). Null = never customised, so the
   /// defaults stand; an empty list = they cleared the bar.
   List<String>? _quickHrefs;
 
-  /// The nav as shown: Quick Links resolved from the user's choice.
+  /// The nav as shown: Quick Links resolved from the user's choice. Only
+  /// Poultry and Water read a stored choice (sidebar.tsx passes quickLinkHrefs
+  /// to those two configs alone); Restaurant and Hotel keep their fixed list.
   List<NavGroup> get _groups => [
         for (final g in _base)
-          g.title == 'Quick Links' ? NavGroup(g.title, [NavSubGroup('', resolveQuickLinks(_base, _quickHrefs))]) : g,
+          g.title == 'Quick Links' && _customisable
+              ? NavGroup(g.title, [NavSubGroup('', resolveQuickLinks(_base, _quickHrefs))])
+              : g,
       ];
 
   /// Poultry and Water put "Customise…" at the foot of Quick Links, as the web does.
@@ -426,6 +526,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
   }
 
   Future<void> _loadQuickLinks() async {
+    if (!_customisable) return;
     final saved = await QuickLinksApi(widget.session.farmClient).get(
       userId: widget.session.tokens.userId,
       farmId: widget.company.farmId,
@@ -486,7 +587,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
     final menus = _groups.where((g) => g.title != 'System' && !sheetOnlyGroups.contains(g.title));
 
     return Material(
-      color: _slate900,
+      color: Tone.button(_slate900)!,
       elevation: 16,
       child: SizedBox(
         width: width > 320 ? 320 : width,
@@ -510,6 +611,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
                       icon: switch (widget.company.type) {
                         CompanyType.water => Icons.water_drop_outlined,
                         CompanyType.restaurant => Icons.restaurant,
+                        CompanyType.hotel => Icons.business_outlined,
                         _ => Icons.home_outlined,
                       },
                       label: 'Dashboard',
@@ -519,18 +621,16 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
                     const SizedBox(height: 16),
                     const _Divider(),
                     const SizedBox(height: 16),
-                    if (_flat)
-                      ..._flatGroups()
-                    else ...[
-                      for (final g in menus) ...[
-                        _menu(g),
-                        const SizedBox(height: 4),
-                      ],
-                      const SizedBox(height: 12),
-                      const _Divider(),
-                      const SizedBox(height: 16),
-                      for (final g in system) _menu(g),
+                    // Poultry, Water, Restaurant (since the 2026-10 web sidebar) and Hotel
+                    // are all menus: each a collapsible section in the drawer.
+                    for (final g in menus) ...[
+                      _menu(g),
+                      const SizedBox(height: 4),
                     ],
+                    const SizedBox(height: 12),
+                    const _Divider(),
+                    const SizedBox(height: 16),
+                    for (final g in system) _menu(g),
                   ],
                 ),
               ),
@@ -548,7 +648,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _slate800)),
+        border: Border(bottom: BorderSide(color: Tone.line(0xFF1E293B))),
       ),
       child: Row(
         children: [
@@ -557,7 +657,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
             width: 32,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .12),
+              color: Tone.bg(0xFFFFFFFF).withValues(alpha: .12),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.visibility, size: 18, color: Colors.white),
@@ -634,7 +734,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
             margin: const EdgeInsets.only(left: 16, top: 4),
             padding: const EdgeInsets.only(left: 4),
             decoration: const BoxDecoration(
-              border: Border(left: BorderSide(color: _slate800)),
+              border: Border(left: BorderSide(color: Tone.line(0xFF1E293B))),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -649,40 +749,6 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
           ),
       ],
     );
-  }
-
-  /// Restaurant renders the web's flat layout; Poultry and Water their menus.
-  /// Water moved to menus on the web (sidebar.tsx's isWater branch now calls
-  /// renderMenu for Quick Links, Operations, Sales Expenses & Money,
-  /// Trackers, Reports and Setup, as Poultry does): in the drawer each is a
-  /// collapsible section showing its columns as sub-headings.
-  bool get _flat => widget.company.type == CompanyType.restaurant;
-
-  /// Restaurant's layout on the web (sidebar.tsx, the isRestaurant branch):
-  /// not menus but a flat run of titled groups, each open and collapsible,
-  /// with a divider where the top nav has a separate menu.
-  List<Widget> _flatGroups() {
-    const noDividerBefore = <String>{};
-    final out = <Widget>[];
-    for (final g in _groups) {
-      if (sheetOnlyGroups.contains(g.title)) continue;
-      final subs = g.subGroups.where((s) => s.links.isNotEmpty).toList();
-      final quick = g.title == 'Quick Links' && _customisable;
-      if (subs.isEmpty && !quick) continue;
-      if (out.isNotEmpty && !noDividerBefore.contains(g.title)) {
-        out.addAll(const [SizedBox(height: 8), _Divider(), SizedBox(height: 12)]);
-      }
-      for (final s in subs.isEmpty ? [const NavSubGroup('', [])] : subs) {
-        final heading = switch (g.title) {
-          'Setup' => 'Setup · ${s.title}',
-          'System' => 'System',
-          _ => s.title.isEmpty ? g.title : s.title,
-        };
-        out.add(_subGroup(g.title, s, heading: heading));
-      }
-      if (quick) out.add(_customiseRow());
-    }
-    return out;
   }
 
   /// A column heading inside an open menu: xs, uppercase, slate-500, and
@@ -743,7 +809,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: _slate800)),
+        border: Border(top: BorderSide(color: Tone.line(0xFF1E293B))),
       ),
       child: _Row(
         icon: Icons.logout,
@@ -775,7 +841,7 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: active ? _slate700 : Colors.transparent,
+      color: active ? Tone.button(_slate700)! : Colors.transparent,
       borderRadius: BorderRadius.circular(6),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -789,13 +855,13 @@ class _Row extends StatelessWidget {
             border: Border(
               left: BorderSide(
                 width: 3,
-                color: active ? _blue400 : Colors.transparent,
+                color: active ? Tone.line(0xFF60A5FA) : Colors.transparent,
               ),
             ),
           ),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: active ? _blue400 : _slate400),
+              Icon(icon, size: 20, color: active ? Tone.fg(0xFF60A5FA) : _slate400),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -823,6 +889,6 @@ class _Divider extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         height: 1,
         margin: const EdgeInsets.symmetric(horizontal: 8),
-        color: _slate800,
+        color: Tone.button(Tone.bg(0xFF1E293B))!,
       );
 }

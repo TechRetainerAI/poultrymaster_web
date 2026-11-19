@@ -115,6 +115,28 @@ const rejectReasons = [
   'Other',
 ];
 
+/// Turning down a guest's online order (ORDER_REJECT_REASONS).
+const orderRejectReasons = [
+  'Item not available',
+  'Kitchen is closed',
+  'Kitchen is too busy right now',
+  'Outside our delivery area',
+  'Could not reach you',
+  'Duplicate order',
+  'Other',
+];
+
+/// Refunding a restaurant order (ORDER_REFUND_REASONS).
+const orderRefundReasons = [
+  'Wrong dish served',
+  'Item not available',
+  'Quality complaint',
+  'Long wait',
+  'Overcharged',
+  'Order cancelled',
+  'Other',
+];
+
 /// Skipping a scheduled task or a recurring expense this time.
 const skipReasons = [
   'Not needed this time',
@@ -238,6 +260,15 @@ const supplierCreditReasons = [
   'Returned goods',
   'Price adjustment',
   'Balance carried from old books',
+  'Other',
+];
+
+/// A per-person permission exception (Access Management → People).
+const permissionOverrideReasons = [
+  'Covering for a colleague',
+  'Role change pending',
+  'Extra responsibility',
+  'Temporary access',
   'Other',
 ];
 

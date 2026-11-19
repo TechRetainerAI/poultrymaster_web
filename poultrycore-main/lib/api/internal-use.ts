@@ -86,6 +86,9 @@ export const POULTRY_INTERNAL_USE_CATEGORIES: InternalUseCategory[] = [
 /** Generic offers the same set as water — "Office use" fits an ordinary business. */
 export const GENERIC_INTERNAL_USE_CATEGORIES: InternalUseCategory[] = WATER_INTERNAL_USE_CATEGORIES
 
+/** Report 40 Part 3: Generic's reasons read like Poultry's ("Staff allowance"). */
+export const GENERIC_INTERNAL_USE_CATEGORY_LABELS: Record<InternalUseCategory, string> = POULTRY_INTERNAL_USE_CATEGORY_LABELS
+
 /** Categories where the staff-count helper is worth offering up front. */
 export const STAFF_BASED_CATEGORIES: InternalUseCategory[] = ["StaffWelfare", "OfficeUse"]
 

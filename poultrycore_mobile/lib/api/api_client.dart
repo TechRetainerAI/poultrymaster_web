@@ -62,9 +62,14 @@ class ApiClient {
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
     final normalisedPath = path.startsWith('/') ? path : '/$path';
-    final cleaned = <String, String>{};
+    // A list repeats the key (?categoryIds=1&categoryIds=2), as URLSearchParams.append.
+    final cleaned = <String, dynamic>{};
     query?.forEach((k, v) {
-      if (v != null) cleaned[k] = '$v';
+      if (v is Iterable) {
+        cleaned[k] = [for (final x in v) '$x'];
+      } else if (v != null) {
+        cleaned[k] = '$v';
+      }
     });
     return Uri.parse('$baseUrl$normalisedPath')
         .replace(queryParameters: cleaned.isEmpty ? null : cleaned);

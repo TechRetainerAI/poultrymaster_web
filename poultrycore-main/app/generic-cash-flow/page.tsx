@@ -64,7 +64,7 @@ import { buildCashFlowAnalysis } from "@/lib/cash/cash-flow-analysis"
 import {
   createCashAdjustment, updateCashAdjustment, deleteCashAdjustment,
 } from "@/lib/api/cash"
-import { getCashAccounts, createLoan } from "@/lib/api/generic"
+import { getCashAccounts, createLoan, adjustCashAccount } from "@/lib/api/generic"
 import { recordOwnerEntry } from "@/lib/api/generic-money-out"
 import {
   CashAdjustmentDialog, ADJUSTMENT_TYPES, adjustmentTypeFromLabel,
@@ -380,7 +380,7 @@ export default function GenericCashFlowPage() {
 
           <ListFilters
             search={search} setSearch={setSearch}
-            searchPlaceholder="Search description, category..."
+            searchPlaceholder="Search description, category…"
             dateFrom={dateFrom} setDateFrom={setDateFrom}
             dateTo={dateTo} setDateTo={setDateTo}
           />
@@ -388,7 +388,7 @@ export default function GenericCashFlowPage() {
           {error && <Alert variant="destructive" className="mb-3"><AlertDescription>{error}</AlertDescription></Alert>}
 
           {loading ? (
-            <Card><CardContent className="py-12 text-center text-slate-600">Loading cash flow...</CardContent></Card>
+            <Card><CardContent className="py-12 text-center text-slate-600">Loading cash flow…</CardContent></Card>
           ) : (
             <div className="space-y-3">
 
@@ -404,7 +404,7 @@ export default function GenericCashFlowPage() {
                       tip="Expenses paid plus any capital taken out during the selected period." />
                 <Tile label="Cash at Hand" value={gh(allTime.closingCash)} note="All time"
                       tone={allTime.closingCash < 0 ? "text-rose-700" : undefined}
-                      tip="Every movement ever recorded, in minus out -- NOT limited to the selected period. This is what your records say you should be holding across all cash accounts; it is not read from the accounts themselves, and comparing the two is what reconciliation is for." />
+                      tip="Every movement ever recorded, in minus out — NOT limited to the selected period. This is what your records say you should be holding across all cash accounts; it is not read from the accounts themselves, and comparing the two is what reconciliation is for." />
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -417,17 +417,17 @@ export default function GenericCashFlowPage() {
                       value={`${summary.operatingIn - summary.operatingOut > 0 ? "+" : ""}${gh(summary.operatingIn - summary.operatingOut)}`}
                       note="Excludes adjustments"
                       tone={summary.operatingIn - summary.operatingOut >= 0 ? "text-emerald-700" : "text-rose-700"}
-                      tip="Operating income minus operating spending, with capital adjustments left out -- no owner injections, withdrawals or loans. This is whether the business funded ITSELF: the Net Cash Flow tile beside it can look healthy while this one is negative, which means the shortfall was covered by money put in rather than earned." />
+                      tip="Operating income minus operating spending, with capital adjustments left out — no owner injections, withdrawals or loans. This is whether the business funded ITSELF: the Net Cash Flow tile beside it can look healthy while this one is negative, which means the shortfall was covered by money put in rather than earned." />
                 <Tile label="Customer Balances"
                       value={customers ? gh(customers.totalBalance) : "\u2014"}
                       note={customers ? `All time \u00b7 ${customers.partyCount} customers owing` : "All time"}
                       icon={<Users className="h-3.5 w-3.5" />}
-                      tip="Total unpaid or partially paid customer sales. Money customers still owe you -- not cash, and not counted above until it is received." />
+                      tip="Total unpaid or partially paid customer sales. Money customers still owe you — not cash, and not counted above until it is received." />
                 <Tile label="Supplier Balances"
                       value={suppliers ? gh(suppliers.totalBalance) : "\u2014"}
                       note={suppliers ? `All time \u00b7 ${suppliers.partyCount} suppliers owed` : "All time"}
                       icon={<Truck className="h-3.5 w-3.5" />}
-                      tip="Total unpaid or partially paid purchases. Money you still owe suppliers -- not counted above until it is paid." />
+                      tip="Total unpaid or partially paid purchases. Money you still owe suppliers — not counted above until it is paid." />
               </div>
 
               {/* The identity, printed. */}
@@ -666,7 +666,7 @@ export default function GenericCashFlowPage() {
               interestRate: 0,
               loanDate: adjustmentDate,
               genericCashAccountId: accountId,
-              notes: description || null,
+              notes: description || undefined,
             })
             return
           }
@@ -691,6 +691,16 @@ export default function GenericCashFlowPage() {
             description: description || null,
           })
           if (!created.success) throw new Error(created.message ?? "Could not record the adjustment.")
+
+          // As on Poultry: the chosen account's balance moves too.
+          if (accountId != null) {
+            const label = ADJUSTMENT_TYPES.find((t) => t.value === adjustmentType)?.label ?? adjustmentType
+            await adjustCashAccount(accountId, {
+              amount,
+              reason: description ? `${label} - ${description}` : label,
+              transactionDate: adjustmentDate,
+            })
+          }
         }}
         onDone={() => { void load() }}
       />

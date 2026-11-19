@@ -19,6 +19,7 @@
 import 'dart:math' as math;
 
 import '../../shared/business_dates.dart';
+import '../bird_pricing.dart' show isLiveBirdProduct;
 
 // ------------------------------------------------------------------ helpers
 
@@ -1077,12 +1078,12 @@ String recognizedCostNote(num recognized, num operational) {
 
 // ------------------------------------------------------------------ birds
 
-/// Sales that reduce the live bird count (not eggs).
-bool isBirdSaleProduct(Object? product) {
-  final p = tStr(product).trim().toLowerCase();
-  if (p.isEmpty || p.contains('egg')) return false;
-  return RegExp('bird|chicken|broiler|layer|cull|live|poultry|hen|rooster').hasMatch(p);
-}
+/// Sales that reduce the live bird count. Since 403 this IS the database's
+/// rule (fnpoultrysale_isbirdsale, via isLiveBirdProduct), so the Birds
+/// tracker and the flock's bird position can never disagree about a sale.
+/// The old local pattern also matched "Broiler feed", "Layer mash" and
+/// "Poultry manure". Dead Birds (374) left the live count when they died.
+bool isBirdSaleProduct(Object? product) => isLiveBirdProduct(product);
 
 /// flockCountsTowardBirdTotals: arrived AND active.
 bool flockCountsTowardBirdTotals(Map f) => tBool(f['active']) && tBool(f['hasArrived']);

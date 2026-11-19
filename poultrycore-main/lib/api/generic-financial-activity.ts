@@ -127,6 +127,9 @@ export function genericActivitySourceLink(row: FinancialActivityRow): { href: st
     case "LoanRepayment":           return { href: "/generic-loans", label: "View loan" }
     case "CashTransfer":            return { href: "/generic-cash-transfers", label: "View transfer" }
     case "CapitalAsset":
+    case "CapitalAssetCost":
+    case "CapitalAssetPayment":
+    case "AssetDisposal":
     case "AssetDepreciation":       return { href: "/generic-assets", label: "View capital assets" }
     case "SupplierPayment":         return { href: "/generic-supplier-payments", label: "View supplier payment" }
     case "StaffPayment":            return { href: "/generic-staff-payments", label: "View staff payment" }

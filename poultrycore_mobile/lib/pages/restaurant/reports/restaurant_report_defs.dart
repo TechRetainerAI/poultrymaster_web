@@ -9,9 +9,10 @@ import '../../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../../poultry/trackers/tracker_widgets.dart' show TCard, TColors;
 import 'restaurant_report_kit.dart';
 
-const _rose = Color(0xFFE11D48);
-const _roseLight = Color(0xFFFDA4AF);
-const _slate = Color(0xFF64748B);
+import 'package:poultrycore_mobile/design/tone.dart';
+const _rose = Tone.bg(0xFFE11D48);
+const _roseLight = Tone.bg(0xFFFDA4AF);
+const _slate = Tone.bg(0xFF64748B);
 
 String _rq(String path) => '/api/Restaurant/reports/$path';
 Map<String, dynamic> _fromTo(RRange r) => {'from': r.from, 'to': r.to};
@@ -392,7 +393,7 @@ final _menuEngineering = RDef(
           child: Text.rich(TextSpan(children: [
             TextSpan(text: bold, style: const TextStyle(fontWeight: FontWeight.w700)),
             TextSpan(text: rest),
-          ]), style: const TextStyle(fontSize: 13, color: Color(0xFF475569))),
+          ]), style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569))),
         );
     return TCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       line('Star', ' — sells well and earns well. Protect it; never discount it.'),

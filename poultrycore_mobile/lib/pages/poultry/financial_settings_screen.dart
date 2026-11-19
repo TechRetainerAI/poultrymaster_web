@@ -8,6 +8,8 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
+import 'setup/setup_embed.dart';
 /// Poultry → Setup → Company → Financial Settings ("Cost Recognition"), as
 /// `app/poultry-financial-settings/page.tsx`: when feed costs and when
 /// medication costs reach Profit & Loss, chosen independently, with an
@@ -53,6 +55,7 @@ const _deferredNote = 'A deferred purchase holds its cost as inventory value and
 
 class _FinancialSettingsScreenState extends State<FinancialSettingsScreen> {
   Map? _saved;
+  final Object _dirtyKey = Object();
   String _feed = purchased;
   String _medication = purchased;
   DateTime? _from;
@@ -137,13 +140,29 @@ class _FinancialSettingsScreenState extends State<FinancialSettingsScreen> {
     final tokens = context.tokens;
     final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-financial-settings');
     final now = DateTime.now();
+    // Farm Setup asks before leaving a tab with unsaved changes.
+    reportSetupDirty(context, _dirtyKey, !_loading && _dirty);
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Cost Recognition')),
+      appBar: isSetupEmbedded(context) ? null : AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Cost Recognition')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
               children: [
+                // Farm Setup: Save and Discard on its task bar. First in the
+                // list so it is always built, wherever the list is scrolled.
+                if (isSetupEmbedded(context))
+                  SetupTaskBar(tasks: [
+                    SetupTask(
+                      id: 'save',
+                      label: _saving ? 'Saving…' : 'Save changes',
+                      icon: Icons.save_outlined,
+                      primary: true,
+                      onTap: _save,
+                      disabled: !_dirty || _saving,
+                    ),
+                    SetupTask(id: 'discard', label: 'Discard', icon: Icons.undo, onTap: _load, disabled: _saving, hidden: !_dirty),
+                  ]),
                 Text(
                   'Choose when inventory costs affect Profit & Loss. Physical stock is tracked either way — '
                   'this only decides when a cost counts as a cost.',
@@ -153,9 +172,9 @@ class _FinancialSettingsScreenState extends State<FinancialSettingsScreen> {
                 // Never present a default as though somebody chose it.
                 if (_saved?['isConfigured'] != true) ...[
                   const _Note(
-                    color: Color(0xFFE0F2FE), // sky-50
-                    border: Color(0xFFBAE6FD), // sky-200
-                    fg: Color(0xFF0C4A6E), // sky-900
+                    color: Tone(0xFFE0F2FE), // sky-50
+                    border: Tone(0xFFBAE6FD), // sky-200
+                    fg: Tone(0xFF0C4A6E), // sky-900
                     icon: Icons.info_outline,
                     text: 'Nobody has set this up yet, so both are on the standard treatment: costs reach '
                         'Profit & Loss as you pay for them. Nothing changes until you save something '
@@ -164,7 +183,7 @@ class _FinancialSettingsScreenState extends State<FinancialSettingsScreen> {
                   const SizedBox(height: 12),
                 ],
                 _MethodSection(
-                  icon: const Icon(Icons.grass, color: Color(0xFFD97706)),
+                  icon: const Icon(Icons.grass, color: Tone.fg(0xFFD97706)),
                   title: 'Feed & Feed Raw Materials',
                   blurb: 'Feed ingredients, finished feed and grain.',
                   value: _feed,
@@ -173,7 +192,7 @@ class _FinancialSettingsScreenState extends State<FinancialSettingsScreen> {
                 ),
                 const SizedBox(height: 12),
                 _MethodSection(
-                  icon: const Icon(Icons.medication_outlined, color: Color(0xFFE11D48)),
+                  icon: const Icon(Icons.medication_outlined, color: Tone.fg(0xFFE11D48)),
                   title: 'Medication',
                   blurb: 'Drugs and vaccines. Independent of the feed setting above — one can defer while '
                       'the other does not.',
@@ -229,24 +248,27 @@ class _FinancialSettingsScreenState extends State<FinancialSettingsScreen> {
                 if (_dirty) ...[
                   const SizedBox(height: 12),
                   const _Note(
-                    color: Color(0xFFFFFBEB), // amber-50
-                    border: Color(0xFFFDE68A), // amber-200
-                    fg: Color(0xFF78350F), // amber-900
+                    color: Tone(0xFFFFFBEB), // amber-50
+                    border: Tone(0xFFFDE68A), // amber-200
+                    fg: Tone(0xFF78350F), // amber-900
                     icon: Icons.warning_amber_rounded,
                     text: _changeWarning,
                   ),
                   if (_turningOnDeferral) ...[
                     const SizedBox(height: 8),
                     const _Note(
-                      color: Color(0xFFFFFBEB),
-                      border: Color(0xFFFDE68A),
-                      fg: Color(0xFF78350F),
+                      color: Tone(0xFFFFFBEB),
+                      border: Tone.line(0xFFFDE68A),
+                      fg: Tone.fg(0xFF78350F),
                       icon: Icons.warning_amber_rounded,
                       text: _deferredNote,
                     ),
                   ],
                 ],
                 const SizedBox(height: 16),
+                // In Farm Setup, Save and Discard are on the task bar (handed
+                // over from the top of this list, which is always built).
+                if (!isSetupEmbedded(context))
                 Row(
                   children: [
                     Expanded(
@@ -315,15 +337,15 @@ class _MethodSection extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: value == m ? const Color(0xFFECFDF5) : null, // emerald-50
-                  border: Border.all(color: value == m ? const Color(0xFF10B981) : tokens.border),
+                  color: value == m ? const Tone.bg(0xFFECFDF5) : null, // emerald-50
+                  border: Border.all(color: value == m ? const Tone.line(0xFF10B981) : tokens.border),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(value == m ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                        size: 18, color: value == m ? const Color(0xFF059669) : tokens.mutedForeground),
+                        size: 18, color: value == m ? const Tone.fg(0xFF059669) : tokens.mutedForeground),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(

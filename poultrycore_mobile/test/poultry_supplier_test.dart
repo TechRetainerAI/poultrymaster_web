@@ -159,7 +159,7 @@ void main() {
     expect(find.text('Cash account'), findsOneWidget, reason: 'required on the supplier side');
     await tester.enterText(find.byType(TextFormField).first, '400');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Auto-allocate oldest first'));
+    await tester.tap(find.text('Oldest first'));
     await tester.pumpAndSettle();
     await see(tester, find.text('Select account'));
     await tester.tap(find.ancestor(of: find.text('Select account'), matching: find.byType(AppSelect<int>)).first);
@@ -200,7 +200,7 @@ void main() {
 
     await tap(tester, find.widgetWithText(OutlinedButton, 'Reverse'));
     // Its own window, with the reason from the list.
-    final confirm = find.widgetWithText(FilledButton, 'Reverse payment');
+    final confirm = find.ancestor(of: find.textContaining('Reverse payment'), matching: find.byType(FilledButton)).first;
     expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is required');
     await tester.tap(find.text('Select a reason'));
     await tester.pumpAndSettle();

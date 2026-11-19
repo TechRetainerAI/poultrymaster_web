@@ -12,12 +12,14 @@
 // The category cut still comes from spgenericreport_expensesbycategory (037),
 // the same function it always did.
 
+import { useMemo } from "react"
 import { BarChart3 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { getExpenseReport, type GenericExpenseReport } from "@/lib/api/generic-reports"
 import {
   GenericReportShell, ReportStat, ReportTable, currentMonthRange, fmtMonth, fmtMoney, fmtPct, useReport,
 } from "@/components/generic/report-shell"
+import { ReportExportButtons } from "@/components/reports/report-export-buttons"
 
 export default function ExpenseReportPage() {
   const { toast } = useToast()
@@ -36,6 +38,17 @@ export default function ExpenseReportPage() {
   const outstanding = bySupplier.reduce((s, r) => s + r.outstanding, 0)
   const recurring = trend.reduce((s, r) => s + r.recurringAmount, 0)
 
+  const pdfOpts = useMemo(() => ({
+    title: "Expense Report",
+    subtitle: `${range.fromDate} to ${range.toDate}`,
+    columns: [
+      { header: "Category", key: "categoryName", width: 120 },
+      { header: "Count", key: "expenseCount", width: 50, align: "right" as const },
+      { header: "Amount", key: "totalAmount", width: 80, align: "right" as const, format: "currency" as const },
+    ],
+    rows: byCategory,
+  }), [byCategory, range])
+
   return (
     <GenericReportShell
       title="Expense report"
@@ -45,6 +58,7 @@ export default function ExpenseReportPage() {
       onRangeChange={setRange}
       onRun={() => run()}
       loading={loading}
+      exportButtons={<ReportExportButtons pdf={pdfOpts} disabled={loading} csvFilename="expense-report" />}
     >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <ReportStat title="Total spent" value={fmtMoney(total)} hint={`${count} expense(s)`} />

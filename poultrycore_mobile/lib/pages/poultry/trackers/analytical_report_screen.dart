@@ -10,10 +10,11 @@ import '../../../state/session.dart';
 import '../../../widgets/module_sidebar.dart';
 import '../../shared/business_dates.dart';
 import '../reports/report_export.dart';
+import '../production/production_logic.dart' show eggsPerCrate;
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 
-const eggsPerCrate = 30;
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const _monShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const _monLong = [
@@ -710,7 +711,7 @@ class _AnalyticalReportScreenState extends State<AnalyticalReportScreen> {
         TileData('Total Revenue', ghs(r.totalRevenue), color: TColors.violet700),
         TileData('Total Expenses', ghs(r.totalExpenses), color: TColors.amber700),
         TileData('Eggs in Stock', loc(r.eggsInStock),
-            color: r.eggsInStock >= 0 ? TColors.slate800 : TColors.rose700, sub: stockHint),
+            color: r.eggsInStock >= 0 ? Tone.button(TColors.slate800)! : TColors.rose700, sub: stockHint),
         TileData('Net Balance', ghs(r.netBalance), color: r.netBalance >= 0 ? TColors.emerald700 : TColors.rose700),
       ]),
       gap,
@@ -991,10 +992,10 @@ class _AnalyticalReportScreenState extends State<AnalyticalReportScreen> {
         LayoutBuilder(builder: (context, c) {
           final w = (c.maxWidth - 10) / 2;
           return Wrap(spacing: 10, runSpacing: 10, children: [
-            SizedBox(width: w, child: stat('Broken', l.broken, TColors.rose700, TColors.rose50, TColors.rose200)),
-            SizedBox(width: w, child: stat('Meaty', l.meaty, TColors.amber700, TColors.amber50, TColors.amber200)),
-            SizedBox(width: w, child: stat('Soft', l.soft, TColors.violet700, TColors.violet50, TColors.violet200)),
-            SizedBox(width: w, child: stat('Lost', l.lost, TColors.slate700, TColors.slate50, TColors.slate200)),
+            SizedBox(width: w, child: stat('Broken', l.broken, Tone.fg(0xFFBE123C), Tone.bg(0xFFFFF1F2), Tone.line(0xFFFECDD3))),
+            SizedBox(width: w, child: stat('Meaty', l.meaty, Tone.fg(0xFFB45309), Tone.bg(0xFFFFFBEB), Tone.line(0xFFFDE68A))),
+            SizedBox(width: w, child: stat('Soft', l.soft, Tone.fg(0xFF6D28D9), Tone.bg(0xFFF5F3FF), Tone.line(0xFFDDD6FE))),
+            SizedBox(width: w, child: stat('Lost', l.lost, Tone.fg(0xFF334155), Tone.bg(0xFFF8FAFC), Tone.line(0xFFE2E8F0))),
           ]);
         }),
         const SizedBox(height: 12),

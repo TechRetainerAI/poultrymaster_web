@@ -423,31 +423,31 @@ export default function ProfilePage() {
                   </InfoSection>
                 </div>
 
-                {/* Row 2: Farm Details + Account Status */}
+                {/* Row 2: Company Details + Account Status */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Farm Information */}
-                  <InfoSection title="Farm details" collapsible={false}>
+                  {/* Company Information */}
+                  <InfoSection title="Company Details" collapsible={false}>
                     {isEditing ? (
                       <div className="space-y-4 py-2">
                         <div className="space-y-2">
-                          <Label className="text-sm text-slate-600">Farm name</Label>
+                          <Label className="text-sm text-slate-600">Company Name</Label>
                           <Input
                             value={formData.farmName}
                             onChange={(e) => handleInputChange("farmName", e.target.value)}
-                            placeholder="My Farm"
+                            placeholder="My Company"
                             disabled={isSaving}
                           />
                         </div>
                       </div>
                     ) : (
                       <>
-                        <InfoRow 
-                          label="Farm name" 
+                        <InfoRow
+                          label="Company Name"
                           value={profile?.farmName}
                           icon={<Building2 className="w-4 h-4" />}
                         />
-                        <InfoRow 
-                          label="Farm ID" 
+                        <InfoRow
+                          label="Company ID"
                           value={<span className="font-mono text-xs">{profile?.farmId}</span>}
                         />
                       </>

@@ -37,9 +37,7 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<IActionResult> UpdateDriverStatus(int id, [FromQuery] string farmId, [FromBody] DriverStatusReq req)
         { var a = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (a != null) return a; await _svc.UpdateDriverStatusAsync(id, farmId, req.Status); return NoContent(); }
 
-        [HttpPatch("drivers/{id}/location")]
-        public async Task<IActionResult> UpdateDriverLocation(int id, [FromQuery] string farmId, [FromBody] DriverLocationReq req)
-        { var a = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (a != null) return a; await _svc.UpdateDriverLocationAsync(id, farmId, req.Latitude, req.Longitude); return NoContent(); }
+        // PATCH drivers/{id}/location removed (18 Nov): the app never records anyone's live location.
 
         [HttpGet("drivers/{id}/stats")]
         public async Task<IActionResult> GetDriverStats(int id, [FromQuery] string farmId, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
@@ -119,7 +117,6 @@ namespace PoultryFarmAPIWeb.Controllers
 
     // Request DTOs
     public class DriverStatusReq { public string Status { get; set; } = string.Empty; }
-    public class DriverLocationReq { public decimal Latitude { get; set; } public decimal Longitude { get; set; } }
     public class CreateAssignmentReq { public int OrderId { get; set; } public string OrderNumber { get; set; } = ""; public int DriverId { get; set; } public string? DeliveryAddress { get; set; } public string? DeliveryNotes { get; set; } public int? DeliveryZoneId { get; set; } public decimal DeliveryFee { get; set; } public int? EstimatedMins { get; set; } }
     public class AssignmentStatusReq { public string Status { get; set; } = string.Empty; public string? FailReason { get; set; } }
     public class RateReq { public int Rating { get; set; } }

@@ -18,6 +18,13 @@ namespace PoultryFarmAPIWeb.Business
         // Reconcile an account against an actual count; posts the difference.
         Task<int> CreateReconciliationAsync(string farmId, GenericCashReconciliationRequest req, string? requestedBy, string? approvedBy);
         Task<List<GenericCashReconciliationModel>> GetReconciliationsByAccountAsync(int accountId, string farmId);
+        Task<int> InsertCountAsync(string farmId, GenericCashCountInput req, string? createdBy);
+        Task UpdateCountAsync(int id, string farmId, GenericCashCountInput req, string? updatedBy);
+        Task DeleteCountAsync(int id, string farmId, string? userId);
+        Task<long?> PostCountAsync(int id, string farmId, string? postedBy);
+        Task ReverseCountAsync(int id, string farmId, string reason, string? reversedBy);
+        Task<List<GenericCashAccountCountStatusModel>> GetCountStatusAsync(string farmId);
+        Task<int> RecalculateBalancesAsync(string farmId);
 
         // Company default cash-account mappings.
         Task UpsertDefaultAsync(string farmId, string defaultKey, int accountId);

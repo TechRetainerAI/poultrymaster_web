@@ -10,6 +10,7 @@ import '../reports/report_format.dart';
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Trackers → Medication tracker, as `app/medication-tracker/page.tsx`:
 /// every raw-material item in the Medication category, each on its own —
 /// purchases in, production usage out, a running balance per medication, and
@@ -178,7 +179,7 @@ class _MedicationTrackerScreenState extends State<MedicationTrackerScreen> {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: bg ?? Colors.white,
+            color: bg ?? Tone.bg(0xFFFFFFFF),
             border: Border.all(color: border ?? TColors.slate200),
             borderRadius: BorderRadius.circular(12),
           ),

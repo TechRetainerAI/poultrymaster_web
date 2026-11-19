@@ -71,11 +71,11 @@ class AppTheme {
     // Form fields and secondary buttons need to read as controls on a white
     // card: a soft fill, a visible border, darker placeholder text and icons.
     final light = brightness == Brightness.light;
-    final fieldFill = light ? const Color(0xFFF8FAFC) : const Color(0xFF171717);
-    final fieldBorder = light ? const Color(0xFFCBD5E1) : const Color(0xFF404040);
+    final fieldFill = light ? const Color(0xFFF8FAFC) : const Color(0xFF0F1729);
+    final fieldBorder = light ? const Color(0xFFCBD5E1) : const Color(0xFF334155);
     final fieldFocus = light ? const Color(0xFF2563EB) : const Color(0xFF60A5FA);
-    final fieldHint = light ? const Color(0xFF64748B) : const Color(0xFFA3A3A3);
-    final fieldIcon = light ? const Color(0xFF475569) : const Color(0xFFD4D4D4);
+    final fieldHint = light ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+    final fieldIcon = light ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
 
     OutlineInputBorder inputBorder(Color color, {double width = 1}) =>
         OutlineInputBorder(
@@ -216,7 +216,7 @@ class AppTheme {
       ),
 
       dialogTheme: DialogThemeData(
-        backgroundColor: tokens.card,
+        backgroundColor: light ? tokens.card : DarkTokens.popover, // one step above cards in the dark
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -229,7 +229,7 @@ class AppTheme {
       ),
 
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: tokens.card,
+        backgroundColor: light ? tokens.card : DarkTokens.popover,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: const RoundedRectangleBorder(
@@ -237,9 +237,15 @@ class AppTheme {
         ),
       ),
 
+      popupMenuTheme: PopupMenuThemeData(
+        color: light ? tokens.card : DarkTokens.popover,
+        surfaceTintColor: Colors.transparent,
+      ),
+
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: foreground,
-        contentTextStyle: TextStyle(color: background, fontSize: 14),
+        // Dark: a raised slate toast, not a glaring light slab on a dark screen.
+        backgroundColor: light ? foreground : const Color(0xFF273449),
+        contentTextStyle: TextStyle(color: light ? background : const Color(0xFFF1F5F9), fontSize: 14),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: mdRadius),
       ),

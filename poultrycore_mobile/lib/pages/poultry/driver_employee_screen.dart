@@ -8,6 +8,7 @@ import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../lookup_loader.dart';
+import 'delivery/fleet_validation.dart' show checkLicense, checkPersonName, checkPhone, normalizePhone;
 
 enum DriverEmployeeMode { existing, created }
 
@@ -153,9 +154,33 @@ class _DriverEmployeeScreenState extends State<DriverEmployeeScreen> {
     final login = widget.session.loginClient;
     final farm = widget.session.farmClient;
 
+    // Checked before anything is created, so a bad licence cannot leave a new
+    // employee behind with no driver record (fleet_validation.dart).
+    final licProblem = checkLicense(_license.text);
+    if (licProblem != null) return _snack('Check the licence number — $licProblem');
+    final lic = _license.text.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+    final licClash = _drivers
+        .where((d) => '${d['licenseNumber'] ?? ''}'.isNotEmpty && '${d['licenseNumber']}'.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase() == lic)
+        .firstOrNull;
+    if (licClash != null) {
+      return _snack('Check the licence number — Licence number ${_license.text.trim()} already belongs to driver ${licClash['driverName']}.');
+    }
+    if (_isNew && _phone.text.trim().isNotEmpty) {
+      final phoneClash = _drivers
+          .where((d) => '${d['phoneNumber'] ?? ''}'.isNotEmpty && normalizePhone('${d['phoneNumber']}') == normalizePhone(_phone.text))
+          .firstOrNull;
+      if (phoneClash != null) {
+        return _snack('Check the phone number — Phone number ${_phone.text.trim()} already belongs to driver ${phoneClash['driverName']}.');
+      }
+    }
+
     if (_isNew) {
       final fn = _first.text.trim(), ln = _last.text.trim();
       if (fn.isEmpty || ln.isEmpty) return _snack('First and last name are required');
+      final nameProblem = checkPersonName(fn, 'First name') ?? checkPersonName(ln, 'Last name');
+      if (nameProblem != null) return _snack('Check the name — $nameProblem');
+      final phoneProblem = checkPhone(_phone.text);
+      if (phoneProblem != null) return _snack('Check the phone number — $phoneProblem');
       if (_user.text.trim().isEmpty || !RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(_user.text.trim())) {
         return _snack('Username required (letters, digits, underscore)');
       }
@@ -278,7 +303,7 @@ class _DriverEmployeeScreenState extends State<DriverEmployeeScreen> {
             FormSection(title: 'New employee details', color: SectionColor.indigo, children: [
               AppField(label: 'First name', required: true, child: AppInput(controller: _first)),
               AppField(label: 'Last name', required: true, child: AppInput(controller: _last)),
-              AppField(label: 'Phone', child: AppInput(controller: _phone, keyboardType: TextInputType.phone)),
+              AppField(label: 'Phone', required: true, child: AppInput(controller: _phone, keyboardType: TextInputType.phone, hintText: 'e.g. 024 123 4567')),
               AppField(label: 'Email', child: AppInput(controller: _email, hintText: 'optional')),
               AppField(label: 'Username', required: true, child: AppInput(controller: _user)),
               AppField(label: 'Password', required: true,
@@ -316,7 +341,7 @@ class _DriverEmployeeScreenState extends State<DriverEmployeeScreen> {
                     onChanged: (v) => setState(() => _employeeId = v ?? ''),
                   ),
                 ),
-              AppField(label: 'License number', child: AppInput(controller: _license)),
+              AppField(label: 'License number', required: true, child: AppInput(controller: _license, hintText: 'As printed on the licence card')),
             ],
           ),
           const SizedBox(height: 12),

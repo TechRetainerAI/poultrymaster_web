@@ -23,7 +23,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog"
 import {
-  Loader2, Save, Settings2, RotateCcw, Check, Info, ShieldCheck,
+  Loader2, Save, Settings2, RotateCcw, Check, Info, ShieldCheck, ArrowLeft,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -223,6 +223,7 @@ export default function GenericBusinessFeaturesPage() {
             {/* Page header */}
             <div className="flex items-end justify-between flex-wrap gap-2">
               <div>
+                <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
                 <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                   <Settings2 className="h-6 w-6 text-indigo-600" />
                   Business Features

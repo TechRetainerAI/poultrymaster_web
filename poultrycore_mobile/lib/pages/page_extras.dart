@@ -44,6 +44,11 @@ typedef RowEnrich = Future<void> Function(Session session, Company company, List
 /// A small badge after a row's name on the list, or null for none.
 typedef RowBadge = Widget? Function(Map<String, dynamic> row);
 
+/// A panel under a list's header buttons, as the web's info boxes above a
+/// table (Feed Formulas: "Default formulas to start with"). [reload] lists
+/// the rows again, for a panel whose button changes them.
+typedef ListBanner = Widget Function(Session session, Company company, Future<void> Function() reload);
+
 /// Work a page does before listing, as the web's load() does (Products:
 /// make sure the default Eggs and Birds products exist). Failures are
 /// ignored, as on the web.
@@ -52,6 +57,30 @@ typedef BeforeLoad = Future<void> Function(Session session, Company company);
 /// Whether one row may be deleted, for pages where the web hides Delete on
 /// some rows (Water's system-generated customers).
 typedef DeleteGuard = bool Function(Map<String, dynamic> row);
+
+/// Run after a row is deleted, for what else the web refreshes then
+/// (Flock Groups: which egg / broiler pages show).
+typedef AfterDelete = Future<void> Function(Session session, Company company);
+
+/// Asked before the delete confirm opens (Flock Groups, 414: whether the
+/// flock can be deleted and why not). Null = say nothing extra.
+typedef DeleteCheck = Future<({bool canDelete, String message})?> Function(
+    Session session, Company company, Map<String, dynamic> row);
+
+/// The message to show after a delete, from what the server said it did.
+typedef DeletedMessage = String? Function(Object? response);
+
+/// A whole-form check before a generated form saves (the web's validateX in
+/// handleSave): the toast title and the first problem, or null to save.
+/// [body] is what would be sent; [existing] is the record being edited.
+typedef FormCheck = Future<({String title, String problem})?> Function(
+    Session session, Company company, Map<String, dynamic> body, Map<String, dynamic>? existing);
+
+/// A select whose options depend on another field (Vehicles: the fuels a
+/// vehicle type can use). Given the form's select values by field name, the
+/// option values allowed now, or null for all. A chosen value that stops being
+/// allowed is cleared.
+typedef DependentOptions = List<String>? Function(Map<String, String?> selects);
 
 /// One dropdown in a list's Filters panel. The first option ('') is "All".
 class ListFilter {

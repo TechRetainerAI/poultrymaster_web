@@ -1,0 +1,698 @@
+{
+  "add-expense": [
+    {
+      "src": "/help/add-expense-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Sales, Expenses & Money\" (1), then choose \"Expenses\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/add-expense-2.jpg",
+      "caption": "Expenses lists everything the farm spent: this month (1) and the total for your filters (2). Filter by date, category, flock or cash account above.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/add-expense-3.jpg",
+      "caption": "Click \"Add Expense\" (1). \"Repeat previous\" (2) copies an expense you record often.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/add-expense-4.jpg",
+      "caption": "Flock & Date (1): choose a flock if the cost is for one flock (or leave it farm-wide), and the date it was spent.",
+      "width": 672,
+      "height": 738
+    },
+    {
+      "src": "/help/add-expense-5.jpg",
+      "caption": "Category & Payment: choose the category, enter the amount and how it was paid. Pick the cash account it came out of, so your cash balance stays right.",
+      "width": 672,
+      "height": 738
+    },
+    {
+      "src": "/help/add-expense-6.jpg",
+      "caption": "Choose who it was paid to and whether it is paid (1). An unpaid expense gets a due date and is owed to that supplier. Then click \"Create Expense\" (2).",
+      "width": 672,
+      "height": 738
+    }
+  ],
+  "add-flock": [
+    {
+      "src": "/help/add-flock-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Operations\" (1), then choose \"Flock Purchases (Batches)\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/add-flock-2.jpg",
+      "caption": "Flock Purchases lists every batch of birds you bought. The cards show what you spent (1), how many birds are left (2) and how many batches are active (3).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/add-flock-3.jpg",
+      "caption": "Click \"Add Flock Batch\" for the birds you bought.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/add-flock-4.jpg",
+      "caption": "Choose \"New batch purchase\" for birds you just bought (\"Existing batch\" is for birds you already had). Enter the batch name, code, breed, start date and number of birds.",
+      "width": 672,
+      "height": 738
+    },
+    {
+      "src": "/help/add-flock-5.jpg",
+      "caption": "Under Purchase Details, enter the cost per chick: the total is worked out for you. Enter how much you paid now; anything unpaid is owed to the supplier.",
+      "width": 672,
+      "height": 738
+    },
+    {
+      "src": "/help/add-flock-6.jpg",
+      "caption": "In the orange menu bar at the top, click \"Setup\" (1), then choose \"Flock Groups\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/add-flock-7.jpg",
+      "caption": "Flock Groups: the groups of birds in your houses. The cards show all birds bought (1), deaths (2) and birds alive in flocks now (3).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/add-flock-8.jpg",
+      "caption": "To put birds from a batch into a house, click \"Add Flock\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/add-flock-9.jpg",
+      "caption": "Pick the batch the birds come from, name the flock and choose Layers or Broilers. Then set the start date, the number of birds and the house.",
+      "width": 896,
+      "height": 738
+    },
+    {
+      "src": "/help/add-flock-10.jpg",
+      "caption": "Turn on \"Flock Has Arrived\" once the birds are in the house, add any notes, then click \"Create Flock\".",
+      "width": 896,
+      "height": 738
+    }
+  ],
+  "customer-payment": [
+    {
+      "src": "/help/customer-payment-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Sales, Expenses & Money\" (1), then choose \"Customer Payments\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/customer-payment-2.jpg",
+      "caption": "Customer Payments lists every payment received: how many (1), how much (2) and how many sales they settled (3).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/customer-payment-3.jpg",
+      "caption": "Click \"Record customer payment\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/customer-payment-4.jpg",
+      "caption": "Choose the customer who paid, then click \"Next\".",
+      "width": 512,
+      "height": 333
+    },
+    {
+      "src": "/help/customer-payment-5.jpg",
+      "caption": "Enter the amount, how they paid and into which cash account. Then apply it to their open sales, oldest first. Anything you don't apply is kept as their credit.",
+      "width": 672,
+      "height": 588
+    }
+  ],
+  "daily-closing": [
+    {
+      "src": "/help/daily-closing-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Tools\" (1), then choose \"Daily Closing\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-closing-2.jpg",
+      "caption": "Daily Closing checks one business day (1). It adds up production (2), and sales and money (3), for that day.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-closing-3.jpg",
+      "caption": "The checklist says what is missing. Must fix (1) blocks the closing; Warnings (2) don't. Click \"Resolve\" next to an item to go to the page that fixes it.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-closing-4.jpg",
+      "caption": "When nothing is left under Must fix, an approver clicks \"Close Business Day\". Anyone else submits the day for approval.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-closing-5.jpg",
+      "caption": "\"Previous closings\" lists the days already closed and who closed them.",
+      "width": 1366,
+      "height": 820
+    }
+  ],
+  "daily-routine": [
+    {
+      "src": "/help/daily-routine-1.jpg",
+      "caption": "Everything you do each day is under \"Quick Links\" (1), in the order the day happens. Step 1: \"Production Records\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-2.jpg",
+      "caption": "Step 1, after each egg pick: log every flock's eggs, deaths and feed with \"Log Production\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-3.jpg",
+      "caption": "Step 2: \"Operations\" (1), then \"Egg Sorting\" (2). (You can add it to Quick Links with \"Customize\" at the bottom of that menu.)",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-4.jpg",
+      "caption": "Sort the day's eggs into sizes, so they can be sold by size.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-5.jpg",
+      "caption": "Step 3: \"Quick Links\" (1), then \"Sales\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-6.jpg",
+      "caption": "Record every sale as it happens with \"Add Sale\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-7.jpg",
+      "caption": "Step 4: \"Quick Links\" (1), then \"Customer Payments\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-8.jpg",
+      "caption": "When a customer pays for an earlier sale, record it here.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-9.jpg",
+      "caption": "Step 5: \"Quick Links\" (1), then \"Expenses\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-10.jpg",
+      "caption": "Record what the farm spent today with \"Add Expense\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-11.jpg",
+      "caption": "Step 6, at the end of the day: \"Quick Links\" (1), then \"Daily Closing\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/daily-routine-12.jpg",
+      "caption": "Fix everything under Must fix (1), then close the day (2).",
+      "width": 1366,
+      "height": 820
+    }
+  ],
+  "find-anything": [
+    {
+      "src": "/help/find-anything-1.jpg",
+      "caption": "Click the search bar at the top of any page, or press Ctrl+K.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/find-anything-2.jpg",
+      "caption": "Type what you are looking for: a page (\"expense\"), a task, a customer or a flock. Matching pages and records appear as you type.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/find-anything-3.jpg",
+      "caption": "Type a task, like \"new sale\", and press Enter to go straight to it. Use the arrow keys to pick another result.",
+      "width": 1366,
+      "height": 820
+    }
+  ],
+  "internal-use": [
+    {
+      "src": "/help/internal-use-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Sales, Expenses & Money\" (1), then choose \"Internal Use\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/internal-use-2.jpg",
+      "caption": "Internal Use lists eggs, birds or supplies the farm used instead of selling: how many records (1) and what they cost (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/internal-use-3.jpg",
+      "caption": "Click \"Record internal use\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/internal-use-4.jpg",
+      "caption": "Set the date and the reason (staff allowance, farm use, donation, sample) and, if you like, who received it.",
+      "width": 900,
+      "height": 738
+    },
+    {
+      "src": "/help/internal-use-5.jpg",
+      "caption": "Pick the product and how it was given out (eggs or crates). For a staff allowance, enter the number of staff and how much each got.",
+      "width": 900,
+      "height": 738
+    },
+    {
+      "src": "/help/internal-use-6.jpg",
+      "caption": "The cost is shown before you save. Stock goes down and the cost is booked as an expense. It is not a sale and no cash moves.",
+      "width": 900,
+      "height": 738
+    }
+  ],
+  "log-production": [
+    {
+      "src": "/help/log-production-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Operations\" (1), then choose \"Production Records\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/log-production-2.jpg",
+      "caption": "Production Records shows every day's records. The cards add up eggs (1), feed (2), deaths (3) and birds left (4) for the filters you choose.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/log-production-3.jpg",
+      "caption": "Click \"Log Production\" after each pick, or once at the end of the day.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/log-production-4.jpg",
+      "caption": "Pick the flock and the date. For each pick, enter the crates and loose pieces collected; the total eggs are worked out for you.",
+      "width": 1100,
+      "height": 738
+    },
+    {
+      "src": "/help/log-production-5.jpg",
+      "caption": "Further down, enter broken eggs, birds that died and the feed used.",
+      "width": 1100,
+      "height": 738
+    },
+    {
+      "src": "/help/log-production-6.jpg",
+      "caption": "The bar at the bottom sums it up: total eggs, crates, net sellable eggs, deaths and feed cost. Check it, then click \"Save Production Record\".",
+      "width": 1100,
+      "height": 738
+    }
+  ],
+  "old-debt": [
+    {
+      "src": "/help/old-debt-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Sales, Expenses & Money\" (1), then choose \"Customer Balances\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/old-debt-2.jpg",
+      "caption": "Customer Balances shows who owes you: the total (1), how many customers (2) and what is overdue (3).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/old-debt-3.jpg",
+      "caption": "Each customer is one row. When they pay, click \"Receive payment\" on their row.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/old-debt-4.jpg",
+      "caption": "For money they owed before you started using the app, an owner or admin clicks \"Record customer debt\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/old-debt-5.jpg",
+      "caption": "Pick the customer and the date the debt started. Enter the amount, why it is owed (opening balance, for example) and a description. It is added to their balance like an unpaid sale.",
+      "width": 672,
+      "height": 754
+    }
+  ],
+  "record-sale": [
+    {
+      "src": "/help/record-sale-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Sales, Expenses & Money\" (1), then choose \"Sales\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/record-sale-2.jpg",
+      "caption": "Sales lists every sale. The cards show the money (1), the eggs sold (2) and the average sale (3) for the dates and customer you filter on.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/record-sale-3.jpg",
+      "caption": "Click \"Add Sale\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/record-sale-4.jpg",
+      "caption": "Pick the customer and the date. For each product, choose the egg size and enter the boxes, crates or pieces. The price per crate fills in, and the sale total updates as you type.",
+      "width": 1152,
+      "height": 754
+    },
+    {
+      "src": "/help/record-sale-5.jpg",
+      "caption": "Selling more than one size or product? Click \"Add line\" for each one; they are saved as one sale.",
+      "width": 1152,
+      "height": 754
+    },
+    {
+      "src": "/help/record-sale-6.jpg",
+      "caption": "How did they pay? Paid now (1) puts the money in a cash account. Part payment (2) records what they paid; the rest is owed. Pay later (3) adds it all to their balance. Then click \"Record sale\".",
+      "width": 1152,
+      "height": 754
+    },
+    {
+      "src": "/help/record-sale-7.jpg",
+      "caption": "In the orange menu bar at the top, click \"Sales, Expenses & Money\" (1), then choose \"Customer Balances\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/record-sale-8.jpg",
+      "caption": "Unpaid sales show up in Customer Balances: what all customers owe (1) and how much of it is overdue (2).",
+      "width": 1366,
+      "height": 820
+    }
+  ],
+  "recurring-expense": [
+    {
+      "src": "/help/recurring-expense-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Tools\" (1), then choose \"Recurring Expenses\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/recurring-expense-2.jpg",
+      "caption": "Recurring Expenses keeps costs that repeat, like rent, security and internet. \"To review\" (1) holds the ones due now, \"Upcoming\" (2) the next ones, \"Templates\" (3) the list you set up.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/recurring-expense-3.jpg",
+      "caption": "For each one due: \"Review\" (1) to check or change the amount, \"Post\" (2) to record it as an expense, or \"Skip\" (3) this time.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/recurring-expense-4.jpg",
+      "caption": "To add one, click \"New recurring expense\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/recurring-expense-5.jpg",
+      "caption": "Name it, choose the category and payee, and enter the amount. Turn on \"Amount varies\" for bills like electricity.",
+      "width": 672,
+      "height": 738
+    },
+    {
+      "src": "/help/recurring-expense-6.jpg",
+      "caption": "Set how often it repeats and the first due date. Keep \"Draft for review\" so nothing is recorded without you checking it.",
+      "width": 672,
+      "height": 738
+    }
+  ],
+  "reports-exports": [
+    {
+      "src": "/help/reports-exports-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Reports\" (1), then choose \"View all reports\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/reports-exports-2.jpg",
+      "caption": "Every report in one place, grouped into money (1), production (2), and feed, birds and health (3). Click any report to open it.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/reports-exports-3.jpg",
+      "caption": "In the orange menu bar at the top, click \"Sales, Expenses & Money\" (1), then choose \"Profit & Loss\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/reports-exports-4.jpg",
+      "caption": "Profit & Loss: choose the period (1). Export to CSV for Excel (2), email it (3) or download a PDF (4).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/reports-exports-5.jpg",
+      "caption": "Below the totals, each part is broken down: revenue, production costs, operating expenses and depreciation. Click a line to see the records behind it.",
+      "width": 1366,
+      "height": 820
+    }
+  ],
+  "set-up-farm": [
+    {
+      "src": "/help/set-up-farm-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Setup\" (1), then choose \"Production Setup\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-2.jpg",
+      "caption": "Farm Setup opens on Production Setup; work through its tabs from left to right. Company settings (1): your business name and contacts, farm type, capacity, currency and business time zone. Click \"Save company settings\" (2) when you are done.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-3.jpg",
+      "caption": "Houses & pens (1): add every house or pen your birds live in with \"Add House\" (2). Several at once? Use \"Add Multiple Houses/Pens\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-4.jpg",
+      "caption": "Give the house a name and capacity, then save it.",
+      "width": 672,
+      "height": 481
+    },
+    {
+      "src": "/help/set-up-farm-5.jpg",
+      "caption": "Flock purchases (1): record each batch of birds you bought with \"Add Flock Batch\" (2): supplier, number of birds and cost per bird.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-6.jpg",
+      "caption": "Flock groups (1): split a batch into the groups you manage, each in its house, with \"Add Flock\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-7.jpg",
+      "caption": "Products (1): your products (eggs, egg sizes, birds, broken eggs and so on) are already set up for you, so you can skip this tab. Only use \"New product\" (2) for something you sell that is not in the list.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-8.jpg",
+      "caption": "Adding a missing product: name it, choose its type and unit, and set its price.",
+      "width": 672,
+      "height": 503
+    },
+    {
+      "src": "/help/set-up-farm-9.jpg",
+      "caption": "Feed formulas (1): if you mix your own feed, list the ingredients of each mix with \"New Formula\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-10.jpg",
+      "caption": "Egg settings (1): your pick times, eggs per crate, packaging and egg sizes. They shape how you record production.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-11.jpg",
+      "caption": "Supply items (1): feed, medicine, packaging and other supplies you keep in stock. Add one with \"New Item\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-12.jpg",
+      "caption": "Then switch to \"Business Setup\" at the top of the page for the money side of the farm.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-13.jpg",
+      "caption": "Customers (1): everyone you sell to. Add one with \"Add Customer\" (2); you pick them when you record a sale.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-14.jpg",
+      "caption": "Enter the customer's name and contacts, then save.",
+      "width": 672,
+      "height": 538
+    },
+    {
+      "src": "/help/set-up-farm-15.jpg",
+      "caption": "Suppliers (1): everyone you buy birds, feed and supplies from. Add one with \"Add supplier\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-16.jpg",
+      "caption": "Financial settings (1): choose whether feed and medicine count as a cost when you buy them or when you use them.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-17.jpg",
+      "caption": "Cash accounts (1): your cash box, bank and mobile money accounts. Money you receive or pay goes into one of these. Add one with \"New account\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-18.jpg",
+      "caption": "Delivery Drivers (1): the people who deliver your eggs. \"Delivery Vehicles\" and \"Delivery Routes\" sit next to it.",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/set-up-farm-19.jpg",
+      "caption": "Staff (1): your workers, their role and pay, used for payroll. Add one with \"New staff\" (2).",
+      "width": 1366,
+      "height": 820
+    }
+  ],
+  "sort-eggs": [
+    {
+      "src": "/help/sort-eggs-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Operations\" (1), then choose \"Egg Sorting\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/sort-eggs-2.jpg",
+      "caption": "Egg Sorting has four parts: the Workspace to sort (1), past Sortings (2), Size reports (3) and Sizes & settings (4).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/sort-eggs-3.jpg",
+      "caption": "Each day with unsorted eggs is listed with its picks. Click \"Sort all available eggs\" (or \"Sort pick\" for one pick).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/sort-eggs-4.jpg",
+      "caption": "Enter how many eggs went into each size. Put eggs you rejected or broke while sorting under Reject or Breakage.",
+      "width": 1152,
+      "height": 543
+    },
+    {
+      "src": "/help/sort-eggs-5.jpg",
+      "caption": "Check what is left unsorted (1), then click \"Post sorting\" (2). The sized eggs are now in stock to sell. \"Save draft\" keeps it for later.",
+      "width": 1152,
+      "height": 543
+    }
+  ],
+  "which-purchase": [
+    {
+      "src": "/help/which-purchase-1.jpg",
+      "caption": "In the orange menu bar at the top, click \"Operations\" (1), then choose \"Inventory & Supply Purchases\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/which-purchase-2.jpg",
+      "caption": "Supply Purchases: what you hold in stock (1), what is running low (2) and what you still owe suppliers (3).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/which-purchase-3.jpg",
+      "caption": "For one item from one supplier, click \"Record Purchase\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/which-purchase-4.jpg",
+      "caption": "Pick the item and supplier, enter the quantity and price, and how much you paid now.",
+      "width": 672,
+      "height": 738
+    },
+    {
+      "src": "/help/which-purchase-5.jpg",
+      "caption": "In the orange menu bar at the top, click \"Tools\" (1), then choose \"Receive Purchase\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/which-purchase-6.jpg",
+      "caption": "For one supplier invoice with several items, click \"Receive purchase\".",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/which-purchase-7.jpg",
+      "caption": "Add a line for each item on the invoice, plus extra costs like transport. The extra costs are shared across the items.",
+      "width": 672,
+      "height": 738
+    },
+    {
+      "src": "/help/which-purchase-8.jpg",
+      "caption": "In the orange menu bar at the top, click \"Sales, Expenses & Money\" (1), then choose \"Supplier Payments\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/which-purchase-9.jpg",
+      "caption": "Supplier Payments lists what you have paid suppliers (1). To pay money you already owe, click \"Record supplier payment\" (2).",
+      "width": 1366,
+      "height": 820
+    },
+    {
+      "src": "/help/which-purchase-10.jpg",
+      "caption": "Choose the supplier you paid and click \"Next\". Then enter the amount and the cash account, and apply it to what you owe them. Anything not applied is kept as supplier credit.",
+      "width": 512,
+      "height": 333
+    }
+  ]
+}

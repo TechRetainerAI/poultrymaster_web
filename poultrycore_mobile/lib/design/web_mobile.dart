@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Palette and helpers for the web's mobile view.
 ///
 /// Taken from the running site on a phone: a dark slate app header carrying the
@@ -10,28 +11,28 @@ class WebMobile {
   const WebMobile._();
 
   // Chrome
-  static const header = Color(0xFF111827); // slate-900-ish app bar
-  static const companyBar = Color(0xFF1E293B); // slate-800 selector strip
-  static const sheet = Color(0xFF1E293B); // "All pages" sheet
-  static const sheetField = Color(0xFF0F172A); // its search input
-  static const orange = Color(0xFFF97316); // section headers, bottom bar
+  static const header = Tone.bg(0xFF111827); // slate-900-ish app bar
+  static const companyBar = Tone.bg(0xFF1E293B); // slate-800 selector strip
+  static const sheet = Tone.bg(0xFF1E293B); // "All pages" sheet
+  static const sheetField = Tone.bg(0xFF0F172A); // its search input
+  static const orange = Tone(0xFFF97316); // section headers, bottom bar
 
   // Card text
-  static const cardLabel = Color(0xFF64748B); // slate-500 uppercase label
-  static const cardValue = Color(0xFF0F172A); // slate-900 figure
-  static const cardHint = Color(0xFF94A3B8); // slate-400 description
+  static const cardLabel = Tone.fg(0xFF64748B); // slate-500 uppercase label
+  static const cardValue = Tone.fg(0xFF0F172A); // slate-900 figure
+  static const cardHint = Tone.fg(0xFF94A3B8); // slate-400 description
 
   /// The icon-tile colours the dashboard cycles through, in the order the web
   /// uses them.
   static const tileColors = <Color>[
-    Color(0xFF3B82F6), // blue-500
-    Color(0xFF22C55E), // green-500
-    Color(0xFFF97316), // orange-500
-    Color(0xFFA855F7), // purple-500
-    Color(0xFF22C55E), // green-500
-    Color(0xFF3B82F6), // blue-500
-    Color(0xFFA855F7), // purple-500
-    Color(0xFF6366F1), // indigo-500
+    Tone.bg(0xFF3B82F6), // blue-500
+    Tone.bg(0xFF22C55E), // green-500
+    Tone.bg(0xFFF97316), // orange-500
+    Tone.bg(0xFFA855F7), // purple-500
+    Tone.bg(0xFF22C55E), // green-500
+    Tone.bg(0xFF3B82F6), // blue-500
+    Tone.bg(0xFFA855F7), // purple-500
+    Tone.bg(0xFF6366F1), // indigo-500
   ];
 
   static Color tile(int i) => tileColors[i % tileColors.length];

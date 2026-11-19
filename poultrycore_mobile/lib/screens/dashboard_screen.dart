@@ -6,11 +6,22 @@ import '../models/company.dart';
 import '../design/tokens.dart';
 import '../design/web_mobile.dart';
 import '../state/session.dart';
+import '../pages/poultry/egg_packaging.dart' show loadEggPackaging;
+import '../pages/shared/billing_nav.dart';
+import '../pages/shared/global_search_screen.dart';
 import '../pages/poultry/production/production_logic.dart' show loadEggsPerCrate;
 import '../pages/poultry/farm_alerts_screen.dart';
+import '../pages/poultry/poultry_dashboard_charts.dart';
+import '../pages/poultry/poultry_quick_actions.dart';
+import '../pages/water/water_dashboard_charts.dart';
+import '../pages/generic/generic_dashboard_charts.dart';
+import '../pages/hotel/hotel_dashboard_view.dart';
+import '../pages/restaurant/restaurant_dashboard_view.dart';
+import '../pages/poultry/poultry_features.dart';
 import '../widgets/app_header.dart';
 import '../widgets/company_switcher_sheet.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The company overview, laid out as the web lays it out on a phone: dark
 /// header, dark company strip, then a two-column grid of stat cards with
 /// uppercase labels, large figures and coloured icon tiles.
@@ -69,8 +80,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _load() async {
     final company = widget.session.active;
     if (company == null) return;
+    // Restaurant's and Hotel's Homes are their own dashboard views, which load their own figures.
+    if (company.type == CompanyType.restaurant || company.type == CompanyType.hotel) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     // EggsPerCrateLoader (344): the farm's crate size, used by every egg screen.
     loadEggsPerCrate(widget.session, company);
+    // EggPackagingLoader (393): the farm's box size, beside the crate size.
+    loadEggPackaging(widget.session, company);
+    // billing_nav: whether the menus offer Billing for this company.
+    loadBillingNavFlag(widget.session, companyId: company.farmId);
+    // 399 / 402: a broiler-only farm hides its egg pages and egg cards;
+    // Broiler performance shows once the farm has had a broiler flock.
+    loadPoultryFeatures(widget.session, company).then((_) {
+      if (mounted) setState(() {});
+    });
     _loadAlertCount();
     setState(() {
       _loading = true;
@@ -133,7 +158,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final metrics = _data?.metrics ?? const <Metric>[];
+    // metrics-cards.tsx: a broiler-only company has no eggs to count or
+    // laying rate to show.
+    final metrics = [
+      for (final m in _data?.metrics ?? const <Metric>[])
+        if (showsHomeMetric(company, m.key)) m,
+    ];
 
     return Scaffold(
       backgroundColor: tokens.card,
@@ -142,10 +172,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onAvatar: _switchCompany,
         onAlerts: company.type == CompanyType.poultry ? _openFarmAlerts : null,
         alertCount: _alertCount,
+        onSearch: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => GlobalSearchScreen(session: session, company: company),
+        )),
       ),
       body: Column(
         children: [
           CompanyBar(company: company, onTap: _switchCompany),
+          // Restaurant draws the web's own dashboard rather than the summary grid.
+          if (company.type == CompanyType.restaurant)
+            Expanded(child: RestaurantDashboardView(key: ValueKey(company.farmId), session: session, company: company))
+          else if (company.type == CompanyType.hotel)
+            Expanded(child: HotelDashboardView(key: ValueKey(company.farmId), session: session, company: company))
+          else
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -154,6 +193,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                       children: [
+                        // Poultry's charts come first (an app addition, 2 Nov; the web has none).
+                        if (company.type == CompanyType.poultry)
+                          PoultryDashboardCharts(key: ValueKey(company.farmId), session: session, company: company),
+                        // Water's charts come first too (an app addition, 2 Nov; the web has none).
+                        if (company.type == CompanyType.water)
+                          WaterDashboardCharts(key: ValueKey(company.farmId), session: session, company: company),
+                        // Generic's charts come first too (an app addition, 2 Nov; the web has none).
+                        if (company.type == CompanyType.generic)
+                          GenericDashboardCharts(key: ValueKey(company.farmId), session: session, company: company),
                         if (_error != null)
                           _ErrorCard(message: _error!, onRetry: _load)
                         else ...[
@@ -193,6 +241,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 );
                               },
                             ),
+                          // charts.tsx's Quick Actions card, under the metric cards.
+                          if (company.type == CompanyType.poultry) ...[
+                            const SizedBox(height: 14),
+                            PoultryQuickActions(session: session, company: company),
+                          ],
                         ],
                       ],
                     ),
@@ -252,7 +305,7 @@ class _SkeletonGrid extends StatelessWidget {
                 child: Container(
                   height: 13,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
+                    color: const Tone.bg(0xFFE2E8F0),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),

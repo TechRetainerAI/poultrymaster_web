@@ -1,161 +1,237 @@
 "use client"
 
 /**
- * Generic Cash Transfers — deep copy of Poultry Cash Transfers.
+ * Generic Cash Transfers — Poultry's Cash Transfers page (app/poultry-cash-transfers)
+ * on Generic's own tables.
  *
  * Money moving between the business's own accounts: cash box to bank, bank to
- * MoMo, bank to petty cash. A transfer is the same money in a different box
- * and must never look like the business earned or spent anything.
+ * MoMo, bank to petty cash. A transfer is the same money in a different box and
+ * must never look like the business earned or spent anything, which is why the
+ * totals below say "moved", never "in" or "out".
+ *
+ * Record = create + approve in ONE server call (migration 456,
+ * spgenericcashtransfer_record). The old page created a Draft, swallowed a
+ * refused approval and still said "recorded and approved", leaving a Draft that
+ * moved nothing. Now a refusal leaves nothing behind and shows "Transfer failed".
+ * Reverse undoes an approved transfer with two opposite rows, the original kept.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { NumberInput } from "@/components/ui/number-input"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { FormSection, FormField } from "@/components/ui/form-section"
+import { Textarea } from "@/components/ui/textarea"
+import { NumberInput } from "@/components/ui/number-input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { FormSection, FormField } from "@/components/ui/form-section"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
-import { ArrowLeftRight, ArrowRight, Check, Loader2, Plus, X, AlertTriangle } from "lucide-react"
+import { ArrowLeftRight, ArrowRight, Check, Loader2, Plus, Undo2, X } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { entryTimestamp } from "@/lib/utils/date-key"
 import { useFmt } from "@/lib/currency"
-import { cn } from "@/lib/utils"
 import {
-  approveCashTransfer, cancelCashTransfer, createCashTransfer, getCashAccounts, getCashTransfers,
+  getCashAccounts, getCashTransfers, recordCashTransfer, approveCashTransfer,
+  cancelCashTransfer, reverseCashTransfer,
   type GenericCashAccount, type GenericCashTransfer,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
-const STATUS_FILTERS = ["All", "Draft", "Approved", "Cancelled"] as const
+const STATUS_FILTERS = ["All", "Approved", "Draft", "Reversed", "Cancelled"] as const
 
 function statusClass(s: string) {
   switch (s) {
-    case "Approved":  return "bg-emerald-100 text-emerald-800"
-    case "Reversed":  return "bg-amber-100 text-amber-800"
-    case "Cancelled": return "bg-slate-100 text-slate-700"
-    default:          return "bg-sky-100 text-sky-800"
+    case "Approved":  return "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+    case "Reversed":  return "bg-amber-100 text-amber-800 hover:bg-amber-100"
+    case "Cancelled": return "bg-slate-100 text-slate-700 hover:bg-slate-100"
+    default:          return "bg-sky-100 text-sky-800 hover:bg-sky-100"
   }
 }
 
-function today() { return new Date().toISOString().slice(0, 10) }
+function today() {
+  return new Date().toISOString().slice(0, 10)
+}
 
-function GenericCashTransfersPageInner() {
+function monthStart() {
+  const n = new Date()
+  return new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0, 10)
+}
+
+const EMPTY_FORM = {
+  fromId: "", toId: "", amount: "0", transferDate: today(), referenceNumber: "", notes: "",
+}
+
+export default function GenericCashTransfersPage() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const activeFarmId = useAuthStore((s) => s.activeFarmId)
   const logout = useLogout()
   const { toast } = useToast()
-  const gh = useFmt()
+  const fmt = useFmt()
 
   const [accounts, setAccounts] = useState<GenericCashAccount[]>([])
   const [rows, setRows] = useState<GenericCashTransfer[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  const [statusFilter, setStatusFilter] = useState<string>("All")
+  const [status, setStatus] = useState<string>("All")
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
 
   const [newOpen, setNewOpen] = useState(false)
-  const [form, setForm] = useState({
-    fromId: "", toId: "", amount: "0", transferDate: today(), notes: "",
-  })
+  const [form, setForm] = useState({ ...EMPTY_FORM })
+
+  const [reversing, setReversing] = useState<GenericCashTransfer | null>(null)
+  const [reason, setReason] = useState("")
 
   const load = useCallback(async () => {
-    const [ts, as] = await Promise.allSettled([getCashTransfers(), getCashAccounts()])
-    if (ts.status === "fulfilled") setRows(ts.value)
-    if (as.status === "fulfilled") setAccounts(as.value)
-    setLoading(false)
-  }, [])
+    setLoading(true)
+    try {
+      const [accs, xfers] = await Promise.all([getCashAccounts(), getCashTransfers()])
+      setAccounts(accs)
+      setRows(xfers)
+    } catch (e: any) {
+      toast({ title: "Could not load transfers", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
     if (!activeFarmId) return
-    setLoading(true)
     void load()
   }, [activeFarmType, activeFarmId, router, load])
 
-  const activeAccounts = useMemo(() => accounts.filter((a) => a.isActive), [accounts])
-  const acctBalance = (id: string | number) => {
-    const a = accounts.find((a) => a.genericCashAccountId === Number(id))
-    return a?.currentBalance ?? 0
-  }
-  const acctAllowsNegative = (id: string | number) => {
-    const a = accounts.find((a) => a.genericCashAccountId === Number(id))
-    return a?.allowNegativeBalance ?? false
-  }
-
-  const filtered = useMemo(() => {
-    let list = rows
-    if (statusFilter !== "All") list = list.filter((t) => t.status === statusFilter)
-    return filterByDateAndSearch(list, {
-      search, dateFrom, dateTo,
-      searchKeys: ["fromAccountName", "toAccountName", "notes"],
-      dateKey: "transferDate",
+  // ---- derived -------------------------------------------------------------
+  const visible = useMemo(() => {
+    const byStatus = status === "All" ? rows : rows.filter((r) => r.status === status)
+    return filterByDateAndSearch(byStatus, {
+      dateFrom, dateTo, dateKey: "transferDate",
+      search,
+      searchKeys: ["transferNumber", "fromAccountName", "toAccountName", "referenceNumber", "notes"],
     })
-  }, [rows, statusFilter, search, dateFrom, dateTo])
+  }, [rows, status, search, dateFrom, dateTo])
+  const pg = usePagination(visible)
 
-  const pg = usePagination(filtered)
+  // Only movements that actually happened count towards the totals: a draft
+  // moved nothing, and a reversed transfer moved it and moved it back.
+  const live = rows.filter((r) => r.status === "Approved")
+  const movedToday = live.filter((r) => r.transferDate?.slice(0, 10) === today())
+  const movedThisMonth = live.filter((r) => (r.transferDate ?? "") >= monthStart())
+  const sum = (xs: GenericCashTransfer[]) => xs.reduce((t, r) => t + r.amount, 0)
 
-  const totals = useMemo(() => {
-    const approved = rows.filter((t) => t.status === "Approved")
-    const moved = approved.reduce((s, t) => s + t.amount, 0)
-    return { moved, count: approved.length, total: rows.length }
-  }, [rows])
+  const busiest = (key: "fromAccountName" | "toAccountName") => {
+    const tally = new Map<string, number>()
+    live.forEach((r) => {
+      const k = r[key] ?? "—"
+      tally.set(k, (tally.get(k) ?? 0) + r.amount)
+    })
+    const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]
+    return top ? { name: top[0], amount: top[1] } : null
+  }
+  const topFrom = busiest("fromAccountName")
+  const topTo = busiest("toAccountName")
 
-  // Balance preview
-  const amt = Number(form.amount) || 0
-  const fromBalance = form.fromId ? acctBalance(form.fromId) : 0
-  const afterFrom = fromBalance - amt
-  const wouldOverdraw = amt > 0 && form.fromId && afterFrom < 0 && !acctAllowsNegative(form.fromId)
+  const balanceOf = (id: string) =>
+    accounts.find((a) => String(a.genericCashAccountId) === id)?.currentBalance ?? 0
+  const allowsNegative = (id: string) =>
+    accounts.find((a) => String(a.genericCashAccountId) === id)?.allowNegativeBalance ?? false
 
-  async function doCreate() {
-    if (!form.fromId || !form.toId) { toast({ title: "Pick both accounts", variant: "destructive" }); return }
-    if (form.fromId === form.toId) { toast({ title: "From and To must differ", variant: "destructive" }); return }
-    if (!(amt > 0)) { toast({ title: "Amount must be > 0", variant: "destructive" }); return }
+  const amountNum = Number(form.amount) || 0
+  const fromAfter = balanceOf(form.fromId) - amountNum
+  const toAfter = balanceOf(form.toId) + amountNum
+  const wouldOverdraw =
+    !!form.fromId && amountNum > 0 && fromAfter < 0 && !allowsNegative(form.fromId)
+
+  const numberOf = (t: GenericCashTransfer) => t.transferNumber ?? `#${t.genericCashTransferId}`
+
+  // ---- actions -------------------------------------------------------------
+  const save = async () => {
+    if (!form.fromId || !form.toId) {
+      toast({ title: "Pick both accounts", variant: "destructive" }); return
+    }
+    if (form.fromId === form.toId) {
+      toast({ title: "Pick two different accounts", variant: "destructive" }); return
+    }
+    if (amountNum <= 0) {
+      toast({ title: "Enter an amount", variant: "destructive" }); return
+    }
     setSaving(true)
     try {
-      const id = await createCashTransfer({
+      // One server call creates and approves. If the approval is refused the
+      // whole call fails, so there is never a Draft left behind that moved nothing.
+      await recordCashTransfer({
         fromGenericCashAccountId: Number(form.fromId),
         toGenericCashAccountId: Number(form.toId),
-        amount: amt,
-        transferDate: form.transferDate,
-        notes: form.notes || null,
+        amount: amountNum,
+        // Today gets the real clock time; a back-dated one keeps midnight.
+        transferDate: entryTimestamp(form.transferDate),
+        referenceNumber: form.referenceNumber.trim() || null,
+        notes: form.notes.trim() || null,
       })
-      // Auto-approve — the poultry page approves immediately too.
-      if (id) {
-        try { await approveCashTransfer(id) } catch { /* draft is still fine */ }
-      }
-      toast({ title: "Transfer recorded and approved." })
+      toast({ title: "Transfer recorded" })
       setNewOpen(false)
-      setForm({ fromId: "", toId: "", amount: "0", transferDate: today(), notes: "" })
+      setForm({ ...EMPTY_FORM, transferDate: today() })
       await load()
     } catch (e: any) {
-      toast({ title: "Could not create transfer", description: e?.message, variant: "destructive" })
-    } finally { setSaving(false) }
+      toast({ title: "Transfer failed", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
   }
 
-  async function doApprove(id: number) {
-    try { await approveCashTransfer(id); toast({ title: "Transfer approved." }); await load() }
-    catch (e: any) { toast({ title: "Approve failed", description: e?.message, variant: "destructive" }) }
+  const doReverse = async () => {
+    if (!reversing) return
+    if (reason.trim().length < 3) {
+      toast({ title: "Say why", description: "The reason is written to the audit trail.", variant: "destructive" })
+      return
+    }
+    setSaving(true)
+    try {
+      await reverseCashTransfer(reversing.genericCashTransferId, reason.trim())
+      toast({
+        title: "Transfer reversed",
+        description: `${fmt(reversing.amount)} put back on ${reversing.fromAccountName ?? "the source account"}.`,
+      })
+      setReversing(null)
+      setReason("")
+      await load()
+    } catch (e: any) {
+      toast({ title: "Could not reverse", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
   }
 
-  async function doCancel(id: number) {
-    try { await cancelCashTransfer(id); toast({ title: "Transfer cancelled." }); await load() }
-    catch (e: any) { toast({ title: "Cancel failed", description: e?.message, variant: "destructive" }) }
+  // Drafts can only exist from older records (the page no longer makes them).
+  // They are still finished or cancelled here so none is left stranded.
+  const doApprove = async (t: GenericCashTransfer) => {
+    setSaving(true)
+    try { await approveCashTransfer(t.genericCashTransferId); toast({ title: "Transfer recorded" }); await load() }
+    catch (e: any) { toast({ title: "Transfer failed", description: e?.message ?? String(e), variant: "destructive" }) }
+    finally { setSaving(false) }
+  }
+  const doCancel = async (t: GenericCashTransfer) => {
+    setSaving(true)
+    try { await cancelCashTransfer(t.genericCashTransferId); toast({ title: "Draft cancelled" }); await load() }
+    catch (e: any) { toast({ title: "Could not cancel", description: e?.message ?? String(e), variant: "destructive" }) }
+    finally { setSaving(false) }
   }
 
   return (
@@ -163,230 +239,316 @@ function GenericCashTransfersPageInner() {
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-auto p-3 md:p-4 space-y-3">
-
-          <div className="flex items-center justify-between flex-wrap gap-2">
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          <div className="mb-4 flex items-end justify-between flex-wrap gap-2">
             <div>
-              <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-                <ArrowLeftRight className="h-5 w-5 text-sky-600" /> Cash Transfers
+              <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+                <ArrowLeftRight className="h-6 w-6 text-sky-600" /> Cash Transfers
               </h1>
-              <p className="text-xs text-slate-500">
-                Move cash between your own accounts. Never company-wide money in or money out.
+              <p className="text-sm text-slate-500 max-w-2xl">
+                Move money between the business's own cash accounts. A transfer is the same money in a
+                different box — it never counts as money in or money out on{" "}
+                <Link href="/generic-cash-flow" className="text-sky-700 hover:underline">Cash Flow</Link>.
               </p>
             </div>
-            <Button onClick={() => setNewOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> New Transfer
+            <Button onClick={() => setNewOpen(true)} className="h-11 sm:h-10">
+              <Plus className="h-4 w-4 mr-1" /> Record transfer
             </Button>
           </div>
 
-          {/* KPI tiles */}
-          <div className="grid grid-cols-3 gap-2">
-            <Card><CardContent className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Moved (Approved)</div>
-              <div className="mt-1 text-lg font-semibold tabular-nums">{gh(totals.moved)}</div>
-            </CardContent></Card>
-            <Card><CardContent className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Transfers</div>
-              <div className="mt-1 text-lg font-semibold tabular-nums">{totals.count}</div>
-            </CardContent></Card>
-            <Card><CardContent className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">On record</div>
-              <div className="mt-1 text-lg font-semibold tabular-nums">{totals.total}</div>
-            </CardContent></Card>
+          {/* Totals say "moved", never "in" or "out". */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+            <Stat label="Moved today" value={fmt(sum(movedToday))} hint={`${movedToday.length} transfer(s)`} />
+            <Stat label="Moved this month" value={fmt(sum(movedThisMonth))} hint={`${movedThisMonth.length} transfer(s)`} />
+            <Stat label="Transfers on record" value={String(rows.length)} hint={`${live.length} approved`} />
+            <Stat label="Most used source" value={topFrom?.name ?? "—"} hint={topFrom ? fmt(topFrom.amount) : undefined} />
+            <Stat label="Most used destination" value={topTo?.name ?? "—"} hint={topTo ? fmt(topTo.amount) : undefined} />
           </div>
 
-          {/* Status filter buttons */}
-          <div className="flex gap-1 flex-wrap">
-            {STATUS_FILTERS.map((s) => (
-              <Button key={s} size="sm" variant={s === statusFilter ? "default" : "outline"}
-                onClick={() => setStatusFilter(s)}>{s}</Button>
-            ))}
-          </div>
-
-          <ListFilters
-            search={search} setSearch={setSearch}
-            dateFrom={dateFrom} setDateFrom={setDateFrom}
-            dateTo={dateTo} setDateTo={setDateTo}
-            searchPlaceholder="Search from/to account or notes"
-          />
+          <Card className="mb-4">
+            <CardContent className="pt-6">
+              <ListFilters
+                search={search} setSearch={setSearch}
+                searchPlaceholder="Search number, account, reference or note"
+                dateFrom={dateFrom} setDateFrom={setDateFrom}
+                dateTo={dateTo} setDateTo={setDateTo}
+              />
+              <div className="flex flex-wrap gap-2 mt-3">
+                {STATUS_FILTERS.map((s) => (
+                  <Button key={s} size="sm" variant={status === s ? "default" : "outline"}
+                          onClick={() => setStatus(s)}>{s}</Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
           {loading ? (
-            <Card><CardContent className="py-12 text-center text-slate-600">
-              <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading transfers...
+            <div className="flex items-center gap-2 text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : visible.length === 0 ? (
+            <Card><CardContent className="py-8 text-center text-slate-500">
+              {rows.length === 0
+                ? "No transfers yet. Record one when you move money between accounts."
+                : "No transfers match these filters."}
             </CardContent></Card>
           ) : (
-            <Card>
-              <CardContent className="p-0 md:p-2">
-                {filtered.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-slate-500">
-                    No transfers match the current filters.
-                  </p>
-                ) : (
-                  <MobileCardList
-                    defaultOpen striped stripeAccent="blue"
-                    items={pg.pageItems} pagination={pg.paginationProps}
-                    getKey={(t: any) => t.genericCashTransferId}
-                    primary={(t: any) => `${t.fromAccountName ?? "?"} \u2192 ${t.toAccountName ?? "?"}`}
-                    secondary={(t: any) => fmtDateTime(t.transferDate, t)}
-                    trailing={(t: any) => <Badge className={statusClass(t.status)}>{t.status}</Badge>}
-                    highlights={(t: any) => [
-                      { label: "Amount", value: gh(t.amount), accent: "blue" },
-                    ]}
-                    details={(t: any) => [
-                      { label: "From", value: t.fromAccountName ?? `#${t.fromGenericCashAccountId}` },
-                      { label: "To", value: t.toAccountName ?? `#${t.toGenericCashAccountId}` },
-                      { label: "Notes", value: t.notes ?? "\u2014" },
-                    ]}
-                    actions={(t: any) => (
-                      <>
-                        {t.status === "Draft" && (
-                          <>
-                            <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200"
-                              onClick={() => doApprove(t.genericCashTransferId)}>
-                              <Check className="h-4 w-4 mr-1" /> Approve
-                            </Button>
-                            <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200"
-                              onClick={() => doCancel(t.genericCashTransferId)}>
-                              <X className="h-4 w-4 mr-1" /> Cancel
-                            </Button>
-                          </>
-                        )}
-                      </>
-                    )}
-                    desktopTable={
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader><TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>From</TableHead>
-                            <TableHead className="w-8" />
-                            <TableHead>To</TableHead>
-                            <TableHead className="text-right">Amount</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Notes</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow></TableHeader>
-                          <TableBody>
-                            {pg.pageItems.map((t: any) => (
-                              <TableRow key={t.genericCashTransferId}
-                                className={cn(t.status === "Cancelled" && "text-slate-400 line-through")}>
-                                <TableCell className="whitespace-nowrap">{fmtDateTime(t.transferDate, t)}</TableCell>
-                                <TableCell className="font-medium">{t.fromAccountName ?? `#${t.fromGenericCashAccountId}`}</TableCell>
-                                <TableCell><ArrowRight className="h-3.5 w-3.5 text-slate-400" /></TableCell>
-                                <TableCell className="font-medium">{t.toAccountName ?? `#${t.toGenericCashAccountId}`}</TableCell>
-                                <TableCell className="text-right tabular-nums font-semibold">{gh(t.amount)}</TableCell>
-                                <TableCell><Badge className={statusClass(t.status)}>{t.status}</Badge></TableCell>
-                                <TableCell className="max-w-[200px] truncate text-sm text-slate-600">{t.notes ?? "\u2014"}</TableCell>
-                                <TableCell className="text-right whitespace-nowrap">
-                                  {t.status === "Draft" && (
-                                    <div className="inline-flex gap-1">
-                                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                                        onClick={() => doApprove(t.genericCashTransferId)}>
-                                        <Check className="h-3.5 w-3.5 mr-1" /> Approve
-                                      </Button>
-                                      <Button size="sm" variant="outline"
-                                        onClick={() => doCancel(t.genericCashTransferId)}>
-                                        <X className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    }
-                  />
-                )}
-              </CardContent>
-            </Card>
+            <MobileCardList
+              defaultOpen
+              striped
+              items={pg.pageItems}
+              getKey={(t) => t.genericCashTransferId}
+              primary={(t) => numberOf(t)}
+              secondary={(t) => (
+                <>
+                  <span>{fmtDateTime(t.transferDate, t)}</span>
+                  <span>·</span>
+                  <span className="text-xs">{t.fromAccountName} → {t.toAccountName}</span>
+                </>
+              )}
+              trailing={(t) => <Badge className={statusClass(t.status)}>{t.status}</Badge>}
+              highlights={(t) => [{ label: "Amount", value: fmt(t.amount) }]}
+              details={(t) => [
+                { label: "From", value: t.fromAccountName ?? "–" },
+                { label: "To", value: t.toAccountName ?? "–" },
+                { label: "Reference", value: t.referenceNumber ?? "–" },
+                { label: "Notes", value: t.notes ?? "–" },
+                { label: "Recorded by", value: t.createdBy ?? "–" },
+                ...(t.status === "Reversed"
+                  ? [{ label: "Reversed", value: t.reversalReason ?? "–" }]
+                  : []),
+              ]}
+              actions={(t) => (
+                <>
+                  {t.status === "Approved" && (
+                    <Button size="sm" variant="outline" className="flex-1 h-10"
+                            onClick={() => { setReversing(t); setReason("") }}>
+                      <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                    </Button>
+                  )}
+                  {t.status === "Draft" && (
+                    <>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200"
+                              disabled={saving} onClick={() => doApprove(t)}>
+                        <Check className="h-4 w-4 mr-1" /> Approve
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200"
+                              disabled={saving} onClick={() => doCancel(t)}>
+                        <X className="h-4 w-4 mr-1" /> Cancel
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
+              pagination={pg.paginationProps}
+              desktopTable={
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Transfer #</TableHead>
+                        <TableHead>From</TableHead>
+                        <TableHead>To</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>Reference</TableHead>
+                        <TableHead>Recorded by</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pg.pageItems.map((t) => (
+                        <TableRow key={t.genericCashTransferId}>
+                          <TableCell className="whitespace-nowrap">
+                            {fmtDateTime(t.transferDate, t)}
+                          </TableCell>
+                          <TableCell className="font-medium">{numberOf(t)}</TableCell>
+                          <TableCell>{t.fromAccountName ?? "–"}</TableCell>
+                          <TableCell>{t.toAccountName ?? "–"}</TableCell>
+                          <TableCell className="text-right font-medium tabular-nums">
+                            <span className={t.status === "Reversed" || t.status === "Cancelled" ? "line-through text-slate-400" : ""}>
+                              {fmt(t.amount)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-slate-500">{t.referenceNumber ?? "–"}</TableCell>
+                          <TableCell className="text-slate-500">{t.createdBy ?? "–"}</TableCell>
+                          <TableCell>
+                            <Badge className={statusClass(t.status)}>{t.status}</Badge>
+                            {t.status === "Reversed" && t.reversalReason && (
+                              <div className="text-xs text-slate-500 mt-0.5 max-w-[16rem] truncate"
+                                   title={t.reversalReason}>
+                                {t.reversalReason}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            {t.status === "Approved" && (
+                              <Button size="sm" variant="outline"
+                                      onClick={() => { setReversing(t); setReason("") }}>
+                                <Undo2 className="h-3 w-3 mr-1" /> Reverse
+                              </Button>
+                            )}
+                            {t.status === "Draft" && (
+                              <div className="inline-flex gap-1">
+                                <Button size="sm" variant="outline" disabled={saving}
+                                        className="text-emerald-700 border-emerald-200"
+                                        onClick={() => doApprove(t)}>
+                                  <Check className="h-3 w-3 mr-1" /> Approve
+                                </Button>
+                                <Button size="sm" variant="outline" disabled={saving} title="Cancel this draft"
+                                        onClick={() => doCancel(t)}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              }
+            />
           )}
         </main>
       </div>
 
-      {/* New transfer dialog */}
+      {/* ---- record ---------------------------------------------------- */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ArrowLeftRight className="w-5 h-5 text-sky-600" /> New cash transfer
+              <ArrowLeftRight className="w-5 h-5 text-sky-600" /> Record Cash Transfer
             </DialogTitle>
             <DialogDescription>
-              Moving money between your own accounts. Not money in or money out.
+              Writes a matching pair of ledger rows — one out of the source, one into the
+              destination. Company-wide cash flow is unaffected.
             </DialogDescription>
           </DialogHeader>
-          <FormSection title="Accounts" color="indigo">
-            <FormField label="From *">
-              <Select value={form.fromId} onValueChange={(v) => setForm((f) => ({ ...f, fromId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Source account" /></SelectTrigger>
-                <SelectContent>
-                  {activeAccounts.map((a) => (
-                    <SelectItem key={a.genericCashAccountId} value={String(a.genericCashAccountId)}>
-                      {a.accountName} ({gh(a.currentBalance)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-            <FormField label="To *">
-              <Select value={form.toId} onValueChange={(v) => setForm((f) => ({ ...f, toId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Destination account" /></SelectTrigger>
-                <SelectContent>
-                  {activeAccounts.filter((a) => String(a.genericCashAccountId) !== form.fromId).map((a) => (
-                    <SelectItem key={a.genericCashAccountId} value={String(a.genericCashAccountId)}>
-                      {a.accountName} ({gh(a.currentBalance)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-          </FormSection>
-          <FormSection title="Transfer" color="blue">
-            <FormField label="Amount *">
-              <NumberInput step="0.01" min="0" value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
-            </FormField>
-            <FormField label="Date">
-              <Input type="date" value={form.transferDate}
-                onChange={(e) => setForm((f) => ({ ...f, transferDate: e.target.value }))} />
-            </FormField>
-          </FormSection>
 
-          {/* Balance preview */}
-          {form.fromId && amt > 0 && (
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-              <span className="text-slate-600">
-                {accounts.find((a) => a.genericCashAccountId === Number(form.fromId))?.accountName}:
-              </span>{" "}
-              <span className="tabular-nums">{gh(fromBalance)}</span>
-              <span className="mx-1">&rarr;</span>
-              <span className={cn("tabular-nums font-medium", afterFrom < 0 ? "text-rose-700" : "text-slate-900")}>
-                {gh(afterFrom)}
-              </span>
+          <div className="space-y-4">
+            <FormSection title="Movement" color="sky">
+              <FormField label="Transfer date *">
+                <Input type="date" value={form.transferDate}
+                       onChange={(e) => setForm((f) => ({ ...f, transferDate: e.target.value }))} />
+              </FormField>
+              <FormField label="Amount *">
+                <NumberInput value={form.amount} min={0}
+                             onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
+              </FormField>
+              <FormField label="From account *" full>
+                <Select value={form.fromId}
+                        onValueChange={(v) => setForm((f) => ({ ...f, fromId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Pick the account the money leaves" /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.filter((a) => a.isActive).map((a) => (
+                      <SelectItem key={a.genericCashAccountId} value={String(a.genericCashAccountId)}>
+                        {a.accountName} — {fmt(a.currentBalance)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="To account *" full>
+                <Select value={form.toId}
+                        onValueChange={(v) => setForm((f) => ({ ...f, toId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Pick the account the money arrives in" /></SelectTrigger>
+                  <SelectContent>
+                    {accounts
+                      .filter((a) => a.isActive && String(a.genericCashAccountId) !== form.fromId)
+                      .map((a) => (
+                        <SelectItem key={a.genericCashAccountId} value={String(a.genericCashAccountId)}>
+                          {a.accountName} — {fmt(a.currentBalance)}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </FormSection>
+
+            {form.fromId && form.toId && amountNum > 0 && (
+              <FormSection title="After this transfer" color="slate" columns={1}>
+                <div className="text-sm space-y-1">
+                  <Preview label="Source" before={balanceOf(form.fromId)} after={fromAfter} fmt={fmt} />
+                  <Preview label="Destination" before={balanceOf(form.toId)} after={toAfter} fmt={fmt} />
+                  {wouldOverdraw && (
+                    <p className="text-rose-600 text-xs pt-1">
+                      This would take the source account below zero, and it is not allowed to go
+                      negative. The transfer will be rejected.
+                    </p>
+                  )}
+                </div>
+              </FormSection>
+            )}
+
+            <FormSection title="Reference" color="slate" columns={1}>
+              <FormField label="Reference">
+                <Input value={form.referenceNumber} placeholder="Bank or MoMo reference" maxLength={100}
+                       onChange={(e) => setForm((f) => ({ ...f, referenceNumber: e.target.value }))} />
+              </FormField>
+              <FormField label="Notes" full>
+                <Textarea rows={2} value={form.notes} maxLength={500}
+                          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+              </FormField>
+            </FormSection>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button type="button" onClick={() => setNewOpen(false)}
+                    className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+            <Button onClick={save} disabled={saving || wouldOverdraw}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Recording...</>
+                      : <><ArrowLeftRight className="w-4 h-4 mr-2" />Record Transfer</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---- reverse --------------------------------------------------- */}
+      <Dialog open={!!reversing} onOpenChange={(o) => { if (!o) { setReversing(null); setReason("") } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Undo2 className="w-5 h-5 text-amber-600" /> Reverse Transfer
+            </DialogTitle>
+            <DialogDescription>
+              The original stays on the record. Two opposite rows are added, putting both accounts
+              back where they were.
+            </DialogDescription>
+          </DialogHeader>
+
+          {reversing && (
+            <div className="space-y-4">
+              <FormSection title="Transfer being reversed" color="slate" columns={1}>
+                <div className="text-sm">
+                  <div className="font-medium">{numberOf(reversing)}</div>
+                  <div className="flex items-center gap-1 text-slate-600 mt-1">
+                    {reversing.fromAccountName} <ArrowRight className="h-3 w-3" /> {reversing.toAccountName}
+                  </div>
+                  <div className="mt-1">{fmt(reversing.amount)} on {fmtDateTime(reversing.transferDate, reversing)}</div>
+                  <div className="text-xs text-slate-500 mt-2">
+                    {fmt(reversing.amount)} comes back out of {reversing.toAccountName} and returns to{" "}
+                    {reversing.fromAccountName}. If the destination no longer holds it and cannot go
+                    negative, the reversal will be refused.
+                  </div>
+                </div>
+              </FormSection>
+
+              <FormSection title="Why" color="amber" columns={1}>
+                <FormField label="Reason *" hint="Written to the audit trail.">
+                  <ReasonSelect options={REVERSAL_REASONS} value={reason} onChange={setReason} />
+                </FormField>
+              </FormSection>
             </div>
           )}
 
-          {wouldOverdraw && (
-            <Alert className="border-amber-200 bg-amber-50 py-2">
-              <AlertTriangle className="h-4 w-4 text-amber-700" />
-              <AlertDescription className="text-xs text-amber-900">
-                This transfer would take the source account negative. It does not allow negative balances.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <FormSection title="Notes" color="slate" columns={1}>
-            <FormField label="Notes">
-              <Textarea rows={2} value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} maxLength={500} />
-            </FormField>
-          </FormSection>
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
-            <Button onClick={doCreate} disabled={saving || !!wouldOverdraw}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Transfer & Approve"}
+          <div className="flex gap-3 justify-end pt-2">
+            <Button type="button" onClick={() => { setReversing(null); setReason("") }}
+                    className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+            <Button variant="destructive" onClick={doReverse} disabled={saving}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Reversing...</>
+                      : <><Undo2 className="w-4 h-4 mr-2" />Reverse Transfer</>}
             </Button>
           </div>
         </DialogContent>
@@ -395,10 +557,34 @@ function GenericCashTransfersPageInner() {
   )
 }
 
-export default function GenericCashTransfersPage() {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <Suspense fallback={<div className="p-6 text-slate-500">Loading...</div>}>
-      <GenericCashTransfersPageInner />
-    </Suspense>
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">{label}</p>
+        <div className="text-lg sm:text-xl font-bold text-slate-900 mt-1 truncate">{value}</div>
+        {hint && <div className="text-xs text-slate-500 mt-0.5 truncate">{hint}</div>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function Preview({
+  label, before, after, fmt,
+}: {
+  label: string
+  before: number
+  after: number
+  fmt: (n: number) => string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-slate-500">{label}</span>
+      <span className="tabular-nums">
+        <span className="text-slate-400">{fmt(before)}</span>
+        {" → "}
+        <span className={`font-medium ${after < 0 ? "text-rose-600" : "text-slate-900"}`}>{fmt(after)}</span>
+      </span>
+    </div>
   )
 }

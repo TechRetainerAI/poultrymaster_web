@@ -6,13 +6,16 @@
 
 import 'package:flutter/material.dart';
 
-import '../trackers/tracker_logic.dart' show tNum, tStr, loc, localDateKey;
+import '../../shared/business_dates.dart' show fmtNum;
+import '../trackers/tracker_logic.dart' show tNum, loc, localDateKey;
 import '../trackers/tracker_widgets.dart' show TColors;
 
-const _orange = Color(0xFFC2410C), _orangeBg = Color(0xFFFFF7ED), _orangeBorder = Color(0xFFFED7AA);
-const _purple = Color(0xFF7E22CE), _purpleBg = Color(0xFFFAF5FF), _purpleBorder = Color(0xFFE9D5FF);
-const _teal = Color(0xFF0F766E), _tealBg = Color(0xFFF0FDFA), _tealBorder = Color(0xFF99F6E4);
-const _blueBg = Color(0xFFEFF6FF);
+import 'package:poultrycore_mobile/design/tone.dart';
+
+const _orange = Tone.fg(0xFFC2410C), _orangeBg = Tone.bg(0xFFFFF7ED), _orangeBorder = Tone.line(0xFFFED7AA);
+const _purple = Tone.fg(0xFF7E22CE), _purpleBg = Tone.bg(0xFFFAF5FF), _purpleBorder = Tone.line(0xFFE9D5FF);
+const _teal = Tone.fg(0xFF0F766E), _tealBg = Tone.bg(0xFFF0FDFA), _tealBorder = Tone.line(0xFF99F6E4);
+const _blueBg = Tone.bg(0xFFEFF6FF);
 
 /// Where each number lives on a record. Production records are the default;
 /// batch production records pass [batchDayFields].
@@ -60,14 +63,19 @@ Future<void> showProductionDayView(
   bool showBirds = true,
   IconData editIcon = Icons.edit_outlined,
   String editTooltip = 'Edit',
+  String description = 'Every production record logged on the chosen day, for all flocks.',
+  void Function(String day)? onShowInTable,
 }) async {
-  final picked = await Navigator.of(context).push<Map>(MaterialPageRoute(
+  // Pops with the record to edit, or with the day for "Show in table".
+  final picked = await Navigator.of(context).push<Object>(MaterialPageRoute(
     builder: (_) => ProductionDayView(
       records: records, extraPicks: extraPicks, flockLabel: flockLabel, batchLabel: batchLabel, fields: fields, badge: badge,
       batchPrefix: batchPrefix, showBirds: showBirds, editIcon: editIcon, editTooltip: editTooltip,
+      description: description, canShowInTable: onShowInTable != null,
     ),
   ));
-  if (picked != null) onEdit(picked);
+  if (picked is Map) onEdit(picked);
+  if (picked is String) onShowInTable?.call(picked);
 }
 
 class ProductionDayView extends StatefulWidget {
@@ -75,7 +83,12 @@ class ProductionDayView extends StatefulWidget {
     super.key, required this.records, required this.extraPicks, required this.flockLabel, required this.batchLabel,
     this.fields = const DayFields(), this.badge, this.batchPrefix = 'Batch: ', this.showBirds = true,
     this.editIcon = Icons.edit_outlined, this.editTooltip = 'Edit',
+    this.description = 'Every production record logged on the chosen day, for all flocks.', this.canShowInTable = false,
   });
+  final String description;
+
+  /// "Show in table": apply this day as the page's date filter and close.
+  final bool canShowInTable;
   final DayFields fields;
   final Widget Function(Map)? badge;
   final String batchPrefix;
@@ -159,7 +172,7 @@ class _ProductionDayViewState extends State<ProductionDayView> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: i.isEven ? Colors.white : TColors.slate50,
+          color: i.isEven ? Tone.bg(0xFFFFFFFF) : TColors.slate50,
           border: Border.all(color: TColors.slate200),
           borderRadius: BorderRadius.circular(10),
         ),
@@ -195,11 +208,10 @@ class _ProductionDayViewState extends State<ProductionDayView> {
           ]),
           const SizedBox(height: 8),
           Wrap(spacing: 14, runSpacing: 4, children: [
-            kv('Feed', '${tNum(r[F.feed]).toStringAsFixed(2)} kg'),
+            kv('Feed', '${fmtNum(tNum(r[F.feed]), 3)} kg'),
             if (widget.showBirds) kv('Birds', loc(tNum(r[F.birds]))),
             kv('Deaths', loc(mortality), color: mortality > 0 ? TColors.red600 : null),
             kv('Left', r[F.left ?? F.birds] == null ? '—' : loc(_left(r)), color: TColors.blue900),
-            if (tStr(r['medication']).isNotEmpty) kv('Meds', tStr(r['medication'])),
           ]),
         ]),
       );
@@ -210,6 +222,8 @@ class _ProductionDayViewState extends State<ProductionDayView> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
         children: [
+          Text(widget.description, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
+          const SizedBox(height: 10),
           Row(children: [
             IconButton.outlined(onPressed: () => _shift(-1), icon: const Icon(Icons.chevron_left), tooltip: 'Previous day'),
             const SizedBox(width: 6),
@@ -232,6 +246,18 @@ class _ProductionDayViewState extends State<ProductionDayView> {
             ),
             if (_day != _latest) TextButton(onPressed: () => setState(() => _day = _latest), child: const Text('Latest day')),
           ]),
+          if (widget.canShowInTable) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                key: const ValueKey('day-show-in-table'),
+                onPressed: rows.isEmpty ? null : () => Navigator.of(context).pop(_day),
+                icon: const Icon(Icons.filter_list, size: 16),
+                label: const Text('Show in table'),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           if (rows.isEmpty)
             Container(
@@ -243,7 +269,7 @@ class _ProductionDayViewState extends State<ProductionDayView> {
             Row(children: [
               Expanded(child: tile('Total eggs', loc(eggs), TColors.emerald50, TColors.emerald200, TColors.emerald800)),
               const SizedBox(width: 8),
-              Expanded(child: tile('Feed used', '${feed.toStringAsFixed(2)} kg', TColors.amber50, TColors.amber200, TColors.amber800)),
+              Expanded(child: tile('Feed used', '${fmtNum((feed * 100).round() / 100, 2)} kg', TColors.amber50, TColors.amber200, TColors.amber800)),
             ]),
             const SizedBox(height: 8),
             Row(children: [

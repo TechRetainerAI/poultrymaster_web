@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
+import '../flock_type.dart' show isBroilerFlock;
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -14,9 +15,11 @@ import '../reports/dashboard_screen.dart' show latestRecordForFlock, birdsLeftFr
 import '../reports/report_routes.dart' show openAppHref;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
+import '../egg_packaging.dart';
 import 'production_logic.dart';
 import 'production_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const feedTypes = ['Starter Feed', 'Grower Feed', 'Layer Feed', 'Broiler Feed', 'Organic Feed', 'Custom Mix'];
 
 /// What the host shows around the form (the modal header and footer).
@@ -84,6 +87,11 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
   PickSettings _picks = const PickSettings();
   Map? _loaded;
 
+  /// 389: Feed Usage already made a feed-only record for this flock-day (a
+  /// new record completes it on the server), as (record id, its feed lines).
+  ({int recordId, String feedLines})? _feedOnlyHere;
+  String _feedOnlyKey = '';
+
   String _flockId = '', _date = '', _eggGrade = productionEggGradeValue, _feedType = '';
   final _broken = TextEditingController(), _meaty = TextEditingController(), _soft = TextEditingController(), _lost = TextEditingController();
   final _numBirds = TextEditingController(), _mortality = TextEditingController(), _medication = TextEditingController(), _notes = TextEditingController();
@@ -98,11 +106,18 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
 
   /// Crates and loose per pick: first … sixth.
   final _crates = List<num>.filled(6, 0), _loose = List<num>.filled(6, 0);
+  // 393: a box farm also enters whole boxes per pick. A box is just
+  // crates-per-box crates, so the stored figures do not change.
+  final _boxes = List<num>.filled(6, 0);
+  int get _cpb => boxSize(eggPackagingFor(widget.company.farmId)) ?? 0;
 
   /// 372: Keep = into Broken Eggs / Dead Birds stock; Disposed = gone at once.
   /// "" on an edit whose record came back without it (an older API): not sent,
   /// so the saved choice is left as it is.
   String _brokenDisposition = 'Keep', _mortalityDisposition = 'Keep';
+  // 390 / 391: keep all / dispose some / dispose all, and the typed count.
+  DisposalMode _brokenMode = DisposalMode.keep, _mortalityMode = DisposalMode.keep;
+  String _brokenDisposed = '', _mortalityDisposed = '';
 
   /// The saved totals per pick until the picks are touched (edit), as the web keeps them.
   final _pickTotals = List<num>.filled(6, 0);
@@ -135,6 +150,9 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     for (final c in _textControllers) {
       c.addListener(_markDirtyText);
     }
+    loadEggPackaging(widget.session, widget.company).then((_) {
+      if (mounted) setState(() {});
+    });
     PickSettings.load(widget.session, widget.company).then((p) {
       if (mounted) setState(() => _picks = p);
     });
@@ -159,6 +177,33 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Widget _amberNote(Widget child) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: const Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
+        child: child,
+      );
+
+  /// 389: on a new record, whether Feed Usage already recorded feed for this
+  /// flock and day -- otherwise the same feed could be typed in twice.
+  void _checkFeedOnly() {
+    final key = _edit || _flockId.isEmpty || _date.isEmpty ? '' : '$_flockId|$_date';
+    if (key == _feedOnlyKey) return;
+    _feedOnlyKey = key;
+    if (key.isEmpty) {
+      _feedOnlyHere = null;
+      return;
+    }
+    _api.get('/api/Poultry/feed-usage-entries/candidates', query: {'farmId': widget.company.farmId, 'businessDate': _date}).then((res) {
+      if (!mounted || _feedOnlyKey != key) return;
+      final c = rowsOf(res).where((x) => tStr(x['flockId']) == _flockId).firstOrNull;
+      setState(() => _feedOnlyHere = c != null && c['recordStatus'] == 'FeedOnly' && tIntOrNull(c['productionRecordId']) != null
+          ? (recordId: tIntOrNull(c['productionRecordId'])!, feedLines: tStr(c['feedLines']))
+          : null);
+    }).catchError((Object _) {
+      if (mounted && _feedOnlyKey == key) setState(() => _feedOnlyHere = null);
+    });
   }
 
   void _set(VoidCallback f) {
@@ -192,6 +237,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       _rawItems = r[2];
       _purchases = r[3];
       _flocksLoading = false;
+      _syncBatchToFlock();
       _flocksError = _flockOptions.isEmpty ? _emptyHint() : '';
     });
     _seed();
@@ -204,6 +250,18 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       return 'You have ${_flocks.length} flock(s), but none are ready for production yet. On the Flocks page, turn on “Flock Has Arrived” (and keep the flock Active).';
     }
     return 'No flocks available';
+  }
+
+  /// Picking a flock picks its batch; also for a flock that arrives already
+  /// chosen (an edited record, ?flockId=). Only when the flock's batch is one of
+  /// the listed batches, so the flock never disappears from its own list; a
+  /// flock with no batch leaves the Batch box as it is.
+  void _syncBatchToFlock() {
+    if (_flockId.isEmpty) return;
+    final batchId = tStr(_flocks.where((f) => tStr(f['flockId']) == _flockId).firstOrNull?['batchId']);
+    if (batchId.isEmpty || batchId == _batch) return;
+    if (!_batches.any((b) => b['batchId'] != null && tStr(b['batchId']) == batchId)) return;
+    _batch = batchId;
   }
 
   /// useBatchFlockSelect({ excludeClosed, keepFlockId }).
@@ -297,13 +355,19 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     String n(Object? v) => v == null ? '' : tStr(v);
     _silent = true;
     _flockId = rec['flockId'] != null ? tStr(rec['flockId']) : '';
+    _syncBatchToFlock();
     _date = date;
     const keys = ['production9AM', 'production12PM', 'production4PM', 'production4thPick', 'production5thPick', 'production6thPick'];
     for (var i = 0; i < 6; i++) {
       final v = tNum(rec[keys[i]]);
       _pickTotals[i] = v;
-      _crates[i] = v ~/ eggsPerCrate;
-      _loose[i] = v % eggsPerCrate;
+      // Whole boxes first on a box farm, then crates, then pieces.
+      final perBox = _cpb * eggsPerCrate;
+      final b = perBox > 0 ? v ~/ perBox : 0;
+      final rest = v - b * perBox;
+      _boxes[i] = b;
+      _crates[i] = rest ~/ eggsPerCrate;
+      _loose[i] = rest % eggsPerCrate;
     }
     _broken.text = '${tNum(rec['brokenEggs']).toInt()}';
     _meaty.text = n(rec['meatyEggs']);
@@ -319,6 +383,12 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     String disp(Object? v) => v == 'Disposed' ? 'Disposed' : (v == 'Keep' ? 'Keep' : '');
     _brokenDisposition = disp(rec['brokenEggDisposition']);
     _mortalityDisposition = disp(rec['mortalityDisposition']);
+    final bm = disposalModeFrom(tNum(rec['brokenEggs']).toInt(), rec['brokenEggsDisposed'], rec['brokenEggDisposition']);
+    final mm = disposalModeFrom(tNum(rec['mortality']).toInt(), rec['mortalityDisposed'], rec['mortalityDisposition']);
+    _brokenMode = bm.mode;
+    _brokenDisposed = bm.disposed;
+    _mortalityMode = mm.mode;
+    _mortalityDisposed = mm.disposed;
     _silent = false;
 
     final feeds = rowsOf(rec['feeds']);
@@ -381,11 +451,17 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
   LinesComputed get _med => computeLines(_medLines, _medItems, _purchases, _medCredit, LineKeys.med);
 
   /// Before the picks are touched on an edit, the saved totals stand.
-  num _pick(int i) => _hydrated ? pickTotal(_crates[i], _loose[i]) : _pickTotals[i];
+  num _pick(int i) => _hydrated ? pickTotal(_boxes[i] * _cpb + _crates[i], _loose[i]) : _pickTotals[i];
   num get _total => [for (var i = 0; i < 6; i++) _pick(i)].fold<num>(0, (a, b) => a + b);
   int _int(TextEditingController c) => int.tryParse(c.text) ?? 0;
   num get _losses => _int(_broken) + _int(_meaty) + _int(_soft) + _int(_lost);
   num get _birdsLeft => _int(_numBirds) - _int(_mortality);
+
+  /// 399: a broiler flock lays no eggs, so its record has no egg sections.
+  /// Shown anyway when this record already HAS eggs (a flock retyped later,
+  /// or eggs typed before switching flock): hiding them would hide data that
+  /// is still about to be saved.
+  bool get _hideEggSections => isBroilerFlock(_selectedFlock) && _total == 0 && _losses == 0;
   bool get _eggsOver => eggsExceedBirdsLeft(_total, _int(_numBirds) > 0 ? _birdsLeft : null);
   String get _eggsOverMessage =>
       '${loc(_total)} eggs against ${loc(_birdsLeft)} bird${_birdsLeft == 1 ? '' : 's'} left — more than one egg per bird. Check the crates and the bird count, or save anyway if that is right.';
@@ -480,8 +556,8 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       'production5thPick': _pick(4),
       'production6thPick': _pick(5),
       'brokenEggs': _int(_broken),
-      if (_brokenDisposition.isNotEmpty) 'brokenEggDisposition': _brokenDisposition,
-      if (_mortalityDisposition.isNotEmpty) 'mortalityDisposition': _mortalityDisposition,
+      ...disposalPayload(_brokenMode, _brokenDisposed, _brokenDisposition, _int(_broken), 'brokenEggsDisposed', 'brokenEggDisposition'),
+      ...disposalPayload(_mortalityMode, _mortalityDisposed, _mortalityDisposition, _int(_mortality), 'mortalityDisposed', 'mortalityDisposition'),
       'totalProduction': _total,
       'FlockId': int.tryParse(_flockId),
       // 406: only on a new record whose count the server opened.
@@ -504,6 +580,8 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       'totalCostOfProduction': totalCost,
       'medications': med.lines,
       'feeds': feed.lines,
+      // 389: saving a feed-only record from this form makes it production.
+      if (_edit && _loaded?['sourceType'] == 'FeedUsage') 'markRecorded': true,
     };
     try {
       int? savedId;
@@ -580,9 +658,39 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     ];
     final flockChanged = _edit && _loaded?['flockId'] != null && _flockId.isNotEmpty && _flockId != tStr(_loaded!['flockId']);
 
+    _checkFeedOnly();
+    final feedOnly = _feedOnlyHere;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (_error.isNotEmpty) ...[TrackerBanner.error(_error), const SizedBox(height: 12)],
       if (_flocksError.isNotEmpty && _error.isEmpty) ...[TrackerBanner.warn(_flocksError), const SizedBox(height: 12)],
+      if (_edit && _loaded?['sourceType'] == 'FeedUsage') ...[
+        _amberNote(const Text(
+          'Feed was recorded for this day from Feed Usage, but production has not been filled in yet. Fill in the eggs, birds and deaths, '
+          'then save. The day counts as recorded once you save.',
+          key: ValueKey('feed-only-edit-note'),
+          style: TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F)),
+        )),
+        const SizedBox(height: 12),
+      ],
+      if (feedOnly != null) ...[
+        _amberNote(Column(key: const ValueKey('feed-only-here-note'), crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            'Feed is already recorded for this flock on this day${feedOnly.feedLines.isNotEmpty ? ' (${feedOnly.feedLines})' : ''}. '
+            'It is kept, and any feed you add below is added to it. Do not enter it again.',
+            style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F)),
+          ),
+          const SizedBox(height: 4),
+          InkWell(
+            key: const ValueKey('open-feed-only-record'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ProductionRecordPage(session: widget.session, company: widget.company, recordId: feedOnly.recordId),
+            )),
+            child: const Text('Open that record instead',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, decoration: TextDecoration.underline, color: Tone.fg(0xFF78350F))),
+          ),
+        ])),
+        const SizedBox(height: 12),
+      ],
       ProdSection(
         title: 'Flock & Date',
         description: 'Which flock this record is for, and the day it covers.',
@@ -619,7 +727,10 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
               enabled: !_flocksLoading,
               items: [for (final f in _flockOptions) AppSelectItem(value: tStr(f['flockId']), label: tStr(f['name']))],
               onChanged: (v) {
-                _set(() => _flockId = v ?? '');
+                _set(() {
+                  _flockId = v ?? '';
+                  _syncBatchToFlock();
+                });
                 _seed();
               },
             ),
@@ -642,18 +753,20 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
               },
             ),
           ]),
-          Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _label('Egg grade'),
-            // Automatic since egg sorting: the day's collection is mixed sizes;
-            // sizes are recorded in Egg Sorting. An older record keeps its grade.
-            EggGradeReadout(grade: _eggGrade),
-          ]),
+          if (!_hideEggSections)
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              _label('Egg grade'),
+              // Automatic since egg sorting: the day's collection is mixed sizes;
+              // sizes are recorded in Egg Sorting. An older record keeps its grade.
+              EggGradeReadout(grade: _eggGrade),
+            ]),
         ]),
       ),
+      if (!_hideEggSections) ...[
       const SizedBox(height: 14),
       ProdSection(
         title: 'Egg Production',
-        description: 'Total = crates × $eggsPerCrate + loose eggs',
+        description: 'Total = ${_cpb > 0 ? 'boxes × $_cpb crates + ' : ''}crates × $eggsPerCrate + pieces',
         badge: '${loc(total)} eggs',
         accent: ProdAccent.amber,
         icon: Icons.egg_outlined,
@@ -665,20 +778,35 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
+                Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TColors.slate700)),
                 const SizedBox(height: 6),
-                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _setPick(i, crates: v))),
-                  const SizedBox(width: 8),
-                  Expanded(child: ProdNumField(label: 'Loose eggs', value: _loose[i], max: eggsPerCrate - 1, onChanged: (v) => _setPick(i, loose: v))),
-                  const SizedBox(width: 8),
-                  Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
-                ]),
+                // Boxes (on a box farm), Crates, Pieces, Total: two per row
+                // with boxes, as the web's grid-cols-2 on a phone.
+                if (_cpb > 0) ...[
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(child: ProdNumField(key: ValueKey('pick-$i-boxes'), label: 'Boxes', value: _boxes[i], onChanged: (v) => _setPick(i, boxes: v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _setPick(i, crates: v))),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(child: ProdNumField(label: 'Pieces', value: _loose[i], max: eggsPerCrate - 1, onChanged: (v) => _setPick(i, loose: v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
+                  ]),
+                ] else
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _setPick(i, crates: v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: ProdNumField(label: 'Pieces', value: _loose[i], max: eggsPerCrate - 1, onChanged: (v) => _setPick(i, loose: v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
+                  ]),
               ]),
             ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: const Color(0xB3FEF3C7), border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: const Tone.bg(0xB3FEF3C7), border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(6)),
             child: Wrap(spacing: 24, runSpacing: 4, children: [
               Text.rich(TextSpan(children: [
                 const TextSpan(text: 'Total picked eggs '),
@@ -687,10 +815,19 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
               Text.rich(TextSpan(children: [
                 const TextSpan(text: 'Crates equivalent '),
                 TextSpan(
-                  text: '${crates.crates} crate${crates.crates == 1 ? '' : 's'}${crates.pieces > 0 ? ' + ${crates.pieces} egg${crates.pieces == 1 ? '' : 's'}' : ''}',
+                  text: '${crates.crates} crate${crates.crates == 1 ? '' : 's'}${crates.pieces > 0 ? ' + ${crates.pieces} pcs' : ''}',
                   style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate900),
                 ),
               ]), style: const TextStyle(fontSize: 14, color: TColors.slate500)),
+              // 393: a box farm also sees boxes. Display only.
+              if (_cpb > 0)
+                Text.rich(TextSpan(children: [
+                  const TextSpan(text: 'Boxes equivalent '),
+                  TextSpan(
+                    text: formatEggQuantity(total, eggPackagingFor(widget.company.farmId), EggDisplay.boxesCratesPieces),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate900),
+                  ),
+                ]), key: const ValueKey('boxes-equivalent'), style: const TextStyle(fontSize: 14, color: TColors.slate500)),
             ]),
           ),
           if (_eggsOver) ...[
@@ -718,15 +855,26 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
           _pair(ProdTextField(label: 'Broken eggs', controller: _broken, max: _total), ProdTextField(label: 'Meaty eggs', controller: _meaty)),
           _pair(ProdTextField(label: 'Soft eggs', controller: _soft), ProdTextField(label: 'Lost eggs', controller: _lost)),
           CalcField(label: 'Net sellable', value: loc(net), tone: CalcTone.good),
-          DispositionField(
+          DisposalSplitField(
+            label: 'Broken Egg Stock allocation',
             count: _int(_broken),
-            value: _brokenDisposition.isEmpty ? 'Keep' : _brokenDisposition,
-            onChanged: (v) => _set(() => _brokenDisposition = v),
-            keepText: '${loc(_int(_broken))} broken egg${_int(_broken) == 1 ? '' : 's'} will be added to Broken Egg stock.',
-            disposedText: '${loc(_int(_broken))} broken egg${_int(_broken) == 1 ? '' : 's'} recorded and disposed of. Nothing is added to stock.',
+            mode: _brokenMode,
+            disposed: _brokenDisposed,
+            noun: ('broken egg', 'broken eggs'),
+            stockName: 'Broken Egg stock',
+            // Any choice here is a choice: lifts the '' (not loaded) marker.
+            onMode: (m) => _set(() {
+              _brokenMode = m;
+              if (_brokenDisposition.isEmpty) _brokenDisposition = 'Keep';
+            }),
+            onDisposed: (v) => _set(() {
+              _brokenDisposed = v;
+              if (_brokenDisposition.isEmpty) _brokenDisposition = 'Keep';
+            }),
           ),
         ]),
       ),
+      ],
       const SizedBox(height: 14),
       ProdSection(
         title: 'Birds & Age',
@@ -740,12 +888,21 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
         child: _gap([
           _pair(ProdTextField(label: 'Number of birds', controller: _numBirds), ProdTextField(label: 'Deaths', controller: _mortality)),
           CalcField(label: 'Birds left', value: loc(_birdsLeft), tone: _birdsLeft < 0 ? CalcTone.bad : null),
-          DispositionField(
+          DisposalSplitField(
+            label: 'Dead Bird Stock allocation',
             count: _int(_mortality),
-            value: _mortalityDisposition.isEmpty ? 'Keep' : _mortalityDisposition,
-            onChanged: (v) => _set(() => _mortalityDisposition = v),
-            keepText: '${loc(_int(_mortality))} live bird${_int(_mortality) == 1 ? '' : 's'} removed; kept as Dead Birds stock.',
-            disposedText: '${loc(_int(_mortality))} live bird${_int(_mortality) == 1 ? '' : 's'} removed; recorded and disposed of, nothing kept.',
+            mode: _mortalityMode,
+            disposed: _mortalityDisposed,
+            noun: ('dead bird', 'dead birds'),
+            stockName: 'Dead Bird stock',
+            onMode: (m) => _set(() {
+              _mortalityMode = m;
+              if (_mortalityDisposition.isEmpty) _mortalityDisposition = 'Keep';
+            }),
+            onDisposed: (v) => _set(() {
+              _mortalityDisposed = v;
+              if (_mortalityDisposition.isEmpty) _mortalityDisposition = 'Keep';
+            }),
           ),
           if (_manualAge) ...[
             _pair(ProdTextField(label: 'Age (weeks)', controller: _manualWeeks), ProdTextField(label: 'Age (days)', controller: _manualDays)),
@@ -914,8 +1071,9 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     ]);
   }
 
-  void _setPick(int i, {num? crates, num? loose}) {
+  void _setPick(int i, {num? boxes, num? crates, num? loose}) {
     _set(() {
+      if (boxes != null) _boxes[i] = boxes;
       if (crates != null) _crates[i] = crates;
       if (loose != null) _loose[i] = loose;
       _hydrated = true;
@@ -1033,12 +1191,15 @@ class _ProductionRecordModalState extends State<_ProductionRecordModal> {
           bottomNavigationBar: SafeArea(
             child: Container(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-              decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: TColors.slate200))),
+              decoration: const BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border(top: BorderSide(color: TColors.slate200))),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (!_s.loading)
                   Wrap(spacing: 14, runSpacing: 2, children: [
                     stat('Total eggs', loc(_s.totalEggs)),
                     stat('Crates', '${_s.crates} + ${_s.pieces}'),
+                    // 393: a box farm also sees boxes. Display only.
+                    if (boxSize(eggPackagingFor(widget.company.farmId)) != null)
+                      stat('Boxes', formatEggQuantity(_s.totalEggs, eggPackagingFor(widget.company.farmId), EggDisplay.boxesCratesPieces)),
                     stat('Net sellable', loc(_s.netSellable), color: TColors.emerald700),
                     stat('Deaths', loc(_s.deaths), color: _s.deaths > 0 ? TColors.rose700 : null),
                     stat('Birds left', loc(_s.birdsLeft), color: _s.birdsLeft < 0 ? TColors.rose700 : null),
@@ -1110,7 +1271,7 @@ class ProductionRecordPage extends StatelessWidget {
           ),
           if (!toEggSorting)
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
               onPressed: back,
               icon: const Icon(Icons.close, size: 16),
               label: const Text('Close'),
@@ -1122,7 +1283,7 @@ class ProductionRecordPage extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFFF59E0B))),
               onPressed: back,
               icon: const Icon(Icons.arrow_back, size: 16),
               label: const Text('Back to Egg Sorting'),
@@ -1244,16 +1405,16 @@ class _ProductionCatchUpFlowState extends State<ProductionCatchUpFlow> {
         : Container(
             margin: const EdgeInsets.only(bottom: 14),
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(10)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Already in a batch entry that has not been posted — post it instead of entering these again:',
-                  style: TextStyle(fontSize: 14, color: Color(0xFF0C4A6E))),
+                  style: TextStyle(fontSize: 14, color: Tone.fg(0xFF0C4A6E))),
               Wrap(spacing: 12, children: [
                 for (final p in _pending)
                   InkWell(
                     onTap: () => _href(_missingHref(p)),
                     child: Text('${formatWeekdayDate(p['date'])} (batch #${tStr(p['pendingBatchRecordId'])})',
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF0C4A6E), decoration: TextDecoration.underline)),
+                        style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF0C4A6E), decoration: TextDecoration.underline)),
                   ),
               ]),
             ]),
@@ -1297,7 +1458,7 @@ class _ProductionCatchUpFlowState extends State<ProductionCatchUpFlow> {
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: const Border(left: BorderSide(color: TColors.amber600, width: 4)),
           borderRadius: BorderRadius.circular(10),
         ),
@@ -1320,10 +1481,10 @@ class _ProductionCatchUpFlowState extends State<ProductionCatchUpFlow> {
               Builder(builder: (_) {
                 final st = _saved.contains(d) ? 'saved' : _skipped.contains(d) ? 'skipped' : d == current ? 'current' : 'todo';
                 final (bg, border, fg) = switch (st) {
-                  'saved' => (TColors.emerald50, TColors.emerald200, TColors.emerald800),
+                  'saved' => (Tone.bg(0xFFECFDF5), Tone.line(0xFFA7F3D0), Tone.fg(0xFF065F46)),
                   'skipped' => (TColors.slate100, TColors.slate200, TColors.slate500),
                   'current' => (TColors.amber100, TColors.amber300, TColors.amber900),
-                  _ => (Colors.white, TColors.slate200, TColors.slate600),
+                  _ => (Tone(0xFFFFFFFF), TColors.slate200, TColors.slate600),
                 };
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
@@ -1387,7 +1548,7 @@ class _ProductionCatchUpFlowState extends State<ProductionCatchUpFlow> {
             label: const Text('Skip this day'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.emerald600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600)),
             onPressed: _saving ? null : () => _forms[current]?.currentState?.submit(),
             child: Text(isLast ? 'Save & finish' : 'Save & next missing day'),
           ),

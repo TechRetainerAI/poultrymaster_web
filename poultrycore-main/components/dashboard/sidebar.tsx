@@ -145,6 +145,7 @@ interface SidebarProps {
 /** A sidebar row. `isButton`/`onClick`/`badge` are for rows that trigger an
  *  action instead of navigating — currently just Alerts. */
 type SidebarItem = {
+  id?: string
   href: string
   label: string
   icon: any
@@ -321,6 +322,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const genericMoneyItems = flat(genericNav.money)
   const genericPeopleItems = flat(genericNav.people)
   const genericSchoolItems = flat(genericNav.school)
+  const genericSetupItems = flat(genericNav.setup)
   const genericAdminItems = flat(genericNav.admin)
 
   // Hotel company nav items (shown when activeFarmType === "Hotel")
@@ -856,42 +858,54 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             <div className="space-y-1">
               {genericNav.catalog.length > 0 && renderMenu(
                 "Operations", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
-                  blurb: "Products, inventory, stock adjustments and internal use.",
-                  columns: 1,
+                  blurb: "Products, inventory, stock adjustments, deliveries and internal use.",
+                  columns: 2,
                 })}
               {genericNav.billing.length > 0 && renderMenu(
                 genericNav.billing[0]?.label ?? "Billing", Receipt, genericNav.billing, "menu:genericBilling", {
                   blurb: `${genericModules.labels.planPlural}, ${genericModules.labels.subscriptionPlural.toLowerCase()} and billing runs.`,
                   columns: 1,
                 })}
+              {/* Sales, Expenses & Money — three sidebar sections matching poultry,
+                  each opening its own flyout with the group's column header. */}
               {renderMenu(
-                genericNav.salesOrStudents[0]?.label ?? "Sales", isSub ? Users : ShoppingCart, genericNav.salesOrStudents, "menu:genericSales", {
+                "Sales", isSub ? Users : ShoppingCart, genericNav.salesOrStudents, "menu:genericSales", {
                   blurb: isSub ? `${genericModules.labels.customerPlural}, payments and balances.` : "Sales, customers and payments.",
                   columns: 1,
                 })}
               {renderMenu(
-                genericNav.expenses[0]?.label ?? "Expenses", DollarSign, genericNav.expenses, "menu:genericExpenses", {
+                isSub ? "Expenses & Vendors" : "Expenses", DollarSign, genericNav.expenses, "menu:genericExpenses", {
                   blurb: isSub ? "Vendors, expenses and recurring costs." : "Suppliers, purchases and expenses.",
                   columns: 1,
                 })}
               {renderMenu(
-                genericNav.money[0]?.label ?? "Money", Wallet, genericNav.money, "menu:genericMoney", {
-                  blurb: "Cash accounts, transfers, daily closing and owner funds.",
+                "Money", Wallet, genericNav.money, "menu:genericMoney", {
+                  blurb: "Cash accounts, transfers, reconciliation, daily closing and owner funds.",
                   columns: 1,
                 })}
               {genericNav.people.length > 0 && renderMenu(
-                genericNav.people[0]?.label ?? "People", Users2, genericNav.people, "menu:genericPeople", {
-                  blurb: "Employees, attendance, payroll and payments.",
-                  columns: 1,
+                isSchool ? "Staff & Teachers" : "Employees", Users2, genericNav.people, "menu:genericPeople", {
+                  blurb: "Staff, attendance, payroll and employee loans.",
+                  columns: 2,
                 })}
               {genericNav.school.length > 0 && renderMenu(
                 "School", GraduationCap, genericNav.school, "menu:genericSchool", {
                   blurb: "Classes, academic terms and student attendance.",
                   columns: 1,
                 })}
-              {renderMenu(
+              {genericNav.reports.length > 0 && renderMenu(
+                "Reports", BarChart3, genericNav.reports, "menu:genericReports", {
+                  blurb: "Profit & loss, cash flow, expense, sales, inventory and balance reports.",
+                  columns: 2,
+                })}
+              {genericNav.setup.length > 0 && renderMenu(
+                "Setup", Settings, genericNav.setup, "menu:genericSetup", {
+                  blurb: "Company profile, finance, delivery and your team.",
+                  columns: 2,
+                })}
+              {genericNav.admin.length > 0 && renderMenu(
                 "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
-                  blurb: "Reports, setup and settings.",
+                  blurb: "Account settings.",
                   columns: 1,
                 })}
             </div>

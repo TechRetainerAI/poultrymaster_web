@@ -39,7 +39,7 @@ export default function HotelLostFoundPage() {
   async function load() { setLoading(true); try { const [lf, rm] = await Promise.all([listLostFound(), listHotelRooms()]); setItems(lf); setRooms(rm) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
 
   async function handleSave() { if (!form.itemDescription.trim()) { toast({ title: "Item description required", variant: "destructive" }); return }; setSaving(true); try {
-      await createLostFound(form)
+      await createLostFound({ ...form, hotelRoomId: form.hotelRoomId ?? undefined })
       // Before setOpen(false): closing unmounts the field and nulls the ref.
       await categoryOther.current?.remember()
       toast({ title: "Item logged" }); setOpen(false); await load()

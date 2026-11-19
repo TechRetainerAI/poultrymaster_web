@@ -13,19 +13,16 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { Check, Loader2, Package, Plus } from "lucide-react"
+import { Check, Loader2, Package, Plus, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { useFmt } from "@/lib/currency"
 import { approvePurchase, getPurchases, type GenericPurchase } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Cancelled"] as const
-
-function fmt(n: number) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
-}
 
 function badgeClass(s: string) {
   switch (s) {
@@ -41,6 +38,7 @@ function GenericPurchasesPageInner() {
   const status = sp.get("status") || "All"
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
+  const fmt = useFmt()
   const { toast } = useToast()
   const [rows, setRows] = useState<GenericPurchase[]>([])
   const [search, setSearch] = useState("")
@@ -91,6 +89,7 @@ function GenericPurchasesPageInner() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Package className="h-6 w-6 text-orange-600" /> Purchases
               </h1>

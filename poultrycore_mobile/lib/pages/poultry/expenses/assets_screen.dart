@@ -18,13 +18,31 @@ import '../trackers/tracker_widgets.dart';
 import 'asset_detail_screen.dart';
 import 'asset_logic.dart';
 import 'asset_widgets.dart';
+import 'hotel_asset_view.dart';
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Expenses → Capital Investments/Assets, as `app/poultry-assets/page.tsx`:
 /// the register of long-term investments, their cost, depreciation and book value.
 /// On AssetRail.water it is Water's Assets (`app/water-assets/page.tsx`): the
 /// table on every width, a supplier picker and a payment method in New asset,
-/// and the supplier picker in Add cost.
+/// and the supplier picker in Add cost. On AssetRail.hotel it is the Hotel's
+/// (`app/hotel-assets/page.tsx`): the Restaurant register in violet, its calls
+/// going through HotelAssetApi.
+
+/// The Hotel's violet on the primary buttons, as the web's bg-violet-600.
+Widget assetThemed(BuildContext context, AssetRail r, Widget child) {
+  final accent = r.accent;
+  if (accent == null) return child;
+  final t = Theme.of(context);
+  return Theme(
+    data: t.copyWith(
+      colorScheme: t.colorScheme.copyWith(primary: accent),
+      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: Tone.button(accent), foregroundColor: Colors.white)),
+    ),
+    child: child,
+  );
+}
 
 String _today() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 
@@ -38,8 +56,10 @@ class AssetApi {
   ApiClient get _api => session.farmClient;
   String get _q => 'farmId=${Uri.encodeQueryComponent(company.farmId)}';
   Map<String, Object?> get _who => {'farmId': company.farmId, 'createdBy': session.tokens.userId};
+  late final HotelAssetApi? hotel = rail.isHotel ? HotelAssetApi(session, company) : null;
 
   Future<Map?> get(int id) async {
+    if (hotel != null) return hotel!.get(id);
     final r = await _api.get('${_r.api}/assets/$id', query: {'farmId': company.farmId});
     return r is Map ? r : null;
   }
@@ -47,10 +67,13 @@ class AssetApi {
   Future<void> correctOriginalCost(int id, num newAmount, String? date, String reason) =>
       _api.put('${_r.api}/assets/$id/original-cost?$_q', body: {'newAmount': newAmount, 'effectiveDate': date, 'reason': reason, ..._who});
 
-  Future<void> reverseCost(int assetId, int costId, String reason) =>
-      _api.delete('${_r.api}/assets/$assetId/costs/$costId?$_q', body: {'farmId': company.farmId, 'reason': reason, 'createdBy': session.tokens.userId});
+  Future<void> reverseCost(int assetId, int costId, String reason) => hotel != null
+      ? hotel!.reverseCost(assetId, costId, reason)
+      : _api.delete('${_r.api}/assets/$assetId/costs/$costId?$_q', body: {'farmId': company.farmId, 'reason': reason, 'createdBy': session.tokens.userId});
 
-  Future<void> reverseDepreciation(int entryId, String reason) => _api.post('${_r.api}/asset-depreciation/$entryId/reverse',
+  Future<void> reverseDepreciation(int entryId, String reason) => hotel != null
+      ? hotel!.reverseDepreciation(entryId, reason)
+      : _api.post('${_r.api}/asset-depreciation/$entryId/reverse',
       query: {'farmId': company.farmId}, body: {'farmId': company.farmId, 'reason': reason, 'createdBy': session.tokens.userId});
 }
 
@@ -113,6 +136,24 @@ class _AssetsScreenState extends State<AssetsScreen> {
       }
     }
 
+    final hotel = _assetsApi.hotel;
+    if (hotel != null) {
+      try {
+        final r = await Future.wait([hotel.assets(), hotel.categories(), hotel.summary(), hotel.cashAccounts()]);
+        if (!mounted) return;
+        setState(() {
+          _assets = r[0] as List<Map>;
+          _categories = r[1] as List<Map>;
+          _summary = r[2] as Map;
+          _due = const [];
+          _cash = r[3] as List<Map>;
+        });
+      } on ApiException catch (e) {
+        if (mounted) trackerToast(context, _r.t('Could not load capital investments'), description: e.message, error: true);
+      }
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
       final r = await Future.wait([
         _api.get('${_r.api}/assets', query: q),
@@ -164,7 +205,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
   int _id(Map a) => tIntOrNull(a[_r.assetIdKey]) ?? 0;
 
   Future<void> _dialog(Widget d) async {
-    final done = await showDialog<bool>(context: context, builder: (_) => d);
+    final done = await showDialog<bool>(context: context, builder: (c) => assetThemed(c, _r, d));
     if (done == true) await _load();
   }
 
@@ -176,7 +217,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
         categories: _categories,
         fmt: _gh,
         offset: _offset,
-        onCorrectOriginalCost: () => _correct(a),
+        onCorrectOriginalCost: _r.canCorrectOriginalCost ? () => _correct(a) : null,
       ));
 
   Future<void> _addCost(Map a) => _dialog(AddAssetCostDialog(session: widget.session, company: widget.company, rail: _r, asset: a, cashAccounts: _cash, suppliers: _suppliers, fmt: _gh));
@@ -266,8 +307,10 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Future<void> _runDepreciation() async {
     setState(() => _saving = true);
     try {
-      final res = await _api.post('${_r.api}/asset-depreciation/generate',
-          query: {'farmId': _farmId}, body: {'farmId': _farmId, 'createdBy': widget.session.tokens.userId});
+      final res = _assetsApi.hotel != null
+          ? await _assetsApi.hotel!.generateDepreciation()
+          : await _api.post('${_r.api}/asset-depreciation/generate',
+              query: {'farmId': _farmId}, body: {'farmId': _farmId, 'createdBy': widget.session.tokens.userId});
       final created = tIntOrNull(res is Map ? res['entriesCreated'] : null) ?? 0;
       if (mounted) {
         trackerToast(context, created > 0 ? 'Depreciation posted' : 'Nothing was due',
@@ -289,6 +332,34 @@ class _AssetsScreenState extends State<AssetsScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, set) {
+        // Hotel has no "what is due" query: posting charges every month due, up to today.
+        if (!_r.hasDepreciationDue) {
+          return assetThemed(
+            ctx,
+            _r,
+            AlertDialog(
+              scrollable: true,
+              title: const Text('Depreciation'),
+              content: const SizedBox(
+                width: 560,
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Text(depreciationNoncashNote, style: TextStyle(fontSize: 13, color: TColors.slate500)),
+                  SizedBox(height: 12),
+                  Text(
+                    'Charges every month of depreciation that is due, up to today, for each capital investment in service. Months already posted are skipped.',
+                    style: TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)),
+                  ),
+                  SizedBox(height: 10),
+                  Text(depreciationConventionNote, style: TextStyle(fontSize: 11, color: TColors.slate500)),
+                ]),
+              ),
+              actions: [
+                OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                FilledButton(onPressed: _saving ? null : _runDepreciation, child: const Text('Post depreciation')),
+              ],
+            ),
+          );
+        }
         return AlertDialog(
           scrollable: true,
           title: const Text('Depreciation'),
@@ -298,7 +369,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
               const Text(depreciationNoncashNote, style: TextStyle(fontSize: 13, color: TColors.slate500)),
               const SizedBox(height: 12),
               if (_due.isEmpty)
-                Text(_r.t('Every capital investment is up to date. Nothing is due.'), style: TextStyle(fontSize: 13, color: TColors.slate600))
+                Text(_r.t('Every capital investment is up to date. Nothing is due.'), style: TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)))
               else ...[
                 TrackerTable(
                   columns: [TCol(_r.t('Investment'), width: 150), TCol('From', width: 110), TCol('Months', right: true, width: 80), TCol('Amount', right: true, width: 120)],
@@ -315,13 +386,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
                   child: Row(children: [
                     Expanded(
                       child: Text('${dueMonths.toInt()} month(s) across ${_due.length} asset(s) will be charged to Profit & Loss.',
-                          style: const TextStyle(fontSize: 13, color: TColors.amber900)),
+                          style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F))),
                     ),
-                    Text(_gh(dueTotal), style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.amber900)),
+                    Text(_gh(dueTotal), style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFF78350F))),
                   ]),
                 ),
                 const SizedBox(height: 6),
@@ -343,15 +414,15 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Widget _statCard(String label, String value, {String? hint, Color? tone, bool strong = false}) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: Border.all(
               color: strong
-                  ? TColors.slate300
-                  : tone == TColors.amber800
-                      ? const Color(0xFFFDE68A)
-                      : tone == TColors.emerald800
-                          ? const Color(0xFFA7F3D0)
-                          : TColors.slate200,
+                  ? Tone.line(0xFFCBD5E1)
+                  : identical(tone, TColors.amber800)
+                      ? const Tone.line(0xFFFDE68A)
+                      : identical(tone, TColors.emerald800)
+                          ? const Tone.line(0xFFA7F3D0)
+                          : Tone.line(0xFFE2E8F0),
               width: strong ? 1.5 : 1),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -384,19 +455,19 @@ class _AssetsScreenState extends State<AssetsScreen> {
           child: OutlinedButton.icon(
               onPressed: locked ? null : () => _addCost(a), icon: const Icon(Icons.payments_outlined, size: 16), label: const Text('Add cost')),
         ),
-      if (!disposed && tNum(a['acquisitionCost']) > 0)
+      if (_r.canCorrectOriginalCost && !disposed && tNum(a['acquisitionCost']) > 0)
         OutlinedButton.icon(onPressed: () => _correct(a), icon: const Icon(Icons.tune, size: 16), label: const Text('Correct cost')),
       if (!disposed)
         OutlinedButton.icon(
           onPressed: () => _dialog(DisposeAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a, cashAccounts: _cash, fmt: _gh)),
-          style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700),
+          style: OutlinedButton.styleFrom(foregroundColor: Tone.fg(0xFFB45309)),
           icon: const Icon(Icons.remove_circle_outline, size: 16),
           label: const Text('Dispose'),
         ),
       if (!locked && !disposed)
         OutlinedButton.icon(
           onPressed: () => _dialog(ReverseAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a)),
-          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600),
+          style: OutlinedButton.styleFrom(foregroundColor: Tone.fg(0xFFDC2626)),
           icon: const Icon(Icons.undo, size: 16),
           label: const Text('Reverse'),
         ),
@@ -406,7 +477,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Widget _panel(Map a) {
     final id = _id(a);
     return Container(
-      decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
       child: AssetDetailsPanel(
         rail: _r,
         view: _details[id],
@@ -417,8 +488,8 @@ class _AssetsScreenState extends State<AssetsScreen> {
         onRetry: () => _loadDetail(id),
         onEdit: () => _edit(a),
         onAddCost: () => _addCost(a),
-        onCorrectOriginalCost: () => _correct(a),
-        onOpenFullPage: () => _openPage(a),
+        onCorrectOriginalCost: _r.canCorrectOriginalCost ? () => _correct(a) : null,
+        onOpenFullPage: _r.hasFullPage ? () => _openPage(a) : null,
         onOpenExpenses: _openExpenses,
         onViewCost: (row) => _viewCost(a, row),
         onReverseCost: (row) => _reverseCost(id, row),
@@ -460,11 +531,11 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 IconButton(
                   tooltip: _expanded.contains(id) ? 'Hide the history' : 'Show where these figures came from',
                   onPressed: () => _toggle(id),
-                  icon: Icon(_expanded.contains(id) ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right, size: 18, color: TColors.slate400),
+                  icon: Icon(_expanded.contains(id) ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right, size: 18, color: Tone.fg(0xFF7F8EA3)),
                 ),
                 Text(tStr(a['assetNumber']), style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
                 InkWell(
-                  onTap: () => _openPage(a),
+                  onTap: _r.hasFullPage ? () => _openPage(a) : null,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     Text(tStr(a['assetName']), style: const TextStyle(fontWeight: FontWeight.w500)),
                     if (tStr(a['location']).isNotEmpty) Text(tStr(a['location']), style: const TextStyle(fontSize: 11, color: TColors.slate500)),
@@ -484,13 +555,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(tNum(a['accumulatedDepreciation']) > 0 ? _gh(tNum(a['accumulatedDepreciation'])) : '—',
-                      style: const TextStyle(color: TColors.amber700)),
+                      style: const TextStyle(color: Tone.fg(0xFFB45309))),
                 ),
                 Align(alignment: Alignment.centerRight, child: Text(_gh(tNum(a['currentBookValue'])), style: const TextStyle(fontWeight: FontWeight.w500))),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                   tNum(a['usefulLifeMonths']) > 0
                       ? Text('${tStr(a['usefulLifeMonths'])} months')
-                      : const Text('Not set', style: TextStyle(color: TColors.slate400)),
+                      : const Text('Not set', style: TextStyle(color: Tone.fg(0xFF7F8EA3))),
                   if (tNum(a['monthlyDepreciation']) > 0)
                     Text('${_gh(tNum(a['monthlyDepreciation']))}/month', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
                 ]),
@@ -505,20 +576,20 @@ class _AssetsScreenState extends State<AssetsScreen> {
                             onPressed: locked ? null : () => _addCost(a),
                             icon: const Icon(Icons.payments_outlined, size: 18),
                           ),
-                        if (!disposed && tNum(a['acquisitionCost']) > 0)
+                        if (_r.canCorrectOriginalCost && !disposed && tNum(a['acquisitionCost']) > 0)
                           IconButton(tooltip: 'Correct the original acquisition cost', onPressed: () => _correct(a), icon: const Icon(Icons.tune, size: 18)),
                         if (!disposed)
                           IconButton(
                             tooltip: 'Dispose',
                             onPressed: () =>
                                 _dialog(DisposeAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a, cashAccounts: _cash, fmt: _gh)),
-                            icon: const Icon(Icons.remove_circle_outline, size: 18, color: TColors.amber600),
+                            icon: const Icon(Icons.remove_circle_outline, size: 18, color: Tone.fg(0xFFD97706)),
                           ),
                         if (!locked && !disposed)
                           IconButton(
                             tooltip: 'Reverse this acquisition',
                             onPressed: () => _dialog(ReverseAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a)),
-                            icon: const Icon(Icons.undo, size: 18, color: Color(0xFFEF4444)),
+                            icon: const Icon(Icons.undo, size: 18, color: Tone.fg(0xFFEF4444)),
                           ),
                       ]),
               ];
@@ -556,14 +627,14 @@ class _AssetsScreenState extends State<AssetsScreen> {
     final dueMonths = _due.fold<num>(0, (s, d) => s + tNum(d['monthsDue']));
     final s = _summary;
 
-    return Scaffold(
+    return assetThemed(context, _r, Scaffold(
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(_r.title)),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            Text(_r.title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: TColors.slate900)),
+            Text(_r.title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
             Text(_r.t('Track major long-term business investments, their cost, depreciation, and current book value.'),
                 style: TextStyle(fontSize: 12, color: TColors.slate500)),
             const SizedBox(height: 10),
@@ -573,7 +644,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 icon: const Icon(Icons.event_repeat, size: 16),
                 label: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Text('Depreciation'),
-                  if (dueMonths > 0) ...[const SizedBox(width: 8), TBadge('${dueMonths.toInt()} due', bg: TColors.amber100, fg: TColors.amber800)],
+                  if (dueMonths > 0) ...[const SizedBox(width: 8), TBadge('${dueMonths.toInt()} due', bg: Tone.bg(0xFFFEF3C7), fg: Tone.fg(0xFF92400E))],
                 ]),
               ),
               FilledButton.icon(
@@ -629,7 +700,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
             else if (sorted.isEmpty)
               Container(
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
                 child: Text(
                   _r.isWater ? 'No assets recorded. A borehole, a sachet machine or a delivery truck belongs here rather than on the Expenses page.' : _r.emptyText,
                   textAlign: TextAlign.center,
@@ -639,7 +710,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
             else if (_r.isWater)
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   _table(pageRows, sorted.length),
                   const SizedBox(height: 8),
@@ -684,7 +755,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -708,7 +779,7 @@ Widget _readOnly(String value, {bool bold = false}) => Container(
       height: 44,
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
       child: Text(value, style: TextStyle(color: TColors.slate500, fontWeight: bold ? FontWeight.w600 : null)),
     );
 
@@ -726,7 +797,6 @@ AppSelect<String> _accountSelect(AssetRail r, List<Map> accounts, String value, 
       onChanged: (v) => on(v ?? ''),
     );
 
-const _blue = Color(0xFF2563EB);
 
 /// Water's SupplierField: the picker shared by the two forms that open a payable.
 Widget _supplierField(List<Map> suppliers, String value, ValueChanged<String> on) => _hinted(
@@ -790,7 +860,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
     final life = num.tryParse(_life.text) ?? 0;
     String? opt(TextEditingController c) => c.text.isEmpty ? null : c.text;
     try {
-      await widget.session.farmClient.post('${_r.api}/assets', query: {'farmId': widget.company.farmId}, body: {
+      final body = <String, Object?>{
         'assetName': _name.text,
         'assetCategoryId': _category.isEmpty ? null : int.parse(_category),
         'description': opt(_desc),
@@ -810,7 +880,12 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
         'notes': null,
         'farmId': widget.company.farmId,
         'createdBy': widget.session.tokens.userId,
-      });
+      };
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company).create(body);
+      } else {
+        await widget.session.farmClient.post('${_r.api}/assets', query: {'farmId': widget.company.farmId}, body: body);
+      }
       if (!mounted) return;
       trackerToast(context, _r.t('Investment recorded'), description: "It is in the register and excluded from this period's operating expenses.");
       Navigator.pop(context, true);
@@ -839,7 +914,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('What it is', _blue, [
+            formSection('What it is', Tone.bg(0xFF2563EB), [
               FilterLabel(_r.t('Investment name'), AppInput(controller: _name, hintText: _r.namePlaceholder)),
               FilterLabel(
                 'Category',
@@ -859,7 +934,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
               FilterLabel('Description', AppInput(controller: _desc, minLines: 2, maxLines: 4)),
             ]),
             const SizedBox(height: 12),
-            formSection('What it cost', _blue, [
+            formSection('What it cost', Tone.bg(0xFF2563EB), [
               FilterLabel('Acquisition date', _dateField(_acquired, (v) => setState(() => _acquired = v), clearable: true)),
               _hinted('Cost', _num(_amount, () => setState(() {})), _r.t('Leave blank for an investment you will build up cost by cost.')),
               if (_r.isWater) ...[
@@ -880,7 +955,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
               FilterLabel('Balance due date', _dateField(_due, (v) => setState(() => _due = v), clearable: true)),
             ]),
             const SizedBox(height: 12),
-            formSection('How it depreciates', _blue, [
+            formSection('How it depreciates', Tone.bg(0xFF2563EB), [
               _hinted('In-service date', _dateField(_inService, (v) => setState(() => _inService = v), clearable: true),
                   'Depreciation starts in this month. Leave blank if it is not in use yet.'),
               _hinted('Useful life (months)', _num(_life, () => setState(() {})),
@@ -893,9 +968,9 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
                 child: DefaultTextStyle(
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E)),
+                  style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('What this will record', style: TextStyle(fontWeight: FontWeight.w600)),
                     Text.rich(TextSpan(children: [
@@ -922,10 +997,10 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
                       ])),
                     if (_inService.isEmpty)
                       const Text('No in-service date — it will be saved as not in service and will not depreciate yet.',
-                          style: TextStyle(color: TColors.amber800)),
+                          style: TextStyle(color: Tone.fg(0xFF92400E))),
                     if (_r.isWater && p.owing > 0 && _supplierId.isEmpty)
                       const Text('A balance is outstanding but no supplier is chosen, so it would not appear on Supplier Balances.',
-                          style: TextStyle(color: TColors.amber800)),
+                          style: TextStyle(color: Tone.fg(0xFF92400E))),
                   ]),
                 ),
               ),
@@ -961,7 +1036,7 @@ class AssetEditDialog extends StatefulWidget {
   final List<Map> categories;
   final FarmMoney fmt;
   final Duration offset;
-  final VoidCallback onCorrectOriginalCost;
+  final VoidCallback? onCorrectOriginalCost;
 
   @override
   State<AssetEditDialog> createState() => _AssetEditDialogState();
@@ -996,9 +1071,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
     setState(() => _saving = true);
     String? opt(TextEditingController c) => c.text.isEmpty ? null : c.text;
     try {
-      await widget.session.farmClient.put(
-        '${_r.api}/assets/${tStr(a[_r.assetIdKey])}?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}',
-        body: {
+      final body = <String, Object?>{
           'assetName': _name.text,
           'assetCategoryId': _category.isEmpty ? null : int.tryParse(_category),
           'description': opt(_desc),
@@ -1011,8 +1084,15 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
           'setFinancials': fin,
           'farmId': widget.company.farmId,
           'updatedBy': widget.session.tokens.userId,
-        },
-      );
+      };
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company).update(tIntOrNull(a[_r.assetIdKey]) ?? 0, body);
+      } else {
+        await widget.session.farmClient.put(
+          '${_r.api}/assets/${tStr(a[_r.assetIdKey])}?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}',
+          body: body,
+        );
+      }
       if (!mounted) return;
       trackerToast(context, _r.t('Investment updated'));
       Navigator.pop(context, true);
@@ -1035,7 +1115,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
         content: SizedBox(
           width: 580,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            formSection('Details', _blue, [
+            formSection('Details', Tone.bg(0xFF2563EB), [
               FilterLabel(_r.t('Investment name'), AppInput(controller: _name)),
               FilterLabel(
                 'Category',
@@ -1054,22 +1134,23 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
               FilterLabel('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4)),
             ]),
             const SizedBox(height: 12),
-            formSection('Depreciation', _blue, [
+            formSection('Depreciation', Tone.bg(0xFF2563EB), [
               FilterLabel('In-service date', _dateField(_inService, (v) => setState(() => _inService = v), enabled: !_locked, clearable: true)),
               FilterLabel('Useful life (months)', _num(_life, () => setState(() {}), enabled: !_locked)),
               FilterLabel('Residual value', _num(_residual, () => setState(() {}), enabled: !_locked)),
               FilterLabel('Method', _readOnly('Straight line')),
             ]),
             const SizedBox(height: 12),
-            formSection('Cost summary', _blue, [
+            formSection('Cost summary', Tone.bg(0xFF2563EB), [
               _hinted(acquisitionCostLabel, _readOnly(fmt(tNum(a['acquisitionCost']))), _r.t(acquisitionCostTooltip)),
               _hinted(additionalCostLabel, _readOnly(fmt(tNum(a['additionalCost']))), _r.t(additionalCostTooltip)),
               _hinted(totalCapitalizedCostLabel, _readOnly(fmt(tNum(a['totalCapitalizedCost'])), bold: true), _r.t(totalCapitalizedCostTooltip)),
             ]),
+            if (_r.canCorrectOriginalCost) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text.rich(
                   TextSpan(children: [
@@ -1077,7 +1158,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
                     TextSpan(text: 'Add cost', style: TextStyle(fontWeight: FontWeight.w700)),
                     TextSpan(text: '. Typed the wrong amount in the first place? Correct it — the correction is kept on the record with its reason.'),
                   ]),
-                  style: TextStyle(fontSize: 11, color: TColors.slate600),
+                  style: TextStyle(fontSize: 11, color: Tone.fg(0xFF475569)),
                 ),
                 const SizedBox(height: 6),
                 Tooltip(
@@ -1087,7 +1168,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
                         ? null
                         : () {
                             Navigator.pop(context, false);
-                            widget.onCorrectOriginalCost();
+                            widget.onCorrectOriginalCost?.call();
                           },
                     icon: const Icon(Icons.tune, size: 15),
                     label: const Text('Correct original cost'),
@@ -1095,6 +1176,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
                 ),
               ]),
             ),
+            ],
             if (_locked) ...[
               const SizedBox(height: 10),
               amberNote(
@@ -1149,9 +1231,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
     setState(() => _saving = true);
     String? opt(TextEditingController c) => c.text.isEmpty ? null : c.text;
     try {
-      await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/costs',
-          query: {'farmId': widget.company.farmId},
-          body: {
+      final body = <String, Object?>{
             'costDate': _date.isEmpty ? null : _date,
             'description': opt(_desc),
             'costCategory': opt(_type),
@@ -1163,7 +1243,13 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
             'cashAccountId': _account.isEmpty ? null : int.parse(_account),
             'farmId': widget.company.farmId,
             'createdBy': widget.session.tokens.userId,
-          });
+      };
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company).addCost(tIntOrNull(widget.asset[_r.assetIdKey]) ?? 0, body);
+      } else {
+        await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/costs',
+            query: {'farmId': widget.company.farmId}, body: body);
+      }
       if (!mounted) return;
       trackerToast(context, 'Cost added', description: _r.t("The investment's value has increased. Nothing was charged to profit."));
       Navigator.pop(context, true);
@@ -1195,7 +1281,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('How to treat it', _blue, [
+            formSection('How to treat it', Tone.bg(0xFF2563EB), [
               _hinted(
                 'Cost treatment',
                 AppSelect<String>(
@@ -1213,14 +1299,14 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
             if (expense)
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Text('An operating expense is recorded on the Expenses page',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TColors.amber900)),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Tone.fg(0xFF78350F))),
                   const SizedBox(height: 4),
                   Text(
                     _r.t("It will be charged in full against this period's profit and will NOT change what this investment is worth. Record it there and it behaves exactly like any other bill."),
-                    style: TextStyle(fontSize: 12, color: TColors.amber900),
+                    style: TextStyle(fontSize: 12, color: Tone.fg(0xFF78350F)),
                   ),
                   const SizedBox(height: 8),
                   Wrap(alignment: WrapAlignment.end, spacing: 8, children: [
@@ -1236,7 +1322,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
                 ]),
               )
             else ...[
-              formSection('Cost', _blue, [
+              formSection('Cost', Tone.bg(0xFF2563EB), [
                 FilterLabel('Date', _dateField(_date, (v) => setState(() => _date = v), clearable: true)),
                 FilterLabel('Amount', _num(_amount, () => setState(() {}))),
                 FilterLabel('What it was for', AppInput(controller: _desc, hintText: _r.costPlaceholder)),
@@ -1307,6 +1393,10 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company)
+            .dispose(tIntOrNull(widget.asset[_r.assetIdKey]) ?? 0, _date.isEmpty ? null : _date, _notes.text.isEmpty ? null : _notes.text);
+      } else {
       await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/dispose',
           query: {'farmId': widget.company.farmId},
           body: {
@@ -1317,6 +1407,7 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
             'farmId': widget.company.farmId,
             'createdBy': widget.session.tokens.userId,
           });
+      }
       if (!mounted) return;
       trackerToast(context, _r.t('Investment disposed'));
       Navigator.pop(context, true);
@@ -1341,7 +1432,7 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
                 style: const TextStyle(fontSize: 13, color: TColors.slate500),
               ),
               const SizedBox(height: 12),
-              formSection('Disposal', _blue, [
+              formSection('Disposal', Tone.bg(0xFF2563EB), [
                 FilterLabel('Date', _dateField(_date, (v) => setState(() => _date = v), clearable: true)),
                 _hinted('Proceeds', _num(_proceeds, () => setState(() {})), 'Leave blank if nothing was received.'),
                 FilterLabel('Received into', _accountSelect(_r, widget.cashAccounts, _account, (v) => setState(() => _account = v))),
@@ -1389,9 +1480,13 @@ class _ReverseAssetDialogState extends State<ReverseAssetDialog> {
     if (_reason.text.trim().isEmpty) return trackerToast(context, 'A reason is required', error: true);
     setState(() => _saving = true);
     try {
-      await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/reverse',
-          query: {'farmId': widget.company.farmId},
-          body: {'farmId': widget.company.farmId, 'reason': _reason.text.trim(), 'createdBy': widget.session.tokens.userId});
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company).reverse(tIntOrNull(widget.asset[_r.assetIdKey]) ?? 0, _reason.text.trim());
+      } else {
+        await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/reverse',
+            query: {'farmId': widget.company.farmId},
+            body: {'farmId': widget.company.farmId, 'reason': _reason.text.trim(), 'createdBy': widget.session.tokens.userId});
+      }
       if (!mounted) return;
       trackerToast(context, 'Acquisition reversed', description: 'Any cash paid has been returned. The record is kept with its reason.');
       Navigator.pop(context, true);
@@ -1423,7 +1518,7 @@ class _ReverseAssetDialogState extends State<ReverseAssetDialog> {
             OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
             FilledButton(
               onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFDC2626)), foregroundColor: Colors.white),
               child: Text(_saving ? 'Saving…' : 'Reverse'),
             ),
           ],

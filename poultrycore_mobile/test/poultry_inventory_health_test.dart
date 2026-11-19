@@ -100,7 +100,7 @@ void main() {
   test('stock status, crates, links, moves, filters, health rules, routes', () {
     expect(productStockStatus(birds).label, 'Out of stock');
     expect(rawStockStatus(maize).tone, 'low');
-    expect(crateEquivalent(95), '3 crates + 5');
+    expect(crateEquivalent(95), '≈ 3 crates + 5 pcs', reason: 'the web wording since 393');
     expect(productLink(eggs).label, 'Egg Tracker');
     expect(rawLink(maize).href, '/feed-inventory-tracker?itemId=5');
     final f = InventoryFilters()..status = 'out';
@@ -130,12 +130,12 @@ void main() {
     await open(tester, InventoryScreen(session: await sessionFor(a), company: company), size: phone);
     expect(find.text('Poultry inventory'), findsWidgets);
     expect(find.text('95'), findsWidgets, reason: 'total finished stock');
-    await see(tester, find.text('95 (3 crates + 5)'));
+    await see(tester, find.text('95 (≈ 3 crates + 5 pcs)'));
     expect(find.text('Egg Tracker'), findsOneWidget);
 
     await choose(tester, 'All statuses', 'Out of stock');
     await see(tester, find.text('Birds'));
-    expect(find.text('95 (3 crates + 5)'), findsNothing);
+    expect(find.text('95 (≈ 3 crates + 5 pcs)'), findsNothing);
     await choose(tester, 'Out of stock', 'All statuses');
     await choose(tester, 'All categories', 'FeedIngredient');
     expect(find.text('No products match your filters.'), findsOneWidget);
@@ -201,8 +201,8 @@ void main() {
     final addStock = poultryRecordExtras['poultry-products']!.firstWhere((x) => x.label == 'Add stock');
     expect(addStock.when!(Map<String, dynamic>.from(birds)), isFalse);
     expect(addStock.when!(Map<String, dynamic>.from(eggs)), isTrue);
-    expect(moveTone('Bird Adjustment').$2, const Color(0xFF6D28D9));
-    expect(moveTone('Something new').$1, isNot(const Color(0xFFF3F4F6)), reason: 'dark on grey, readable');
+    expect(moveTone('Bird Adjustment').$2.toARGB32(), 0xFF6D28D9);
+    expect(moveTone('Something new').$1.toARGB32(), isNot(0xFFF3F4F6), reason: 'dark on grey, readable');
   });
 
   testWidgets('stock movements: Birds need the batch and the flock; the count before and after', (tester) async {
@@ -232,7 +232,7 @@ void main() {
     expect(find.textContaining('Choose the batch'), findsWidgets);
     clearToasts(tester);
     await choose(tester, 'Choose the batch', 'B-001 — Layers', within: _dialog);
-    await choose(tester, 'Choose the flock', 'Pen 1 · 480 birds', within: _dialog);
+    await choose(tester, 'Choose the flock', 'Pen 1 — 480 birds available', within: _dialog);
     expect(find.text('480 → 475', findRichText: true), findsWidgets, reason: 'the flock and the farm');
     expect(find.text('2 → 7', findRichText: true), findsOneWidget, reason: 'kept as Dead Birds');
     await choose(tester, 'Keep in Dead Bird inventory', 'Already disposed', within: _dialog);
@@ -242,6 +242,7 @@ void main() {
     final b = lastBody(a, '/api/Poultry/stock/manual-movements');
     expect((b['poultryProductId'], b['batchId'], b['flockId'], b['movementType'], b['quantity'], b['reason'], b['disposition'], b['unitCost']),
         (2, 1, 7, 'Damage/Loss', 5, 'Historical Mortality', 'Disposed', null));
+    expect(b['scope'], 'Flock', reason: 'A5 (413): the pool is explicit');
     expect(a.writes.where((w) => w.url.path == '/api/Poultry/stock/birds/adjustments'), isEmpty);
   });
 
@@ -262,9 +263,9 @@ void main() {
     await tester.tap(find.descendant(of: _dialog, matching: find.text('Choose the flock')));
     await tester.pumpAndSettle();
     final closed = tester.widget<DropdownMenuItem<String>>(
-        find.ancestor(of: find.text('Old pen · closed').last, matching: find.byType(DropdownMenuItem<String>)));
+        find.ancestor(of: find.text('Old pen — closed').last, matching: find.byType(DropdownMenuItem<String>)));
     expect(closed.enabled, isFalse);
-    await tester.tap(find.text('Not placed in a flock · 20 birds').last);
+    await tester.tap(find.text('Not placed in a flock — 20 live birds').last);
     await tester.pumpAndSettle();
     await choose(tester, 'Increase', 'Decrease', within: _dialog);
     await choose(tester, 'Choose the reason', 'Cull', within: _dialog);

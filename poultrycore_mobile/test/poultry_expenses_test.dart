@@ -133,12 +133,20 @@ void main() {
     await tester.pumpAndSettle();
 
     await tapIn(tester, inDialog(find.text('Create Expense')));
-    expect(inDialog(find.text('Choose a flock')), findsNWidgets(2), reason: 'the error banner and the placeholder');
-    expect(find.textContaining('Select which flock this expense belongs to'), findsOneWidget);
+    // A5: the flock is optional now (none = farm-wide), so the first check is the category.
+    expect(inDialog(find.text('Flock (optional)')), findsOneWidget);
+    expect(inDialog(find.text('No flock (farm-wide)')), findsOneWidget);
+    expect(inDialog(find.text('Choose a category')), findsOneWidget);
     clearToasts(tester);
 
-    await choose(tester, 'Choose a flock', 'All flocks (farm-wide)');
+    // Feed is bought on Record Purchase: the notice shows and Create is off.
     await choose(tester, 'Select category', 'Feed');
+    expect(inDialog(find.text("You can't buy feed here.")), findsOneWidget);
+    expect(inDialog(find.text('Go to Record Purchase')), findsOneWidget);
+    final create = find.ancestor(of: inDialog(find.text('Create Expense')), matching: find.byWidgetPredicate((w) => w is ButtonStyleButton)).first;
+    expect(tester.widget<ButtonStyleButton>(create).onPressed, isNull);
+    await choose(tester, 'Feed', 'Veterinary');
+    expect(inDialog(find.text("You can't buy feed here.")), findsNothing);
     await choose(tester, 'What was this expense for?', 'Other (type your own)');
     await tester.enterText(inDialog(find.byType(TextField)).last, 'Diesel');
     await tester.enterText(inDialog(find.byType(TextField)).first, '50');
@@ -154,7 +162,7 @@ void main() {
     expect((w.method, w.url.path), ('POST', '/api/Expense'));
     final b = jsonDecode(w.body) as Map;
     expect((b['flockId'], b['category'], b['description'], b['amount'], b['amountPaid'], b['poultryCashAccountId'], b['supplierId']),
-        (null, 'Feed', 'Diesel', 50, 0, null, null));
+        (null, 'Veterinary', 'Diesel', 50, 0, null, null));
     expect((b['expenseDate'] as String).endsWith('T00:00:00Z'), isTrue);
     expect(find.textContaining('Expense created successfully.'), findsOneWidget);
   });
@@ -199,8 +207,7 @@ void main() {
     expect(inDialog(find.text('Replace image')), findsOneWidget);
     expect(inDialog(find.text('Clear new image')), findsOneWidget);
 
-    await choose(tester, 'Choose a flock', 'All flocks (farm-wide)');
-    await choose(tester, 'Select category', 'Feed');
+    await choose(tester, 'Select category', 'Veterinary');
     await choose(tester, 'What was this expense for?', 'Other (type your own)');
     await tester.enterText(inDialog(find.byType(TextField)).last, 'Diesel');
     await tester.enterText(inDialog(find.byType(TextField)).first, '50');

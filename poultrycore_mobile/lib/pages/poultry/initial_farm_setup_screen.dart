@@ -17,7 +17,12 @@ import '../web_nav.dart';
 import 'breed_picker.dart';
 import 'farm_setup_dialogs.dart';
 import 'farm_setup_wizard.dart';
+import 'reports/batch_bird_reconciliation_screen.dart';
+import 'reports/report_format.dart' show fixed2;
+import 'setup/batch_reconciliation_step.dart';
+import 'setup/setup_runs_panel.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Tools → Initial Farm Setup, as `app/poultry-farm-setup/page.tsx`
 /// with the rules of `lib/farm-setup/wizard.ts` (farm_setup_wizard.dart).
 ///
@@ -40,44 +45,54 @@ class InitialFarmSetupScreen extends StatefulWidget {
 const setupSteps = ['Houses/Pens', 'Batches', 'Allocate Batches / Create Flocks', 'Opening Reconciliation', 'Review'];
 
 // Tailwind tones the page uses.
-const _slate50 = Color(0xFFF8FAFC);
-const _slate100 = Color(0xFFF1F5F9);
-const _slate200 = Color(0xFFE2E8F0);
-const _slate300 = Color(0xFFCBD5E1);
-const _slate400 = Color(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
-const _slate500 = Color(0xFF566579);  // a shade darker than Tailwind's, for legibility
-const _slate600 = Color(0xFF475569);
-const _slate700 = Color(0xFF334155);
-const _slate900 = Color(0xFF0F172A);
-const _blue50 = Color(0xFFEFF6FF);
-const _blue100 = Color(0xFFDBEAFE);
-const _blue200 = Color(0xFFBFDBFE);
-const _blue300 = Color(0xFF93C5FD);
-const _blue400 = Color(0xFF60A5FA);
-const _blue600 = Color(0xFF2563EB);
-const _blue700 = Color(0xFF1D4ED8);
-const _blue900 = Color(0xFF1E3A8A);
-const _indigo600 = Color(0xFF4F46E5);
-const _emerald50 = Color(0xFFECFDF5);
-const _emerald200 = Color(0xFFA7F3D0);
-const _emerald600 = Color(0xFF059669);
-const _emerald700 = Color(0xFF047857);
-const _emerald800 = Color(0xFF065F46);
-const _emerald900 = Color(0xFF064E3B);
-const _amber50 = Color(0xFFFFFBEB);
-const _amber200 = Color(0xFFFDE68A);
-const _amber300 = Color(0xFFFCD34D);
-const _amber600 = Color(0xFFD97706);
-const _amber700 = Color(0xFFB45309);
-const _amber800 = Color(0xFF92400E);
-const _amber900 = Color(0xFF78350F);
-const _red50 = Color(0xFFFEF2F2);
-const _red200 = Color(0xFFFECACA);
-const _red300 = Color(0xFFFCA5A5);
-const _red500 = Color(0xFFEF4444);
-const _red600 = Color(0xFFDC2626);
-const _red700 = Color(0xFFB91C1C);
-const _purple700 = Color(0xFF7E22CE);
+const _slate50 = Tone.bg(0xFFF8FAFC);
+const _slate100 = Tone(0xFFF1F5F9);
+const _slate200 = Tone(0xFFE2E8F0);
+const _slate300 = Tone.line(0xFFCBD5E1);
+const _slate400 = Tone.fg(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
+const _slate500 = Tone(0xFF566579);  // a shade darker than Tailwind's, for legibility
+const _slate600 = Tone.fg(0xFF475569);
+const _slate700 = Tone.fg(0xFF334155);
+const _slate900 = Tone.fg(0xFF0F172A);
+const _blue50 = Tone.bg(0xFFEFF6FF);
+const _blue100 = Tone.bg(0xFFDBEAFE);
+const _blue200 = Tone.line(0xFFBFDBFE);
+const _blue300 = Tone.line(0xFF93C5FD);
+const _blue400 = Tone.line(0xFF60A5FA);
+const _blue700 = Tone.fg(0xFF1D4ED8);
+const _blue900 = Tone.fg(0xFF1E3A8A);
+const _emerald50 = Tone.bg(0xFFECFDF5);
+const _emerald200 = Tone.line(0xFFA7F3D0);
+const _emerald600 = Tone(0xFF059669);
+const _emerald700 = Tone.fg(0xFF047857);
+const _emerald800 = Tone.fg(0xFF065F46);
+const _emerald900 = Tone.fg(0xFF064E3B);
+const _amber50 = Tone.bg(0xFFFFFBEB);
+const _amber200 = Tone.line(0xFFFDE68A);
+const _amber300 = Tone(0xFFFCD34D);
+const _amber400 = Tone.line(0xFFFBBF24);
+const _amber500 = Tone(0xFFF59E0B);
+const _amber600 = Tone.bg(0xFFD97706);
+const _amber700 = Tone(0xFFB45309);
+const _amber800 = Tone.fg(0xFF92400E);
+const _amber900 = Tone.fg(0xFF78350F);
+const _red50 = Tone(0xFFFEF2F2);
+const _red300 = Tone(0xFFFCA5A5);
+const _red500 = Tone(0xFFEF4444);
+const _red600 = Tone.fg(0xFFDC2626);
+const _red700 = Tone.fg(0xFFB91C1C);
+const _purple700 = Tone(0xFF7E22CE);
+const _sky50 = Tone.bg(0xFFF0F9FF);
+const _sky200 = Tone(0xFFBAE6FD);
+const _sky300 = Tone(0xFF7DD3FC);
+const _sky500 = Tone.bg(0xFF0EA5E9);
+const _sky700 = Tone(0xFF0369A1);
+const _green200 = Tone.line(0xFFBBF7D0);
+const _green600 = Tone.bg(0xFF16A34A);
+// The web's `-50/40` tints: the -50 shade at 40% over white.
+const _blueTint = Tone.bg(0x66EFF6FF);
+const _amberTint = Tone.bg(0x66FFFBEB);
+const _greenTint = Tone.bg(0x66F0FDF4);
 
 /// The TONES of /production-records' stat tiles: only the number is coloured.
 const _tones = {
@@ -539,7 +554,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       context,
       batchLabel: label,
       batchBirds: v.batchBirds,
-      previouslyAllocated: v.previouslyAllocated,
+      previouslyAllocated: v.previouslyAllocated + v.previouslyAccountedFor,
       thisAllocation: v.thisAllocation,
       savesImmediately: row.existingBatchId != null,
       onSave: (birds) async {
@@ -754,7 +769,12 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         _savedDraftCard(saved),
         const SizedBox(height: 14),
       ],
-      if (_screen == 'completed' && _status != null) _completedPanel(),
+      if (_screen == 'completed' && _status != null) ...[
+        _completedPanel(),
+        // 416: what each setup created; edit, delete or undo it.
+        const SizedBox(height: 24),
+        SetupRunsPanel(session: widget.session, company: widget.company),
+      ],
       if (_screen == 'choose') ..._chooseScreen(),
       if (_screen == 'newBatch') _newBatchScreen(),
       if (_screen == 'done' && _result != null) _doneScreen(),
@@ -777,7 +797,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: _amber50,
-        border: Border.all(color: _amber300, width: 2),
+        border: Border.all(color: Tone.line(0xFFFCD34D), width: 2),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -796,7 +816,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: _amber600),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(_amber600)),
               onPressed: _resumeDraft,
               icon: const Icon(Icons.arrow_forward, size: 16),
               label: const Text('Resume'),
@@ -844,7 +864,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           if (s != null && s['looksEmpty'] == false) ...[
             const SizedBox(height: 8),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.warning_amber_rounded, size: 16, color: _amber700),
+              const Icon(Icons.warning_amber_rounded, size: 16, color: Tone.fg(0xFFB45309)),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -852,7 +872,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                   '${n('existingHouses')} house${n('existingHouses') == 1 ? '' : 's'} and '
                   '${n('existingFlocks')} flock${n('existingFlocks') == 1 ? '' : 's'}. The wizard will offer them for '
                   'reuse rather than creating them again.',
-                  style: const TextStyle(fontSize: 13, color: _amber700),
+                  style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFB45309)),
                 ),
               ),
             ]),
@@ -862,13 +882,13 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       const SizedBox(height: 12),
       option(
         icon: Icons.egg_outlined,
-        iconColor: _emerald600,
+        iconColor: Tone.fg(0xFF059669),
         title: 'I already have birds on my farm',
         body: "Use this if your farm has been operating before you started using the system. We'll record what is "
             'standing in each pen today and reconcile it against what was originally placed — without pretending those '
             'losses happened today.',
         button: FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: _blue600),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF2563EB))),
           onPressed: _startExistingFarm,
           icon: const Icon(Icons.arrow_forward, size: 16),
           label: const Text('Quick Farm Setup'),
@@ -877,7 +897,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       const SizedBox(height: 12),
       option(
         icon: Icons.add,
-        iconColor: _slate500,
+        iconColor: Tone.fg(0xFF566579),
         title: "I'm starting with a new batch of chicks",
         body: 'Use this if these birds are newly purchased and there is no historical farm position to reconstruct. '
             'That is just the ordinary workflow — no reconciliation needed.',
@@ -890,12 +910,12 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       ),
       const SizedBox(height: 12),
       Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
-        const Text('Prefer to do it yourself? ', style: TextStyle(fontSize: 13, color: _slate500)),
+        const Text('Prefer to do it yourself? ', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF566579))),
         InkWell(
           onTap: () => _openLink('Flock Purchases (Batches)', '/flock-batch', 'flock'),
-          child: const Text('Set Up Manually', style: TextStyle(fontSize: 13, color: _blue600)),
+          child: const Text('Set Up Manually', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF2563EB))),
         ),
-        const Text(' using Flock Purchases, Houses and Flock Groups.', style: TextStyle(fontSize: 13, color: _slate500)),
+        const Text(' using Flock Purchases, Houses and Flock Groups.', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF566579))),
       ]),
     ];
   }
@@ -918,7 +938,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, children: [
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _blue600),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF2563EB))),
               onPressed: () => _openLink('Flock Purchases (Batches)', '/flock-batch', 'flock'),
               child: const Text('Go to Flock Purchases'),
             ),
@@ -939,7 +959,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: _emerald50, border: Border.all(color: _emerald200), borderRadius: BorderRadius.circular(12)),
       child: Column(children: [
-        const Icon(Icons.check_circle_outline, size: 40, color: _emerald600),
+        const Icon(Icons.check_circle_outline, size: 40, color: Tone.fg(0xFF059669)),
         const SizedBox(height: 6),
         const Text('Your farm is ready.', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: _emerald900)),
         const SizedBox(height: 6),
@@ -965,7 +985,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         const SizedBox(height: 12),
         Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _emerald600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF059669))),
             onPressed: () => _openLink('Production Records', '/production-records', 'production-records'),
             child: const Text('Start Recording Production'),
           ),
@@ -985,7 +1005,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
     int n(Map? m, String k) => (m?[k] as num?)?.toInt() ?? 0;
     Widget link(String label, String href, String spec) => InkWell(
           onTap: () => _openLink(label, href, spec),
-          child: Text(label, style: const TextStyle(fontSize: 13, color: _blue600)),
+          child: Text(label, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF2563EB))),
         );
     final positions = [for (final p in (o?['positions'] is List ? o!['positions'] as List : const [])) if (p is Map) p];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1002,7 +1022,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _blue600, minimumSize: const Size.fromHeight(46)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF2563EB)), minimumSize: const Size.fromHeight(46)),
             onPressed: _startExistingFarm,
             icon: const Icon(Icons.add),
             label: const Text('Do another bulk setup', style: TextStyle(fontSize: 15)),
@@ -1012,17 +1032,17 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       const SizedBox(height: 14),
       Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _emerald200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: _emerald200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Row(children: [
-            Icon(Icons.check_circle_outline, size: 20, color: _emerald600),
+            Icon(Icons.check_circle_outline, size: 20, color: Tone.fg(0xFF059669)),
             SizedBox(width: 8),
             Expanded(child: Text('Initial Farm Setup Completed', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
           ]),
           const SizedBox(height: 10),
           _grid([
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Completed', style: TextStyle(fontSize: 12, color: _slate500)),
+              const Text('Completed', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
               Text(toBusinessDate(s['completedBusinessDate']) ?? '—', style: const TextStyle(fontWeight: FontWeight.w600)),
             ]),
             _Stat('Batches', n(s, 'batchCount'), tone: 'blue', small: true),
@@ -1082,17 +1102,17 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                 '${fmtInt(n(o, 'otherAdjustment'))} birds have no stated cause across ${n(o, 'flocksWithUnknownHistory')} '
                 'flock${n(o, 'flocksWithUnknownHistory') == 1 ? '' : 's'}. They are counted as an opening adjustment, never '
                 'as mortality — known lifetime mortality is the opening mortality above plus whatever has been recorded since.',
-                style: const TextStyle(fontSize: 12, color: _slate500),
+                style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579)),
               ),
             ],
             const SizedBox(height: 10),
             Container(
-              decoration: BoxDecoration(border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
               child: Column(children: [
                 for (final (i, p) in positions.indexed)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(border: i == 0 ? null : const Border(top: BorderSide(color: _slate100))),
+                    decoration: BoxDecoration(border: i == 0 ? null : const Border(top: BorderSide(color: Tone.line(0xFFF1F5F9)))),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                         Text('${p['flockName'] ?? 'Flock #${p['flockId']}'}', style: const TextStyle(fontWeight: FontWeight.w500)),
@@ -1104,7 +1124,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                           TextSpan(
                             text: ' · reduction ${fmtInt(n(p, 'historicalReduction'))}'
                                 '${p['historyKnown'] == true ? ' (mortality ${fmtInt(n(p, 'historicalMortality'))})' : ' (unknown)'}',
-                            style: const TextStyle(color: _amber700),
+                            style: const TextStyle(color: Tone.fg(0xFFB45309)),
                           ),
                       ])),
                     ]),
@@ -1161,7 +1181,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
   Widget _stepBar() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(child: Text(setupSteps[_step], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
-          Text('Step ${_step + 1} of ${setupSteps.length}', style: const TextStyle(fontSize: 12, color: _slate500)),
+          Text('Step ${_step + 1} of ${setupSteps.length}', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
         ]),
         const SizedBox(height: 6),
         ClipRRect(
@@ -1169,8 +1189,8 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           child: LinearProgressIndicator(
             value: (_step + 1) / setupSteps.length,
             minHeight: 6,
-            color: _blue600,
-            backgroundColor: _slate200,
+            color: Tone.fg(0xFF2563EB),
+            backgroundColor: Tone.bg(0xFFE2E8F0),
           ),
         ),
         const SizedBox(height: 8),
@@ -1188,14 +1208,14 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                     height: 30,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: i == _step ? _blue600 : i < _step ? _blue100 : _slate100,
+                      color: i == _step ? Tone.bg(0xFF2563EB) : i < _step ? _blue100 : Tone.bg(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text('${i + 1}',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: i == _step ? Colors.white : i < _step ? _blue700 : _slate500,
+                          color: i == _step ? Colors.white : i < _step ? _blue700 : Tone.fg(0xFF566579),
                         )),
                   ),
                 ),
@@ -1215,8 +1235,8 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: _slate200)),
+        color: Tone.bg(0xFFFFFFFF),
+        border: Border(top: BorderSide(color: Tone.line(0xFFE2E8F0))),
         boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, -2))],
       ),
       child: SafeArea(
@@ -1235,7 +1255,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   '${totals.flocksWithUnknownHistory} flock${totals.flocksWithUnknownHistory == 1 ? '' : 's'} with unknown history',
-                  style: const TextStyle(fontSize: 12, color: _slate500),
+                  style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579)),
                 ),
               ),
             const Divider(height: 16),
@@ -1251,20 +1271,20 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
             const Spacer(),
             if (_step < 4)
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: _blue600),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF2563EB))),
                 onPressed: _goNext,
                 icon: const Icon(Icons.arrow_forward, size: 16),
                 label: const Text('Continue'),
               )
             else
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: _emerald600),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF059669))),
                 onPressed: _saving ? null : _submit,
                 child: Text(_saving ? 'Setting up…' : 'Complete Farm Setup'),
               ),
           ]),
           Text(draftNote,
-              textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: _slate500)),
+              textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF566579))),
         ]),
       ),
     );
@@ -1274,15 +1294,15 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: _slate200),
+            color: Tone.bg(0xFFFFFFFF),
+            border: Border.all(color: Tone.line(0xFFE2E8F0)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(children: [
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(label.toUpperCase(),
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, letterSpacing: .5, color: _slate500)),
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, letterSpacing: .5, color: Tone.fg(0xFF566579))),
             ),
             FittedBox(
               fit: BoxFit.scaleDown,
@@ -1316,7 +1336,16 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       description:
           'Create a run of new pens, then edit any of them. Pens you already have are listed so you can allocate to them — this step never deletes a pen from your farm.',
       children: [
-        _GeneratorBox(children: [
+        // The New sale look: a blue band for the generator, an amber one for
+        // the pens themselves.
+        _Band(
+            title: 'Create New Houses/Pens',
+            icon: Icons.auto_fix_high,
+            color: Tone.bg(0xFF2563EB),
+            border: _blue200,
+            tint: _blueTint,
+            gap: 10,
+            children: [
           _Field(label: 'Number of Pens', child: _number('gen.penCount', _penCount, (s) => setState(() => _penCount = s))),
           _Field(label: 'Naming Prefix', child: _text('gen.penPrefix', _penPrefix, (s) => setState(() => _penPrefix = s), hint: 'Pen')),
           _Field(
@@ -1333,19 +1362,33 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           _Field(
               label: 'Default Location',
               child: _text('gen.penLocation', _penLocation, (s) => setState(() => _penLocation = s), hint: 'Layer House A')),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _indigo600),
-            onPressed: _generateHouses,
-            icon: const Icon(Icons.auto_fix_high, size: 16),
-            label: const Text('Create New Houses/Pens'),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF2563EB)), foregroundColor: Colors.white),
+              onPressed: _generateHouses,
+              icon: const Icon(Icons.auto_fix_high, size: 16),
+              label: const Text('Create New Houses/Pens'),
+            ),
           ),
           const Text('Replaces the new rows below; houses you already have are kept. Everything stays editable.',
-              style: TextStyle(fontSize: 12, color: _slate500)),
+              style: TextStyle(fontSize: 12, color: Tone.fg(0xB31E3A8A))),
         ]),
+        _Band(
+          title: 'Houses/Pens',
+          count: _draft.houses.length,
+          color: Tone.bg(0xFFF59E0B),
+          border: _amber200,
+          tint: _amberTint,
+          action: _BandButton(
+            label: 'Add Another Row',
+            onPressed: () => _edit(() => _draft.houses.insert(0, emptyHouse(_penCapacity, _penLocation))),
+          ),
+          children: [
         if (_draft.houses.isNotEmpty)
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(8)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(summary, style: const TextStyle(fontSize: 13, color: _slate600)),
               const SizedBox(height: 8),
@@ -1369,15 +1412,20 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                 : 'None of your pens are empty. Add a new one above, or choose “All houses/pens” to see them.',
             style: const TextStyle(fontSize: 13, color: _slate600),
           ),
-        for (final hv in visible)
+        // Cards, about three to a row on a wide screen: a full-width row per
+        // pen made a handful of pens fill the whole screen.
+        if (visible.isNotEmpty)
+          _cardGrid([
+        for (final (n, hv) in visible.indexed)
           () {
             final h = hv.row, i = hv.index, load = hv.load;
             return _RowCard(
-              index: i,
+              n: n + 1,
+              existing: hv.isExisting,
               invalid: _rowInvalid(fe, 'houses', i),
               header: _RowHeader(
                 label: h.houseName.isEmpty ? 'House ${i + 1}' : h.houseName,
-                badge: hv.isExisting ? const _Badge('Existing', _slate200, _slate700, filled: true) : const _Badge('New', _blue300, _blue700),
+                badge: _newExistingBadge(hv.isExisting),
                 onRemove: hv.isExisting ? null : () => _removeHouse(i),
               ),
               children: [
@@ -1390,28 +1438,27 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                   child: _text('h.${h.key}.name', h.houseName, (s) => _edit(() => h.houseName = s),
                       hint: 'Pen 1', enabled: !hv.isExisting),
                 ),
-                _Field(
-                  label: 'Capacity',
-                  error: _errorFor(fe, 'houses', i, 'capacity'),
-                  child: _number('h.${h.key}.capacity', h.capacity, (s) => _edit(() => h.capacity = s), hint: '5000'),
-                ),
-                _Field(
-                  label: 'Location',
-                  child: _text('h.${h.key}.location', h.location, (s) => _edit(() => h.location = s), hint: 'Layer House A'),
-                ),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: _Field(
+                      label: 'Capacity',
+                      error: _errorFor(fe, 'houses', i, 'capacity'),
+                      child: _number('h.${h.key}.capacity', h.capacity, (s) => _edit(() => h.capacity = s), hint: '5000'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _Field(
+                      label: 'Location',
+                      child: _text('h.${h.key}.location', h.location, (s) => _edit(() => h.location = s), hint: 'Layer House A'),
+                    ),
+                  ),
+                ]),
               ],
             );
           }(),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AppButton(
-            label: 'Add Another Row',
-            icon: Icons.add,
-            variant: AppButtonVariant.outline,
-            size: AppButtonSize.sm,
-            onPressed: () => _edit(() => _draft.houses.insert(0, emptyHouse(_penCapacity, _penLocation))),
-          ),
-        ),
+          ]),
+          ]),
       ],
     );
   }
@@ -1430,7 +1477,14 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       description:
           'Create a run of new batches, then edit any of them. Purchase cost and supplier are optional — if you do not know what you paid, leave them blank. Nothing here posts cash or revenue for a historical purchase.',
       children: [
-        _GeneratorBox(children: [
+        _Band(
+            title: 'Create New Batches',
+            icon: Icons.auto_fix_high,
+            color: Tone.bg(0xFF2563EB),
+            border: _blue200,
+            tint: _blueTint,
+            gap: 10,
+            children: [
           _Field(label: 'Number of Batches', child: _number('gen.batchCount', _batchCount, (s) => setState(() => _batchCount = s))),
           _Field(label: 'Name Prefix', child: _text('gen.batchPrefix', _batchPrefix, (s) => setState(() => _batchPrefix = s), hint: 'Batch')),
           _Field(
@@ -1449,44 +1503,58 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           ),
           _Field(label: 'Default Birds', child: _number('gen.batchBirds', _batchBirds, (s) => setState(() => _batchBirds = s))),
           _Field(label: 'Default Arrival Date', child: _date(_batchDate, (s) => setState(() => _batchDate = s))),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _blue600),
-            onPressed: _generateBatchRows,
-            icon: const Icon(Icons.auto_fix_high, size: 16),
-            label: const Text('Create New Batches'),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF2563EB)), foregroundColor: Colors.white),
+              onPressed: _generateBatchRows,
+              icon: const Icon(Icons.auto_fix_high, size: 16),
+              label: const Text('Create New Batches'),
+            ),
           ),
           const Text('Replaces the new rows below; batches you already have are kept. Everything stays editable.',
-              style: TextStyle(fontSize: 12, color: _slate500)),
+              style: TextStyle(fontSize: 12, color: Tone.fg(0xB31E3A8A))),
         ]),
         const _InfoBox(
           strong: 'Complete batch information now.',
           text: ' You can skip the optional purchase details and add them later, but entering them now means your batch '
               'history, supplier and cost reporting are complete from the start.',
         ),
-        if (existingCount > 0)
-          AppCheckbox(
-            value: _showExistingBatches,
-            onChanged: (v) => setState(() => _showExistingBatches = v),
-            label: 'Show the ${fmtInt(existingCount)} batch${existingCount == 1 ? '' : 'es'} you already have',
-          ),
-        if (visible.isEmpty)
-          const Text('No new batches yet. Create some above, or add one at a time.', style: TextStyle(fontSize: 13, color: _slate600)),
-        for (final e in visible) _batchCard(fe, e.row, e.index, e.isExisting, known),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AppButton(
+        _Band(
+          title: 'Batches',
+          count: _draft.batches.length,
+          color: Tone.bg(0xFFF59E0B),
+          border: _amber200,
+          tint: _amberTint,
+          gap: 16,
+          action: _BandButton(
             label: 'Add Another Batch',
-            icon: Icons.add,
-            variant: AppButtonVariant.outline,
-            size: AppButtonSize.sm,
             onPressed: () => _edit(() => _draft.batches.insert(0, emptyBatch())),
           ),
+          children: [
+            if (existingCount > 0)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(8)),
+                  child: AppCheckbox(
+                    value: _showExistingBatches,
+                    onChanged: (v) => setState(() => _showExistingBatches = v),
+                    label: 'Show the ${fmtInt(existingCount)} batch${existingCount == 1 ? '' : 'es'} you already have',
+                  ),
+                ),
+              ),
+            if (visible.isEmpty)
+              const Text('No new batches yet. Create some above, or add one at a time.', style: TextStyle(fontSize: 13, color: _slate600)),
+            for (final (n, e) in visible.indexed) _batchCard(fe, e.row, e.index, e.isExisting, known, n + 1),
+          ],
         ),
       ],
     );
   }
 
-  Widget _batchCard(Map<String, Map<int, Map<String, String>>> fe, BatchRow b, int i, bool existing, List<String> known) {
+  Widget _batchCard(Map<String, Map<int, Map<String, String>>> fe, BatchRow b, int i, bool existing, List<String> known, int n) {
     final id = 'b.${b.key}';
     void costChange({String? cost, String? birds}) => _edit(() {
           if (cost != null) b.costPerChick = cost;
@@ -1509,11 +1577,12 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           ),
     ];
     return _RowCard(
-      index: i,
+      n: n,
+      existing: existing,
       invalid: _rowInvalid(fe, 'batches', i),
       header: _RowHeader(
         label: b.batchCode.isNotEmpty ? b.batchCode : b.batchName.isNotEmpty ? b.batchName : 'Batch ${i + 1}',
-        badge: existing ? const _Badge('Existing', _slate200, _slate700, filled: true) : const _Badge('New', _blue300, _blue700),
+        badge: _newExistingBadge(existing),
         onRemove: () => _removeBatch(i),
         removeLabel: 'Remove batch',
       ),
@@ -1521,7 +1590,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         if (!existing)
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: _slate50, border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const _SectionLabel('Where did these birds come from?'),
               const SizedBox(height: 6),
@@ -1570,7 +1639,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         ),
         if (!existing && b.isHistorical)
           const Text('Every one of these birds must end up in a pen — they are standing on your farm today.',
-              style: TextStyle(fontSize: 12, color: _slate500)),
+              style: TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
         if (!existing) ...[
           const _SectionLabel('Purchase details', suffix: ' — optional'),
           _Field(
@@ -1695,7 +1764,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text('Pick the batch whose birds you are placing. You will choose the pens next.',
-                    style: TextStyle(fontSize: 12, color: _slate500)),
+                    style: TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
               ],
               if (sum.hidden > 0)
                 AppCheckbox(
@@ -1717,7 +1786,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                 active.batch.breed,
                 '${fmtInt(active.batchBirds)} birds',
                 active.batch.startDate.isNotEmpty ? 'started ${active.batch.startDate}' : '',
-              ].where((x) => x.isNotEmpty).join(' · ')),
+              ].where((x) => x.isNotEmpty).join(' · '), color: Tone.bg(0xFFFFFFFF)),
               const SizedBox(height: 6),
               Align(
                 alignment: Alignment.centerLeft,
@@ -1734,16 +1803,16 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         ],
         if (_allocPhase == 'allocate' && active != null) ...[
           Container(
-            decoration: BoxDecoration(border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(border: Border.all(color: _green200), borderRadius: BorderRadius.circular(12)),
             clipBehavior: Clip.antiAlias,
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
-                color: _indigo600,
+                color: _green600,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: const Text('Allocation', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
               ),
               Container(
-                color: Colors.white,
+                color: _greenTint,
                 padding: const EdgeInsets.all(10),
                 child: Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
                   AppButton(
@@ -1766,7 +1835,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                     size: AppButtonSize.sm,
                     onPressed: () => _edit(() => _allocPhase = 'pens'),
                   ),
-                  const Text('A suggestion — every number stays editable.', style: TextStyle(fontSize: 12, color: _slate500)),
+                  const Text('A suggestion — every number stays editable.', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
                 ]),
               ),
             ]),
@@ -1784,12 +1853,12 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
             ),
             if (_showExistingFlocks)
               Container(
-                decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: _slate50, border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   for (final f in existingFlocks)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _slate200))),
+                      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tone.line(0xFFE2E8F0)))),
                       child: Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                         Text(f.name, style: const TextStyle(fontWeight: FontWeight.w500)),
                         const _Badge('Existing', _slate200, _slate700, filled: true),
@@ -1800,18 +1869,30 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                   Padding(
                     padding: const EdgeInsets.all(10),
                     child: Wrap(children: [
-                      const Text('Shown for context. Change these on the ', style: TextStyle(fontSize: 12, color: _slate500)),
+                      const Text('Shown for context. Change these on the ', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
                       InkWell(
                         onTap: () => _openLink('Flock Groups', '/flocks', 'flocks'),
-                        child: const Text('Flock Groups', style: TextStyle(fontSize: 12, color: _blue600)),
+                        child: const Text('Flock Groups', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF2563EB))),
                       ),
-                      const Text(' page.', style: TextStyle(fontSize: 12, color: _slate500)),
+                      const Text(' page.', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
                     ]),
                   ),
                 ]),
               ),
           ],
-          for (final x in activeFlocks) _flockCard(fe, x.row, x.index, houseViews),
+          _Band(
+            title: 'Flocks',
+            count: activeFlocks.length,
+            color: Tone.bg(0xFFF59E0B),
+            border: _amber200,
+            tint: _amberTint,
+            gap: 16,
+            children: [
+              if (activeFlocks.isEmpty)
+                const Text('No pens chosen yet — use “Change House/Pen” above.', style: TextStyle(fontSize: 13, color: _slate600)),
+              for (final (n, x) in activeFlocks.indexed) _flockCard(fe, x.row, x.index, houseViews, n + 1),
+            ],
+          ),
           if (nextBatch != null)
             Align(
               alignment: Alignment.centerRight,
@@ -1841,43 +1922,44 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         );
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: _emerald50, border: Border.all(color: _emerald200), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(
           '${a.batch.batchCode.isNotEmpty ? a.batch.batchCode : a.batch.batchName}${a.batch.breed.isNotEmpty ? ' · ${a.batch.breed}' : ''}',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _emerald900),
         ),
         if (a.mustBeFullyAllocated)
-          const Text('Birds you already had — every one of them needs a pen', style: TextStyle(fontSize: 12, color: _slate600)),
+          const Text('Birds you already had — every one must be in a pen or explained', style: TextStyle(fontSize: 12, color: _slate600)),
         const SizedBox(height: 8),
         _grid([
           _Figure('Original birds', a.batchBirds),
+          if (a.previouslyAccountedFor != 0) _Figure('Already recorded (sold, died…)', a.previouslyAccountedFor),
           _Figure('Already allocated', a.previouslyAllocated),
           _Figure('This allocation', a.thisAllocation, color: _blue700),
           _Figure(
             a.status == 'over' ? 'Over by' : 'Remaining',
             a.status == 'over' ? a.overBy : a.remaining,
-            color: a.status == 'over' ? _red700 : a.remaining > 0 ? _amber700 : _emerald700,
+            color: a.status == 'over' ? _red700 : a.remaining > 0 ? Tone.fg(0xFFB45309) : _emerald700,
           ),
         ]),
         if (_allocPhase == 'pens') ...[
           const SizedBox(height: 10),
           Container(
-            decoration: BoxDecoration(border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(12)),
             clipBehavior: Clip.antiAlias,
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
-                color: _blue600,
+                color: Tone.bg(0xFFF59E0B),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: Row(children: [
                   const Expanded(
                     child: Text('Choose Houses/Pens', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
                   ),
-                  Text('$chosen selected', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  _CountPill('$chosen selected'),
                 ]),
               ),
               Container(
-                color: Colors.white,
+                color: _amberTint,
                 padding: const EdgeInsets.all(12),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Wrap(spacing: 8, runSpacing: 8, children: [
@@ -1904,13 +1986,19 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                           child: Tooltip(
                             message: locked ? 'This pen is full' : '',
                             child: Container(
-                              padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
+                              padding: EdgeInsets.fromLTRB(on ? 7 : 4, 6, 8, 6),
+                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
-                                color: on ? _blue50 : locked ? _slate100 : Colors.white,
-                                border: Border.all(color: on ? _blue400 : _slate200),
+                                color: locked ? Tone.bg(0xFFF1F5F9) : Tone.bg(0xFFFFFFFF),
+                                border: Border.all(color: on ? _amber400 : Tone.line(0xFFE2E8F0)),
                                 borderRadius: BorderRadius.circular(8),
+                                boxShadow: on ? const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))] : null,
                               ),
-                              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              // A picked pen gets the amber left edge, overlaid
+                              // like the cards' stripe.
+                              child: Stack(clipBehavior: Clip.none, children: [
+                                if (on) const Positioned(left: -7, top: -6, bottom: -6, width: 4, child: ColoredBox(color: Tone.bg(0xFFF59E0B))),
+                                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 SizedBox(
                                   width: 30,
                                   height: 24,
@@ -1925,7 +2013,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                                     Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                                       Text(v.row.houseName.isEmpty ? '(unnamed)' : v.row.houseName,
                                           overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(fontWeight: FontWeight.w500, color: locked ? _slate500 : _slate900)),
+                                          style: TextStyle(fontWeight: FontWeight.w500, color: locked ? Tone.fg(0xFF566579) : _slate900)),
                                       if (full) const _Badge('Full', _red300, _red700),
                                     ]),
                                     Text(
@@ -1934,10 +2022,11 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                                           : free == null
                                               ? 'No limit set'
                                               : '${fmtInt(free)} free',
-                                      style: const TextStyle(fontSize: 12, color: _slate500),
+                                      style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579)),
                                     ),
                                   ]),
                                 ),
+                              ]),
                               ]),
                             ),
                           ),
@@ -1965,7 +2054,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                         const SizedBox(height: 8),
                         Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                           FilledButton.icon(
-                            style: FilledButton.styleFrom(backgroundColor: _amber600, visualDensity: VisualDensity.compact),
+                            style: FilledButton.styleFrom(backgroundColor: Tone.button(_amber600), visualDensity: VisualDensity.compact),
                             onPressed: _newPen,
                             icon: const Icon(Icons.add, size: 16),
                             label: const Text('Create a pen'),
@@ -1980,14 +2069,14 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                   const SizedBox(height: 10),
                   Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                     FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: _blue600),
+                      style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF2563EB))),
                       onPressed: chosen == 0 ? null : () => _edit(() => _allocPhase = 'allocate'),
                       icon: const Icon(Icons.arrow_forward, size: 16),
                       label: const Text('Continue to allocation'),
                     ),
                     Text(
                       chosen == 0 ? 'Tick the pens these birds are in.' : '$chosen pen${chosen == 1 ? '' : 's'} chosen.',
-                      style: const TextStyle(fontSize: 12, color: _slate500),
+                      style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579)),
                     ),
                   ]),
                 ]),
@@ -2009,11 +2098,12 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         if (a.status == 'partial' && a.remaining > 0) ...[
           const SizedBox(height: 8),
           DefaultTextStyle.merge(
-            style: const TextStyle(fontSize: 13, color: _amber700),
+            style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFB45309)),
             child: a.mustBeFullyAllocated
                 ? Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
-                    Text('${fmtInt(a.remaining)} birds still need a pen — these are birds you already had, so all of them must be '
-                        'somewhere. Put them in a pen, or correct the batch. '),
+                    Text('${fmtInt(a.remaining)} birds are not in a pen — these are birds you already had, so each must be accounted for. '
+                        'Put them in a pen, or explain them on the reconciliation step (sold, died, culled, transferred or still waiting), '
+                        'or correct the batch. '),
                     update(),
                   ])
                 : Text('${fmtInt(a.remaining)} birds will stay unallocated — you can place them later.'),
@@ -2031,7 +2121,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
     );
   }
 
-  Widget _flockCard(Map<String, Map<int, Map<String, String>>> fe, FlockRow f, int i, List<HouseRowView> houseViews) {
+  Widget _flockCard(Map<String, Map<int, Map<String, String>>> fe, FlockRow f, int i, List<HouseRowView> houseViews, int n) {
     final id = 'f.${f.key}';
     final reduction = historicalReduction(f);
     final penLoad = f.houseKey.isEmpty ? null : houseLoad(f.houseKey, _draft, _ctx);
@@ -2048,11 +2138,11 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
     }
     final batch = _draft.batches.where((x) => x.key == f.batchKey).firstOrNull;
     return _RowCard(
-      index: i,
+      n: n,
       invalid: _rowInvalid(fe, 'flocks', i),
       header: _RowHeader(
         label: f.name.isEmpty ? 'Flock ${i + 1}' : f.name,
-        badge: reduction > 0 ? _Badge('−${fmtInt(reduction)}', _amber300, _amber700) : const _Badge('Balanced', _slate200, _slate500),
+        badge: reduction > 0 ? _Badge('−${fmtInt(reduction)}', Tone.bg(0xFFFCD34D), Tone.bg(0xFFB45309)) : const _Badge('Balanced', Tone.bg(0xFFE2E8F0), Tone.bg(0xFF566579)),
         onRemove: () => _removeFlock(i),
       ),
       children: [
@@ -2063,12 +2153,12 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           note: noteText == null
               ? null
               : Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
-                  Text('$noteText ', style: const TextStyle(fontSize: 12, color: _amber700)),
+                  Text('$noteText ', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309))),
                   InkWell(
                     onTap: () => _fixCapacity(f.houseKey),
                     child: Text('Update ${penLoad?.label.isNotEmpty == true ? penLoad!.label : 'this pen'}',
                         style: const TextStyle(
-                            fontSize: 12, color: _amber700, fontWeight: FontWeight.w600, decoration: TextDecoration.underline)),
+                            fontSize: 12, color: Tone.fg(0xFFB45309), fontWeight: FontWeight.w600, decoration: TextDecoration.underline)),
                   ),
                 ]),
           child: AppSelect<String>(
@@ -2112,7 +2202,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
             ),
           ),
         ]),
-        const Divider(height: 8, color: _slate100),
+        const Divider(height: 8, color: Tone.line(0xFFF1F5F9)),
         _Field(
           label: 'Breed',
           hint: "Blank takes the batch's breed",
@@ -2137,7 +2227,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
               label: 'Yes, they are in the pen',
             ),
           ),
-        const Divider(height: 8, color: _slate100),
+        const Divider(height: 8, color: Tone.line(0xFFF1F5F9)),
         _Field(
           label: 'How do you know its age?',
           child: AppSelect<String>(
@@ -2166,6 +2256,73 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
     );
   }
 
+  /// The review step's "Birds never placed in a flock (batch level)" table.
+  Widget _neverPlacedSummary(List<BatchReconciliationView> views) {
+    const head = TextStyle(fontSize: 12, color: _slate500);
+    const cell = TextStyle(fontSize: 12, color: _slate900);
+    DataCell numCell(String s, {Color? color}) => DataCell(Align(alignment: Alignment.centerRight, child: Text(s, style: color == null ? cell : cell.copyWith(color: color))));
+    DataColumn col(String s, {bool right = true}) => DataColumn(label: Text(s, style: head), numeric: right);
+    return Container(
+      key: const ValueKey('never-placed-summary'),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Tone.bg(0x80EEF2FF),
+        border: Border.all(color: const Tone.line(0xFFC7D2FE)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('Birds never placed in a flock (batch level)',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF312E81))),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowHeight: 32,
+            dataRowMinHeight: 30,
+            dataRowMaxHeight: 36,
+            horizontalMargin: 4,
+            columnSpacing: 14,
+            columns: [
+              col('Batch', right: false),
+              col('Bought'),
+              col('Already recorded'),
+              col('Originally placed'),
+              col('Not in a pen'),
+              col('Explained now'),
+              col('Unexplained'),
+              col('Historical sales value'),
+            ],
+            rows: [
+              for (final v in views)
+                DataRow(cells: [
+                  DataCell(Text(v.label, style: cell.copyWith(fontWeight: FontWeight.w500))),
+                  numCell(fmtInt(v.originalBirds)),
+                  numCell(v.previouslyAccountedFor != 0 ? '−${fmtInt(v.previouslyAccountedFor)}' : '—', color: _slate500),
+                  numCell(fmtInt(v.placed)),
+                  numCell(fmtInt(v.neverPlaced)),
+                  numCell(fmtInt(v.explained)),
+                  numCell(fmtInt(v.unexplained), color: v.unexplained == 0 ? _emerald700 : const Tone.fg(0xFFB45309)),
+                  numCell(fixed2(v.saleValue)),
+                ]),
+            ],
+          ),
+        ),
+        if (views.any((v) => v.previouslyAccountedFor != 0)) ...[
+          const SizedBox(height: 8),
+          const Text('"Already recorded" birds were posted before this setup and are not posted again — only what you explain now is.',
+              style: TextStyle(fontSize: 12, color: _slate600)),
+        ],
+        const SizedBox(height: 8),
+        const Text(
+          'Financial effect of setup: new cash movement none · current-period revenue none · current-period expense none '
+          '(batches you already had post no expense today; any unpaid balance stays owed to the supplier).',
+          style: TextStyle(fontSize: 12, color: _slate600),
+        ),
+      ]),
+    );
+  }
+
   // ---------------------------------------------------------- step 3
 
   Widget _reconcileStep() {
@@ -2177,16 +2334,27 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           'We have assumed the missing birds died — change any flock where that is wrong. These losses happened before tracking began, so they are recorded as an opening position and never appear as today’s deaths.',
       children: [
         if (needs.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Column(children: [
-              Icon(Icons.check_circle_outline, size: 40, color: _emerald600),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            decoration: BoxDecoration(color: _emerald50, border: Border.all(color: _emerald200), borderRadius: BorderRadius.circular(12)),
+            child: const Column(children: [
+              Icon(Icons.check_circle_outline, size: 40, color: Tone.fg(0xFF059669)),
               SizedBox(height: 6),
-              Text('Every flock balances. No reconciliation needed.', style: TextStyle(color: _slate700)),
+              Text('Every flock balances. No reconciliation needed.',
+                  textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w500, color: _emerald800)),
             ]),
-          ),
-        for (final (i, f) in _draft.flocks.indexed)
-          if (historicalReduction(f) > 0)
+          )
+        else
+          _Band(
+            title: 'Flocks to reconcile',
+            count: needs.length,
+            color: Tone.bg(0xFFF59E0B),
+            border: _amber200,
+            tint: _amberTint,
+            gap: 16,
+            children: [
+        // Numbered over the cards actually shown, not over every flock.
+        for (final (n, f) in [for (final f in _draft.flocks) if (historicalReduction(f) > 0) f].indexed)
             () {
               final b = breakdown(f);
               final id = 'r.${f.key}';
@@ -2195,9 +2363,11 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                     hint: hint,
                     child: _number('$id.$field', value, (s) => _edit(() => balanceBreakdown(f, field, s))),
                   );
-              return _Striped(
-                index: i,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              return _RowCard(
+                n: n + 1,
+                invalid: b.overStated,
+                header: const SizedBox.shrink(),
+                children: [Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2208,11 +2378,11 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: _amber50, border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(8)),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                         const Text('REMAINING TO ACCOUNT',
-                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w500, letterSpacing: .5, color: _slate500)),
-                        Text(fmtInt(b.difference), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _amber600)),
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: .4, color: Tone.fg(0xFFB45309))),
+                        Text(fmtInt(b.difference), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: Tone.fg(0xFFB45309))),
                       ]),
                     ),
                   ]),
@@ -2239,24 +2409,40 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                       bucket('Sold', 'historicalSold', f.historicalSold),
                       bucket('Culled', 'historicalCulled', f.historicalCulled),
                       bucket('Transferred out', 'historicalTransferred', f.historicalTransferred),
-                      _Field(label: 'Other / unknown', child: _ReadOnlyBox(fmtInt(b.other))),
+                      _Field(label: 'Other / unknown', child: _ReadOnlyBox(fmtInt(b.other), color: _slate50)),
                     ]),
                     const SizedBox(height: 4),
                     Text(
                       b.overStated
                           ? 'The breakdown adds up to ${fmtInt(b.stated)} but only ${fmtInt(b.difference)} birds remain to account for.'
                           : '${fmtInt(b.stated)} of ${fmtInt(b.difference)} accounted for; the remaining ${fmtInt(b.other)} is recorded as unknown, not as mortality.',
-                      style: TextStyle(fontSize: 12, color: b.overStated ? _red600 : _slate500),
+                      style: TextStyle(fontSize: 12, color: b.overStated ? _red600 : Tone.fg(0xFF566579)),
                     ),
                   ] else
-                    Text.rich(TextSpan(style: const TextStyle(fontSize: 12, color: _slate500), children: [
+                    Text.rich(TextSpan(style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579)), children: [
                       TextSpan(text: 'All ${fmtInt(b.difference)} will be recorded as an '),
                       const TextSpan(text: 'opening bird adjustment', style: TextStyle(fontWeight: FontWeight.w700)),
                       const TextSpan(text: ' — not as mortality, and not as a sale.'),
                     ])),
-                ]),
+                ])],
               );
             }(),
+            ],
+          ),
+        // 413: batches with birds that will be in no pen once this setup is done.
+        if (batchReconciliationViews(_draft, _ctx).isNotEmpty) ...[
+          const SizedBox(height: 14),
+          BatchReconciliationStep(
+            views: batchReconciliationViews(_draft, _ctx),
+            draft: _draft,
+            onEdit: _edit,
+            businessDate: _ctx.businessDate,
+            // "View source": that batch's drilldown on the report.
+            onViewSource: (batchId) => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => BatchBirdReconciliationScreen(session: widget.session, company: widget.company, batchId: batchId),
+            )),
+          ),
+        ],
       ],
     );
   }
@@ -2306,6 +2492,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       title: 'Farm setup summary',
       description: 'Nothing has been saved yet. Check the numbers, then create your farm.',
       children: [
+        if (batchReconciliationViews(_draft, _ctx).isNotEmpty) _neverPlacedSummary(batchReconciliationViews(_draft, _ctx)),
         _grid([
           _Stat('Batches', t.batchCount, tone: 'blue'),
           _Stat('Original batch birds', t.batchBirds, tone: 'blue'),
@@ -2330,7 +2517,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
             const SizedBox(height: 6),
             Text(
               "None of this is a production record. It establishes what was true on ${_ctx.businessDate} — your company's business date — and nothing more.",
-              style: const TextStyle(fontSize: 12, color: _slate500),
+              style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579)),
             ),
           ]),
         ),
@@ -2351,7 +2538,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         for (final bv in views)
           if (bv.thisAllocation > 0 || _draft.flocks.any((f) => f.batchKey == bv.batch.key)) _reviewBatch(bv, money),
         if (v.warnings.isNotEmpty) problems(v.warnings, _amber50, _amber200, _amber800, Icons.warning_amber_rounded),
-        if (v.errors.isNotEmpty) problems(v.errors, _red50, _red200, _red700, Icons.error_outline),
+        if (v.errors.isNotEmpty) problems(v.errors, Tone.bg(0xFFFEF2F2), Tone.line(0xFFFECACA), _red700, Icons.error_outline),
       ],
     );
   }
@@ -2368,7 +2555,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
     final supplier = _suppliers.where((s) => s['supplierId'] == bt.supplierId).firstOrNull;
     final account = _cashAccounts.where((a) => a['poultryCashAccountId'] == bt.poultryCashAccountId).firstOrNull;
     return Container(
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         InkWell(
@@ -2377,15 +2564,15 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Icon(open ? Icons.expand_more : Icons.chevron_right, size: 18, color: _slate500),
+                Icon(open ? Icons.expand_more : Icons.chevron_right, size: 18, color: Tone.fg(0xFF566579)),
                 Text(bt.batchCode.isNotEmpty ? bt.batchCode : bt.batchName, style: const TextStyle(fontWeight: FontWeight.w500)),
                 _StatusBadge(v.status),
                 if (bt.existingBatchId == null && !bt.isHistorical) const _Badge('New purchase', _blue300, _blue700),
-                Text(open ? 'Hide details' : 'View details', style: const TextStyle(fontSize: 12, color: _blue600)),
+                Text(open ? 'Hide details' : 'View details', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF2563EB))),
               ]),
               const SizedBox(height: 2),
               Text(
-                'original ${fmtInt(v.batchBirds)} · already ${fmtInt(v.previouslyAllocated)} · this ${fmtInt(v.thisAllocation)} · remaining ${fmtInt(v.remaining)}',
+                'original ${fmtInt(v.batchBirds)} ·${v.previouslyAccountedFor != 0 ? ' recorded ${fmtInt(v.previouslyAccountedFor)} ·' : ''} already ${fmtInt(v.previouslyAllocated)} · this ${fmtInt(v.thisAllocation)} · remaining ${fmtInt(v.remaining)}',
                 style: const TextStyle(fontSize: 12, color: _slate600),
               ),
             ]),
@@ -2422,10 +2609,10 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
             ]),
           ),
         Container(
-          decoration: const BoxDecoration(border: Border(top: BorderSide(color: _slate100))),
+          decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tone.line(0xFFF1F5F9)))),
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
           child: Text('FLOCKS IN THIS BATCH (${flocks.length})',
-              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: _slate500)),
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: Tone.fg(0xFF566579))),
         ),
         for (final f in flocks)
           () {
@@ -2433,26 +2620,26 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
             final b = breakdown(f);
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: const BoxDecoration(border: Border(top: BorderSide(color: _slate100))),
+              decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tone.line(0xFFF1F5F9)))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                  const Icon(Icons.egg_outlined, size: 16, color: Color(0xFF7C3AED)),
-                  const Text('Flock', style: TextStyle(fontSize: 12, color: _slate500)),
+                  const Icon(Icons.egg_outlined, size: 16, color: Tone.fg(0xFF7C3AED)),
+                  const Text('Flock', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
                   Text(f.name, style: const TextStyle(fontWeight: FontWeight.w500)),
                 ]),
                 Text.rich(TextSpan(style: const TextStyle(fontSize: 13, color: _slate600), children: [
                   TextSpan(
                       text: '${house?.houseName ?? ''} · placed ${fmtInt(count(f.originallyPlaced))} · current ${fmtInt(count(f.currentLiveBirds))}'),
                   if (b.difference > 0)
-                    TextSpan(text: ' · opening reduction ${fmtInt(b.difference)}', style: const TextStyle(color: _amber700)),
+                    TextSpan(text: ' · opening reduction ${fmtInt(b.difference)}', style: const TextStyle(color: Tone.fg(0xFFB45309))),
                 ])),
                 if (open) ...[
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0x66F5F3FF),
-                      border: Border.all(color: const Color(0xFFEDE9FE)),
+                      color: const Tone.bg(0x66F5F3FF),
+                      border: Border.all(color: const Tone.line(0xFFEDE9FE)),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: _grid([
@@ -2530,18 +2717,18 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
         clipBehavior: Clip.antiAlias,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(
-            color: const Color(0x99F8FAFC),
+            color: const Tone.bg(0x99F8FAFC),
             padding: const EdgeInsets.all(14),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(color: _blue50, borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, size: 18, color: _blue600),
+                child: Icon(icon, size: 18, color: Tone.fg(0xFF2563EB)),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -2553,7 +2740,7 @@ class _Section extends StatelessWidget {
               ),
             ]),
           ),
-          const Divider(height: 1, color: _slate100),
+          const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -2564,25 +2751,129 @@ class _Section extends StatelessWidget {
       );
 }
 
-/// The slate generator strip above a grid.
-class _GeneratorBox extends StatelessWidget {
-  const _GeneratorBox({required this.children});
+/// The web's New sale band (app/sales/page.tsx): a solid coloured strip with
+/// the title, an optional count pill and action, over a body tinted in the
+/// same colour. Inputs inside sit on white.
+class _Band extends StatelessWidget {
+  const _Band({
+    required this.title,
+    required this.color,
+    required this.border,
+    required this.tint,
+    required this.children,
+    this.icon,
+    this.count,
+    this.action,
+    this.gap = 12,
+  });
+  final String title;
+  final Color color;
+  final Color border;
+  final Color tint;
   final List<Widget> children;
+  final IconData? icon;
+  final int? count;
+  final Widget? action;
+  final double gap;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          for (final (i, c) in children.indexed) ...[if (i > 0) const SizedBox(height: 10), c],
+          Container(
+            color: color,
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: action == null ? 8 : 5),
+            // Wraps, so with large text the button drops under the title
+            // instead of overflowing the band.
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (icon != null) ...[Icon(icon, size: 16, color: Colors.white), const SizedBox(width: 8)],
+                  Flexible(
+                    child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                  ),
+                  if (count != null) ...[const SizedBox(width: 6), _CountPill(fmtInt(count!))],
+                ]),
+                ?action,
+              ],
+            ),
+          ),
+          Container(
+            color: tint,
+            padding: const EdgeInsets.all(12),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(filled: true, fillColor: Tone.bg(0xFFFFFFFF)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                for (final (i, c) in children.indexed) ...[if (i > 0) SizedBox(height: gap), c],
+              ]),
+            ),
+          ),
         ]),
       );
 }
 
-/// A row's shell: red when invalid, otherwise alternating blue / white.
+/// The white-on-colour count in a band header (`bg-white/25`).
+class _CountPill extends StatelessWidget {
+  const _CountPill(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+        decoration: BoxDecoration(color: const Tone.bg(0x40FFFFFF), borderRadius: BorderRadius.circular(999)),
+        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+      );
+}
+
+/// The white "Add Another …" button that sits in an amber band header.
+class _BandButton extends StatelessWidget {
+  const _BandButton({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+        style: TextButton.styleFrom(
+          backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
+          foregroundColor: Tone.fg(0xFFB45309),
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          minimumSize: const Size(0, 32),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        ),
+        onPressed: onPressed,
+        icon: const Icon(Icons.add, size: 15),
+        label: Text(label),
+      );
+}
+
+/// Pen cards: one per row on a phone, two from 600 px, three from 1000 px
+/// (the web's grid-cols-1 / sm:2 / lg:3).
+Widget _cardGrid(List<Widget> children) => LayoutBuilder(builder: (context, c) {
+      final cols = c.maxWidth >= 1000 ? 3 : c.maxWidth >= 600 ? 2 : 1;
+      if (cols == 1) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (final (i, x) in children.indexed) ...[if (i > 0) const SizedBox(height: 12), x],
+        ]);
+      }
+      final w = (c.maxWidth - 12 * (cols - 1)) / cols;
+      return Wrap(spacing: 12, runSpacing: 12, children: [for (final x in children) SizedBox(width: w, child: x)]);
+    });
+
+/// A wizard card styled like a New sale line: white, with a coloured left
+/// edge (amber new, sky existing, red invalid) and a numbered corner circle.
 class _RowCard extends StatelessWidget {
-  const _RowCard({required this.index, required this.invalid, required this.header, required this.children});
-  final int index;
+  const _RowCard({required this.n, required this.invalid, required this.header, required this.children, this.existing = false});
+  final int n;
+  final bool existing;
   final bool invalid;
   final Widget header;
   final List<Widget> children;
@@ -2591,42 +2882,65 @@ class _RowCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, border, left) = invalid
         ? (_red50, _red300, _red500)
-        : index.isEven
-            ? (_blue200, _blue300, _blue600)
-            : (Colors.white, _slate200, _slate300);
-    return Container(
-      decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),
-      clipBehavior: Clip.antiAlias,
-      // The left stripe overlays the edge, so the card never has to measure
-      // its own height (the two-column grids inside cannot report one).
-      child: Stack(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(filled: true, fillColor: Colors.white),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              header,
-              for (final (i, c) in children.indexed) ...[if (i > 0) const SizedBox(height: 10), c],
-            ]),
-          ),
+        : existing
+            ? (Tone(0xFFFFFFFF), _sky200, _sky500)
+            : (Tone(0xFFFFFFFF), _amber200, _amber500);
+    return Stack(clipBehavior: Clip.none, children: [
+      Container(
+        decoration: BoxDecoration(
+          color: bg,
+          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
         ),
-        Positioned(left: 0, top: 0, bottom: 0, width: 4, child: ColoredBox(color: left)),
-      ]),
-    );
+        clipBehavior: Clip.antiAlias,
+        // The left stripe overlays the edge, so the card never has to measure
+        // its own height (the two-column grids inside cannot report one).
+        child: Stack(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(filled: true, fillColor: Tone.bg(0xFFFFFFFF)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                header,
+                for (final (i, c) in children.indexed) ...[if (i > 0) const SizedBox(height: 10), c],
+              ]),
+            ),
+          ),
+          Positioned(left: 0, top: 0, bottom: 0, width: 4, child: ColoredBox(color: left)),
+        ]),
+      ),
+      Positioned(left: -8, top: -8, child: _LineNumber(n, existing: existing)),
+    ]);
   }
 }
 
-/// The reconciliation card stripe.
-class _Striped extends StatelessWidget {
-  const _Striped({required this.index, required this.child});
-  final int index;
-  final Widget child;
+/// The numbered corner circle of a New sale line (amber new, sky existing).
+class _LineNumber extends StatelessWidget {
+  const _LineNumber(this.n, {this.existing = false});
+  final int n;
+  final bool existing;
 
   @override
-  Widget build(BuildContext context) => _RowCard(index: index, invalid: false, header: const SizedBox.shrink(), children: [child]);
+  Widget build(BuildContext context) => Container(
+        width: 20,
+        height: 20,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: existing ? _sky500 : Tone.bg(0xFFF59E0B),
+          boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 2, offset: Offset(0, 1))],
+        ),
+        child: Text('$n', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+      );
 }
+
+/// "New" (amber) or "Existing" (sky), as the web's NewExistingBadge.
+Widget _newExistingBadge(bool existing) => existing
+    ? const _Badge('Existing', _sky300, _sky700, fill: _sky50)
+    : const _Badge('New', _amber300, _amber700, fill: _amber50);
 
 class _RowHeader extends StatelessWidget {
   const _RowHeader({
@@ -2643,12 +2957,12 @@ class _RowHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.only(bottom: 6),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _slate100))),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tone.line(0xFFF1F5F9)))),
         child: Row(children: [
           Expanded(
             child: Text(label.toUpperCase(),
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: .5, color: _slate500)),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: .5, color: Tone.fg(0xFF566579))),
           ),
           badge,
           if (onRemove != null)
@@ -2681,12 +2995,12 @@ class _Field extends StatelessWidget {
           ),
         child,
         if (hint != null && error == null)
-          Padding(padding: const EdgeInsets.only(top: 3), child: Text(hint!, style: const TextStyle(fontSize: 12, color: _slate500))),
+          Padding(padding: const EdgeInsets.only(top: 3), child: Text(hint!, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579)))),
         if (note != null && error == null)
           Padding(
             padding: const EdgeInsets.only(top: 3),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Padding(padding: EdgeInsets.only(top: 1), child: Icon(Icons.warning_amber_rounded, size: 13, color: _amber700)),
+              const Padding(padding: EdgeInsets.only(top: 1), child: Icon(Icons.warning_amber_rounded, size: 13, color: Tone.fg(0xFFB45309))),
               const SizedBox(width: 4),
               Expanded(child: note!),
             ]),
@@ -2704,17 +3018,18 @@ class _Field extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge(this.label, this.border, this.color, {this.filled = false});
+  const _Badge(this.label, this.border, this.color, {this.filled = false, this.fill});
   final String label;
   final Color border;
   final Color color;
   final bool filled;
+  final Color? fill;
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         decoration: BoxDecoration(
-          color: filled ? border : null,
+          color: fill ?? (filled ? border : null),
           border: Border.all(color: border),
           borderRadius: BorderRadius.circular(6),
         ),
@@ -2743,7 +3058,7 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text.rich(TextSpan(
         text: text.toUpperCase(),
-        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: _slate500),
+        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: Tone.fg(0xFF566579)),
         children: [if (suffix != null) TextSpan(text: suffix, style: const TextStyle(fontWeight: FontWeight.w400, color: _slate400))],
       ));
 }
@@ -2762,8 +3077,8 @@ class _RadioRow extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: checked ? _blue50 : Colors.white,
-            border: Border.all(color: checked ? _blue400 : _slate200),
+            color: checked ? _blue50 : Tone.bg(0xFFFFFFFF),
+            border: Border.all(color: checked ? _blue400 : Tone.line(0xFFE2E8F0)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2772,9 +3087,9 @@ class _RadioRow extends StatelessWidget {
               width: 16,
               height: 16,
               alignment: Alignment.center,
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: checked ? _blue600 : _slate300, width: 2)),
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: checked ? Tone.line(0xFF2563EB) : _slate300, width: 2)),
               child: checked
-                  ? Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: _blue600))
+                  ? Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: Tone.bg(0xFF2563EB)))
                   : null,
             ),
             const SizedBox(width: 8),
@@ -2805,8 +3120,8 @@ class _Pill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: on ? _indigo600 : Colors.white,
-              border: Border.all(color: on ? _indigo600 : _slate300),
+              color: on ? Tone.bg(0xFFF59E0B) : Tone.bg(0xFFFFFFFF),
+              border: Border.all(color: on ? Tone.line(0xFFF59E0B) : _slate300),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: on ? Colors.white : _slate700)),
@@ -2838,29 +3153,39 @@ class _BluePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: _blueTint, border: Border.all(color: _blue200), borderRadius: BorderRadius.circular(12)),
         clipBehavior: Clip.antiAlias,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(
-            color: _blue600,
+            color: Tone.bg(0xFF2563EB),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
           ),
-          Padding(padding: const EdgeInsets.all(12), child: child),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            // The web's [&_button[role=combobox]]:bg-white.
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(filled: true, fillColor: Tone.bg(0xFFFFFFFF)),
+              ),
+              child: child,
+            ),
+          ),
         ]),
       );
 }
 
 class _ReadOnlyBox extends StatelessWidget {
-  const _ReadOnlyBox(this.text);
+  const _ReadOnlyBox(this.text, {this.color = _slate100});
   final String text;
+  final Color color;
 
   @override
   Widget build(BuildContext context) => Container(
         constraints: const BoxConstraints(minHeight: 40),
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: _slate100, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: color, border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
         child: Text(text, style: const TextStyle(fontSize: 14, color: _slate700)),
       );
 }
@@ -2875,9 +3200,9 @@ class _Figure extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: _slate500)),
+          Text(label, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
           Text(fmtInt(value), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: color ?? _slate900)),
         ]),
       );
@@ -2895,14 +3220,14 @@ class _Stat extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: EdgeInsets.all(small ? 10 : 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: _slate200),
+          color: Tone.bg(0xFFFFFFFF),
+          border: Border.all(color: Tone.line(0xFFE2E8F0)),
           borderRadius: BorderRadius.circular(12),
           boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(),
-              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w500, letterSpacing: .5, color: _slate500)),
+              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w500, letterSpacing: .5, color: Tone.fg(0xFF566579))),
           const SizedBox(height: 2),
           Text(fmtInt(value), style: TextStyle(fontSize: small ? 17 : 19, fontWeight: FontWeight.w700, color: _tones[tone])),
         ]),
@@ -2917,7 +3242,7 @@ class _Detail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: _slate500)),
+        Text(label, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF566579))),
         Text((value ?? '').trim().isEmpty ? '—' : value!, style: const TextStyle(fontWeight: FontWeight.w500)),
       ]);
 }

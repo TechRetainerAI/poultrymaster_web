@@ -10,8 +10,9 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 import '../lookup_loader.dart';
-import '../web_page_screen.dart';
+import '../generic/generic_setup_wizard_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Setup → Company → Companies ("My companies"), as `app/companies/page.tsx`.
 /// Shared by every company type: the owner's companies with the active one
 /// called out, Switch, and "New company".
@@ -29,7 +30,9 @@ class CompaniesScreen extends StatefulWidget {
 /// One business on offer (lib/companies/business-types.ts). Several map to
 /// the same company type and differ only by the Generic template.
 class BusinessType {
-  const BusinessType(this.id, this.label, this.description, this.companyType, [this.industryTemplate]);
+  const BusinessType(this.id, this.label, this.description, this.companyType, [this.industryTemplate]) : businessTemplate = null, category = null;
+  const BusinessType.generic(this.id, this.label, this.description, this.industryTemplate, {required this.businessTemplate, required this.category})
+      : companyType = 'Generic';
   final String id;
   final String label;
   final String description;
@@ -37,6 +40,12 @@ class BusinessType {
 
   /// Set only for Generic-based types, which go through the setup wizard.
   final String? industryTemplate;
+
+  /// The module bundle it runs (business-types.ts `businessTemplate`).
+  final String? businessTemplate;
+
+  /// The wizard's grouping: retail, service, subscription or other.
+  final String? category;
 }
 
 const businessTypes = [
@@ -44,26 +53,41 @@ const businessTypes = [
   BusinessType('poultry', 'Poultry farm', 'Flocks, houses, egg production, feed', 'Poultry'),
   BusinessType('hotel', 'Hotel', 'Rooms, bookings, front desk', 'Hotel'),
   BusinessType('restaurant', 'Restaurant', 'POS, menu, kitchen, delivery', 'Restaurant'),
-  BusinessType('saas', 'SaaS / software company', 'Customers on recurring plans', 'Generic', 'SaaS'),
-  BusinessType('gym', 'Gym / fitness centre', 'Members on monthly or annual memberships', 'Generic', 'Gym'),
-  BusinessType('school', 'School', 'Students, termly fees, fee notes', 'Generic', 'School'),
-  BusinessType('cleaning', 'Cleaning service', 'Clients on service contracts', 'Generic', 'CleaningService'),
-  BusinessType('security', 'Security service', 'Clients on service contracts', 'Generic', 'SecurityService'),
-  BusinessType('agency', 'Agency', 'Clients on monthly retainers', 'Generic', 'Agency'),
-  BusinessType('retainer', 'Retainer business', 'Any business billing a fixed amount each period', 'Generic', 'RetainerBusiness'),
-  BusinessType('membership', 'Membership organisation', 'Members paying dues', 'Generic', 'MembershipBusiness'),
-  BusinessType('retail', 'Shop / retail', 'Stock, counter sales, suppliers', 'Generic', 'Retail'),
-  BusinessType('other', 'Other small business', 'Salon, pharmacy, workshop — sales, expenses and cash', 'Generic', 'Other'),
+  BusinessType.generic('saas', 'SaaS / software company', 'Customers on recurring plans', 'SaaS', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('gym', 'Gym / fitness centre', 'Members on monthly or annual memberships', 'Gym', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('school', 'School / training centre', 'Students, termly fees, fee notes', 'School', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('cleaning', 'Cleaning service', 'Clients on service contracts', 'CleaningService', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('security', 'Security service', 'Clients on service contracts', 'SecurityService', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('agency', 'Agency', 'Clients on monthly retainers', 'Agency', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('retainer', 'Retainer business', 'Any business billing a fixed amount each period', 'RetainerBusiness', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('membership', 'Membership organisation', 'Members paying dues', 'MembershipBusiness', businessTemplate: 'SubscriptionServiceBusiness', category: 'subscription'),
+  BusinessType.generic('produce', 'Yam & produce seller', 'Yams, tomatoes, vegetables — purchases, sales and spoilage', 'ProduceSeller', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('grocery', 'Grocery shop / mini-mart', 'Packaged goods, stock alerts, daily cash closing', 'Grocery', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('clothing', 'Clothing & shoe shop', 'Fashion, accessories — stock by size and style', 'Retail', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('hardware', 'Hardware & building materials', 'Cement, iron rods, paint — bulk and unit sales', 'HardwareShop', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('electronics', 'Phone & electronics shop', 'Phones, accessories, repairs — serial tracking', 'ElectronicsShop', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('wholesaler', 'Wholesaler / distributor', 'Bulk buying and reselling — customer credit, supplier payments', 'Wholesaler', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('bakery', 'Bakery', 'Bread, pastries — daily production and sales', 'Bakery', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('pharmacy', 'Pharmacy', 'Medicines, health products — stock and expiry tracking', 'Pharmacy', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('car-dealership', 'Car dealership', 'Vehicle sales — purchases, deposits, customer balances', 'CarDealership', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('retail', 'Other shop / retail', 'Any store selling physical goods', 'Retail', businessTemplate: 'RetailBusiness', category: 'retail'),
+  BusinessType.generic('barbershop', 'Barbershop', 'Haircuts, shaves — walk-in sales, staff commissions', 'Barbershop', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('salon', 'Hair salon & beauty', 'Hair, nails, skincare — services, retail products, staff', 'Salon', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('auto-repair', 'Auto repair garage', 'Car repairs — job tracking, parts, labour', 'AutoRepair', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('tailor', 'Tailor / fashion designer', 'Custom clothing — measurements, deposits, job tracking', 'Tailor', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('laundry', 'Laundry & dry cleaning', 'Wash, iron, dry clean — customer items and pickup', 'Laundry', businessTemplate: 'GeneralBusiness', category: 'service'),
+  BusinessType.generic('freelancer', 'Freelancer / consultant', 'Client invoicing, project billing, expenses', 'Freelancer', businessTemplate: 'SubscriptionServiceBusiness', category: 'service'),
+  BusinessType.generic('other', 'Other business', 'Any business not listed above', 'Other', businessTemplate: 'GeneralBusiness', category: 'other'),
 ];
 
 /// CompanyIcon: the same mark and colour wherever a company is named.
 Widget companyIcon(String type) {
   final (icon, color) = switch (type) {
-    'Water' => (Icons.water_drop_outlined, const Color(0xFF0EA5E9)), // sky-500
-    'Poultry' => (Icons.flutter_dash, const Color(0xFFF97316)), // orange-500
-    'Restaurant' => (Icons.restaurant, const Color(0xFFE11D48)), // rose-600
-    'Hotel' => (Icons.business_outlined, const Color(0xFFA855F7)), // purple-500
-    _ => (Icons.business_outlined, const Color(0xFFF97316)),
+    'Water' => (Icons.water_drop_outlined, const Tone(0xFF0EA5E9)), // sky-500
+    'Poultry' => (Icons.flutter_dash, const Tone(0xFFF97316)), // orange-500
+    'Restaurant' => (Icons.restaurant, const Tone(0xFFE11D48)), // rose-600
+    'Hotel' => (Icons.business_outlined, const Tone(0xFFA855F7)), // purple-500
+    _ => (Icons.business_outlined, const Tone(0xFFF97316)),
   };
   return Icon(icon, size: 20, color: color);
 }
@@ -136,11 +160,10 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
       if (await widget.session.setActive(company)) {
         nav.popUntil((r) => r.isFirst);
         nav.push(MaterialPageRoute(
-          builder: (_) => WebPageScreen(
-            label: 'Set up ${created.name}',
-            href: '/generic-setup/wizard?industry=${Uri.encodeComponent(t.industryTemplate!)}',
-            company: company,
+          builder: (_) => GenericSetupWizardScreen(
             session: widget.session,
+            company: company,
+            industry: t.industryTemplate,
           ),
         ));
       }
@@ -221,11 +244,11 @@ class _CompanyCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD1FAE5), // emerald-100
+                    color: const Tone.bg(0xFFD1FAE5), // emerald-100
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: const Text('✓ Active',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF047857))),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF047857))),
                 ),
             ],
           ),

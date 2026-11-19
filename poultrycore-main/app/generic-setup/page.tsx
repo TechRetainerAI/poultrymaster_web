@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CompanyTimeZoneField } from "@/components/settings/company-timezone-field"
-import { Loader2, Settings, CheckCircle2 } from "lucide-react"
+import { Loader2, Settings, CheckCircle2, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -191,6 +191,7 @@ export default function GenericSetupPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-6">
+            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Settings className="h-6 w-6 text-emerald-600" />
               {profile ? "Business profile" : "Set up your business"}

@@ -210,7 +210,9 @@ const Map<String, List<List<String>>> staticOptions = {
   "poultry-stock-transactions.movementType": [["Increase", "Increase"], ["Adjustment", "Adjustment"], ["Decrease", "Decrease"], ["Damage/Loss", "Damage/Loss"]],
   // STATUSES in app/poultry-vehicles/page.tsx (was attendance statuses).
   "poultry-vehicles.status": [["Active", "Active"], ["Inactive", "Inactive"], ["UnderMaintenance", "UnderMaintenance"]],
-  "poultry-vehicles.vehicleType": [["Truck", "Truck"], ["Van", "Van"], ["Tricycle", "Tricycle"], ["Motorbike", "Motorbike"], ["Pickup", "Pickup"], ["Other", "Other"]],
+  "poultry-vehicles.vehicleType": [["Truck", "Truck"], ["Van", "Van"], ["Pickup", "Pickup"], ["Tricycle", "Tricycle"], ["Motorbike", "Motorbike"], ["Other", "Other"]],
+  // A5 (9 Nov pull): fuel is a select, narrowed to the vehicle type (fleet_validation.dart).
+  "poultry-vehicles.fuelType": [["Petrol", "Petrol"], ["Diesel", "Diesel"], ["Electric", "Electric"], ["Hybrid", "Hybrid"], ["LPG / Gas", "LPG / Gas"]],
   // SEGMENTS in app/restaurant-crm/page.tsx.
   "restaurant-crm-customers.segment": [["New", "New"], ["Regular", "Regular"], ["VIP", "VIP"], ["Lapsed", "Lapsed"]],
   "restaurant-delivery.vehicleType": [["Motorcycle", "Motorcycle"], ["Car", "Car"], ["Bicycle", "Bicycle"], ["Van", "Van"]],

@@ -309,15 +309,65 @@ namespace PoultryFarmAPIWeb.Models
         public string? AccountName { get; set; }
         public DateTime ReconciliationDate { get; set; }
         public decimal SystemBalance { get; set; }
-        public decimal ActualBalance { get; set; }
+        // Null while a draft has no figure yet; 0 is a real count (migration 456).
+        public decimal? ActualBalance { get; set; }
         public decimal Difference { get; set; }
         public long? AdjustmentTransactionId { get; set; }
         public string? Reason { get; set; }
         public string? Notes { get; set; }
-        public string Status { get; set; } = "Approved";
+        // Draft | Posted | Reversed (migration 456; older 'Approved' rows became Posted).
+        public string Status { get; set; } = "Draft";
         public string? RequestedBy { get; set; }
         public string? ApprovedBy { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        public string? AccountType { get; set; }
+        public string? ReferenceNo { get; set; }
+        public decimal? SystemBalanceCached { get; set; }
+        public long? ReversalTransactionId { get; set; }
+        public string? CreatedBy { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public string? PostedBy { get; set; }
+        public DateTime? PostedAt { get; set; }
+        public string? ReversedBy { get; set; }
+        public DateTime? ReversedAt { get; set; }
+        public string? ReversalReason { get; set; }
+    }
+
+    // Draft cash count (create / edit). Saving moves no money; posting does.
+    public class GenericCashCountInput
+    {
+        public int GenericCashAccountId { get; set; }
+        public DateTime? ReconciliationDate { get; set; }
+        public decimal? ActualBalance { get; set; }
+        [StringLength(500)]
+        public string? Reason { get; set; }
+        [StringLength(1000)]
+        public string? Notes { get; set; }
+    }
+
+    public class GenericCashCountReverseRequest
+    {
+        [Required, StringLength(500, MinimumLength = 3)]
+        public string Reason { get; set; } = string.Empty;
+    }
+
+    // Per-account status for the Reconciliation page (spgenericcashreconciliation_getaccountstatus).
+    public class GenericCashAccountCountStatusModel
+    {
+        public int GenericCashAccountId { get; set; }
+        public string AccountName { get; set; } = string.Empty;
+        public string? AccountType { get; set; }
+        public bool IsActive { get; set; }
+        public decimal CurrentBalance { get; set; }
+        public decimal LedgerBalance { get; set; }
+        public decimal CacheDrift { get; set; }
+        public DateTime? LastReconciledAt { get; set; }
+        public decimal? LastReconciledBalance { get; set; }
+        public int? DaysSinceReconciled { get; set; }
+        public int UnclearedCount { get; set; }
+        public decimal UnclearedAmount { get; set; }
+        public int? OpenDraftId { get; set; }
     }
 
     // Company default cash-account mappings (key -> account).

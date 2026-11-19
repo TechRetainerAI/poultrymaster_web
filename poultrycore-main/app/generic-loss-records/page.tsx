@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
-import { Plus, Loader2, AlertTriangle, Trash2, Package } from "lucide-react"
+import { ArrowLeft, Plus, Loader2, AlertTriangle, Trash2, Package } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -162,8 +162,9 @@ export default function GenericLossRecordsPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <AlertTriangle className="h-6 w-6 text-red-600" /> Loss &amp; Damage Tracker
+                <AlertTriangle className="h-6 w-6 text-red-600" /> Loss &amp; Damage Records
               </h1>
               <p className="text-sm text-slate-500">Track damaged, spoiled, stolen, or lost products.</p>
             </div>

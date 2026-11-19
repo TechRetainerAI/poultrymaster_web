@@ -10,7 +10,15 @@ import '../../state/session.dart';
 import '../list_screen.dart';
 import '../lookup_loader.dart';
 import '../registry.dart';
+import '../shared/business_dates.dart' show fmtNum, isoDay;
+import '../shared/company_clock.dart';
+import 'bird_reconciliation.dart';
 import 'breed_picker.dart';
+import 'flock_history.dart';
+import 'flock_type.dart';
+import 'poultry_features.dart';
+
+import 'package:poultrycore_mobile/design/tone.dart';
 
 /// Flock Groups → Add / Edit flock, as the web's dialogs in
 /// `app/flocks/page.tsx`.
@@ -80,9 +88,30 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
   bool _hasArrived = false;
   String _inactivationReason = '';
 
+  /// '' = automatic: the server's default (broiler breed, else company type).
+  /// An existing flock always carries its stored type.
+  String _flockType = '';
+  String? _businessType;
+
   List<_Batch>? _batches;
   List<_House>? _houses;
+  List<Map<String, dynamic>> _houseRows = const [];
   List<Map<String, dynamic>> _flocks = const [];
+
+  /// 413: the server's bird accounting per batch; empty before 413.
+  Map<int, Map> _recon = const {};
+
+  /// Saved opening positions: the birds ORIGINALLY placed, keyed by flock.
+  Map<int, Map> _openingByFlock = const {};
+
+  /// 413: a new flock, or one already operating.
+  bool _existingMode = false;
+  final _existingDraft = ExistingFlockDraft(isoDay(DateTime.now()));
+
+  /// 414: the flock as it was registered, from posted records.
+  Map? _editCtx;
+  OpeningHistoryDraft? _openingDraft;
+  Duration _offset = DateTime.now().timeZoneOffset;
   String? _loadError;
 
   bool _saving = false;
@@ -114,6 +143,7 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
       _inactivationReason = '${r['inactivationReason'] ?? ''}';
       _otherReason.text = '${r['otherReason'] ?? ''}';
       _notes.text = '${r['notes'] ?? ''}';
+      _flockType = flockTypeOf(r);
     }
     _quantity.addListener(() => setState(() {}));
     _name.addListener(() => setState(() {}));
@@ -150,8 +180,21 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
         _list('/api/House'),
         _list('/api/Flock'),
       ]);
+      final businessType = await loadPoultryBusinessType(widget.session, widget.company);
+      final recon = await loadBatchReconciliation(widget.session, widget.company);
+      final opening = await _loadOpening();
+      final ctx = _editing && _flockId != null ? await loadFlockEditContext(widget.session, widget.company, _flockId!) : null;
+      final clock = await CompanyClock.load(widget.session, widget.company);
       if (!mounted) return;
       setState(() {
+        _recon = recon;
+        _openingByFlock = opening;
+        _offset = clock.offset;
+        if (_editing) {
+          _editCtx = ctx;
+          _openingDraft = openingDraftFrom(ctx);
+        }
+        _houseRows = results[1];
         _batches = [
           for (final b in results[0])
             if (_int(b['batchId']) > 0)
@@ -173,6 +216,7 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
               ),
         ];
         _flocks = results[2];
+        _businessType = businessType;
       });
     } on ApiException catch (e) {
       if (mounted) setState(() => _loadError = e.message);
@@ -180,6 +224,43 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
       if (mounted) setState(() => _loadError = 'Could not load batches and houses.');
     }
   }
+
+  /// Latest opening position per flock (same rule as the edit context).
+  Future<Map<int, Map>> _loadOpening() async {
+    try {
+      final r = await widget.session.farmClient.get('/api/PoultryFarmSetup/opening-positions', query: _scope);
+      final p = r is Map ? (r['positions'] ?? (r['data'] is Map ? r['data']['positions'] : null)) : null;
+      final out = <int, Map>{};
+      for (final x in p is List ? p : const []) {
+        if (x is! Map) continue;
+        final prev = out[_int(x['flockId'])];
+        if (prev == null || _int(x['openingPositionId']) > _int(prev['openingPositionId'])) out[_int(x['flockId'])] = x;
+      }
+      return out;
+    } catch (_) {
+      return const {}; // the form still works on flock quantities
+    }
+  }
+
+  /// Birds a flock was placed with: its opening position, else its quantity.
+  int _placedBirds(Map f) {
+    final o = _openingByFlock[_int(f['flockId'])];
+    return o != null && o['originallyPlaced'] != null ? _int(o['originallyPlaced']) : _int(f['quantity']);
+  }
+
+  /// Birds of a batch not in any flock yet.
+  int _notYetPlaced(_Batch b) {
+    final r = _recon[b.id];
+    if (r != null) return _int(r['unallocatedPool']).clamp(0, 1 << 31);
+    final used = _flocks.where((f) => _int(f['batchId']) == b.id).fold<int>(0, (a, f) => a + _placedBirds(f));
+    return (b.birds - used).clamp(0, 1 << 31);
+  }
+
+  /// The birds on the form: Edit Flock with an opening history takes them
+  /// from the history (live at registration + adjustments since).
+  int get _birdsOnForm => _openingDraft != null
+      ? (int.tryParse(_openingDraft!.live.trim()) ?? 0) + _int(_editCtx?['quantityAdjustments'])
+      : _qty;
 
   /// The batch dropdown's last option: go to Flock Purchases (Batches) to
   /// add one, then come back with it already picked. Without this a farm
@@ -248,10 +329,16 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
     if (_name.text.trim().isEmpty || _startDate == null) {
       return _fail('Add a flock name and the date the flock started.');
     }
-    if (_qty <= 0) {
-      return _fail('Enter how many birds are in this flock — use a number greater than zero.');
+    // A flock registered with an opening position takes its count from the
+    // history section; any other flock needs a count on the form.
+    if (_openingDraft == null && _qty <= 0) {
+      return _fail(!_editing && _existingMode
+          ? 'Enter how many birds were originally placed in this flock.'
+          : 'Enter how many birds are in this flock — use a number greater than zero.');
     }
-    if (_batchId == null) {
+    final existing = !_editing && _existingMode ? existingFlockHistory(_qty, _existingDraft) : null;
+    if (existing?.problem != null) return _fail(existing!.problem!);
+    if (!_editing && _batchId == null) {
       return _fail('Link this flock to a batch so bird counts stay accurate.');
     }
     final batch = _selectedBatch;
@@ -259,7 +346,9 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
       return _fail('That batch only has ${batch.birds} birds available — '
           'lower the flock size or pick another batch.');
     }
-    // Room capacity: cannot place more birds than the house holds.
+    // Room capacity. A new flock cannot overfill the house; on Edit,
+    // out-of-proportion numbers are warnings and the save still goes through.
+    final localWarnings = <String>[if (_editing) ...openingDraftWarnings(_editCtx, _openingDraft)];
     final house = _houses?.where((h) => h.id == _houseId).firstOrNull;
     if (house != null && house.capacity > 0) {
       final occupied = _flocks
@@ -268,43 +357,79 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
               f['active'] == true &&
               _int(f['flockId']) != (_flockId ?? -1))
           .fold<int>(0, (s, f) => s + _int(f['quantity']));
-      if (occupied + _qty > house.capacity) {
-        return _fail('${house.name} holds ${house.capacity} birds'
-            '${occupied > 0 ? ' and already has $occupied' : ''}. '
-            "You're trying to place ${occupied + _qty}. "
-            'Reduce the number or pick another room.');
+      if (_editing) {
+        if (occupied + _birdsOnForm > house.capacity) {
+          localWarnings.add('${house.name} holds ${fmtNum(house.capacity, 0)} birds'
+              '${occupied > 0 ? ' and already has ${fmtNum(occupied, 0)}' : ''}; '
+              'with this flock it has ${fmtNum(occupied + _birdsOnForm, 0)}.');
+        }
+      } else {
+        // An existing flock occupies the pen with the birds standing today.
+        final standing = existing != null ? existing.history['currentLiveBirds'] as int : _qty;
+        if (occupied + standing > house.capacity) {
+          return _fail('${house.name} holds ${house.capacity} birds'
+              '${occupied > 0 ? ' and already has $occupied' : ''}. '
+              "You're trying to place ${fmtNum(occupied + standing, 0)}. "
+              'Reduce the number or pick another room.');
+        }
       }
     }
 
     setState(() => _saving = true);
     final d = _startDate!;
+    final day = isoDay(d);
     final body = <String, dynamic>{
       ..._scope,
       if (_editing) 'flockId': _flockId,
       'name': _name.text.trim(),
-      'startDate':
-          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}',
+      'startDate': day,
       'breed': _breed.trim(),
-      'quantity': _qty,
+      'quantity': _editing ? _birdsOnForm : _qty,
       'active': _active,
       'hasArrived': _hasArrived,
       'houseId': _houseId,
-      'batchId': _batchId,
+      'batchId': _batchId ?? 0,
       'inactivationReason': _inactivationReason,
       'otherReason': _inactivationReason == 'other' ? _otherReason.text.trim() : '',
       'notes': _notes.text.trim(),
+      // 399: omitted -> a new flock takes the database default (broiler
+      // breed, else company type), and an existing one keeps its type.
+      if (_flockType.isNotEmpty) 'flockType': _flockType,
+      // 414: the opening history is saved with the flock; the server posts
+      // only the difference.
+      if (_editing && _openingDraft != null) 'OpeningHistory': _openingDraft!.toEdit(),
     };
     try {
       final client = widget.session.farmClient;
+      var message = _editing ? 'Flock updated successfully.' : 'Flock created successfully.';
       if (_editing) {
-        await client.put('/api/Flock/$_flockId', body: body);
+        final res = await client.put('/api/Flock/$_flockId', body: body);
+        // Server warnings restate the local ones more precisely; show each once.
+        final raw = res is Map ? (res['warnings'] ?? res['Warnings'] ?? (res['data'] is Map ? res['data']['warnings'] : null)) : null;
+        final warnings = <String>{
+          for (final w in raw is List ? raw : const []) if (w is String && w.isNotEmpty) w,
+          ...localWarnings,
+        };
+        if (warnings.isNotEmpty) message = 'Flock updated — please check — ${warnings.join(' ')}';
+      } else if (existing != null) {
+        // One transaction on the server: the flock at its remaining birds, the
+        // batch charged the placed birds once, the difference as opening history.
+        await client.post('/api/Flock/existing', body: {
+          'flock': {...body, 'startDate': '${day}T00:00:00'},
+          'history': existing.history,
+          'asOfDate': _existingDraft.asOfDate,
+          'source': 'Flocks page',
+        });
+        message = 'Flock created: ${fmtNum(existing.history['originallyPlaced'] as int, 0)} placed, '
+            '${fmtNum(existing.history['currentLiveBirds'] as int, 0)} remaining.';
       } else {
         await client.post('/api/Flock', body: body);
       }
+      // A new or retyped flock can change which egg / broiler pages show.
+      loadPoultryFeatures(widget.session, widget.company, force: true);
       if (!mounted) return;
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_editing ? 'Flock updated successfully.' : 'Flock created successfully.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -353,28 +478,48 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
                 _ErrorBox(message: msg),
                 const SizedBox(height: 12),
               ],
+            if (!_editing) ...[
+              FlockModeSelector(
+                existing: _existingMode,
+                onChanged: _saving ? null : (v) => setState(() => _existingMode = v),
+              ),
+              const SizedBox(height: 12),
+            ],
             FormSection(title: 'Flock Information', color: SectionColor.indigo, children: [
               AppField(
                 label: 'Assign to Flock Batch',
-                required: true,
-                hint: batch == null ? null : 'Available: ${batch.birds} birds',
-                child: AppSelect<String>(
-                  value: _batchId?.toString(),
-                  enabled: !loading,
-                  hintText: loading
-                      ? 'Loading…'
-                      : (_batches?.isEmpty ?? true)
-                          ? 'No batches yet — tap to create one'
-                          : 'Please select a batch',
-                  items: [
-                    for (final b in _batches ?? const <_Batch>[])
-                      AppSelectItem(value: '${b.id}', label: b.name),
-                    const AppSelectItem(value: _createBatch, label: '＋ Create a flock batch'),
+                required: !_editing,
+                full: true,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                  AppSelect<String>(
+                    value: _batchId?.toString(),
+                    enabled: !loading,
+                    hintText: loading
+                        ? 'Loading…'
+                        : (_batches?.isEmpty ?? true)
+                            ? 'No batches yet — tap to create one'
+                            : 'Please select a batch',
+                    items: [
+                      for (final b in _batches ?? const <_Batch>[])
+                        AppSelectItem(value: '${b.id}', label: b.name),
+                      const AppSelectItem(value: _createBatch, label: '＋ Create a flock batch'),
+                    ],
+                    onChanged: (v) => v == _createBatch
+                        ? _goCreateBatch()
+                        : _pickBatch(int.tryParse(v ?? '')),
+                  ),
+                  if (batch != null) ...[
+                    const SizedBox(height: 6),
+                    BatchAvailability(
+                      size: batch.birds,
+                      free: _notYetPlaced(batch),
+                      recon: _recon[batch.id],
+                      // Editing gives the flock back its own birds: they count
+                      // against its batch today and would be freed by the change.
+                      ownBirds: _editing && _row != null && _int(_row!['batchId']) == batch.id ? _placedBirds(_row!) : 0,
+                    ),
                   ],
-                  onChanged: (v) => v == _createBatch
-                      ? _goCreateBatch()
-                      : _pickBatch(int.tryParse(v ?? '')),
-                ),
+                ]),
               ),
               AppField(
                 label: 'Name',
@@ -394,6 +539,15 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
                 ),
               ),
               AppField(
+                label: 'Flock type',
+                child: FlockTypeSelect(
+                  value: _flockType.isNotEmpty ? _flockType : defaultFlockType(_breed, _businessType),
+                  automatic: _flockType.isEmpty,
+                  enabled: !_saving,
+                  onChanged: (t) => setState(() => _flockType = t),
+                ),
+              ),
+              AppField(
                 label: 'Start Date',
                 required: true,
                 child: AppDateField(
@@ -402,29 +556,74 @@ class _FlockFormScreenState extends State<FlockFormScreen> {
                 ),
               ),
               AppField(
-                label: 'Number of Birds',
+                label: !_editing && _existingMode ? 'Birds Originally Placed' : 'Number of Birds',
                 required: true,
-                hint: batch == null ? null : 'Remaining: ${batch.birds - _qty} birds',
-                child: AppNumberInput(
-                  controller: _quantity,
-                  hintText: 'e.g., 100',
-                  validator: _req,
-                ),
+                full: true,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                  if (_editing && _openingDraft != null) ...[
+                    AppNumberInput(
+                      key: const ValueKey('flock-quantity-locked'),
+                      controller: TextEditingController(text: '$_birdsOnForm'),
+                      enabled: false,
+                    ),
+                    const SizedBox(height: 4),
+                    _hint('Set from the registered bird count in Bird history below.'),
+                  ] else ...[
+                    AppNumberInput(
+                      controller: _quantity,
+                      hintText: 'e.g., 100',
+                      validator: _req,
+                    ),
+                    if (_editing && _int((_editCtx?['position'] as Map?)?['productionrecordcount']) > 0) ...[
+                      const SizedBox(height: 4),
+                      _hint('Birds placed. Live birds now (${fmtNum(_int((_editCtx?['position'] as Map?)?['currentlivebirds']), 0)}) '
+                          'come from the latest production record.'),
+                    ],
+                    if (!_editing && batch != null && _qty > 0) ...[
+                      const SizedBox(height: 4),
+                      if (_notYetPlaced(batch) - _qty >= 0)
+                        _hint('${fmtNum(_notYetPlaced(batch) - _qty, 0)} birds left to place after this')
+                      else
+                        _hint('${fmtNum(_qty - _notYetPlaced(batch), 0)} more than the batch has left to place', red: true),
+                    ],
+                  ],
+                ]),
               ),
+              if (!_editing && _existingMode)
+                AppField(
+                  label: '',
+                  full: true,
+                  child: ExistingFlockFields(
+                    placed: _qty,
+                    draft: _existingDraft,
+                    enabled: !_saving,
+                    onChanged: () => setState(() {}),
+                  ),
+                ),
               AppField(
                 label: 'Assign to House',
-                child: AppSelect<String>(
-                  value: _houseId?.toString() ?? '',
+                full: true,
+                child: HousePicker(
+                  houses: _houseRows,
+                  flocks: _flocks,
+                  value: _houseId,
                   enabled: !loading,
-                  items: [
-                    const AppSelectItem(value: '', label: 'No house'),
-                    for (final h in _houses ?? const <_House>[])
-                      AppSelectItem(value: '${h.id}', label: h.name),
-                  ],
-                  onChanged: (v) => setState(() => _houseId = int.tryParse(v ?? '')),
+                  excludeFlockId: _flockId,
+                  birds: !_editing && _existingMode ? (int.tryParse(_existingDraft.currentLiveBirds.trim()) ?? 0) : _birdsOnForm,
+                  onChanged: (id) => setState(() => _houseId = id),
                 ),
               ),
             ]),
+            if (_editing && _editCtx != null) ...[
+              const SizedBox(height: 12),
+              FlockHistoryPanel(
+                ctx: _editCtx!,
+                draft: _openingDraft,
+                onChanged: () => setState(() {}),
+                enabled: !_saving,
+                offset: _offset,
+              ),
+            ],
             const SizedBox(height: 12),
             FormSection(title: 'Status & Notes', color: SectionColor.green, columns: 1, children: [
               AppField(
@@ -538,3 +737,6 @@ class _ErrorBox extends StatelessWidget {
     );
   }
 }
+
+Widget _hint(String text, {bool red = false}) =>
+    Text(text, style: TextStyle(fontSize: 12, color: red ? const Tone.fg(0xFFDC2626) : const Tone.fg(0xFF64748B)));

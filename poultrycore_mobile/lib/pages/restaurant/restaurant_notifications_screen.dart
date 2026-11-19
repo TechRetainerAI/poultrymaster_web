@@ -16,6 +16,7 @@ import '../shared/business_dates.dart' show fmtInstant;
 import '../shared/company_clock.dart';
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The alert toggles, then the delivery channels: key, label, description.
 const notificationAlertTypes = <(String, String, String)>[
   ('newOrderAlerts', 'New Order Alerts', 'Get notified when a new order is placed'),
@@ -52,10 +53,10 @@ String notificationTimeAgo(Object? createdAt, Duration offset, {DateTime? now}) 
 }
 
 (IconData, Color) _severity(Object? s) => switch (tStr(s).toLowerCase()) {
-      'warning' => (Icons.warning_amber_outlined, const Color(0xFFF59E0B)),
-      'error' => (Icons.cancel_outlined, const Color(0xFFEF4444)),
-      'success' => (Icons.check_circle_outline, const Color(0xFF22C55E)),
-      _ => (Icons.info_outline, const Color(0xFF3B82F6)),
+      'warning' => (Icons.warning_amber_outlined, const Tone(0xFFF59E0B)),
+      'error' => (Icons.cancel_outlined, const Tone(0xFFEF4444)),
+      'success' => (Icons.check_circle_outline, const Tone(0xFF22C55E)),
+      _ => (Icons.info_outline, const Tone(0xFF3B82F6)),
     };
 
 class RestaurantNotificationsScreen extends StatefulWidget {
@@ -175,7 +176,7 @@ class _RestaurantNotificationsScreenState extends State<RestaurantNotificationsS
                     if (v == 'settings') _loadSettings();
                   },
                   tabs: [
-                    ('all', Icons.notifications_none, 'All', _unread > 0 ? rBadge('$_unread', bg: const Color(0xFFE11D48), fg: Colors.white) : null),
+                    ('all', Icons.notifications_none, 'All', _unread > 0 ? rBadge('$_unread', bg: const Tone.bg(0xFFE11D48), fg: Colors.white) : null),
                     ('settings', Icons.settings_outlined, 'Settings', null),
                   ],
                 ),
@@ -194,7 +195,7 @@ class _RestaurantNotificationsScreenState extends State<RestaurantNotificationsS
           alignment: Alignment.centerRight,
           child: _unreadOnly
               ? FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48), visualDensity: VisualDensity.compact),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFFE11D48)), visualDensity: VisualDensity.compact),
                   onPressed: () => setState(() => _unreadOnly = false),
                   icon: const Icon(Icons.filter_alt_outlined, size: 16),
                   label: const Text('Showing Unread'),
@@ -230,8 +231,8 @@ class _RestaurantNotificationsScreenState extends State<RestaurantNotificationsS
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
         decoration: BoxDecoration(
-          color: unread ? const Color(0x99EFF6FF) : Colors.white,
-          border: Border.all(color: unread ? const Color(0xFFDBEAFE) : TColors.slate200),
+          color: unread ? const Tone.bg(0x99EFF6FF) : Tone.bg(0xFFFFFFFF),
+          border: Border.all(color: unread ? const Tone.line(0xFFDBEAFE) : TColors.slate200),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Stack(clipBehavior: Clip.none, children: [
@@ -241,7 +242,7 @@ class _RestaurantNotificationsScreenState extends State<RestaurantNotificationsS
               top: 0,
               bottom: 0,
               child: Center(
-                child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFF3B82F6), shape: BoxShape.circle)),
+                child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Tone.bg(0xFF3B82F6), shape: BoxShape.circle)),
               ),
             ),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -254,8 +255,8 @@ class _RestaurantNotificationsScreenState extends State<RestaurantNotificationsS
                       style: TextStyle(
                           fontSize: 14,
                           fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
-                          color: unread ? const Color(0xFF111827) : const Color(0xFF374151))),
-                  rBadge(tStr(n['type']), bg: Colors.white, border: TColors.slate200),
+                          color: unread ? const Tone.fg(0xFF111827) : const Tone.fg(0xFF374151))),
+                  rBadge(tStr(n['type']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
                 ]),
                 const SizedBox(height: 2),
                 Text(tStr(n['message']), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
@@ -282,7 +283,7 @@ class _RestaurantNotificationsScreenState extends State<RestaurantNotificationsS
           ),
           Switch(
             value: _settings[item.$1] ?? false,
-            activeTrackColor: const Color(0xFFE11D48),
+            activeTrackColor: const Tone.bg(0xFFE11D48),
             onChanged: (v) => setState(() => _settings[item.$1] = v),
           ),
         ]),
@@ -300,7 +301,7 @@ class _RestaurantNotificationsScreenState extends State<RestaurantNotificationsS
           for (final item in notificationChannels) _toggle(item),
           const SizedBox(height: 8),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48), minimumSize: const Size.fromHeight(44)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFFE11D48)), minimumSize: const Size.fromHeight(44)),
             onPressed: _saving ? null : _saveSettings,
             child: Text(_saving ? 'Saving...' : 'Save Preferences'),
           ),

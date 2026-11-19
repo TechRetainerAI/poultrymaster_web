@@ -9,8 +9,26 @@ import { getUserContext } from "@/lib/api/config"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listWaterCashAccounts, listWaterCustomers, listWaterSuppliers } from "@/lib/api/water"
 import { getSuppliers } from "@/lib/api/supplier"
+import { getCashAccounts as listGenericCashAccounts, getSuppliers as listGenericSuppliers } from "@/lib/api/generic"
 
 export type CreditModule = "Poultry" | "Water"
+
+/**
+ * 449: SUPPLIER credit also runs on Generic (api/Generic/supplier-credits,
+ * supplier-debts -- the same routes and shapes). Customer credit stays
+ * Poultry / Water: Generic has its own customer credits page.
+ */
+export type SupplierCreditModule = CreditModule | "Generic"
+
+function isGenericCompany(): boolean {
+  if (typeof window === "undefined") return false
+  try { return localStorage.getItem("farmType") === "Generic" } catch { return false }
+}
+
+/** The route prefix for the supplier credit / debt calls. */
+export function supplierCreditModule(): SupplierCreditModule {
+  return isGenericCompany() ? "Generic" : creditModule()
+}
 
 /** The active company's module, from what the company switcher stores. */
 export function creditModule(): CreditModule {
@@ -24,6 +42,20 @@ export function creditModule(): CreditModule {
 
 /** Cash accounts in the poultry shape (water ids mapped onto poultryCashAccountId). */
 export async function listCreditCashAccounts(): Promise<PoultryCashAccount[]> {
+  if (isGenericCompany()) {
+    const rows = await listGenericCashAccounts()
+    return rows.map((a) => ({
+      poultryCashAccountId: a.genericCashAccountId,
+      farmId: getUserContext().farmId ?? "",
+      accountName: a.accountName,
+      accountType: a.accountType,
+      openingBalance: a.openingBalance,
+      currentBalance: a.currentBalance,
+      allowNegativeBalance: a.allowNegativeBalance,
+      isActive: a.isActive,
+      notes: a.notes ?? null,
+    } as PoultryCashAccount))
+  }
   if (creditModule() === "Water") {
     const rows = await listWaterCashAccounts()
     return rows.map((a) => ({
@@ -61,6 +93,7 @@ export async function listCreditCustomers(): Promise<{ id: number; name: string 
 
 /** Permission key for the active module, e.g. "customer-payments.create". */
 export function creditPerm(key: string): string {
+  if (isGenericCompany()) return `generic.${key}`
   return `${creditModule() === "Water" ? "water" : "poultry"}.${key}`
 }
 
@@ -75,14 +108,17 @@ export function creditRoutes() {
 }
 
 /** The balances-client module name ("poultry" | "water"). */
-export function creditBalanceModule(): "poultry" | "water" {
+export function creditBalanceModule(): "poultry" | "water" | "generic" {
+  if (isGenericCompany()) return "generic"
   return creditModule() === "Water" ? "water" : "poultry"
 }
 
 /** The company's suppliers as { id, name }, sorted by name (426). */
 export async function listCreditSuppliers(): Promise<{ id: number; name: string }[]> {
   let list: { id: number; name: string }[] = []
-  if (creditModule() === "Water") {
+  if (isGenericCompany()) {
+    list = (await listGenericSuppliers()).map((x) => ({ id: x.genericSupplierId, name: x.supplierName }))
+  } else if (creditModule() === "Water") {
     list = (await listWaterSuppliers()).map((x) => ({ id: x.waterSupplierId, name: x.supplierName }))
   } else {
     const { userId, farmId } = getUserContext()
@@ -94,6 +130,7 @@ export async function listCreditSuppliers(): Promise<{ id: number; name: string 
 
 /** Supplier-side links, per module (426). */
 export function supplierCreditRoutes() {
+  if (isGenericCompany()) return { balances: "/generic-supplier-balances", credits: "/generic-supplier-credits" }
   const water = creditModule() === "Water"
   return {
     balances: water ? "/water-supplier-balances" : "/supplier-balances",

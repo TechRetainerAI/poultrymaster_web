@@ -4,6 +4,7 @@
 // with the pick breakdown, the full table with its totals row, paging, and
 // Log / Edit / Delete through the production record modal.
 
+import '../egg_packaging.dart' show EggDisplay, boxSize, currentEggPackaging, formatEggQuantity;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -28,6 +29,7 @@ import 'production_logic.dart';
 import 'production_record_form.dart';
 import 'production_day_view.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 class ProductionFilters {
   String search = '', from = '', to = '', batch = 'ALL', flock = 'ALL', month = 'ALL', year = 'ALL';
   int get activeCount => [search.isNotEmpty, from.isNotEmpty, to.isNotEmpty, batch != 'ALL', flock != 'ALL', month != 'ALL', year != 'ALL']
@@ -96,7 +98,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
     ..from = widget.date ?? ''
     ..to = widget.date ?? '';
   SortState _sort = (key: null, dir: null);
-  int _page = 1, _perPage = 10;
+  int _page = 1, _perPage = 15;
   PickSettings _picks = const PickSettings();
   Duration _offset = DateTime.now().timeZoneOffset;
 
@@ -180,7 +182,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
     final st = _sorting[tIntOrNull(r['id'])];
     if (st == null) return const SizedBox.shrink();
     final (bg, fg) = switch (st.status) {
-      'Complete' => (TColors.emerald100, TColors.emerald800),
+      'Complete' => (TColors.emerald100, Tone.fg(0xFF065F46)),
       'Partial' => (TColors.amber100, TColors.amber800),
       _ => (TColors.slate100, TColors.slate700),
     };
@@ -261,7 +263,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
               actions: [
                 TextButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                   onPressed: busy
                       ? null
                       : () async {
@@ -312,7 +314,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
       filename: 'production-${DateTime.now().toUtc().toIso8601String().substring(0, 10)}',
       farmName: widget.company.name.isNotEmpty ? widget.company.name : 'Farm',
       landscape: true,
-      subtitle: 'Records: ${rows.length}  |  Total Eggs: ${loc(t.eggs)} (${t.crates} crates + ${t.pieces} pcs)  |  Feed: ${t.feed.toStringAsFixed(2)} kg  |  '
+      subtitle: 'Records: ${rows.length}  |  Total Eggs: ${loc(t.eggs)} (${t.crates} crates + ${t.pieces} pcs${_eggsBoxes(t.eggs) != null ? ' = ${_eggsBoxes(t.eggs)}' : ''})  |  Feed: ${t.feed.toStringAsFixed(2)} kg  |  '
           'Deaths (active flocks): ${n(t.deaths)}  |  Deaths (all logs): ${n(t.deathsAll)}  |  Placed birds: ${n(t.placed)}  |  Birds left: ${n(t.left)}',
       sections: [
         ReportSection(
@@ -422,6 +424,14 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
   }
 
   // ------------------------------------------------------------ filters sheet
+
+  /// View by Day's "Show in table": that day becomes the date filter.
+  void _showDay(String day) => setState(() {
+        _f
+          ..from = day
+          ..to = day;
+        _page = 1;
+      });
 
   Future<void> _openFilters() async {
     var from = _f.from, to = _f.to, batch = _f.batch, flock = _f.flock, month = _f.month, year = _f.year;
@@ -589,7 +599,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
 
     Widget tile(String label, String value, {Color? color, String? suffix, Widget? note, Widget? right}) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Flexible(
@@ -645,7 +655,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             ]),
             const SizedBox(height: 12),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.emerald600, minimumSize: const Size.fromHeight(44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600), minimumSize: const Size.fromHeight(44)),
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Log Production'),
@@ -661,6 +671,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
                 flockLabel: _flockLabel,
                 batchLabel: _batchOf,
                 onEdit: _openForm,
+                onShowInTable: _showDay,
               ),
               icon: const Icon(Icons.calendar_month_outlined, size: 18),
               label: const Text('View by Day'),
@@ -689,7 +700,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                        decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                         child: Text('$active', style: const TextStyle(fontSize: 12, color: Colors.white)),
                       ),
                     ],
@@ -721,7 +732,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             const SizedBox(height: 14),
             if (!_loading) ...[
               twoUp([
-                tile('Total Eggs', loc(t.eggs), color: TColors.emerald600, suffix: '${t.crates}c + ${t.pieces}p'),
+                tile('Total Eggs', loc(t.eggs), color: TColors.emerald600, suffix: _eggsBoxes(t.eggs) ?? '${t.crates}c + ${t.pieces}p'),
                 tile('Avg / Record', loc(rows.isEmpty ? 0 : (t.eggs / rows.length).round())),
                 tile('Feed (kg)', t.feed.toStringAsFixed(2)),
                 tile(
@@ -779,6 +790,22 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
                       : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                           TableViewBar(text: 'Table view • Scroll → for more', onCards: () => setState(() => _table = false)),
                           _tableView(pageRows, rows),
+                          if (rows.isNotEmpty && _eggsBoxes(_totals(rows).eggs) != null)
+                            Padding(
+                              key: const ValueKey('pr-boxes-total'),
+                              padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+                              child: Text.rich(
+                                TextSpan(children: [
+                                  const TextSpan(text: 'Total eggs in boxes: '),
+                                  TextSpan(
+                                    text: '≈ ${_eggsBoxes(_totals(rows).eggs)}',
+                                    style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700),
+                                  ),
+                                ]),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(fontSize: 12, color: TColors.slate500),
+                              ),
+                            ),
                         ]),
                 ),
               ),
@@ -809,9 +836,9 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
     final mortality = tNum(r['mortality']);
     final picks = [
       ('1st Pick', 'production9AM', TColors.blue600),
-      ('2nd Pick', 'production12PM', const Color(0xFFC2410C)),
-      ('3rd Pick', 'production4PM', const Color(0xFF7E22CE)),
-      for (final (h, k) in _picks.extraColumns) (h, k, const Color(0xFF0F766E)),
+      ('2nd Pick', 'production12PM', const Tone(0xFFC2410C)),
+      ('3rd Pick', 'production4PM', const Tone(0xFF7E22CE)),
+      for (final (h, k) in _picks.extraColumns) (h, k, const Tone(0xFF0F766E)),
     ];
     return ProdCard(
       key: ValueKey('rec-${r['id']}'),
@@ -822,18 +849,27 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
           const TextSpan(text: '  •  ', style: TextStyle(color: TColors.slate500)),
           TextSpan(text: _flockLabel(r), style: const TextStyle(color: TColors.slate600)),
         ]), maxLines: 1, overflow: TextOverflow.ellipsis)),
+        // 389: feed recorded from Feed Usage, production not filled in yet.
+        if (r['sourceType'] == 'FeedUsage')
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TBadge('Production not filled', key: ValueKey('production-not-filled'), bg: Tone.bg(0xFFFFFBEB), fg: Tone.fg(0xFF92400E)),
+            ),
+          ),
         if (_batchOf(r) != '-')
           Text('Batch: ${_batchOf(r)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: tile('Eggs', loc(tNum(r['totalProduction'])), TColors.emerald100, TColors.emerald300, TColors.emerald800)),
+          Expanded(child: tile('Eggs', loc(tNum(r['totalProduction'])), TColors.emerald100, Tone.line(0xFF6EE7B7), Tone.fg(0xFF065F46))),
           const SizedBox(width: 8),
           Expanded(
-              child: tile('Birds Left', loc(tNum(r['noOfBirds']) - mortality), TColors.blue100, TColors.blue300, const Color(0xFF1E40AF))),
+              child: tile('Birds Left', loc(tNum(r['noOfBirds']) - mortality), Tone.bg(0xFFDBEAFE), Tone.line(0xFF93C5FD), const Tone.fg(0xFF1E40AF))),
         ]),
         if (med.isNotEmpty && med != '-') ...[
           const SizedBox(height: 8),
-          tile('Medication', med, TColors.violet100, const Color(0xFFC4B5FD), const Color(0xFF4C1D95), wide: true),
+          tile('Medication', med, TColors.violet100, const Tone.line(0xFFC4B5FD), const Tone.fg(0xFF4C1D95), wide: true),
         ],
       ]),
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -850,7 +886,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+              style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
               onPressed: () => _openForm(r),
               icon: const Icon(Icons.edit_outlined, size: 16),
               label: const Text('Edit'),
@@ -861,7 +897,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.white,
+                  backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
                   foregroundColor: TColors.red600,
                   side: const BorderSide(color: TColors.red200),
                   minimumSize: const Size.fromHeight(40),
@@ -916,9 +952,9 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             cellText(_batchOf(r), color: TColors.slate600),
             cellText(formatProductionAge(r)),
             cellText(loc(tNum(r['production9AM'])), color: TColors.blue600),
-            cellText(loc(tNum(r['production12PM'])), color: const Color(0xFFC2410C)),
-            cellText(loc(tNum(r['production4PM'])), color: const Color(0xFF7E22CE)),
-            for (final (_, k) in extra) cellText(loc(tNum(r[k])), color: const Color(0xFF0F766E)),
+            cellText(loc(tNum(r['production12PM'])), color: const Tone.fg(0xFFC2410C)),
+            cellText(loc(tNum(r['production4PM'])), color: const Tone.fg(0xFF7E22CE)),
+            for (final (_, k) in extra) cellText(loc(tNum(r[k])), color: const Tone.fg(0xFF0F766E)),
             cellText(loc(tNum(r['brokenEggs'])), color: TColors.red700),
             cellText(loc(tNum(r['totalProduction'])), bold: true),
             cellText(eggPercent(r) == null ? '-' : '${eggPercent(r)!.toStringAsFixed(1)}%'),
@@ -944,11 +980,13 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             const SizedBox.shrink(),
             const SizedBox.shrink(),
             const SizedBox.shrink(),
-            withCrates(_sum(filtered, 'production9AM'), const Color(0xFF1E40AF)),
-            withCrates(_sum(filtered, 'production12PM'), const Color(0xFF9A3412)),
-            withCrates(_sum(filtered, 'production4PM'), const Color(0xFF6B21A8)),
-            for (final (_, k) in extra) withCrates(_sum(filtered, k), const Color(0xFF115E59)),
+            withCrates(_sum(filtered, 'production9AM'), const Tone(0xFF1E40AF)),
+            withCrates(_sum(filtered, 'production12PM'), const Tone(0xFF9A3412)),
+            withCrates(_sum(filtered, 'production4PM'), const Tone(0xFF6B21A8)),
+            for (final (_, k) in extra) withCrates(_sum(filtered, k), const Tone(0xFF115E59)),
             withCrates(_sum(filtered, 'brokenEggs'), TColors.red700),
+            // The boxes figure has its own line under the table (inside this
+            // cell it made the column too wide), as on the web.
             withCrates(t.eggs, TColors.emerald700),
             const SizedBox.shrink(),
             cellText(t.feed.toStringAsFixed(2), bold: true),
@@ -1027,7 +1065,7 @@ class ProdCardState extends State<ProdCard> {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: widget.striped ? TColors.amber100 : Colors.white,
+          color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -1062,4 +1100,10 @@ Widget? productionScreenForHref(String href, Session s, Company c) {
     return ProductionRecordsScreen(session: s, company: c, date: toBusinessDate(uri.queryParameters['date']));
   }
   return productionRecordScreenForHref(href, s, c);
+}
+
+/// 393: the box equivalent on a box farm (display only), else null.
+String? _eggsBoxes(num eggs) {
+  final p = currentEggPackaging;
+  return boxSize(p) != null ? formatEggQuantity(eggs, p, EggDisplay.boxesCratesPieces) : null;
 }

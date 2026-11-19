@@ -15,6 +15,7 @@ import '../trackers/tracker_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Expenses → Employee Loans & Advances, as `app/poultry-employee-loans/page.tsx`:
 /// money advanced to staff and what has come back. An advance is not an
 /// expense, and getting it back is not income.
@@ -42,7 +43,7 @@ String _date(Object? d) => tStr(d).isEmpty ? '—' : (tStr(d).length >= 10 ? tSt
       'Active' => (TColors.amber100, TColors.amber800),
       'Paid' => (TColors.emerald100, TColors.emerald700),
       'Reversed' || 'Cancelled' => (TColors.slate200, TColors.slate500),
-      'WrittenOff' => (const Color(0xFFFFE4E6), TColors.rose700),
+      'WrittenOff' => (const Tone(0xFFFFE4E6), TColors.rose700),
       _ => (TColors.slate100, TColors.slate600),
     };
 
@@ -291,7 +292,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.people_outline, size: 24, color: Color(0xFF4F46E5)),
+              Icon(Icons.people_outline, size: 24, color: Tone.fg(0xFF4F46E5)),
               SizedBox(width: 8),
               Expanded(child: Text('Employee Loans & Advances', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -322,7 +323,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
             ]),
             const SizedBox(height: 14),
             twoUp([
-              moneyStat('Outstanding', _fmt(tNum(s?['outstandingTotal'])), hint: 'What staff still owe the ${_r.entity}', color: const Color(0xFF4338CA)),
+              moneyStat('Outstanding', _fmt(tNum(s?['outstandingTotal'])), hint: 'What staff still owe the ${_r.entity}', color: const Tone(0xFF4338CA)),
               moneyStat('Advanced', _fmt(tNum(s?['disbursedInPeriod'])), color: TColors.rose600),
               moneyStat('Repaid', _fmt(tNum(s?['repaidInPeriod'])), color: TColors.emerald700),
               moneyStat('Active advances', tStr(s?['activeLoans']).isEmpty ? '0' : tStr(s?['activeLoans']),
@@ -357,8 +358,8 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
             if (_error.isNotEmpty) ...[
               Container(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: const Color(0xFFFEF2F2), border: Border.all(color: const Color(0xFFFECACA)), borderRadius: BorderRadius.circular(12)),
-                child: Text(_error, style: const TextStyle(fontSize: 13, color: Color(0xFF991B1B))),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFFEF2F2), border: Border.all(color: const Tone.line(0xFFFECACA)), borderRadius: BorderRadius.circular(12)),
+                child: Text(_error, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF991B1B))),
               ),
               const SizedBox(height: 14),
             ],
@@ -371,7 +372,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
             else if (_rows.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Text(filtered ? 'No advances match this filter.' : 'No advances recorded yet.',
                     textAlign: TextAlign.center, style: const TextStyle(color: TColors.slate500)),
               )
@@ -486,7 +487,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(12)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Icon(Icons.info_outline, size: 16, color: TColors.sky700),
                 const SizedBox(width: 8),
@@ -602,7 +603,7 @@ class _NewEmployeeLoanDialogState extends State<NewEmployeeLoanDialog> {
     return AlertDialog(
       scrollable: true,
       title: const Row(children: [
-        Icon(Icons.payments_outlined, color: Color(0xFF4F46E5)),
+        Icon(Icons.payments_outlined, color: Tone.fg(0xFF4F46E5)),
         SizedBox(width: 6),
         Flexible(child: Text('New loan or advance')),
       ]),
@@ -874,7 +875,7 @@ class LoanDetailDialog extends StatelessWidget {
     final l = loan;
     Widget fig(String label, String value, {bool strong = false}) => Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, letterSpacing: .4, color: TColors.slate500)),
             Text(value, style: TextStyle(fontSize: 16, fontWeight: strong ? FontWeight.w700 : FontWeight.w600, color: strong ? TColors.slate900 : TColors.slate700)),
@@ -913,7 +914,7 @@ class LoanDetailDialog extends StatelessWidget {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
             child: twoUp([
               for (final (h, v) in facts)
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

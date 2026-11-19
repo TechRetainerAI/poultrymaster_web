@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
+import '../flock_type.dart' show isBroilerFlock;
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -15,10 +16,12 @@ import '../reports/report_routes.dart' show openAppHref;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'batch_production_logic.dart';
+import '../egg_packaging.dart';
 import 'production_logic.dart';
 import 'production_record_form.dart' show feedTypes;
 import 'production_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const _scopeAll = 'all', _scopeCustom = 'custom';
 
 String _numStr(Object? v) => v == null ? '' : (v is num && v == v.roundToDouble() ? '${v.toInt()}' : tStr(v));
@@ -91,6 +94,9 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
   late String _date = (!_edit ? widget.prefill?.date : null) ?? isoDay(DateTime.now().toUtc());
   String _eggGrade = productionEggGradeValue, _feedType = '';
   final _crates = List<num>.filled(6, 0), _loose = List<num>.filled(6, 0);
+  // 393: whole boxes per pick on a box farm; saved as crates (boxes × crates per box + crates).
+  final _boxes = List<num>.filled(6, 0);
+  int get _cpb => boxSize(eggPackagingFor(widget.company.farmId)) ?? 0;
   final _broken = TextEditingController(), _meaty = TextEditingController(), _soft = TextEditingController(), _lost = TextEditingController();
   final _feedKg = TextEditingController(), _medication = TextEditingController(), _deaths = TextEditingController();
   final _birdsLeft = TextEditingController(), _notes = TextEditingController();
@@ -110,6 +116,9 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
     for (final c in _texts) {
       c.addListener(_typed);
     }
+    loadEggPackaging(widget.session, widget.company).then((_) {
+      if (mounted) setState(() {});
+    });
     PickSettings.load(widget.session, widget.company).then((p) {
       if (mounted) setState(() => _picks = p);
     });
@@ -201,7 +210,10 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
     _selected = [for (final f in listOf(r, 'includedFlocks')) tIntOrNull(f['flockId']) ?? 0];
     const keys = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
     for (var i = 0; i < 6; i++) {
-      _crates[i] = tNum(r['${keys[i]}PickCrates']);
+      // Stored crates come back as whole boxes + crates on a box farm.
+      final c = tNum(r['${keys[i]}PickCrates']);
+      _boxes[i] = _cpb > 0 ? c ~/ _cpb : 0;
+      _crates[i] = _cpb > 0 ? c % _cpb : c;
       _loose[i] = tNum(r['${keys[i]}PickLooseEggs']);
     }
     final d = tStr(r['productionDate']).split('T').first;
@@ -249,10 +261,15 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
   LinesComputed get _feed => computeLines(_feedLines, _feedItems, _purchases, const {}, LineKeys.feed);
   LinesComputed get _med => computeLines(_medLines, _medItems, _purchases, const {}, LineKeys.med);
 
-  int _pick(int i) => pickTotal(_crates[i], _loose[i]);
+  int _pick(int i) => pickTotal(_boxes[i] * _cpb + _crates[i], _loose[i]);
   int get _total => [for (var i = 0; i < 6; i++) _pick(i)].fold(0, (a, b) => a + b);
   int _int(TextEditingController c) => int.tryParse(c.text.trim()) ?? 0;
   int get _losses => _int(_broken) + _int(_meaty) + _int(_soft) + _int(_lost);
+
+  /// 399: no egg sections when every flock in scope is a broiler flock,
+  /// unless this record already carries eggs, which must stay visible.
+  bool get _hideEggSections =>
+      _included.isNotEmpty && _included.every(isBroilerFlock) && _total == 0 && _losses == 0;
   int? get _birdsLeftEntered => _birdsLeft.text.isEmpty ? null : _int(_birdsLeft);
   bool get _eggsOver => eggsExceedBirdsLeft(_total, _birdsLeftEntered);
   String get _eggsOverMessage {
@@ -338,7 +355,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
         'ageInDays': _specific ? age.days : null,
         'ageDisplay': _specific ? '${age.weeks}w ${age.days % 7}d' : 'Mixed',
         for (var i = 0; i < 6; i++) ...{
-          '${keys[i]}PickCrates': _crates[i],
+          '${keys[i]}PickCrates': _boxes[i] * _cpb + _crates[i],
           '${keys[i]}PickLooseEggs': _loose[i],
           '${keys[i]}PickTotal': _pick(i),
         },
@@ -445,7 +462,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
               TextSpan(text: ' flock${count == 1 ? '' : 's'} on '),
               TextSpan(text: formatShortDate(m.date), style: b),
               const TextSpan(text: '. They are pre-selected and marked below.'),
-            ]), style: const TextStyle(fontSize: 14, color: Color(0xFF78350F))),
+            ]), style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF78350F))),
             const SizedBox(height: 4),
             Text.rich(TextSpan(children: [
               const TextSpan(text: 'Production is recorded when this batch is allocated and '),
@@ -456,7 +473,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
               if (_flocksLoaded && _prefillMatched < m.flockIds.length)
                 TextSpan(
                     text: ' $left flagged flock${left == 1 ? ' is' : 's are'} no longer active and${left == 1 ? ' was' : ' were'} left out.'),
-            ]), style: const TextStyle(fontSize: 12, color: Color(0xFF78350F))),
+            ]), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF78350F))),
           ]),
         ),
       ]),
@@ -544,18 +561,19 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
                 ),
               ),
             ]),
-            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              _label('Egg grade'),
-              // Automatic since egg sorting: the day's collection is mixed sizes;
-              // sizes are recorded in Egg Sorting. An older record keeps its grade.
-              EggGradeReadout(grade: _eggGrade),
-            ]),
+            if (!_hideEggSections)
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                _label('Egg grade'),
+                // Automatic since egg sorting: the day's collection is mixed sizes;
+                // sizes are recorded in Egg Sorting. An older record keeps its grade.
+                EggGradeReadout(grade: _eggGrade),
+              ]),
           ]),
           if (_selectionType == 'CustomBatch')
             Container(
               margin: const EdgeInsets.only(top: 12),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0x99F0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: const Tone.bg(0x99F0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const Text.rich(TextSpan(children: [
                   TextSpan(text: 'Flocks in this batch'),
@@ -579,7 +597,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
                             Flexible(child: Text(tStr(f['name']), style: const TextStyle(fontSize: 14, color: TColors.slate700))),
                             if (_missingIds.contains(tIntOrNull(f['flockId']))) ...[
                               const SizedBox(width: 6),
-                              const TBadge('missing', bg: TColors.amber100, fg: Color(0xFF92400E)),
+                              const TBadge('missing', bg: TColors.amber100, fg: Tone.fg(0xFF92400E)),
                             ],
                           ]),
                         ),
@@ -592,10 +610,11 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
           if (!_specific) _info('A mixed scope has no single age, so this record saves its age as “Mixed”.'),
         ]),
       ),
+      if (!_hideEggSections) ...[
       const SizedBox(height: 14),
       ProdSection(
         title: 'Egg Production',
-        description: 'Total = crates × $eggsPerCrate + loose eggs. These are BATCH totals, split across flocks at allocation.',
+        description: 'Total = ${_cpb > 0 ? 'boxes × $_cpb crates + ' : ''}crates × $eggsPerCrate + pieces. These are BATCH totals, split across flocks at allocation.',
         badge: '${loc(total)} eggs',
         accent: ProdAccent.amber,
         icon: Icons.egg_outlined,
@@ -607,20 +626,33 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
+                Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TColors.slate700)),
                 const SizedBox(height: 6),
-                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _set(() => _crates[i] = v))),
-                  const SizedBox(width: 8),
-                  Expanded(child: ProdNumField(label: 'Loose eggs', value: _loose[i], onChanged: (v) => _set(() => _loose[i] = v))),
-                  const SizedBox(width: 8),
-                  Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
-                ]),
+                if (_cpb > 0) ...[
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(child: ProdNumField(key: ValueKey('bpick-$i-boxes'), label: 'Boxes', value: _boxes[i], onChanged: (v) => _set(() => _boxes[i] = v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _set(() => _crates[i] = v))),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(child: ProdNumField(label: 'Pieces', value: _loose[i], onChanged: (v) => _set(() => _loose[i] = v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
+                  ]),
+                ] else
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _set(() => _crates[i] = v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: ProdNumField(label: 'Pieces', value: _loose[i], onChanged: (v) => _set(() => _loose[i] = v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
+                  ]),
               ]),
             ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: const Color(0xB3FEF3C7), border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: const Tone.bg(0xB3FEF3C7), border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(6)),
             child: Wrap(spacing: 24, runSpacing: 4, children: [
               Text.rich(TextSpan(children: [
                 const TextSpan(text: 'Total picked eggs '),
@@ -629,10 +661,19 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
               Text.rich(TextSpan(children: [
                 const TextSpan(text: 'Crates equivalent '),
                 TextSpan(
-                  text: '${crates.crates} crate${crates.crates == 1 ? '' : 's'}${crates.pieces > 0 ? ' + ${crates.pieces} egg${crates.pieces == 1 ? '' : 's'}' : ''}',
+                  text: '${crates.crates} crate${crates.crates == 1 ? '' : 's'}${crates.pieces > 0 ? ' + ${crates.pieces} pcs' : ''}',
                   style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate900),
                 ),
               ]), style: const TextStyle(fontSize: 14, color: TColors.slate600)),
+              // 393: a box farm also sees boxes. Display only.
+              if (_cpb > 0)
+                Text.rich(TextSpan(children: [
+                  const TextSpan(text: 'Boxes equivalent '),
+                  TextSpan(
+                    text: formatEggQuantity(total, eggPackagingFor(widget.company.farmId), EggDisplay.boxesCratesPieces),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate900),
+                  ),
+                ]), key: const ValueKey('batch-boxes-equivalent'), style: const TextStyle(fontSize: 14, color: TColors.slate600)),
             ]),
           ),
           if (_eggsOver) ...[
@@ -662,6 +703,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
           CalcField(label: 'Net sellable', value: loc(net), tone: CalcTone.good),
         ]),
       ),
+      ],
       const SizedBox(height: 14),
       ProdSection(
         title: 'Birds',
@@ -917,7 +959,7 @@ class _BatchModalState extends State<_BatchModal> {
           backgroundColor: TColors.slate50,
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            backgroundColor: const Color(0xFFE0F2FE),
+            backgroundColor: const Tone.bg(0xFFE0F2FE),
             titleSpacing: 12,
             title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(_edit ? 'Edit Batch Production Record' : 'Add Batch Production Record',
@@ -950,7 +992,7 @@ class _BatchModalState extends State<_BatchModal> {
           bottomNavigationBar: SafeArea(
             child: Container(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-              decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: TColors.slate200))),
+              decoration: const BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border(top: BorderSide(color: TColors.slate200))),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (s != null && !loading)
                   Wrap(spacing: 14, runSpacing: 2, children: [
@@ -1016,8 +1058,8 @@ class BatchProductionRecordPage extends StatelessWidget {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.inventory_2_outlined, size: 20, color: Color(0xFF0284C7)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.inventory_2_outlined, size: 20, color: Tone.fg(0xFF0284C7)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1029,7 +1071,7 @@ class BatchProductionRecordPage extends StatelessWidget {
             ]),
           ),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
             onPressed: back,
             icon: const Icon(Icons.close, size: 16),
             label: const Text('Close'),

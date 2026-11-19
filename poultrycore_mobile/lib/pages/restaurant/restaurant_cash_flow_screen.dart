@@ -21,6 +21,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, Sor
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 
 const _emptySummary = <String, num>{
@@ -327,7 +328,7 @@ class _RestaurantCashFlowScreenState extends State<RestaurantCashFlowScreen> {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
           children: [
             const Row(children: [
-              Icon(Icons.restaurant, size: 20, color: Color(0xFFE11D48)),
+              Icon(Icons.restaurant, size: 20, color: Tone.fg(0xFFE11D48)),
               SizedBox(width: 6),
               Text('Cash Flow', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
             ]),
@@ -343,14 +344,14 @@ class _RestaurantCashFlowScreenState extends State<RestaurantCashFlowScreen> {
                     const SizedBox(width: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5),
-                      decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(999)),
+                      decoration: BoxDecoration(color: const Tone.bg(0xFFF59E0B), borderRadius: BorderRadius.circular(999)),
                       child: const Text('1', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ]),
               ),
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
                 onPressed: _adjust,
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('Add Adjustment'),
@@ -370,7 +371,7 @@ class _RestaurantCashFlowScreenState extends State<RestaurantCashFlowScreen> {
             const SizedBox(height: 12),
             // Closed by default on a phone, as the web's Collapsible.
             Container(
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 InkWell(
                   onTap: () => setState(() => _explainOpen = !_explainOpen),
@@ -480,7 +481,7 @@ class _RestaurantCashFlowScreenState extends State<RestaurantCashFlowScreen> {
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
                 child: DefaultTextStyle.merge(
                   style: small,
                   child: Wrap(spacing: 8, runSpacing: 2, children: [
@@ -678,7 +679,7 @@ class _RestaurantCashFlowScreenState extends State<RestaurantCashFlowScreen> {
           final net = tNum(_summary['netCashFlow']);
           return ListView(controller: controller, padding: const EdgeInsets.fromLTRB(16, 0, 16, 24), children: [
             const Row(children: [
-              Icon(Icons.lightbulb_outline, color: Color(0xFF0284C7)),
+              Icon(Icons.lightbulb_outline, color: Tone.fg(0xFF0284C7)),
               SizedBox(width: 8),
               Flexible(child: Text('Cash Flow Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
             ]),

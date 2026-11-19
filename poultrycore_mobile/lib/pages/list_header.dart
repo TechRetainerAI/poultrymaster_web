@@ -4,31 +4,32 @@ import '../design/tokens.dart';
 import '../design/web_mobile.dart';
 import 'page_headers.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Tailwind 100/600 pairs for the page-header icon tile.
 ({Color bg, Color fg}) tileColors(String? family) {
   switch (family) {
     case 'green':
-      return (bg: const Color(0xFFDCFCE7), fg: const Color(0xFF16A34A));
+      return (bg: const Tone.bg(0xFFDCFCE7), fg: const Tone.fg(0xFF16A34A));
     case 'blue':
-      return (bg: const Color(0xFFDBEAFE), fg: const Color(0xFF2563EB));
+      return (bg: const Tone.bg(0xFFDBEAFE), fg: const Tone.fg(0xFF2563EB));
     case 'amber':
-      return (bg: const Color(0xFFFEF3C7), fg: const Color(0xFFD97706));
+      return (bg: const Tone.bg(0xFFFEF3C7), fg: const Tone.fg(0xFFD97706));
     case 'orange':
-      return (bg: const Color(0xFFFFEDD5), fg: const Color(0xFFEA580C));
+      return (bg: const Tone.bg(0xFFFFEDD5), fg: const Tone.fg(0xFFEA580C));
     case 'purple':
-      return (bg: const Color(0xFFF3E8FF), fg: const Color(0xFF9333EA));
+      return (bg: const Tone.bg(0xFFF3E8FF), fg: const Tone.fg(0xFF9333EA));
     case 'violet':
-      return (bg: const Color(0xFFEDE9FE), fg: const Color(0xFF7C3AED));
+      return (bg: const Tone.bg(0xFFEDE9FE), fg: const Tone.fg(0xFF7C3AED));
     case 'rose':
-      return (bg: const Color(0xFFFFE4E6), fg: const Color(0xFFE11D48));
+      return (bg: const Tone.bg(0xFFFFE4E6), fg: const Tone.fg(0xFFE11D48));
     case 'sky':
-      return (bg: const Color(0xFFE0F2FE), fg: const Color(0xFF0284C7));
+      return (bg: const Tone.bg(0xFFE0F2FE), fg: const Tone.fg(0xFF0284C7));
     case 'emerald':
-      return (bg: const Color(0xFFD1FAE5), fg: const Color(0xFF059669));
+      return (bg: const Tone.bg(0xFFD1FAE5), fg: const Tone.fg(0xFF059669));
     case 'indigo':
-      return (bg: const Color(0xFFE0E7FF), fg: const Color(0xFF4F46E5));
+      return (bg: const Tone.bg(0xFFE0E7FF), fg: const Tone.fg(0xFF4F46E5));
     default:
-      return (bg: const Color(0xFFF1F5F9), fg: const Color(0xFF475569));
+      return (bg: const Tone.bg(0xFFF1F5F9), fg: const Tone.fg(0xFF475569));
   }
 }
 
@@ -77,13 +78,13 @@ class ListPageHeader extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
+                      color: Tone.fg(0xFF0F172A),
                       height: 1.2)),
               const SizedBox(height: 2),
               // text-sm text-slate-600
               Text(description,
                   style: const TextStyle(
-                      fontSize: 13.5, color: Color(0xFF475569), height: 1.35)),
+                      fontSize: 13.5, color: Tone.fg(0xFF475569), height: 1.35)),
             ],
           ),
         ),
@@ -122,7 +123,7 @@ class PrimaryAction extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.15)),
         style: FilledButton.styleFrom(
-          backgroundColor: _buttonColor(color),
+          backgroundColor: Tone.button(_buttonColor(color)),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(Dim.radiusMd)),
@@ -160,7 +161,7 @@ class SecondaryAction extends StatelessWidget {
       child: OutlinedButton(
         onPressed: busy ? null : onPressed,
         style: OutlinedButton.styleFrom(
-          backgroundColor: c.withValues(alpha: .08),
+          backgroundColor: Tone.button(c.withValues(alpha: .08)),
           foregroundColor: c,
           side: BorderSide(color: c.withValues(alpha: .55), width: 1.2),
           padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -188,25 +189,25 @@ class SecondaryAction extends StatelessWidget {
 Color _buttonColor(String? family) {
   switch (family) {
     case 'green':
-      return const Color(0xFF16A34A);
+      return const Tone(0xFF16A34A);
     case 'emerald':
-      return const Color(0xFF059669);
+      return const Tone(0xFF059669);
     case 'amber':
-      return const Color(0xFFD97706);
+      return const Tone(0xFFD97706);
     case 'orange':
-      return const Color(0xFFEA580C);
+      return const Tone(0xFFEA580C);
     case 'purple':
-      return const Color(0xFF9333EA);
+      return const Tone(0xFF9333EA);
     case 'violet':
-      return const Color(0xFF7C3AED);
+      return const Tone(0xFF7C3AED);
     case 'rose':
-      return const Color(0xFFE11D48);
+      return const Tone(0xFFE11D48);
     case 'sky':
-      return const Color(0xFF0284C7);
+      return const Tone(0xFF0284C7);
     case 'indigo':
-      return const Color(0xFF4F46E5);
+      return const Tone(0xFF4F46E5);
     default:
-      return const Color(0xFF2563EB); // blue-600
+      return const Tone(0xFF2563EB); // blue-600
   }
 }
 
@@ -264,13 +265,13 @@ class _Btn extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 16, color: const Color(0xFF334155)),
+              Icon(icon, size: 16, color: const Tone.fg(0xFF334155)),
               const SizedBox(width: 6),
               Text(label,
                   style: const TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFF334155))),
+                      color: Tone.fg(0xFF334155))),
             ],
           ),
         ),

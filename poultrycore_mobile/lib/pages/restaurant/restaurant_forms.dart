@@ -28,6 +28,18 @@ import 'restaurant_owner_money_screen.dart';
 import 'restaurant_profit_loss_screen.dart';
 import 'restaurant_staff_form_screen.dart';
 import 'restaurant_crm_screen.dart';
+import 'restaurant_daily_closing_screen.dart';
+import 'restaurant_dashboard_view.dart';
+import 'restaurant_delivery_screen.dart';
+import 'restaurant_tills_screen.dart';
+import 'restaurant_floor_plan_screen.dart';
+import 'restaurant_kds_screen.dart';
+import 'restaurant_orders_screen.dart';
+import 'restaurant_pending_orders_screen.dart';
+import 'restaurant_pos_screen.dart';
+import 'restaurant_reservations_screen.dart';
+import 'restaurant_online_settings_screen.dart';
+import 'restaurant_order_online_screen.dart';
 import 'restaurant_events_screen.dart';
 import 'restaurant_gift_cards_screen.dart';
 import 'restaurant_loyalty_screen.dart';
@@ -107,6 +119,18 @@ const Map<String, PageScreenBuilder> restaurantPageScreens = {
   '/restaurant-payments': _paymentsPage,
   '/restaurant-customer-balances': _customerBalancesPage,
   '/restaurant-inventory': _inventoryPage,
+  '/restaurant-online-orders': _onlineSettingsPage,
+  '/restaurant-order-online': _orderOnlinePage,
+  '/restaurant-delivery': _deliveryPage,
+  '/restaurant-floor-plan': _floorPlanPage,
+  '/restaurant-reservations': _reservationsPage,
+  '/restaurant-pos': _posPage,
+  '/restaurant-orders': _ordersPage,
+  '/restaurant-pending-orders': _pendingOrdersPage,
+  '/restaurant-kds': _kdsPage,
+  '/restaurant-tills': _tillsPage,
+  '/restaurant-dashboard': _dashboardPage,
+  '/restaurant-daily-closing': _dailyClosingPage,
   // The Inventory menu's Record Purchase row: the stock page with the dialog open.
   '/restaurant-inventory?purchase=1': _recordPurchasePage,
 };
@@ -131,6 +155,26 @@ Widget _supplierPaymentsPage(Session s, Company c) => SupplierPaymentsScreen(ses
 Widget _supplierBalancesPage(Session s, Company c) =>
     CustomerBalancesScreen(session: s, company: c, side: BalanceSide.supplier, rail: BalanceRail.restaurant);
 Widget _expensesPage(Session s, Company c) => RestaurantExpensesScreen(session: s, company: c);
+Widget _onlineSettingsPage(Session s, Company c) => RestaurantOnlineSettingsScreen(session: s, company: c);
+Widget _orderOnlinePage(Session s, Company c) => RestaurantOrderOnlineScreen(session: s, company: c);
+Widget _deliveryPage(Session s, Company c) => RestaurantDeliveryScreen(session: s, company: c);
+Widget _floorPlanPage(Session s, Company c) => RestaurantFloorPlanScreen(session: s, company: c);
+Widget _reservationsPage(Session s, Company c) => RestaurantReservationsScreen(session: s, company: c);
+Widget _posPage(Session s, Company c) => RestaurantPosScreen(session: s, company: c);
+Widget _ordersPage(Session s, Company c) => RestaurantOrdersScreen(session: s, company: c);
+Widget _pendingOrdersPage(Session s, Company c) => RestaurantPendingOrdersScreen(session: s, company: c);
+Widget _kdsPage(Session s, Company c) => RestaurantKdsScreen(session: s, company: c);
+Widget _tillsPage(Session s, Company c) => RestaurantTillsScreen(session: s, company: c);
+Widget _dashboardPage(Session s, Company c) => RestaurantDashboardScreen(session: s, company: c);
+Widget _dailyClosingPage(Session s, Company c) => RestaurantDailyClosingScreen(session: s, company: c);
+
+/// `/restaurant-orders?orderId=` (Sales → Edit): the Orders list with that order open.
+Widget? restaurantOrdersScreenForHref(String href, Session s, Company c) {
+  final uri = Uri.tryParse(href);
+  if (uri == null || uri.path != '/restaurant-orders' || uri.query.isEmpty) return null;
+  final id = int.tryParse(uri.queryParameters['orderId'] ?? '');
+  return RestaurantOrdersScreen(session: s, company: c, openOrderId: id != null && id > 0 ? id : null);
+}
 
 /// `/restaurant-expenses?expenseId=` (from Supplier Balances / Payments) and
 /// `?tab=categories` open the Expenses page narrowed.

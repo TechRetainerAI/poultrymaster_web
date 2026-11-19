@@ -68,6 +68,9 @@ const COLORS = {
   rose:    "bg-rose-600",
   purple:  "bg-purple-600",
   slate:   "bg-slate-600",
+  teal:    "bg-teal-600",
+  cyan:    "bg-cyan-600",
+  red:     "bg-red-600",
 } as const
 
 export type FormSectionColor = keyof typeof COLORS
@@ -84,6 +87,9 @@ const TINTS: Record<FormSectionColor, { border: string; body: string }> = {
   rose:    { border: "border-rose-200",    body: "bg-rose-50/40" },
   purple:  { border: "border-purple-200",  body: "bg-purple-50/40" },
   slate:   { border: "border-slate-200",   body: "bg-slate-50" },
+  teal:    { border: "border-teal-200",    body: "bg-teal-50/40" },
+  cyan:    { border: "border-cyan-200",    body: "bg-cyan-50/40" },
+  red:     { border: "border-red-200",     body: "bg-red-50/40" },
 }
 
 export function FormSection({

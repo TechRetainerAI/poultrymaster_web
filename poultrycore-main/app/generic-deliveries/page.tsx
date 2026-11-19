@@ -22,8 +22,8 @@ import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
 import {
-  Plus, Loader2, CheckCircle2, Undo2, XCircle, Truck, Send, PackageCheck,
-  LocateFixed, Search, MapPin, Users2, Package, TrendingUp,
+  ArrowLeft, Plus, Loader2, CheckCircle2, Undo2, XCircle, Truck, Send, PackageCheck,
+  Search, MapPin, Users2, Package, TrendingUp,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -114,26 +114,8 @@ export default function GenericDeliveriesPage() {
     } finally { setLoading(false) }
   }
 
-  // --- GPS + search helpers ---
-  function pickGps(field: "startPoint" | "destination") {
-    if (!navigator.geolocation) { toast({ title: "Geolocation not supported", variant: "destructive" }); return }
-    setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords
-        let name = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=16`)
-          const data = await res.json()
-          if (data.display_name) name = data.display_name
-        } catch {}
-        setLoadForm((f) => ({ ...f, [field]: name }))
-        setLocating(false)
-      },
-      (err) => { toast({ title: "Could not get location", description: err.message, variant: "destructive" }); setLocating(false) },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
-  }
+  // --- Place search ---
+  // No "My location" button: the app never reads anyone's live location.
 
   async function searchPlace(field: "startPoint" | "destination") {
     const query = field === "startPoint" ? loadForm.startPoint : loadForm.destination
@@ -250,6 +232,7 @@ export default function GenericDeliveriesPage() {
           {/* Header */}
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
                 <Truck className="h-5 w-5 text-emerald-600" /> Deliveries
               </h1>
@@ -474,11 +457,8 @@ export default function GenericDeliveriesPage() {
             <FormField label="Starting point" full>
               <div className="flex gap-1">
                 <Input className="flex-1" value={loadForm.startPoint} onChange={(e) => setLoadForm({ ...loadForm, startPoint: e.target.value })} placeholder="Where you're leaving from" />
-                <Button type="button" variant="outline" size="icon" className="shrink-0" disabled={locating} onClick={() => pickGps("startPoint")} title="My location">
-                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-                </Button>
                 <Button type="button" variant="outline" size="icon" className="shrink-0" disabled={locating} onClick={() => searchPlace("startPoint")} title="Search">
-                  <Search className="h-4 w-4" />
+                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
               </div>
             </FormField>
@@ -487,9 +467,6 @@ export default function GenericDeliveriesPage() {
                 <Input className="flex-1" value={loadForm.destination} onChange={(e) => setLoadForm({ ...loadForm, destination: e.target.value })} placeholder="Where you're delivering to" />
                 <Button type="button" variant="outline" size="icon" className="shrink-0" disabled={locating} onClick={() => searchPlace("destination")} title="Search">
                   {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                </Button>
-                <Button type="button" variant="outline" size="icon" className="shrink-0" disabled={locating} onClick={() => pickGps("destination")} title="My location">
-                  <LocateFixed className="h-4 w-4" />
                 </Button>
               </div>
             </FormField>

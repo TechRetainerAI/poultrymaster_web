@@ -240,7 +240,8 @@ namespace PoultryFarmAPIWeb.Controllers
 
             r.FarmId = farmId;
             if (r.PartyId is null or 0) return BadRequest("A supplier is required to make a payment.");
-            if (r.Allocations.Count == 0) return BadRequest("Select at least one bill to apply this payment to.");
+            // 449: a payment applied to less than its amount (or to nothing) keeps
+            // the rest as the supplier's credit -- an advance, as on Poultry.
 
             var paymentId = await _svc.RecordSupplierPayment(r);
             return Ok(new { paymentId });

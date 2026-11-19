@@ -9,6 +9,7 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import '../lookup_loader.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Setup → Production → Products, as `app/poultry-products/page.tsx`.
 /// The page has three dialogs, each a screen here: the product itself, its
 /// recipe (bill of materials), and "Add stock".
@@ -175,18 +176,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                color: const Tone.bg(0xFFF8FAFC),
+                border: Border.all(color: const Tone.line(0xFFE2E8F0)),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
                 'A system product: production records add to its stock. Its name and unit are fixed; you can change its price.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                style: TextStyle(fontSize: 12, color: Tone.fg(0xFF475569)),
               ),
             ),
             const SizedBox(height: 10),
             Container(
-              decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(border: Border.all(color: const Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
               child: CheckboxListTile(
                 value: _offerInSales,
                 onChanged: (v) => setState(() => _offerInSales = v == true),

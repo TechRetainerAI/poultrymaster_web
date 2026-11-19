@@ -10,7 +10,6 @@ namespace PoultryFarmAPIWeb.Business
         Task UpdateDriverAsync(RestaurantDriverModel m);
         Task DeleteDriverAsync(int id, string farmId);
         Task UpdateDriverStatusAsync(int id, string farmId, string status);
-        Task UpdateDriverLocationAsync(int id, string farmId, decimal lat, decimal lng);
         Task<DriverStatsModel> GetDriverStatsAsync(int driverId, string farmId, DateTime? fromDate = null, DateTime? toDate = null);
 
         // Delivery Zones

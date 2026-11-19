@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../form_screen.dart';
+import '../hotel/hotel_staff_screen.dart';
 import '../module_registry.dart' show formForSpec;
 import '../page_extras.dart';
 import '../registry.dart';
@@ -17,6 +18,7 @@ import '../restaurant/restaurant_staff_form_screen.dart';
 import '../water/water_staff_form_screen.dart';
 import 'employee_form_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// What a new employee or staff form starts from.
 class EmployeePrefill {
   const EmployeePrefill({required this.firstName, required this.lastName, this.phoneNumber = '', this.email = ''});
@@ -30,16 +32,18 @@ String suggestUserName(EmployeePrefill p) => [p.firstName, p.lastName]
     .join('_');
 
 /// staffPagePath: the Staff page of each company type. The app has Poultry's,
-/// Water's and Restaurant's; Generic and Hotel are not in the app.
+/// Water's, Generic's, Restaurant's and Hotel's.
 String? staffPagePath(CompanyType t) => switch (t) {
       CompanyType.poultry => '/poultry-staff',
       CompanyType.water => '/water-staff',
+      CompanyType.generic => '/generic-staff',
       CompanyType.restaurant => '/restaurant-staff',
+      CompanyType.hotel => '/hotel-staff',
       _ => null,
     };
 
 /// Each Staff page's spec key and id field.
-const _staffIdKey = {'poultry-staff': 'poultryStaffId', 'water-staff': 'waterStaffId'};
+const _staffIdKey = {'poultry-staff': 'poultryStaffId', 'water-staff': 'waterStaffId', 'generic-staff': 'genericStaffId'};
 
 /// GET /api/StaffUserLink: (staffId, userId) pairs for the company.
 Future<List<({int staffId, String userId})>> getStaffUserLinks(Session s, Company c) async {
@@ -67,11 +71,11 @@ Widget _badge(String text, String tip, Color bg, Color fg, Color border) => Tool
 
 /// EmployeeBadge: on a staff row that has a login.
 Widget employeeBadge() =>
-    _badge('Employee', 'Also an employee: has a login', const Color(0xFFEFF6FF), const Color(0xFF1D4ED8), const Color(0xFFBFDBFE));
+    _badge('Employee', 'Also an employee: has a login', const Tone.bg(0xFFEFF6FF), const Tone.fg(0xFF1D4ED8), const Tone.line(0xFFBFDBFE));
 
 /// StaffBadge: on an employee who is also on the Staff page.
 Widget staffBadge() =>
-    _badge('Staff', 'Also on the Staff page (payroll)', const Color(0xFFEEF2FF), const Color(0xFF4338CA), const Color(0xFFC7D2FE));
+    _badge('Staff', 'Also on the Staff page (payroll)', const Tone.bg(0xFFEEF2FF), const Tone.fg(0xFF4338CA), const Tone.line(0xFFC7D2FE));
 
 const _linkedUser = '_employeeUserId';
 const _isStaff = '_isStaff';
@@ -177,12 +181,35 @@ class _AddAsStaff extends StatelessWidget {
         onCreated: (created) => _link(context, created is Map ? int.tryParse('${created['staffId']}') : null),
       );
     }
+    if (row[_staffPage] == '/hotel-staff') {
+      return HotelStaffScreen(
+        session: session,
+        company: company,
+        prefill: p,
+        onCreated: (created) => _link(context, created is Map ? int.tryParse('${created['hotelStaffId']}') : null),
+      );
+    }
     if (row[_staffPage] == '/water-staff') {
       return WaterStaffFormScreen(
         session: session,
         company: company,
         prefill: p,
         onCreated: (created) => _link(context, created is Map ? int.tryParse('${created['waterStaffId']}') : null),
+      );
+    }
+    if (row[_staffPage] == '/generic-staff') {
+      // generic-staff/page.tsx: "New staff member", with the form's defaults.
+      return FormScreen(
+        def: formForSpec('generic-staff')!,
+        title: 'New staff member',
+        company: company,
+        session: session,
+        spec: PageRegistry.of('generic-staff'),
+        initial: {
+          'firstName': p.firstName, 'lastName': p.lastName, 'phoneNumber': p.phoneNumber, 'email': p.email,
+          'role': 'Other', 'salaryType': 'Monthly', 'basePay': '0', 'isActive': 'true',
+        },
+        onCreated: (created) => _link(context, created is Map ? int.tryParse('${created['genericStaffId']}') : null),
       );
     }
     return FormScreen(

@@ -15,6 +15,7 @@ import 'report_format.dart';
 import 'report_widgets.dart';
 import 'reports_catalog_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Who is reading, for the export letterhead and the email default.
 String? reportUser(Session s) => (s.username ?? '').isEmpty ? null : s.username;
 
@@ -340,7 +341,7 @@ class _PoultryReportScreenState extends State<PoultryReportScreen> {
                   Color rail, Color headColor) =>
               Container(
                 margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
                 clipBehavior: Clip.antiAlias,
                 child: Stack(children: [
                   Padding(

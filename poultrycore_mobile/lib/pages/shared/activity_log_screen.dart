@@ -16,6 +16,7 @@ import '../poultry/sales/balances_widgets.dart' show CompactPager;
 import '../poultry/trackers/tracker_logic.dart' show tStr, trackerDate, sortRows, toggleSort, SortState;
 import '../poultry/trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// friendlyAction: the HTTP verb as a word.
 String friendlyAction(Object? method) => switch (tStr(method).toUpperCase()) {
       'GET' => 'Viewed',
@@ -259,7 +260,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
   }
 
   Widget _statusBadge(Object? s) =>
-      tStr(s) == 'Success' ? TBadge(tStr(s), bg: TColors.slate900, fg: Colors.white) : TBadge(tStr(s), bg: TColors.red600, fg: Colors.white);
+      tStr(s) == 'Success' ? TBadge(tStr(s), bg: Tone.button(TColors.slate900)!, fg: Colors.white) : TBadge(tStr(s), bg: TColors.red600, fg: Colors.white);
 
   @override
   Widget build(BuildContext context) {
@@ -303,7 +304,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
               if (_loading)
                 const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Text('Loading logs...', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)))
               else if (_error.isNotEmpty)
-                Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Text(_error, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFEF4444))))
+                Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Text(_error, textAlign: TextAlign.center, style: const TextStyle(color: Tone.fg(0xFFEF4444))))
               else if (rows.isEmpty)
                 const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Text('No audit logs found', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)))
               else if (!_table) ...[

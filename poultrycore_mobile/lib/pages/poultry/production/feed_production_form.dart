@@ -12,6 +12,7 @@ import '../../../api/api_client.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
+import '../feed_formula_form_screen.dart' show ensureDefaultFeedFormulas;
 import '../../shared/business_dates.dart';
 import '../money/money_widgets.dart' show formSection;
 import '../purchase/raw_material_dialogs.dart' show RawPurchaseDialog;
@@ -19,6 +20,7 @@ import '../reports/report_format.dart' show FarmMoney;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc, jsNum;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ------------------------------------------------------------ feed-formula-scale
 
 num roundQty(num n) => double.parse(n.toStringAsFixed(3));
@@ -303,6 +305,8 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
   Future<void> _load() async {
     try {
       final savedFormula = _formulaId;
+      // 385: the default feeds and formulas, once per farm. Silent on failure.
+      await ensureDefaultFeedFormulas(widget.session, widget.company).catchError((_) => (0, 0));
       Future<List<Map>> soft(String path, Map<String, String> q) async {
         try {
           return rowsOf(await _api.get(path, query: q));
@@ -706,11 +710,11 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
               child: Column(children: [
                 for (final x in s)
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Expanded(child: Text(x.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF991B1B)))),
+                    Expanded(child: Text(x.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF991B1B)))),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text('needs ${loc(x.need)}, only ${loc(x.have)}${x.unit.isNotEmpty ? ' ${x.unit}' : ''} available',
-                          textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, color: Color(0xFF991B1B))),
+                          textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF991B1B))),
                     ),
                   ]),
               ]),
@@ -821,10 +825,10 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
         TextButton.icon(onPressed: () => Navigator.of(context).maybePop(), icon: const Icon(Icons.arrow_back, size: 16), label: const Text('Back')),
         Text(widget.existing != null ? 'Edit Batch ${tStr(widget.existing!['batchNumber'])}' : 'New Feed Production Batch',
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-        if (widget.existing != null) const TBadge('Draft', bg: Colors.white, fg: TColors.slate700, border: TColors.slate200),
+        if (widget.existing != null) const TBadge('Draft', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate200),
       ]),
       const SizedBox(height: 12),
-      formSection('Finished feed output', TColors.blue600, [
+      formSection('Finished feed output', Tone.bg(0xFF2563EB), [
         _field(
           'Finished feed *',
           AppSelect<String>(
@@ -862,7 +866,7 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
         _field('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4)),
       ]),
       const SizedBox(height: 14),
-      formSection('Ingredient breakdown', TColors.emerald600, [
+      formSection('Ingredient breakdown', Tone.bg(0xFF059669), [
         if (_scaling)
           Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -877,7 +881,7 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
                       'Quantities that already add up to the batch are used as they are.'),
             ]), style: const TextStyle(fontSize: 12, color: TColors.slate600)),
           ),
-        for (final l in _lines) _lineCard(l, recipe),
+        for (final (idx, l) in _lines.indexed) _lineCard(l, recipe, idx),
         Wrap(spacing: 8, runSpacing: 8, children: [
           OutlinedButton.icon(onPressed: () => _set(() => _lines.add(FeedLine())), icon: const Icon(Icons.add, size: 16), label: const Text('Add ingredient')),
           if (_applied != null)
@@ -909,7 +913,7 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
                 TextSpan(text: '${unit.isNotEmpty ? ' $unit' : ''} ${_applied != null ? 'with this formula' : 'at these proportions'} — limited by '),
                 TextSpan(text: limit.by, style: const TextStyle(fontWeight: FontWeight.w500)),
                 const TextSpan(text: '.'),
-              ]), style: const TextStyle(fontSize: 12, color: Color(0xFF92400E))),
+              ]), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF92400E))),
               if (limit.max > 0)
                 OutlinedButton(
                   style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
@@ -941,11 +945,11 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
                         ? ': its percentages total ${jsNum(roundQty(coverage.pctTotal))}%, not 100%.'
                         : '.'),
               ],
-            ]), style: TextStyle(fontSize: 12, color: covers ? TColors.slate600 : const Color(0xFF92400E))),
+            ]), style: TextStyle(fontSize: 12, color: covers ? TColors.slate600 : const Tone.fg(0xFF92400E))),
           ),
       ]),
       const SizedBox(height: 14),
-      formSection('Additional production costs', TColors.amber600, [
+      formSection('Additional production costs', Tone.bg(0xFFD97706), [
         if (_costs.isEmpty) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('No additional costs. Add grinding, labor, transport, etc. if any.', style: TextStyle(fontSize: 14, color: TColors.slate400))),
         for (final c in _costs) _costCard(c),
         Align(
@@ -969,9 +973,9 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
           Container(
             margin: const EdgeInsets.only(top: 4),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: const Color(0xFFEEF2FF), border: Border.all(color: const Color(0xFFC7D2FE)), borderRadius: BorderRadius.circular(4)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFEEF2FF), border: Border.all(color: const Tone.line(0xFFC7D2FE)), borderRadius: BorderRadius.circular(4)),
             child: Text('${purchasing.length} ingredient${purchasing.length == 1 ? '' : 's'} awaiting a purchase — not counted here.',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF4338CA))),
+                style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF4338CA))),
           ),
         const Divider(height: 10),
         Row(children: [
@@ -1015,7 +1019,7 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(color: TColors.red50, border: Border.all(color: TColors.red300), borderRadius: BorderRadius.circular(6)),
         child: DefaultTextStyle.merge(
-          style: const TextStyle(fontSize: 12, color: Color(0xFF991B1B)),
+          style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF991B1B)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Not enough stock for ${s.length} ingredient${s.length == 1 ? '' : 's'}', style: const TextStyle(fontWeight: FontWeight.w600)),
             for (final x in s)
@@ -1042,7 +1046,19 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
         ),
       );
 
-  Widget _lineCard(FeedLine l, List<(String, RecipeLine)> recipe) {
+  /// One colour per ingredient row, cycled, so neighbouring rows are easy to
+  /// tell apart (LINE_TONES: sky, amber, violet, emerald, rose, teal).
+  static const _lineTones = <(Color, Color, Color)>[
+    (Tone.line(0xFF0EA5E9), Tone.line(0x80F0F9FF), Tone.line(0xFF0EA5E9)),
+    (Tone.line(0xFFF59E0B), Tone.line(0x80FFFBEB), Tone.line(0xFFF59E0B)),
+    (Tone.line(0xFF8B5CF6), Tone.line(0x80F5F3FF), Tone.line(0xFF8B5CF6)),
+    (Tone.line(0xFF10B981), Tone.line(0x80ECFDF5), Tone.line(0xFF10B981)),
+    (Tone.line(0xFFF43F5E), Tone.line(0x80FFF1F2), Tone.line(0xFFF43F5E)),
+    (Tone.line(0xFF14B8A6), Tone.line(0x80F0FDFA), Tone.line(0xFF14B8A6)),
+  ];
+
+  Widget _lineCard(FeedLine l, List<(String, RecipeLine)> recipe, int idx) {
+    final tone = _lineTones[idx % _lineTones.length];
     final d = l.d;
     final it = l.ingredientItemId != null ? _itemById[l.ingredientItemId] : null;
     final avail = tNum(it?['availableFromLots']);
@@ -1055,13 +1071,25 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
     return Container(
       key: ValueKey('fp-line-${l.key}'),
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: shortBy > 0 ? TColors.red300 : TColors.slate200), borderRadius: BorderRadius.circular(8)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (it != null || scaledTo != null || isBought)
-          Padding(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(color: tone.$2, border: Border.all(color: shortBy > 0 ? TColors.red300 : TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(border: Border(left: BorderSide(color: tone.$1, width: 4))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Wrap(spacing: 12, runSpacing: 2, children: [
+            child: Wrap(spacing: 12, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              // The row's number, in its colour.
+              Container(
+                key: ValueKey('fp-line-no-${l.key}'),
+                constraints: const BoxConstraints(minWidth: 20),
+                height: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: tone.$3, borderRadius: BorderRadius.circular(999)),
+                child: Text('${idx + 1}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+              ),
               if (it != null && !isBought)
                 shortBy > 0
                     ? Text('Short ${loc(shortBy)} — only ${loc(avail)} of ${tStr(it['itemName'])} available to draw',
@@ -1094,7 +1122,26 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
           onChanged: (v) => _set(() => l.sourceType = v ?? l.sourceType),
         ),
         const SizedBox(height: 8),
-        _small('Qty used${l.unitOfMeasure.isNotEmpty ? ' (${l.unitOfMeasure})' : ''}'),
+        // The formula share sits beside the label, not under the input.
+        Row(children: [
+          _small('Qty used${l.unitOfMeasure.isNotEmpty ? ' (${l.unitOfMeasure})' : ''}'),
+          const SizedBox(width: 8),
+          if (l.qtyOverridden) ...[
+            const Text('✎ edited — ', style: TextStyle(fontSize: 11, color: TColors.amber600)),
+            InkWell(
+              onTap: () => _set(() => l.qtyOverridden = false),
+              child: const Text('reset', style: TextStyle(fontSize: 11, color: TColors.amber600, decoration: TextDecoration.underline)),
+            ),
+          ] else if (fromFormula)
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(4)),
+                child: Text(_shareOf(l) ?? 'Follows the quantity produced',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+              ),
+            ),
+        ]),
         _Box(
           key: ValueKey('fp-q-${l.key}'),
           value: fromFormula ? l.quantityUsed : l.enteredQty,
@@ -1107,16 +1154,6 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
             }
           }),
         ),
-        if (l.qtyOverridden)
-          Row(children: [
-            const Text('✎ edited — ', style: TextStyle(fontSize: 11, color: TColors.amber600)),
-            InkWell(
-              onTap: () => _set(() => l.qtyOverridden = false),
-              child: const Text('reset', style: TextStyle(fontSize: 11, color: TColors.amber600, decoration: TextDecoration.underline)),
-            ),
-          ])
-        else if (fromFormula)
-          Text(_shareOf(l) ?? 'Follows the quantity produced', style: const TextStyle(fontSize: 11, color: TColors.slate400)),
         const SizedBox(height: 8),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(
@@ -1169,12 +1206,12 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
           Container(
             margin: const EdgeInsets.only(top: 10),
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFFEEF2FF), border: Border.all(color: const Color(0xFFC7D2FE)), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFEEF2FF), border: Border.all(color: const Tone.line(0xFFC7D2FE)), borderRadius: BorderRadius.circular(6)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Row(children: [
-                Icon(Icons.shopping_cart_outlined, size: 14, color: Color(0xFF312E81)),
+                Icon(Icons.shopping_cart_outlined, size: 14, color: Tone.fg(0xFF312E81)),
                 SizedBox(width: 6),
-                Flexible(child: Text('Purchases are recorded in Raw Materials', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF312E81)))),
+                Flexible(child: Text('Purchases are recorded in Raw Materials', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF312E81)))),
               ]),
               const SizedBox(height: 2),
               Text.rich(
@@ -1194,14 +1231,14 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
                   ],
                   const TextSpan(text: " This batch can't be posted until you do."),
                 ]),
-                style: const TextStyle(fontSize: 12, color: Color(0xFF3730A3)),
+                style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF3730A3)),
               ),
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                      backgroundColor: Colors.white, foregroundColor: const Color(0xFF3730A3), side: const BorderSide(color: Color(0xFFA5B4FC))),
+                      backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: const Tone.fg(0xFF3730A3), side: const BorderSide(color: Tone.line(0xFFA5B4FC))),
                   onPressed: () => _recordPurchase(l),
                   icon: const Icon(Icons.add, size: 14),
                   label: const Text('Record purchase'),
@@ -1210,6 +1247,7 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
             ]),
           ),
       ]),
+      ),
     );
   }
 
@@ -1217,7 +1255,7 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
         key: ValueKey('fp-cost-${c.key}'),
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Expanded(

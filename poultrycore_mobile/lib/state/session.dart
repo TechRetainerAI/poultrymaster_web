@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show Widget;
 
 import '../api/api_client.dart';
 import '../api/auth_api.dart';
@@ -155,6 +156,17 @@ class Session extends ChangeNotifier {
       _busy = false;
       notifyListeners();
     }
+  }
+
+  /// A page to open as soon as the company shell appears -- the Business
+  /// Office's "switch into the company, then go to the path" (My Tasks →
+  /// Flock Lifecycle). Read once by the shell.
+  Widget Function(Session session, Company company)? _pendingScreen;
+  set pendingScreen(Widget Function(Session session, Company company)? b) => _pendingScreen = b;
+  Widget Function(Session session, Company company)? takePendingScreen() {
+    final b = _pendingScreen;
+    _pendingScreen = null;
+    return b;
   }
 
   /// Back to the company-neutral Business Office, as the web's sidebar row

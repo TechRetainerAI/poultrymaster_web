@@ -76,7 +76,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     body: `Setup is done by the owner or an admin; staff cannot open these pages.
 
 Everything is on one page, Farm Setup, opened from Setup > Production Setup or Setup > Business Setup.
-1. Production Setup: company settings (business details, farm type, currency and business time zone), houses & pens, flock purchases, flock groups, products, feed formulas, egg settings (pick times, eggs per crate, packaging, egg sizes and their prices) and inventory items.
+1. Production Setup: company settings (business details, farm type, currency and business time zone), houses & pens, flock purchases, flock groups, products (already set up for you: only add one that is missing), feed formulas, egg settings (pick times, eggs per crate, packaging, egg sizes and their prices) and inventory items.
 2. Business Setup: customers, suppliers, financial settings, cash accounts, delivery (drivers, vehicles, routes) and staff.
 3. Users & Permissions stay under Administration.
 4. Financial Settings: whether feed and medication are expensed when bought or when used.
