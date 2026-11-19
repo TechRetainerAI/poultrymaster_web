@@ -36,7 +36,11 @@ import {
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Plus, Loader2, PackageMinus, Pencil, Trash2, Undo2, CheckCircle2, Eye, Info } from "lucide-react"
+import { Plus, Loader2, PackageMinus, Pencil, Trash2, Undo2, CheckCircle2, Eye, Info } from "lucide-react"
+import { useBusinessDate } from "@/hooks/use-business-date"
+import { PrefilledBanner, RepeatPreviousButton, reviewRing } from "@/components/repeat/repeat-previous"
+import { buildRepeatPrefill, latestEntry, repeatSubmitBlocker, unconfirmedFields, type RepeatPrefill } from "@/lib/repeat/repeat-previous"
+import { FIELD_LABELS, genericInternalUsePolicy, type GenericInternalUseForm } from "@/lib/repeat/policies"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -47,7 +51,7 @@ import {
   listGenericInternalUsage, createGenericInternalUsage, updateGenericInternalUsage,
   deleteGenericInternalUsage, postGenericInternalUsage, reverseGenericInternalUsage,
   getGenericInternalUseSuggestedCost,
-  INTERNAL_USE_CATEGORY_LABELS,
+  GENERIC_INTERNAL_USE_CATEGORY_LABELS,
   INTERNAL_USE_REVERSAL_REASONS, GENERIC_INTERNAL_USE_CATEGORIES, STAFF_BASED_CATEGORIES,
   type GenericInternalUsage, type InternalUseCategory, type InternalUseStatus,
 } from "@/lib/api/internal-use"
@@ -244,7 +248,32 @@ export default function GenericInternalUsePage() {
   }, [visible])
 
   // ------------------------------------------------------------------ writes
+  // ------------------------------------------------------------ smart repeat
+  // As on Poultry: prefill a NEW draft from the last entry. The cost is
+  // re-suggested from today's stock, never copied; quantities are marked "check".
+  const { businessDate } = useBusinessDate()
+  const [prefill, setPrefill] = useState<RepeatPrefill<GenericInternalUseForm> | null>(null)
+  const [prefillConfirmed, setPrefillConfirmed] = useState(false)
+  const previousUsage = useMemo(
+    () => latestEntry(items.filter((r) => r.status !== "Reversed"), (r) => r.usageDate, (r) => r.genericInternalUsageId),
+    [items],
+  )
+  const unconfirmed = unconfirmedFields(prefill, form as unknown as Partial<GenericInternalUseForm>)
+
+  function repeatPrevious() {
+    if (!previousUsage) return
+    const today = businessDate || new Date().toISOString().split("T")[0]
+    const p = buildRepeatPrefill(genericInternalUsePolicy, previousUsage, {
+      businessDate: today,
+      valid: { product: new Set(products.filter((x) => x.isActive !== false).map((x) => x.genericProductId)) },
+    })
+    setForm({ ...emptyForm(), usageDate: today, ...(p.values as Partial<ReturnType<typeof emptyForm>>) })
+    setPrefill(p); setPrefillConfirmed(false)
+    setOpen(true)
+  }
+
   function openCreate() {
+    setPrefill(null); setPrefillConfirmed(false)
     // The product cannot be optional — the whole record is "this much of THIS
     // came out of stock, at this cost". But most farms carry one or two
     // things, so preselect when the choice is obvious and save a click.
@@ -261,6 +290,7 @@ export default function GenericInternalUsePage() {
   }
 
   function openEdit(r: GenericInternalUsage) {
+    setPrefill(null); setPrefillConfirmed(false)
     const line = r.items?.[0]
     setForm({
       ...emptyForm(),
@@ -300,6 +330,9 @@ export default function GenericInternalUsePage() {
   }
 
   async function save() {
+    // Copied quantities must be confirmed first; validate() still runs in full after.
+    const repeatBlock = repeatSubmitBlocker(prefill, form as unknown as Partial<GenericInternalUseForm>, prefillConfirmed, FIELD_LABELS.genericInternalUse)
+    if (repeatBlock) { toast({ title: repeatBlock, variant: "destructive" }); return }
     const bad = validate()
     if (bad) { toast({ title: bad, variant: "destructive" }); return }
 
@@ -367,9 +400,8 @@ export default function GenericInternalUsePage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="flex items-start justify-between gap-4 mb-6">
+          <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div>
-              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <PackageMinus className="w-6 h-6 text-sky-600" /> Internal Use
               </h1>
@@ -382,9 +414,13 @@ export default function GenericInternalUsePage() {
                 <span>Posting writes a stock movement, updates inventory and books a non-cash expense.</span>
               </p>
             </div>
-            <Button onClick={openCreate} className="shrink-0">
-              <Plus className="w-4 h-4 mr-2" /> Record internal use
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto sm:shrink-0">
+              <RepeatPreviousButton available={!!previousUsage} size="default"
+                label={previousUsage ? genericInternalUsePolicy.describe(previousUsage) : null} onClick={repeatPrevious} />
+              <Button onClick={openCreate} className="flex-1 sm:flex-none">
+                <Plus className="w-4 h-4 mr-2" /> Record internal use
+              </Button>
+            </div>
           </div>
 
           {/* Tell them up front, not after they open the form and find an empty list. */}
@@ -415,7 +451,7 @@ export default function GenericInternalUsePage() {
             extras={(
               <>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All statuses</SelectItem>
                     <SelectItem value="Draft">Draft</SelectItem>
@@ -424,11 +460,11 @@ export default function GenericInternalUsePage() {
                   </SelectContent>
                 </Select>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-52"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All reasons</SelectItem>
                     {CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>{INTERNAL_USE_CATEGORY_LABELS[c]}</SelectItem>
+                      <SelectItem key={c} value={c}>{GENERIC_INTERNAL_USE_CATEGORY_LABELS[c]}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -454,7 +490,7 @@ export default function GenericInternalUsePage() {
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(r) => r.genericInternalUsageId}
-                  primary={(r) => INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category}
+                  primary={(r) => GENERIC_INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category}
                   secondary={(r) => (
                     <>
                       <span>{fmtDateTime(r.usageDate, r)}</span>
@@ -467,9 +503,9 @@ export default function GenericInternalUsePage() {
                   ]}
                   details={(r) => [
                     { label: "Date", value: fmtDateTime(r.usageDate, r) },
-                    { label: "Reason", value: INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category },
                     { label: "Product", value: r.items?.[0]?.productName ?? "—" },
                     { label: "Recipient", value: r.recipientName ?? "—" },
+                    { label: "Staff", value: r.staffCount ? r.staffCount.toLocaleString() : "—" },
                   ]}
                   actions={(r) => rowActions(r)}
                   desktopTable={(
@@ -490,7 +526,7 @@ export default function GenericInternalUsePage() {
                           {pg.pageItems.map((r) => (
                             <TableRow key={r.genericInternalUsageId}>
                               <TableCell className="font-medium">{fmtDateTime(r.usageDate, r)}</TableCell>
-                              <TableCell>{INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category}</TableCell>
+                              <TableCell>{GENERIC_INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category}</TableCell>
                               <TableCell>{r.items?.[0]?.productName ?? "—"}</TableCell>
                               <TableCell>{describeQty(r)}</TableCell>
                               <TableCell className="text-right">{gh(r.totalCostValue ?? 0)}</TableCell>
@@ -515,7 +551,7 @@ export default function GenericInternalUsePage() {
 
       {/* ------------------------------------------------------------- form */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="w-[95vw] max-w-[900px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-[900px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{form.genericInternalUsageId ? "Edit draft" : "Record internal use"}</DialogTitle>
             <DialogDescription>
@@ -525,7 +561,12 @@ export default function GenericInternalUsePage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <FormSection title="What was used, and why" color="sky" columns={2}>
+            {prefill && !form.genericInternalUsageId && (
+              <PrefilledBanner prefill={prefill} fieldLabels={FIELD_LABELS.genericInternalUse}
+                unconfirmed={unconfirmed} confirmed={prefillConfirmed} onConfirmedChange={setPrefillConfirmed}
+                onClear={openCreate} />
+            )}
+            <FormSection title="What was used, and why" color="sky" columns={2} stackOnMobile>
               <FormField label="Date">
                 <Input type="date" value={form.usageDate} max={today()}
                        onChange={(e) => set("usageDate", e.target.value)} />
@@ -535,7 +576,7 @@ export default function GenericInternalUsePage() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>{INTERNAL_USE_CATEGORY_LABELS[c]}</SelectItem>
+                      <SelectItem key={c} value={c}>{GENERIC_INTERNAL_USE_CATEGORY_LABELS[c]}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -550,7 +591,7 @@ export default function GenericInternalUsePage() {
               </FormField>
             </FormSection>
 
-            <FormSection title="How much" color="blue" columns={2}>
+            <FormSection title="How much" color="blue" columns={2} stackOnMobile>
               {/* A company with no products has nothing to give out. Say so and
                   point at the fix — an empty dropdown just looks broken. */}
               {products.length === 0 ? (
@@ -605,18 +646,18 @@ export default function GenericInternalUsePage() {
 
               {showStaffHelper && form.useStaffHelper ? (
                 <>
-                  <FormField label="Number of staff">
-                    <NumberInput min={0} value={form.staffCount}
+                  <FormField label="Number of staff" hint={unconfirmed.includes("staffCount") ? "Copied from last time — check" : undefined}>
+                    <NumberInput min={0} value={form.staffCount} className={reviewRing(unconfirmed.includes("staffCount"))}
                                  onChange={(e) => set("staffCount", Number(e.target.value) || 0)} />
                   </FormField>
-                  <FormField label={`${entryLabel} each`}>
-                    <NumberInput min={0} step={1} value={form.quantityPerStaff}
+                  <FormField label={`${entryLabel} each`} hint={unconfirmed.includes("quantityPerStaff") ? "Copied from last time — check" : undefined}>
+                    <NumberInput min={0} step={1} value={form.quantityPerStaff} className={reviewRing(unconfirmed.includes("quantityPerStaff"))}
                                  onChange={(e) => set("quantityPerStaff", Number(e.target.value) || 0)} />
                   </FormField>
                 </>
               ) : (
-                <FormField label={`Total ${entryLabel.toLowerCase()}`}>
-                  <NumberInput min={0} step={1} value={form.entryQuantity}
+                <FormField label={`Total ${entryLabel.toLowerCase()}`} hint={unconfirmed.includes("entryQuantity") ? "Copied from last time — check" : undefined}>
+                  <NumberInput min={0} step={1} value={form.entryQuantity} className={reviewRing(unconfirmed.includes("entryQuantity"))}
                                onChange={(e) => set("entryQuantity", Number(e.target.value) || 0)} />
                 </FormField>
               )}
@@ -668,9 +709,9 @@ export default function GenericInternalUsePage() {
             </FormSection>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={() => void save()} disabled={saving || notEnough}>
+          <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
+            <Button className="w-full sm:w-auto" onClick={() => void save()} disabled={saving || notEnough}>
               {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Save draft"}
             </Button>
           </div>
@@ -702,7 +743,7 @@ export default function GenericInternalUsePage() {
         {/* Grey body so each white card reads as its own block. The previous
             version was one ruled list on white, which is what made it feel
             cramped -- nothing separated a fact from the fact under it. */}
-        <DialogContent className="w-[95vw] max-w-[620px] max-h-[88vh] overflow-y-auto gap-0 bg-slate-50 p-0">
+        <DialogContent className="w-[95vw] sm:max-w-[620px] max-h-[88vh] overflow-y-auto gap-0 bg-slate-50 p-0">
           <div className="px-6 pt-6 pb-4">
             <DialogHeader className="space-y-1.5 text-left">
               <div className="flex items-center justify-between gap-3">
@@ -717,7 +758,7 @@ export default function GenericInternalUsePage() {
               </div>
               <DialogDescription className="text-sm text-slate-500">
                 {fmtDateTime(viewTarget?.usageDate, viewTarget)}
-                {viewTarget ? ` · ${INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category}` : ""}
+                {viewTarget ? ` · ${GENERIC_INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category}` : ""}
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -758,7 +799,7 @@ export default function GenericInternalUsePage() {
 
               <DetailCard title="Who and why">
                 <dl className="divide-y divide-slate-100 text-sm">
-                  <DetailRow label="Reason" value={INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category} />
+                  <DetailRow label="Reason" value={GENERIC_INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category} />
                   <DetailRow label="Recipient" value={viewTarget.recipientName} />
                   <DetailRow label="Staff" value={viewTarget.staffCount ? String(viewTarget.staffCount) : null} />
                   <DetailRow label="Detail" value={viewTarget.reason} />

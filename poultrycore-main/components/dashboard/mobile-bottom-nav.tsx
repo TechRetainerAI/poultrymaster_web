@@ -13,6 +13,7 @@ import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
+import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { usePoultryBroilerFeatures, usePoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
@@ -390,12 +391,10 @@ export function MobileBottomNav() {
                 ? [{ href: "/generic-inventory", label: "Inventory", icon: Boxes }] : []),
               ...(genericModules.showExisting("enableStockAdjustments")
                 ? [{ href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes }] : []),
-              ...(genericModules.showExisting("enableInternalUse")
-                ? [{ href: "/generic-internal-use", label: "Internal Use", icon: PackageMinus }] : []),
             ]
             return items.length ? [{ title: "Inventory", items }] : []
           })(),
-          { title: "Sales & Money", items: [
+          { title: "Sales", items: [
             ...(genericModules.showNew("enableInvoices")
               ? [{ href: "/generic-invoices", label: genericModules.labels.invoicePlural, icon: FileText }]
               : []),
@@ -403,8 +402,12 @@ export function MobileBottomNav() {
               ? [{ href: "/generic-customer-balances", label: genericModules.labels.customerBalance, icon: Scale }]
               : []),
             { href: "/generic-customer-payments", label: genericModules.labels.paymentPlural, icon: CreditCard },
-            { href: "/generic-supplier-payments", label: "Supplier payments", icon: CreditCard },
-            { href: "/generic-expenses",          label: "Expenses",          icon: DollarSign },
+          ] as NavItem[] },
+          // Report 40 Part 3: the sidebar's Expenses column, same rows and order
+          // as Poultry's (built once, in lib/nav/generic-nav-config.ts).
+          { title: "Expenses", items: fromMegaMenu(
+              buildGenericNavConfig(genericModules, permissions).expenses).flatMap((g) => g.items) },
+          { title: "Money", items: [
             { href: "/generic-cash",              label: "Cash & Accounts",   icon: Wallet },
             { href: "/generic-cash-transfers",    label: "Cash transfers",    icon: Activity },
             { href: "/generic-daily-closings",    label: "Daily Closing",     icon: FileText },
@@ -416,7 +419,6 @@ export function MobileBottomNav() {
           { title: "People", items: [
             { href: "/generic-staff",      label: "Staff",      icon: Users2 },
             { href: "/generic-attendance", label: "Attendance", icon: Activity },
-            { href: "/generic-payroll",    label: "Payroll",    icon: Banknote },
           ] as NavItem[] },
           { title: "Reports", items: [
             { href: "/generic-reports", label: "Reports", icon: BarChart3 },

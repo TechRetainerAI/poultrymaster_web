@@ -12,7 +12,7 @@
 import {
   Activity, AlertTriangle, ArrowUpDown, Banknote, BarChart3, Boxes, Building2, CalendarClock, CalendarDays,
   CheckCircle2, ClipboardCheck, CreditCard, DollarSign, Factory, FileText, Gift, GraduationCap, HandCoins, History, Landmark,
-  MapPin, Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
+  Hourglass, MapPin, PiggyBank, Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
   PieChart, ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
 } from "lucide-react"
 import type { MegaMenuGroup, MegaMenuItem } from "./nav-model"
@@ -97,10 +97,12 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       ? [item("/generic-stock-movements", "Stock Movements", ArrowUpDown)] : []),
     ...(showExisting("enableProducts")
       ? [item("/generic-product-tracker", "Product Tracker", History)] : []),
+    // Purchases sit with the stock they buy (Report 40, Part 3: they left the
+    // Expenses column, which now lists exactly Poultry's Expenses rows).
+    ...(showExisting("enablePurchases")
+      ? [item("/generic-inventory?tab=purchases", "Purchases", Package)] : []),
     ...(showExisting("enablePurchases")
       ? [item("/generic-purchases/new", "Record Purchase", ShoppingCart)] : []),
-    ...(showExisting("enableInternalUse")
-      ? [item("/generic-internal-use", "Internal Use", PackageMinus)] : []),
     item("/generic-loss-records", "Loss & Damage", AlertTriangle),
   ]
   const catalogLogisticsItems: MegaMenuItem[] = [
@@ -115,25 +117,31 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
     catalog.push({ key: "catalog-logistics", label: "Logistics", items: catalogLogisticsItems })
   }
 
-  // ---- Expenses & Vendors / Purchasing ----
+  // ---- Expenses ----
+  // Report 40, Part 3: the same rows, names and order as Poultry's Expenses
+  // column (lib/nav/poultry-nav-config.ts salesMoney "expenses"). Suppliers live
+  // in Setup > Finance and Purchases with the stock, as on Poultry.
   const expenses: MegaMenuGroup[] = [{
     key: "expenses",
     label: isSub ? "Expenses & Vendors" : "Expenses",
     items: gated([
-      item("/generic-suppliers",         isSub ? "Vendors" : "Suppliers", Truck, canSee("/generic-suppliers")),
-      ...(showExisting("enablePurchases")
-        ? [item("/generic-inventory?tab=purchases", "Purchases", Package)] : []),
-      item("/generic-supplier-payments", isSub ? "Vendor payments" : "Supplier payments", CreditCard, canSee("/generic-supplier-payments")),
-      ...(showExisting("enableSupplierBalances")
-        ? [item("/generic-supplier-balances", isSub ? "Vendor balances" : "Supplier balances", Scale, canSee("/generic-supplier-balances"))]
-        : []),
-      item("/generic-supplier-credits",  isSub ? "Vendor credits" : "Supplier Credits & Advances", HandCoins, canSee("/generic-supplier-credits")),
       item("/generic-expenses",          "Expenses",          DollarSign, canSee("/generic-expenses")),
-      ...(showExisting("enableRecurringExpenses")
-        ? [item("/recurring-expenses", "Recurring expenses", Repeat, canSee("/recurring-expenses"))]
+      item("/generic-supplier-payments", isSub ? "Vendor Payments" : "Supplier Payments", Receipt, canSee("/generic-supplier-payments")),
+      ...(showExisting("enableSupplierBalances")
+        ? [item("/generic-supplier-balances", isSub ? "Vendor Balances" : "Supplier Balances", Truck, canSee("/generic-supplier-balances"))]
         : []),
-      item("/generic-deferred-costs",    "Deferred Inventory Cost", Timer, canSee("/generic-deferred-costs")),
+      item("/generic-supplier-credits",  isSub ? "Vendor Credits & Advances" : "Supplier Credits & Advances", Wallet, canSee("/generic-supplier-credits")),
+      ...(showExisting("enableInternalUse")
+        ? [item("/generic-internal-use", "Internal Use", PackageMinus)] : []),
+      item("/generic-payroll",           "Payroll",           Banknote, canSee("/generic-payroll")),
+      item("/generic-employee-loans",    "Employee Loans & Advances", HandCoins, canSee("/generic-employee-loans")),
+      item("/generic-employee-credit",   "Employee Credit",   PiggyBank, canSee("/generic-employee-credit")),
+      item("/generic-deferred-costs",    "Deferred inventory cost", Hourglass, canSee("/generic-deferred-costs")),
       item("/generic-assets",            "Capital Investments/Assets", Building2, canSee("/generic-assets")),
+      // Poultry files Recurring Expenses under Tools; Generic has no Tools menu.
+      ...(showExisting("enableRecurringExpenses")
+        ? [item("/recurring-expenses", "Recurring Expenses", Repeat, canSee("/recurring-expenses"))]
+        : []),
     ]),
   }]
 
@@ -169,16 +177,15 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
         item("/generic-attendance", "Attendance", Activity),
       ]),
     },
-    {
+    // Payroll and Employee Loans & Advances moved to Expenses (as on Poultry,
+    // Report 40 Part 3); only the staff payments page is left here.
+    ...(showExisting("enableStaffPayments") ? [{
       key: "people-payroll",
-      label: "Payroll & Advances",
+      label: "Payments",
       items: gated([
-        item("/generic-payroll",    "Payroll",    Banknote, canSee("/generic-payroll")),
-        ...(showExisting("enableStaffPayments")
-          ? [item("/generic-staff-payments", isSchool ? "Staff payments" : "Employee payments", Banknote, canSee("/generic-staff-payments"))] : []),
-        item("/generic-employee-loans", "Employee loans", HandCoins, canSee("/generic-employee-loans")),
+        item("/generic-staff-payments", isSchool ? "Staff payments" : "Employee payments", Banknote, canSee("/generic-staff-payments")),
       ]),
-    },
+    }] : []),
   ] : []
 
   // ---- School ----

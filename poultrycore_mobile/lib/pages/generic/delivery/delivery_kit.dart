@@ -39,23 +39,21 @@ num dNum(TextEditingController c) => num.tryParse(c.text) ?? 0;
 Widget activeBadge(bool on) =>
     on ? const TBadge('Active', bg: TColors.emerald100, fg: TColors.emerald700) : const TBadge('Inactive', bg: TColors.slate100, fg: TColors.slate600);
 
-/// A place box with its "My location" and "Search" buttons. [gpsFirst] is the
-/// web's button order for that box. [onPlace] gets the found place, so a
-/// caller can work out the travel time.
+/// A place box with its "Search" button. [onPlace] gets the found place, so a
+/// caller can work out the travel time. There is no "My location" button: the
+/// app never reads anyone's live location (removed on the web too, 18 Nov).
 class PlaceField extends StatefulWidget {
   const PlaceField({
     super.key,
     required this.controller,
     required this.hint,
     required this.keyPrefix,
-    this.gpsFirst = true,
     this.onPlace,
     this.onBusy,
     this.busy = false,
   });
   final TextEditingController controller;
   final String hint, keyPrefix;
-  final bool gpsFirst;
   final void Function(Place p)? onPlace;
   final ValueChanged<bool>? onBusy;
 
@@ -67,18 +65,6 @@ class PlaceField extends StatefulWidget {
 
 class _PlaceFieldState extends State<PlaceField> {
   void _busy(bool b) => widget.onBusy?.call(b);
-
-  Future<void> _gps() async {
-    _busy(true);
-    try {
-      final p = await GenericPlaces.myLocation();
-      widget.controller.text = p.name;
-      widget.onPlace?.call(p);
-    } catch (e) {
-      if (mounted) trackerToast(context, 'Could not get location', description: '$e', error: true);
-    }
-    _busy(false);
-  }
 
   Future<void> _search() async {
     final q = widget.controller.text;
@@ -100,12 +86,6 @@ class _PlaceFieldState extends State<PlaceField> {
 
   @override
   Widget build(BuildContext context) {
-    final gps = IconButton.outlined(
-      key: ValueKey('${widget.keyPrefix}-gps'),
-      tooltip: 'My location',
-      onPressed: widget.busy ? null : _gps,
-      icon: const Icon(Icons.my_location, size: 18),
-    );
     final search = IconButton.outlined(
       key: ValueKey('${widget.keyPrefix}-search'),
       tooltip: 'Search',
@@ -115,7 +95,7 @@ class _PlaceFieldState extends State<PlaceField> {
     return Row(children: [
       Expanded(child: AppInput(key: ValueKey('${widget.keyPrefix}-text'), controller: widget.controller, hintText: widget.hint)),
       const SizedBox(width: 4),
-      if (widget.gpsFirst) ...[gps, search] else ...[search, gps],
+      search,
     ]);
   }
 }

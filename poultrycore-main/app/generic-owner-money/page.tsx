@@ -30,7 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import {
-  ArrowLeft, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Undo2,
+  Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Undo2,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -43,7 +43,7 @@ import {
 import { getCashAccounts } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
-const PAYMENT_METHODS = ["Cash", "Bank", "Mobile Money", "Card", "Other"]
+const PAYMENT_METHODS = ["Cash", "BankTransfer", "MoMo", "Cheque", "Card", "Other"]
 const TYPE_FILTERS = ["All", "Contribution", "Draw"] as const
 const STATUS_FILTERS = ["All", "Posted", "Reversed"] as const
 
@@ -72,7 +72,7 @@ export default function GenericOwnerMoneyPage() {
   const [recording, setRecording] = useState<OwnerEntryType | null>(null)
   const [form, setForm] = useState({
     amount: "0", cashAccountId: "", entryDate: today(),
-    paymentMethod: "Bank", ownerName: "", reference: "", notes: "",
+    paymentMethod: "Cash", ownerName: "", reference: "", notes: "",
   })
 
   const [reversing, setReversing] = useState<GenericOwnerEntry | null>(null)
@@ -149,7 +149,7 @@ export default function GenericOwnerMoneyPage() {
     setRecording(t)
     setForm({
       amount: "0", cashAccountId: "", entryDate: today(),
-      paymentMethod: "Bank", ownerName: "", reference: "", notes: "",
+      paymentMethod: "Cash", ownerName: "", reference: "", notes: "",
     })
   }
 
@@ -164,7 +164,7 @@ export default function GenericOwnerMoneyPage() {
       return
     }
     if (amountNum <= 0) {
-      toast({ title: "The amount must be more than zero", variant: "destructive" })
+      toast({ title: "Enter an amount", variant: "destructive" })
       return
     }
     setSaving(true)
@@ -188,7 +188,7 @@ export default function GenericOwnerMoneyPage() {
       setRecording(null)
       await load()
     } catch (e: any) {
-      toast({ title: "Could not record it", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: "Could not record", description: e?.message ?? String(e), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -208,7 +208,7 @@ export default function GenericOwnerMoneyPage() {
       setReason("")
       await load()
     } catch (e: any) {
-      toast({ title: "Could not reverse it", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: "Could not reverse", description: e?.message ?? String(e), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -227,7 +227,6 @@ export default function GenericOwnerMoneyPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-end justify-between flex-wrap gap-2">
             <div>
-              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Wallet className="h-6 w-6 text-emerald-600" /> Owner Money
               </h1>
@@ -256,10 +255,10 @@ export default function GenericOwnerMoneyPage() {
             <Stat label="Net owner funding" value={fmt(summary.netFunding)}
                   hint="Contributions less draws"
                   accent={summary.netFunding >= 0 ? "emerald" : "rose"} />
-            <Stat label="Contributions (filtered)" value={fmt(
+            <Stat label="Contributions in range" value={fmt(
               visible.filter((r) => r.entryType === "Contribution" && r.status !== "Reversed").reduce((s, r) => s + r.amount, 0)
             )} />
-            <Stat label="Draws (filtered)" value={fmt(
+            <Stat label="Draws in range" value={fmt(
               visible.filter((r) => r.entryType === "Draw" && r.status !== "Reversed").reduce((s, r) => s + r.amount, 0)
             )} />
           </div>

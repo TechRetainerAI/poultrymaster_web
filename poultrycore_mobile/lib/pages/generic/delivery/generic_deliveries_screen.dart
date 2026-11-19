@@ -605,7 +605,7 @@ class _LoadDialogState extends State<_LoadDialog> {
             ),
             dField('Starting point', PlaceField(controller: _start, hint: "Where you're leaving from", keyPrefix: 'load-start', busy: _locating, onBusy: busy)),
             dField('Destination',
-                PlaceField(controller: _dest, hint: "Where you're delivering to", keyPrefix: 'load-dest', gpsFirst: false, busy: _locating, onBusy: busy)),
+                PlaceField(controller: _dest, hint: "Where you're delivering to", keyPrefix: 'load-dest', busy: _locating, onBusy: busy)),
             dField(
               'Customer',
               widget.customers.isNotEmpty

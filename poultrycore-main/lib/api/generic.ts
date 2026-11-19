@@ -261,6 +261,20 @@ export interface GenericExpense {
   status: "Draft" | "Submitted" | "Approved" | "Rejected" | "Cancelled" | string
   notes?: string | null
   createdAt: string
+  // 448: payment state, as on Poultry Expenses. amountPaid is what has been
+  // paid so far (resolved); balance = amount - amountPaid.
+  genericCashAccountId?: number | null
+  receiptUrl?: string | null
+  cashAccountName?: string | null
+  amountPaid?: number | null
+  dueDate?: string | null
+  paymentStatus?: "Paid" | "PartiallyPaid" | "Unpaid" | "NonCash" | string | null
+  sourceType?: string | null
+  /** What supplier payments have applied; while > 0 the money is locked. */
+  paymentsApplied?: number | null
+  rejectionReason?: string | null
+  approvedBy?: string | null
+  approvedAt?: string | null
 }
 
 export interface GenericDailyClosing {
@@ -454,18 +468,37 @@ export async function getCashAccounts(): Promise<GenericCashAccount[]> {
   return getJson<GenericCashAccount[]>(`${farmBase()}/cash-accounts`)
 }
 
+/**
+ * A manual adjustment on one cash account (signed amount, reason required).
+ * Moves the account's balance -- the Generic twin of Poultry's
+ * adjustPoultryCashAccount, used by Cash Flow's "Add adjustment" (Report 40).
+ */
+export async function adjustCashAccount(accountId: number, input: {
+  amount: number; reason: string; transactionDate?: string | null
+}): Promise<void> {
+  await postJson(`${farmBase()}/cash/adjustments`, {
+    genericCashAccountId: accountId, amount: input.amount, reason: input.reason,
+    transactionDate: input.transactionDate ?? null,
+  })
+}
+
 export async function createCashAccount(input: {
   accountName: string; accountType: string; openingBalance: number;
   allowNegativeBalance: boolean; notes?: string | null
 }): Promise<GenericCashAccount | null> {
-  return postJson<GenericCashAccount>(`${farmBase()}/cash-accounts`, withFarmId(input))
+  // Report 40 Part 9: the policy is what the server reads; send it with the bit.
+  return postJson<GenericCashAccount>(`${farmBase()}/cash-accounts`, withFarmId({
+    ...input, negativeBalancePolicy: input.allowNegativeBalance ? "AlwaysAllow" : "DoNotAllow",
+  }))
 }
 
 export async function updateCashAccount(id: number, input: {
   accountName: string; accountType: string;
   allowNegativeBalance: boolean; isActive: boolean; notes?: string | null
 }): Promise<void> {
-  await putJson(`${farmBase()}/cash-accounts/${id}`, withFarmId(input))
+  await putJson(`${farmBase()}/cash-accounts/${id}`, withFarmId({
+    ...input, negativeBalancePolicy: input.allowNegativeBalance ? "AlwaysAllow" : "DoNotAllow",
+  }))
 }
 
 export async function deleteCashAccount(id: number): Promise<void> {
@@ -501,15 +534,47 @@ export interface GenericCashReconciliation {
   accountName?: string | null
   reconciliationDate: string
   systemBalance: number
-  actualBalance: number
+  /** Null while a draft has no figure; 0 is a real count. */
+  actualBalance: number | null
   difference: number
   adjustmentTransactionId?: number | null
   reason?: string | null
   notes?: string | null
-  status: string
+  /** Draft | Posted | Reversed (migration 456). */
+  status: "Draft" | "Posted" | "Reversed" | string
   requestedBy?: string | null
   approvedBy?: string | null
   createdAt: string
+  accountType?: string | null
+  referenceNo?: string | null
+  systemBalanceCached?: number | null
+  reversalTransactionId?: number | null
+  createdBy?: string | null
+  updatedAt?: string | null
+  postedBy?: string | null
+  postedAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+/** Per-account figures for the Reconciliation page (Poultry's account-status). */
+export interface GenericCashAccountCountStatus {
+  genericCashAccountId: number
+  accountName: string
+  accountType?: string | null
+  isActive: boolean
+  currentBalance: number
+  /** Ledger truth: the sum of the account's transactions. */
+  ledgerBalance: number
+  cacheDrift: number
+  lastReconciledAt?: string | null
+  lastReconciledBalance?: number | null
+  daysSinceReconciled?: number | null
+  /** Entries dated after the last posted count (Generic has no per-entry clearing). */
+  unclearedCount: number
+  unclearedAmount: number
+  openDraftId?: number | null
 }
 
 export interface GenericCashAccountDetails {
@@ -553,6 +618,56 @@ export async function createCashReconciliation(input: {
   if (userId) { q.set("requestedBy", userId); q.set("approvedBy", userId) }
   return postJson<{ genericCashReconciliationId: number }>(
     `${farmBase()}/cash/reconciliations?${q.toString()}`, input)
+}
+
+function byParam(name: string): string {
+  const { userId } = getUserContext()
+  return userId ? `?${name}=${encodeURIComponent(userId)}` : ""
+}
+
+export async function getCashAccountCountStatus(): Promise<GenericCashAccountCountStatus[]> {
+  return getJson<GenericCashAccountCountStatus[]>(`${farmBase()}/cash/reconciliations/account-status`)
+}
+
+export interface GenericCashCountInput {
+  reconciliationDate?: string | null
+  actualBalance?: number | null
+  reason?: string | null
+  notes?: string | null
+}
+
+/** Save a DRAFT count. Moves no money; post it with postCashCount. */
+export async function createCashCount(input: GenericCashCountInput & { genericCashAccountId: number }) {
+  return postJson<{ genericCashReconciliationId: number }>(
+    `${farmBase()}/cash/reconciliations/drafts${byParam("createdBy")}`, input)
+}
+
+export async function updateCashCount(id: number, input: GenericCashCountInput & { genericCashAccountId: number }) {
+  await putJson(`${farmBase()}/cash/reconciliations/${id}${byParam("updatedBy")}`, input)
+}
+
+/** Discard a DRAFT count (nothing was posted, nothing moves). */
+export async function deleteCashCount(id: number) {
+  await deleteResource(`${farmBase()}/cash/reconciliations/${id}${byParam("userId")}`)
+}
+
+/** Post a draft: re-measures against the ledger now; returns the adjustment id, or null when it balanced. */
+export async function postCashCount(id: number) {
+  return postJson<{ adjustmentTransactionId: number | null }>(
+    `${farmBase()}/cash/reconciliations/${id}/post${byParam("postedBy")}`, {})
+}
+
+/** Reverse a POSTED count: an opposite adjustment, the original kept. */
+export async function reverseCashCount(id: number, reason: string) {
+  await postJson(`${farmBase()}/cash/reconciliations/${id}/reverse${byParam("reversedBy")}`, { reason })
+}
+
+/**
+ * Recalculate: rebuild every cash account's stored balance from its
+ * transactions. Moves no money (Poultry's reconcilePoultryCashBalances).
+ */
+export async function recalculateCashBalances(): Promise<{ updated: number } | null> {
+  return postJson<{ updated: number }>(`${farmBase()}/cash/accounts/reconcile-balances`, {})
 }
 
 // =============================================================================
@@ -862,6 +977,20 @@ export async function approveExpense(id: number): Promise<void> {
   await postJson(`${farmBase()}/expenses/${id}/approve`, {})
 }
 
+export async function rejectExpense(id: number, rejectionReason: string): Promise<void> {
+  await postJson(`${farmBase()}/expenses/${id}/reject`, { rejectionReason })
+}
+
+/** 448: edit. An approved expense's money is re-posted; locked once a supplier payment is applied. */
+export async function updateExpense(id: number, input: GenericExpenseCreateInput): Promise<GenericExpense | null> {
+  return putJson<GenericExpense>(`${farmBase()}/expenses/${id}`, withFarmId(input))
+}
+
+/** 448: delete. An approved expense gives its cash back and comes off the supplier first. */
+export async function deleteExpense(id: number, reason?: string | null): Promise<void> {
+  await postJson(`${farmBase()}/expenses/${id}/delete`, { reason: reason ?? null })
+}
+
 // =============================================================================
 // Daily Closings
 // =============================================================================
@@ -935,6 +1064,11 @@ export interface GenericExpenseCreateInput {
   paymentMethod: string
   genericCashAccountId?: number | null
   notes?: string | null
+  /** Receipt photo path from /api/receipt-upload (as on Poultry). */
+  receiptUrl?: string | null
+  /** 448: null = paid in full, 0 = not paid (owed to the supplier), between = partly paid. */
+  amountPaid?: number | null
+  dueDate?: string | null
 }
 
 export interface GenericCustomerPayment {
@@ -995,9 +1129,19 @@ export interface GenericCashTransfer {
   toAccountName?: string | null
   transferDate: string
   amount: number
-  status: "Draft" | "Approved" | "Cancelled" | string
+  status: "Draft" | "Approved" | "Cancelled" | "Reversed" | string
   notes?: string | null
   createdAt: string
+  /** TRF-2026-0001 (migration 456). */
+  transferNumber?: string | null
+  /** The bank's or wallet's own reference for the movement. */
+  referenceNumber?: string | null
+  createdBy?: string | null
+  approvedBy?: string | null
+  approvedAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
 }
 
 export interface GenericCashTransferCreateInput {
@@ -1005,6 +1149,7 @@ export interface GenericCashTransferCreateInput {
   toGenericCashAccountId: number
   amount: number
   transferDate?: string | null
+  referenceNumber?: string | null
   notes?: string | null
 }
 
@@ -1226,6 +1371,27 @@ export async function cancelCashTransfer(id: number): Promise<void> {
   await postJson(`${farmBase()}/cash-transfers/${id}/cancel`, {})
 }
 
+/**
+ * Create AND approve in one server call (Poultry's "Record transfer"). If the
+ * approval is refused (not enough money) the whole call fails and no Draft is
+ * left behind -- never create + approve separately from a page.
+ */
+export async function recordCashTransfer(
+  input: GenericCashTransferCreateInput
+): Promise<GenericCashTransfer | null> {
+  const { userId } = getUserContext()
+  const q = userId ? `?createdBy=${encodeURIComponent(userId)}` : ""
+  return postJson<GenericCashTransfer>(`${farmBase()}/cash-transfers/record${q}`,
+    withFarmId({ ...input, createdBy: userId || null }))
+}
+
+/** Undo an APPROVED transfer: two opposite ledger rows, originals kept, reason audited. */
+export async function reverseCashTransfer(id: number, reason: string): Promise<void> {
+  const { userId } = getUserContext()
+  const q = userId ? `?reversedBy=${encodeURIComponent(userId)}` : ""
+  await postJson(`${farmBase()}/cash-transfers/${id}/reverse${q}`, { reason })
+}
+
 // =============================================================================
 // Customer Credits
 // =============================================================================
@@ -1288,41 +1454,88 @@ export async function getDeferredCosts(): Promise<GenericDeferredCost[]> {
 // Loans (Financing)
 // =============================================================================
 
+// Migration 455 brought these up to Poultry's loans: real lender type / account
+// number / interest type / term / frequency / next payment fields, loan and
+// payment numbers, edit, cancel and reversal, and every cash move posted to the
+// account ledger. Status reads 'Active' | 'PaidOff' | 'Cancelled'.
 export interface GenericLoan {
-  genericLoanId: number; farmId: string; lenderName: string
+  genericLoanId: number; farmId: string; loanNumber: string | null
+  lenderName: string; lenderType: string | null; accountNumber: string | null
   originalPrincipal: number; amountReceived: number; interestRate: number
+  interestType: string | null; termMonths: number | null; paymentFrequency: string | null
   totalInterestPaid: number; totalFeesPaid: number; totalPrincipalPaid: number
   outstandingBalance: number; loanDate: string; startDate: string | null
-  dueDate: string | null; status: string; notes: string | null; createdAt: string
+  dueDate: string | null; nextPaymentDate: string | null
+  genericCashAccountId: number | null; accountName: string | null
+  paymentCount: number; isOverdue: boolean; paidOffDate: string | null; cancelReason: string | null
+  status: string; notes: string | null; createdAt: string
 }
 
 export interface GenericLoanPayment {
-  genericLoanPaymentId: number; genericLoanId: number; paymentDate: string
-  principalAmount: number; interestAmount: number; feeAmount: number
-  totalPayment: number; notes: string | null; isReversed: boolean; createdAt: string
+  genericLoanPaymentId: number; genericLoanId: number; loanNumber: string | null
+  paymentNumber: string | null; paymentDate: string
+  principalAmount: number; interestAmount: number; feeAmount: number; otherAmount: number
+  totalPayment: number; genericCashAccountId: number | null; accountName: string | null
+  paymentMethod: string | null; referenceNumber: string | null
+  notes: string | null; isReversed: boolean; status: "Posted" | "Reversed" | string
+  reversedAt: string | null; reversalReason: string | null; createdAt: string
 }
 
 export async function getLoans(): Promise<GenericLoan[]> {
   return getJson<GenericLoan[]>(`${farmBase()}/loans`)
 }
 
+/** A received amount needs an account: the server refuses one without. */
 export async function createLoan(input: {
-  lenderName: string; originalPrincipal: number; amountReceived: number; interestRate: number
+  lenderName: string; originalPrincipal: number; amountReceived: number; interestRate?: number | null
   loanDate: string; startDate?: string; dueDate?: string
-  genericCashAccountId?: number | null; notes?: string
+  genericCashAccountId?: number | null; notes?: string | null
+  lenderType?: string | null; accountNumber?: string | null; interestType?: string | null
+  termMonths?: number | null; paymentFrequency?: string | null; nextPaymentDate?: string | null
 }): Promise<number | null> {
-  return postJson<number>(`${farmBase()}/loans`, withFarmId(input))
+  const { userId } = getUserContext()
+  return postJson<number>(`${farmBase()}/loans`, withFarmId({ ...input, createdBy: userId || null }))
+}
+
+/** Terms only. Blank fields keep their stored value; the money is never edited. */
+export async function updateLoan(loanId: number, input: {
+  lenderName?: string | null; lenderType?: string | null; accountNumber?: string | null
+  interestRate?: number | null; interestType?: string | null; termMonths?: number | null
+  paymentFrequency?: string | null; dueDate?: string | null; nextPaymentDate?: string | null
+  notes?: string | null
+}): Promise<void> {
+  const { userId } = getUserContext()
+  await putJson(`${farmBase()}/loans/${loanId}`, withFarmId({ ...input, updatedBy: userId || null }))
+}
+
+/** Refused while the loan has posted repayments. Takes the received money back out. */
+export async function cancelLoan(loanId: number, reason: string): Promise<void> {
+  const { userId } = getUserContext()
+  await postJson(`${farmBase()}/loans/${loanId}/cancel`, { reason, by: userId || null })
+}
+
+/** Every repayment of the company (reversed ones included), newest first. */
+export async function getAllLoanPayments(): Promise<GenericLoanPayment[]> {
+  return getJson<GenericLoanPayment[]>(`${farmBase()}/loans/payments`)
 }
 
 export async function getLoanPayments(loanId: number): Promise<GenericLoanPayment[]> {
   return getJson<GenericLoanPayment[]>(`${farmBase()}/loans/${loanId}/payments`)
 }
 
+/** Refuses principal above what is owed, and overdrawing the account. */
 export async function repayLoan(loanId: number, input: {
-  principalAmount: number; interestAmount: number; feeAmount: number
-  paymentDate?: string; genericCashAccountId?: number | null; notes?: string
+  principalAmount: number; interestAmount: number; feeAmount: number; otherAmount?: number
+  paymentDate?: string | null; genericCashAccountId?: number | null; notes?: string | null
+  paymentMethod?: string | null; referenceNumber?: string | null; nextPaymentDate?: string | null
 }): Promise<number | null> {
-  return postJson<number>(`${farmBase()}/loans/${loanId}/repay`, withFarmId(input))
+  const { userId } = getUserContext()
+  return postJson<number>(`${farmBase()}/loans/${loanId}/repay`, withFarmId({ ...input, createdBy: userId || null }))
+}
+
+export async function reverseLoanPayment(paymentId: number, reason: string): Promise<void> {
+  const { userId } = getUserContext()
+  await postJson(`${farmBase()}/loans/payments/${paymentId}/reverse`, { reason, by: userId || null })
 }
 
 // =============================================================================

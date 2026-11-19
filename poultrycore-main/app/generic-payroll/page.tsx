@@ -1,99 +1,171 @@
 "use client"
 
-// Generic Payroll — mirrors the poultry payroll page with stat cards,
-// inline action buttons, staff lines dialog, and mark-paid workflow.
-
-import { useEffect, useMemo, useState } from "react"
+import { CANCEL_REASONS, REOPEN_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { DataPagination } from "@/components/ui/data-pagination"
-import { usePagination } from "@/hooks/use-pagination"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PayrollTemplatesPanel } from "@/components/generic/payroll-templates"
+import { usePermissions } from "@/hooks/use-permissions"
+import { Plus, Loader2, Banknote, Eye, Users, Trash2, CheckCircle2, RotateCcw, XCircle, HandCoins, Pencil, PiggyBank } from "lucide-react"
+import Link from "next/link"
 import {
-  ArrowLeft, Loader2, Plus, Banknote, Eye, Users, Trash2, CheckCircle2, XCircle, HandCoins,
-} from "lucide-react"
+  PayrollDeductionsDialog, type PayrollDeductionTarget,
+} from "@/components/generic/payroll-deductions-dialog"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
-import { cn } from "@/lib/utils"
 import {
-  getPayrollRuns, createPayrollRun, approvePayrollRun, markPayrollRunPaid, cancelPayrollRun,
-  upsertPayrollItem, deletePayrollItem, getPayrollRun,
-  getCashAccounts, getStaff,
-  type GenericPayrollRun, type GenericCashAccount, type GenericStaff,
-} from "@/lib/api/generic"
+  listGenericPayrollRuns, createGenericPayrollRun, getGenericPayrollRun,
+  listGenericPayrollDeductionsForRun, type GenericPayrollDeductionRunRow,
+  listEligibleGenericEmployeeLoans, listGenericPayrollDeductions,
+  type GenericEmployeeLoanEligible,
+  saveGenericPayrollDeduction,
+  upsertGenericPayrollItem, deleteGenericPayrollItem,
+  approveGenericPayrollRun, markGenericPayrollRunPaid, cancelGenericPayrollRun,
+  unapproveGenericPayrollRun, deleteGenericPayrollRun,
+  listGenericCashAccounts, listGenericStaff,
+  GENERIC_PAYMENT_METHODS,
+  listGenericPayrollTemplates, createGenericPayrollRunFromTemplate, nextPayrollPeriod,
+  type GenericPayrollTemplate,
+  type GenericPayrollRun, type GenericPayrollItem, type GenericCashAccount, type GenericStaff,
+} from "@/lib/api/generic-payroll"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
-const PAY_METHODS = ["Cash", "MoMo", "Bank", "Card", "Mixed"]
-
+const today = () => new Date().toISOString().split("T")[0]
 const STATUS_STYLE: Record<string, string> = {
-  Draft: "bg-slate-100 text-slate-800",
-  Approved: "bg-sky-100 text-sky-800",
-  Paid: "bg-emerald-100 text-emerald-800",
-  Cancelled: "bg-rose-100 text-rose-800",
+  Draft: "bg-slate-100 text-slate-700",
+  Approved: "bg-blue-100 text-blue-700",
+  Paid: "bg-green-100 text-green-700",
+  Reopened: "bg-amber-100 text-amber-700",
+  Cancelled: "bg-rose-100 text-rose-700",
 }
 
-function IconBtn({ label, onClick, children, className }: { label: string; onClick: () => void; children: React.ReactNode; className?: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="sm" className={className} onClick={onClick}>{children}</Button>
-      </TooltipTrigger>
-      <TooltipContent side="top">{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function firstOfMonth() {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
+/**
+ * What payroll will take off for one advance.
+ *
+ * ONE definition, used by three things that must agree: the panel that promises
+ * it before the line is saved, the net pay preview on the line form,
+ * and autoAddSuggestedDeductions which actually posts it. Three copies of this
+ * arithmetic would eventually promise one number and deduct another.
+ *
+ * Zero means "nothing automatic here" -- either the advance is repaid outside
+ * payroll, or no amount was ever suggested for it.
+ */
+function payrollDeductionFor(e: GenericEmployeeLoanEligible): number {
+  const byPayroll = e.repaymentMethod === "PayrollDeduction" || e.repaymentMethod === "Mixed"
+  if (!byPayroll) return 0
+  // Never more than is left: the server would refuse it, and the user would be
+  // reading an error about an amount they never chose.
+  return Math.min(e.defaultPayrollDeduction ?? 0, e.outstandingBalance)
 }
 
 export default function GenericPayrollPage() {
   const router = useRouter()
-  const activeFarmType = useAuthStore((s) => s.activeFarmType)
-  const logout = useLogout()
   const { toast } = useToast()
   const gh = useFmt()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const logout = useLogout()
 
   const [runs, setRuns] = useState<GenericPayrollRun[]>([])
   const [accounts, setAccounts] = useState<GenericCashAccount[]>([])
-  const [staffList, setStaffList] = useState<GenericStaff[]>([])
+  const [staff, setStaff] = useState<GenericStaff[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
+  // 419. Payroll templates.
+  const { canEdit } = usePermissions()
+  const [tab, setTab] = useState<"runs" | "templates">("runs")
+  const [templates, setTemplates] = useState<GenericPayrollTemplate[]>([])
+  const [templatesRefresh, setTemplatesRefresh] = useState(0)
 
-  // Create dialog
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createForm, setCreateForm] = useState({ periodStart: firstOfMonth(), periodEnd: new Date().toISOString().slice(0, 10), payDate: new Date().toISOString().slice(0, 10), cashAccountId: "", notes: "" })
-  const [creating, setCreating] = useState(false)
+  const visible = useMemo(() => statusFilter === "all" ? runs : runs.filter(r => r.status === statusFilter), [runs, statusFilter])
 
-  // Items dialog
-  const [itemsRun, setItemsRun] = useState<GenericPayrollRun | null>(null)
-  const [itemForm, setItemForm] = useState({ staffId: "", paymentMethod: "Cash", basicPay: "0", dailyWage: "0", commission: "0", bonus: "0", deductions: "0", notes: "" })
-  const [itemSaving, setItemSaving] = useState(false)
-
-  // Mark paid
-  const [paidRun, setPaidRun] = useState<GenericPayrollRun | null>(null)
-  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10))
-
-  // Delete
-  const [deleteTarget, setDeleteTarget] = useState<GenericPayrollRun | null>(null)
-
-  const visible = useMemo(() => statusFilter === "all" ? runs : runs.filter((r) => r.status === statusFilter), [runs, statusFilter])
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
   const pg = usePagination(visible)
+
+  // create run
+  const [open, setOpen] = useState(false)
+  const blankForm = () => ({ templateId: 0, periodStart: today(), periodEnd: today(), payDate: "", genericCashAccountId: 0, notes: "" })
+  const [form, setForm] = useState(blankForm())
+  const [saving, setSaving] = useState(false)
+
+  // items dialog
+  const [itemsRun, setItemsRun] = useState<GenericPayrollRun | null>(null)
+  // 306. Which payslip line's deduction breakdown is open, if any.
+  const [deductionsFor, setDeductionsFor] = useState<PayrollDeductionTarget | null>(null)
+  const openDeductions = (it: { genericPayrollItemId: number; genericStaffId: number; staffName?: string | null }, runStatus: string) =>
+    setDeductionsFor({
+      genericPayrollItemId: it.genericPayrollItemId,
+      genericStaffId: it.genericStaffId,
+      staffName: it.staffName ?? `#${it.genericStaffId}`,
+      runStatus,
+    })
+  /**
+   * Section 50. Which lines have advances outstanding, keyed by payroll item.
+   *
+   * One request for the whole run rather than one per line: the function
+   * behind it already aggregates, and 30 staff would otherwise be 30 calls
+   * to draw a hint.
+   */
+  const [loanHints, setLoanHints] =
+    useState<Map<number, GenericPayrollDeductionRunRow>>(new Map())
+  /**
+   * The advances of whoever is selected in the Add-a-line form.
+   *
+   * Shown BEFORE the line is added, because the deduction is applied
+   * automatically when it is -- and a deduction that appears out of
+   * nowhere after saving is worse than one you were told about first.
+   */
+  const [staffLoans, setStaffLoans] = useState<GenericEmployeeLoanEligible[]>([])
+  const [staffLoansBusy, setStaffLoansBusy] = useState(false)
+  // 442. `deductions` is the typed "Other deductions" ONLY. Advance repayments
+  // and the kept wage are separate rows the server keeps; `keepCredit` is the
+  // kept wage, saved in the same call as the line.
+  const blankItemForm = () => ({ genericStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, keepCredit: 0, paymentMethod: "Cash", notes: "" })
+  /**
+   * What is already on the line being edited, besides the typed figure:
+   * advance repayments and items added from the Deductions breakdown. Shown
+   * read-only so the net pay preview adds up.
+   */
+  const [lineFixed, setLineFixed] = useState({ advances: 0, otherItems: 0 })
+  const [itemForm, setItemForm] = useState(blankItemForm())
+  const [itemSaving, setItemSaving] = useState(false)
+  /**
+   * The line being edited, if any. Saving still goes through the same upsert
+   * (the server matches on run + staff), so this only changes what the form
+   * shows: the line's own figures instead of the staff defaults, the staff
+   * locked, and "Save changes" instead of "Add line".
+   */
+  const [editingItemId, setEditingItemId] = useState<number | null>(null)
+  /** Advances already deducted on the line being edited -- shown as such, not as "will deduct". */
+  const [onLineLoanIds, setOnLineLoanIds] = useState<Set<number>>(new Set())
+  const itemFormRef = useRef<HTMLDivElement>(null)
+
+  // mark paid
+  const [paidRun, setPaidRun] = useState<GenericPayrollRun | null>(null)
+  const [payDate, setPayDate] = useState(today())
+
+  // reason (cancel / unapprove)
+  const [reasonDlg, setReasonDlg] = useState<{ open: boolean; run?: GenericPayrollRun; kind?: "cancel" | "unapprove" }>({ open: false })
+  const [reason, setReason] = useState("")
+
+  const [deleteTarget, setDeleteTarget] = useState<GenericPayrollRun | null>(null)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
@@ -104,334 +176,872 @@ export default function GenericPayrollPage() {
   async function load() {
     setLoading(true)
     try {
-      const [r, a, s] = await Promise.all([getPayrollRuns(null), getCashAccounts(), getStaff()])
-      setRuns(r); setAccounts(a.filter((x) => x.isActive)); setStaffList(s.filter((x) => x.isActive))
-      if (!createForm.cashAccountId && a.length > 0) {
-        const first = a.find((x) => x.isActive)
-        if (first) setCreateForm((f) => ({ ...f, cashAccountId: String(first.genericCashAccountId) }))
-      }
-    } catch (e: any) {
-      toast({ title: "Could not load payroll", description: e?.message ?? String(e), variant: "destructive" })
-    } finally { setLoading(false) }
+      const [r, a, s, t] = await Promise.all([
+        listGenericPayrollRuns(), listGenericCashAccounts(), listGenericStaff(),
+        listGenericPayrollTemplates().catch(() => [] as GenericPayrollTemplate[]),   // 419; empty until migrated
+      ])
+      setRuns(r); setAccounts(a); setStaff(s); setTemplates(t)
+    } catch (e: any) { toast({ title: "Could not load payroll", description: e?.message, variant: "destructive" }) }
+    finally { setLoading(false) }
   }
 
-  const stats = useMemo(() => ({
-    total: runs.length,
-    draft: runs.filter((r) => r.status === "Draft").length,
-    approved: runs.filter((r) => r.status === "Approved").length,
-    totalNet: runs.filter((r) => r.status === "Paid").reduce((s, r) => s + r.totalNetPay, 0),
-  }), [runs])
-
-  const isEditable = (r: GenericPayrollRun) => r.status === "Draft"
-
-  const fmtPeriod = (r: GenericPayrollRun) => {
-    const s = new Date(r.periodStart).toLocaleDateString(undefined, { day: "numeric", month: "short" })
-    const e = new Date(r.periodEnd).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
-    return `${s} → ${e}`
+  /** 419. Pick a template in New payroll run: next period + its cash account. */
+  function pickTemplate(templateId: number, t?: GenericPayrollTemplate) {
+    const tpl = t ?? templates.find((x) => x.genericPayrollTemplateId === templateId)
+    if (!tpl) { setForm((f) => ({ ...f, templateId: 0 })); return }
+    const p = nextPayrollPeriod(tpl, today())
+    setForm((f) => ({ ...f, templateId: tpl.genericPayrollTemplateId, periodStart: p.periodStart, periodEnd: p.periodEnd,
+      payDate: p.periodEnd, genericCashAccountId: tpl.genericCashAccountId ?? 0 }))
+  }
+  function startFromTemplate(t: GenericPayrollTemplate) {
+    setForm(blankForm()); pickTemplate(t.genericPayrollTemplateId, t); setTab("runs"); setOpen(true)
   }
 
-  // ---- Actions ----
-  async function onCreate() {
-    setCreating(true)
+  async function createRun() {
+    if (form.templateId) return createRunFromTemplate()
+    setSaving(true)
     try {
-      const created = await createPayrollRun({
-        periodStart: createForm.periodStart, periodEnd: createForm.periodEnd,
-        payDate: createForm.payDate || null,
-        genericCashAccountId: createForm.cashAccountId ? Number(createForm.cashAccountId) : null,
-        notes: createForm.notes || null,
+      await createGenericPayrollRun({
+        periodStart: form.periodStart, periodEnd: form.periodEnd,
+        payDate: form.payDate || null,
+        genericCashAccountId: form.genericCashAccountId || null,
+        notes: form.notes || null,
       })
-      if (created) {
-        toast({ title: `Run #${created.genericPayrollRunId} created` })
-        setCreateOpen(false); await load()
-        const full = await getPayrollRun(created.genericPayrollRunId)
-        if (full) setItemsRun(full)
+      toast({ title: "Payroll run created" })
+      setOpen(false); setForm(blankForm())
+      await load()
+    } catch (e: any) { toast({ title: "Could not create run", description: e?.message, variant: "destructive" }) }
+    finally { setSaving(false) }
+  }
+
+  /**
+   * 419. Create the run from the template (one Draft line per active staff
+   * member), then add each worker's scheduled advance repayments exactly as
+   * adding a line by hand does, and open the lines for review.
+   */
+  async function createRunFromTemplate() {
+    setSaving(true)
+    try {
+      const { genericPayrollRunId } = await createGenericPayrollRunFromTemplate(form.templateId, {
+        periodStart: form.periodStart, periodEnd: form.periodEnd,
+        payDate: form.payDate || null,
+        genericCashAccountId: form.genericCashAccountId || null,
+        notes: form.notes || null,
+      })
+      const created = await getGenericPayrollRun(genericPayrollRunId)
+      const added: string[] = []
+      for (const it of created.items ?? []) added.push(...await autoAddSuggestedDeductions(it, it.genericStaffId))
+      toast({
+        title: `Payroll run created with ${(created.items ?? []).length} staff`,
+        description: added.length > 0
+          ? `Advance repayments added: ${added.join(", ")}. Review the lines, then approve.`
+          : "Review the lines (change anything different this period), then approve.",
+      })
+      setOpen(false); setForm(blankForm())
+      setTemplatesRefresh((n) => n + 1)
+      await load()
+      await openItems(created)
+    } catch (e: any) { toast({ title: "Could not create run", description: e?.message, variant: "destructive" }) }
+    finally { setSaving(false) }
+  }
+
+  /**
+   * A run is editable while Draft OR Reopened.
+   *
+   * spgenericpayrollrun_unapprove sets a reopened run to 'Reopened', and
+   * _approve accepts both -- so gating the lines on 'Draft' alone made
+   * reopening a payroll a dead end: you could unapprove it and then not be
+   * allowed to change the thing you reopened it for. That matters most for
+   * advance deductions, where reopen, change the amount, re-approve is the
+   * documented way to correct one (spec section 44).
+   */
+  const isEditable = (status?: string) => status === "Draft" || status === "Reopened"
+
+  async function openItems(run: GenericPayrollRun) {
+    try {
+      const full = await getGenericPayrollRun(run.genericPayrollRunId)
+      setItemsRun(full)
+      resetItemForm()
+      void loadLoanHints(run.genericPayrollRunId)
+    } catch (e: any) { toast({ title: "Could not open run", description: e?.message, variant: "destructive" }) }
+  }
+  async function refreshItems(runId: number) {
+    const full = await getGenericPayrollRun(runId)
+    setItemsRun(full)
+    setRuns((prev) => prev.map(r => r.genericPayrollRunId === runId ? full : r))
+    await loadLoanHints(runId)
+  }
+
+  async function loadLoanHints(runId: number) {
+    try {
+      const rows = await listGenericPayrollDeductionsForRun(runId)
+      setLoanHints(new Map(rows.map((r) => [r.genericPayrollItemId, r])))
+    } catch {
+      // A missing hint is a missing hint. It must never stop the payroll
+      // itself from opening.
+      setLoanHints(new Map())
+    }
+  }
+  /**
+   * Put the worker's scheduled advance repayments on the line automatically
+   * (spec sections 36 and 37).
+   *
+   * These are DRAFT deductions. Nothing is repaid and no balance moves until
+   * the run is approved -- which is what section 36 actually forbids doing
+   * silently. Making the user re-type an amount they already set on the advance
+   * was not caution, it was just work.
+   *
+   * Three rules it follows:
+   *   * only advances the business said would be repaid BY PAYROLL. One set to
+   *     repay in cash is left alone -- it is on the Employee Loans page and
+   *     will be paid there.
+   *   * never more than is left. A suggestion of 500 against 300 outstanding
+   *     adds 300, because the server would refuse 500 and the user would be
+   *     left reading an error about an amount they never typed.
+   *   * never twice. Re-saving a line that already carries a deduction for an
+   *     advance adds nothing -- upsert is called again every time a figure on
+   *     the line is edited.
+   *
+   * Failures are swallowed on purpose: the payroll LINE saved, and losing that
+   * because a convenience could not be applied would be the worse outcome. The
+   * deduction can still be added by hand.
+   */
+  async function autoAddSuggestedDeductions(
+    item: { genericPayrollItemId: number }, staffId: number,
+  ): Promise<string[]> {
+    try {
+      const [eligible, existing] = await Promise.all([
+        listEligibleGenericEmployeeLoans(staffId),
+        listGenericPayrollDeductions(item.genericPayrollItemId),
+      ])
+      const already = new Set(
+        existing.filter((d) => d.genericEmployeeLoanId != null)
+                .map((d) => d.genericEmployeeLoanId as number))
+
+      const added: string[] = []
+      for (const e of eligible) {
+        if (already.has(e.genericEmployeeLoanId)) continue
+        const amount = payrollDeductionFor(e)
+        if (amount <= 0) continue
+        await saveGenericPayrollDeduction({
+          genericPayrollItemId: item.genericPayrollItemId,
+          deductionType: e.loanType === "SalaryAdvance"
+            ? "SalaryAdvanceRepayment" : "EmployeeLoanRepayment",
+          amount,
+          genericEmployeeLoanId: e.genericEmployeeLoanId,
+        })
+        added.push(`${e.loanNumber ?? `#${e.genericEmployeeLoanId}`} ${gh(amount)}`)
       }
-    } catch (e: any) { toast({ title: "Create failed", description: e?.message, variant: "destructive" }) }
-    finally { setCreating(false) }
+      return added
+    } catch {
+      return []
+    }
   }
 
-  async function onApprove(id: number) {
-    try { await approvePayrollRun(id); toast({ title: "Run approved" }); await load() }
-    catch (e: any) { toast({ title: "Approve failed", description: e?.message, variant: "destructive" }) }
-  }
-
-  async function onMarkPaid() {
-    if (!paidRun) return
-    try { await markPayrollRunPaid(paidRun.genericPayrollRunId, payDate); toast({ title: "Marked as paid" }); setPaidRun(null); await load() }
-    catch (e: any) { toast({ title: "Mark paid failed", description: e?.message, variant: "destructive" }) }
-  }
-
-  async function onCancel(id: number) {
-    try { await cancelPayrollRun(id); toast({ title: "Run cancelled" }); await load() }
-    catch (e: any) { toast({ title: "Cancel failed", description: e?.message, variant: "destructive" }) }
-  }
-
-  async function onDelete() {
-    if (!deleteTarget) return
-    try { await cancelPayrollRun(deleteTarget.genericPayrollRunId); toast({ title: "Run deleted" }); setDeleteTarget(null); await load() }
-    catch (e: any) { toast({ title: "Delete failed", description: e?.message, variant: "destructive" }) }
-  }
-
-  async function openItems(r: GenericPayrollRun) {
-    const full = await getPayrollRun(r.genericPayrollRunId)
-    if (full) setItemsRun(full)
-  }
-
-  async function saveItem() {
-    if (!itemsRun || !itemForm.staffId) return
+  async function addItem() {
+    if (!itemsRun) return
+    if (!itemForm.genericStaffId) return toast({ title: "Pick a staff member", variant: "destructive" })
     setItemSaving(true)
     try {
-      await upsertPayrollItem(itemsRun.genericPayrollRunId, {
-        genericStaffId: Number(itemForm.staffId),
+      const other = Number(itemForm.deductions) || 0
+      const keep = Number(itemForm.keepCredit) || 0
+      const saved = await upsertGenericPayrollItem(itemsRun.genericPayrollRunId, {
+        genericStaffId: itemForm.genericStaffId,
         basicPay: Number(itemForm.basicPay) || 0, dailyWage: Number(itemForm.dailyWage) || 0,
         commission: Number(itemForm.commission) || 0, bonus: Number(itemForm.bonus) || 0,
-        deductions: Number(itemForm.deductions) || 0,
-        paymentMethod: itemForm.paymentMethod || null, notes: itemForm.notes || null,
+        deductions: other + keep, paymentMethod: itemForm.paymentMethod, notes: itemForm.notes || null,
+        otherDeductions: other, employeeCredit: keep,
       })
-      toast({ title: "Staff line saved" })
-      setItemForm({ staffId: "", paymentMethod: "Cash", basicPay: "0", dailyWage: "0", commission: "0", bonus: "0", deductions: "0", notes: "" })
-      const fresh = await getPayrollRun(itemsRun.genericPayrollRunId)
-      if (fresh) setItemsRun(fresh)
-      await load()
-    } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
+      const added = await autoAddSuggestedDeductions(saved, itemForm.genericStaffId)
+      const wasEditing = editingItemId != null
+      const staffName = staff.find(s => s.genericStaffId === itemForm.genericStaffId)
+      resetItemForm()
+      await refreshItems(itemsRun.genericPayrollRunId)
+      if (keep > 0) {
+        toast({
+          title: wasEditing ? "Line updated" : "Line added",
+          description: `${gh(keep)} will be kept for ${staffName ? `${staffName.firstName} ${staffName.lastName}` : "this worker"} as employee credit when the payroll is approved.`,
+        })
+      } else if (wasEditing && added.length === 0) toast({ title: "Line updated" })
+      if (added.length > 0) {
+        toast({
+          title: added.length === 1 ? "Advance repayment added" : `${added.length} advance repayments added`,
+          description: `${added.join(", ")} — review before approving. Nothing is repaid until you approve.`,
+        })
+      }
+    } catch (e: any) { toast({ title: "Could not save line", description: e?.message, variant: "destructive" }) }
     finally { setItemSaving(false) }
   }
-
   async function removeItem(itemId: number) {
     if (!itemsRun) return
     try {
-      await deletePayrollItem(itemId); toast({ title: "Line removed" })
-      const fresh = await getPayrollRun(itemsRun.genericPayrollRunId)
-      if (fresh) setItemsRun(fresh)
-      await load()
-    } catch (e: any) { toast({ title: "Remove failed", description: e?.message, variant: "destructive" }) }
+      await deleteGenericPayrollItem(itemId)
+      if (editingItemId === itemId) resetItemForm()
+      await refreshItems(itemsRun.genericPayrollRunId)
+    }
+    catch (e: any) { toast({ title: "Could not remove line", description: e?.message, variant: "destructive" }) }
+  }
+  function resetItemForm() {
+    setItemForm(blankItemForm())
+    setEditingItemId(null)
+    setOnLineLoanIds(new Set())
+    setStaffLoans([])
+    setLineFixed({ advances: 0, otherItems: 0 })
+  }
+  function prefillFromStaff(staffId: number) {
+    // Already on this run? Then this is an edit, not a new line -- load what
+    // the line holds, or saving would reset its other figures to 0.
+    const existing = (itemsRun?.items ?? []).find(it => it.genericStaffId === staffId)
+    if (existing) { startEditItem(existing); return }
+    const s = staff.find(x => x.genericStaffId === staffId)
+    setItemForm((f) => ({ ...f, genericStaffId: staffId, basicPay: s ? s.basePay : f.basicPay }))
+    void loadStaffLoans(staffId)
+  }
+  function startEditItem(it: GenericPayrollItem) {
+    setEditingItemId(it.genericPayrollItemId)
+    setItemForm({
+      genericStaffId: it.genericStaffId,
+      basicPay: Number(it.basicPay) || 0, dailyWage: Number(it.dailyWage) || 0,
+      commission: Number(it.commission) || 0, bonus: Number(it.bonus) || 0,
+      // Split into other / kept by loadStaffLoans once the breakdown arrives.
+      deductions: 0, keepCredit: 0,
+      paymentMethod: it.paymentMethod || "Cash", notes: it.notes ?? "",
+    })
+    void loadStaffLoans(it.genericStaffId, it.genericPayrollItemId)
+    itemFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 
-  function renderActions(r: GenericPayrollRun) {
-    return (
-      <>
-        <IconBtn label="Details" onClick={() => router.push(`/generic-payroll/${r.genericPayrollRunId}`)}><Eye className="w-4 h-4" /></IconBtn>
-        <IconBtn label={isEditable(r) ? "Edit lines" : "View lines"} onClick={() => openItems(r)}><Users className="w-4 h-4" /></IconBtn>
-        {isEditable(r) && <IconBtn label="Approve" onClick={() => onApprove(r.genericPayrollRunId)} className="text-blue-700"><CheckCircle2 className="w-4 h-4" /></IconBtn>}
-        {r.status === "Approved" && <IconBtn label="Mark paid" onClick={() => { setPaidRun(r); setPayDate(new Date().toISOString().slice(0, 10)) }} className="text-emerald-700"><Banknote className="w-4 h-4" /></IconBtn>}
-        {(r.status === "Draft" || r.status === "Approved") && <IconBtn label="Cancel" onClick={() => onCancel(r.genericPayrollRunId)} className="text-rose-600"><XCircle className="w-4 h-4" /></IconBtn>}
-        {r.status === "Draft" && <IconBtn label="Delete" onClick={() => setDeleteTarget(r)} className="text-red-600"><Trash2 className="w-4 h-4" /></IconBtn>}
-      </>
-    )
+  /**
+   * Advances for the staff in the form. For a NEW line the auto repayment is
+   * shown in the net pay preview and added as its own row on save. For a line
+   * being EDITED (442) the line's breakdown is split back into the two boxes
+   * the form edits -- typed Other deductions and the kept wage -- and the rest
+   * (advances, items from the breakdown dialog) is shown, not edited. Advances
+   * already on the line are marked so the hint does not promise a second
+   * deduction.
+   */
+  async function loadStaffLoans(staffId: number, editingId?: number) {
+    if (!staffId) { setStaffLoans([]); return }
+    setStaffLoansBusy(true)
+    try {
+      const [list, onLine] = await Promise.all([
+        listEligibleGenericEmployeeLoans(staffId),
+        editingId ? listGenericPayrollDeductions(editingId).catch(() => []) : Promise.resolve([]),
+      ])
+      setStaffLoans(list)
+      if (editingId) {
+        const live = onLine.filter((d) => d.status !== "Reversed")
+        setOnLineLoanIds(new Set(
+          live.filter((d) => d.genericEmployeeLoanId != null)
+              .map((d) => d.genericEmployeeLoanId as number)))
+        // 442. Split the line's total back into what the form edits (typed
+        // other deductions, kept wage) and what it only shows.
+        const sum = (f: (d: (typeof live)[number]) => boolean) =>
+          live.filter(f).reduce((s, d) => s + (Number(d.amount) || 0), 0)
+        setItemForm((f) => ({
+          ...f,
+          deductions: sum((d) => d.isLegacy),
+          keepCredit: sum((d) => !d.isLegacy && d.deductionType === "EmployeeCredit"),
+        }))
+        setLineFixed({
+          advances: sum((d) => d.genericEmployeeLoanId != null),
+          otherItems: sum((d) => !d.isLegacy && d.genericEmployeeLoanId == null && d.deductionType !== "EmployeeCredit"),
+        })
+      } else {
+        setOnLineLoanIds(new Set())
+        setLineFixed({ advances: 0, otherItems: 0 })
+      }
+    } catch {
+      // Not knowing about an advance must never stop a line being added.
+      setStaffLoans([])
+    } finally {
+      setStaffLoansBusy(false)
+    }
   }
+
+  async function approve(run: GenericPayrollRun) {
+    try { await approveGenericPayrollRun(run.genericPayrollRunId); toast({ title: "Run approved", description: "Advance repayments and kept wages were posted." }); await load() }
+    catch (e: any) { toast({ title: "Approve failed", description: e?.message, variant: "destructive" }) }
+  }
+  async function confirmMarkPaid() {
+    if (!paidRun) return
+    try { await markGenericPayrollRunPaid(paidRun.genericPayrollRunId, payDate); toast({ title: "Run marked paid", description: "Cash-out posted to the selected account." }); setPaidRun(null); await load() }
+    catch (e: any) { toast({ title: "Mark paid failed", description: e?.message, variant: "destructive" }) }
+  }
+  async function confirmReason() {
+    if (!reasonDlg.run || !reasonDlg.kind) return
+    try {
+      if (reasonDlg.kind === "cancel") { await cancelGenericPayrollRun(reasonDlg.run.genericPayrollRunId, reason); toast({ title: "Run cancelled" }) }
+      else { if (!reason.trim()) return toast({ title: "A reason is required", variant: "destructive" }); await unapproveGenericPayrollRun(reasonDlg.run.genericPayrollRunId, reason); toast({ title: "Run reopened", description: "Expense and cash-out reversed." }) }
+      setReasonDlg({ open: false }); setReason(""); await load()
+    } catch (e: any) { toast({ title: "Action failed", description: e?.message, variant: "destructive" }) }
+  }
+  async function performDelete(run: GenericPayrollRun) {
+    await deleteGenericPayrollRun(run.genericPayrollRunId)
+    toast({ title: "Run deleted" })
+    await load()
+  }
+
+  const totalNetPaid = runs.filter(r => r.status === "Paid").reduce((s, r) => s + r.totalNetPay, 0)
 
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><Banknote className="h-6 w-6 text-emerald-600" /> Payroll</h1>
-              <p className="text-sm text-slate-500">{runs.length} run(s)</p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" asChild><Link href="/generic-employee-loans"><HandCoins className="w-4 h-4 mr-1" /> Employee Loans</Link></Button>
-              <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4 mr-1" /> New run</Button>
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+              <Banknote className="h-6 w-6 text-green-600" /> Payroll
+            </h1>
+            <div className="flex flex-wrap gap-2">
+              {/* Section 51. A shortcut only -- Employee Loans & Advances is
+                  where advances are created, disbursed and repaid. Nothing is
+                  duplicated here. */}
+              <Button variant="outline" asChild>
+                <Link href="/generic-employee-loans">
+                  <HandCoins className="h-4 w-4 mr-1" /> Employee Loans &amp; Advances
+                </Link>
+              </Button>
+              {/* 441. Wages kept for staff, paid out later. */}
+              <Button variant="outline" asChild>
+                <Link href="/generic-employee-credit">
+                  <PiggyBank className="h-4 w-4 mr-1" /> Employee Credit
+                </Link>
+              </Button>
+              <Button onClick={() => { setForm(blankForm()); setOpen(true) }}><Plus className="h-4 w-4 mr-1" /> New payroll run</Button>
             </div>
           </div>
 
-          {loading ? (
-            <div className="flex items-center gap-2 text-slate-500 py-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="rounded-xl border bg-white p-3 shadow-sm"><div className="text-[11px] font-medium uppercase text-slate-500">Total runs</div><div className="mt-1 text-xl font-bold">{stats.total}</div></div>
-                <div className="rounded-xl border bg-white p-3 shadow-sm"><div className="text-[11px] font-medium uppercase text-slate-500">Draft</div><div className="mt-1 text-xl font-bold text-slate-600">{stats.draft}</div></div>
-                <div className="rounded-xl border bg-white p-3 shadow-sm"><div className="text-[11px] font-medium uppercase text-slate-500">Approved</div><div className="mt-1 text-xl font-bold text-sky-700">{stats.approved}</div></div>
-                <div className="rounded-xl border bg-white p-3 shadow-sm"><div className="text-[11px] font-medium uppercase text-slate-500">Total net paid</div><div className="mt-1 text-xl font-bold text-emerald-700 tabular-nums">{gh(stats.totalNet)}</div></div>
-              </div>
+          <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total runs</div><div className="text-xl font-semibold">{runs.length}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Draft</div><div className="text-xl font-semibold">{runs.filter(r => r.status === "Draft").length}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Approved</div><div className="text-xl font-semibold">{runs.filter(r => r.status === "Approved").length}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total net paid</div><div className="text-xl font-semibold tabular-nums text-green-700">{gh(totalNetPaid)}</div></CardContent></Card>
+          </div>
 
-              <div className="flex gap-1 flex-wrap">
-                {["all", "Draft", "Approved", "Paid", "Cancelled"].map((s) => (
-                  <Button key={s} size="sm" variant={s === statusFilter ? "default" : "outline"} onClick={() => setStatusFilter(s)}>{s === "all" ? "All" : s}</Button>
-                ))}
-              </div>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "runs" | "templates")}>
+          <TabsList className="mb-3">
+            <TabsTrigger value="runs">Payroll runs</TabsTrigger>
+            <TabsTrigger value="templates">Templates{templates.length > 0 ? ` (${templates.length})` : ""}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="templates">
+            <PayrollTemplatesPanel staff={staff} accounts={accounts} canEdit={canEdit} onUse={startFromTemplate}
+              refreshKey={templatesRefresh} />
+          </TabsContent>
+          <TabsContent value="runs">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-sm text-slate-600">Status</span>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {["Draft", "Approved", "Paid", "Reopened", "Cancelled"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
 
-              <Card><CardContent className="p-0">
-                {visible.length === 0 ? (
-                  <div className="py-8 text-center text-slate-500">No payroll runs{statusFilter !== "all" ? ` with status "${statusFilter}"` : ""}.</div>
-                ) : (
-                  <>
-                    <div className="hidden md:block overflow-x-auto">
+          <Card>
+            <CardContent className="p-0">
+              {loading ? (
+                <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+              ) : runs.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">No payroll runs yet. Create one to start paying staff.</div>
+              ) : (
+                <MobileCardList
+                  defaultOpen
+                  striped
+                  stripeAccent="blue"
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
+                  getKey={(r) => r.genericPayrollRunId}
+                  primary={(r) => `${r.periodStart.split("T")[0]} → ${r.periodEnd.split("T")[0]}`}
+                  secondary={(r) => (<><span>{r.cashAccountName ?? "No cash account"}</span><Badge className={STATUS_STYLE[r.status] ?? ""}>{r.status}</Badge></>)}
+                  highlights={(r) => [
+                    // What a run comes down to: what the staff take home, and
+                    // what was held back. Net was a line of the subtitle before,
+                    // where the number a card exists to state read as a caption.
+                    { label: "Net pay", value: gh(r.totalNetPay), accent: "blue" },
+                    { label: "Deductions", value: gh(r.totalDeductions), accent: "rose" },
+                  ]}
+                  details={(r) => [
+                    { label: "Period", value: `${fmtDateTime(r.periodStart, r)} → ${fmtDateTime(r.periodEnd, r)}` },
+                    { label: "Gross", value: gh(r.totalGrossPay) },
+                    { label: "Cash account", value: r.cashAccountName ?? "—" },
+                    { label: "Status", value: r.status },
+                  ]}
+                  actions={(r) => renderActions(r, true)}
+                  desktopTable={
+                    <div className="overflow-x-auto">
                       <Table>
-                        <TableHeader><TableRow>
-                          <TableHead>Period</TableHead>
-                          <TableHead className="text-right">Gross</TableHead>
-                          <TableHead className="text-right">Deductions</TableHead>
-                          <TableHead className="text-right">Net</TableHead>
-                          <TableHead>Cash account</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow></TableHeader>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Period</TableHead>
+                            <TableHead className="text-right">Gross</TableHead>
+                            <TableHead className="text-right">Deductions</TableHead>
+                            <TableHead className="text-right">Net</TableHead>
+                            <TableHead>Cash account</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
                         <TableBody>
                           {pg.pageItems.map((r) => (
                             <TableRow key={r.genericPayrollRunId}>
-                              <TableCell className="whitespace-nowrap text-sm font-medium">{fmtPeriod(r)}</TableCell>
+                              <TableCell className="whitespace-nowrap font-medium">{fmtDateTime(r.periodStart, r)} → {fmtDateTime(r.periodEnd, r)}</TableCell>
                               <TableCell className="text-right tabular-nums">{gh(r.totalGrossPay)}</TableCell>
-                              <TableCell className="text-right tabular-nums text-rose-600">{gh(r.totalDeductions)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{gh(r.totalDeductions)}</TableCell>
                               <TableCell className="text-right tabular-nums font-semibold">{gh(r.totalNetPay)}</TableCell>
-                              <TableCell className="text-sm text-slate-600">{r.cashAccountName ?? "—"}</TableCell>
-                              <TableCell><Badge className={STATUS_STYLE[r.status] ?? STATUS_STYLE.Draft}>{r.status}</Badge></TableCell>
-                              <TableCell className="text-right whitespace-nowrap">{renderActions(r)}</TableCell>
+                              <TableCell>{r.cashAccountName ?? "—"}</TableCell>
+                              <TableCell><Badge className={STATUS_STYLE[r.status] ?? ""}>{r.status}</Badge></TableCell>
+                              <TableCell className="text-right whitespace-nowrap">{renderActions(r, false)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
                     </div>
-                    <div className="md:hidden space-y-2 p-3">
-                      {pg.pageItems.map((r) => (
-                        <div key={r.genericPayrollRunId} className="rounded-lg border p-3">
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium text-sm">{fmtPeriod(r)}</span>
-                            <Badge className={STATUS_STYLE[r.status] ?? STATUS_STYLE.Draft}>{r.status}</Badge>
-                          </div>
-                          <div className="mt-2 grid grid-cols-2 gap-1 text-sm">
-                            <div><span className="text-slate-500">Gross: </span><span className="tabular-nums">{gh(r.totalGrossPay)}</span></div>
-                            <div><span className="text-slate-500">Deductions: </span><span className="tabular-nums text-rose-600">{gh(r.totalDeductions)}</span></div>
-                            <div><span className="text-slate-500">Net: </span><span className="tabular-nums font-semibold">{gh(r.totalNetPay)}</span></div>
-                            <div><span className="text-slate-500">Account: </span>{r.cashAccountName ?? "—"}</div>
-                          </div>
-                          <div className="mt-2 flex gap-1 border-t pt-2 justify-end">{renderActions(r)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </CardContent></Card>
-              <DataPagination {...pg.paginationProps} />
-            </>
-          )}
+                  }
+                />
+              )}
+            </CardContent>
+          </Card>
+          </TabsContent>
+          </Tabs>
         </main>
       </div>
 
       {/* Create run */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle><Banknote className="w-5 h-5 inline mr-2" />New payroll run</DialogTitle></DialogHeader>
-          <FormSection title="Period" color="indigo">
-            <FormField label="Period start"><Input type="date" value={createForm.periodStart} onChange={(e) => setCreateForm((f) => ({ ...f, periodStart: e.target.value }))} /></FormField>
-            <FormField label="Period end"><Input type="date" value={createForm.periodEnd} onChange={(e) => setCreateForm((f) => ({ ...f, periodEnd: e.target.value }))} /></FormField>
-            <FormField label="Pay date"><Input type="date" value={createForm.payDate} onChange={(e) => setCreateForm((f) => ({ ...f, payDate: e.target.value }))} /></FormField>
-            <FormField label="Cash account">
-              <Select value={createForm.cashAccountId} onValueChange={(v) => setCreateForm((f) => ({ ...f, cashAccountId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
-                <SelectContent>{accounts.map((a) => <SelectItem key={a.genericCashAccountId} value={String(a.genericCashAccountId)}>{a.accountName}</SelectItem>)}</SelectContent>
-              </Select>
-            </FormField>
-          </FormSection>
-          <FormSection title="Notes" color="slate">
-            <FormField label="Notes"><Input value={createForm.notes} onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))} /></FormField>
-          </FormSection>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={onCreate} disabled={creating}>{creating && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Create</Button>
-          </DialogFooter>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Banknote className="w-5 h-5 text-green-600" /> New payroll run</DialogTitle>
+            <DialogDescription>
+              {form.templateId ? "Created as a Draft with the template's staff and pay. You can still change any line before approving." : "Create a Draft run, then add staff lines and their deductions"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Start from" color="green" columns={1}>
+              <FormField label="Payroll template">
+                <Select value={String(form.templateId)} onValueChange={(v) => pickTemplate(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Blank run (add staff one by one)</SelectItem>
+                    {templates.map((t) => (
+                      <SelectItem key={t.genericPayrollTemplateId} value={String(t.genericPayrollTemplateId)}>
+                        {t.name} · {t.frequency} · {t.lineCount} staff · {gh(t.totalNet)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              {templates.length === 0 && (
+                <p className="text-xs text-slate-500">Tip: set up a template on the Templates tab so the same staff don&apos;t have to be entered every period.</p>
+              )}
+            </FormSection>
+            <FormSection title="Period" color="indigo">
+              <FormField label="Period start *"><Input type="date" value={form.periodStart} onChange={(e) => setForm({ ...form, periodStart: e.target.value })} /></FormField>
+              <FormField label="Period end *"><Input type="date" value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} /></FormField>
+              <FormField label="Pay date"><Input type="date" value={form.payDate} onChange={(e) => setForm({ ...form, payDate: e.target.value })} /></FormField>
+              <FormField label="Cash account (paid from)">
+                <Select value={String(form.genericCashAccountId)} onValueChange={(v) => setForm({ ...form, genericCashAccountId: Number(v) })}>
+                  <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">— None —</SelectItem>
+                    {accounts.filter(a => a.isActive).map(a => <SelectItem key={a.genericCashAccountId} value={String(a.genericCashAccountId)}>{a.accountName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </FormSection>
+            <FormSection title="Notes" color="slate" columns={1}>
+              <FormField label="Notes"><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>
+            </FormSection>
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end sm:gap-3">
+              <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+              <Button onClick={createRun} disabled={saving}>{saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating…</>) : "Create run"}</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Staff lines */}
-      <Dialog open={!!itemsRun} onOpenChange={(o) => !o && setItemsRun(null)}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle><Users className="w-5 h-5 inline mr-2" />Staff lines — {itemsRun ? fmtPeriod(itemsRun) : ""}</DialogTitle></DialogHeader>
-          {itemsRun && itemsRun.items.length > 0 && (
-            <div className="overflow-x-auto">
-              <Table className="text-xs">
-                <TableHeader><TableRow>
-                  <TableHead className="whitespace-nowrap">Staff</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Basic</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Daily</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Comm.</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Bonus</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Deduct</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Net</TableHead>
-                  <TableHead className="w-8"></TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {itemsRun.items.map((it) => (
-                    <TableRow key={it.genericPayrollItemId}>
-                      <TableCell className="font-medium whitespace-nowrap">{it.staffName ?? `Staff #${it.genericStaffId}`}</TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(it.basicPay)}</TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(it.dailyWage)}</TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(it.commission)}</TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(it.bonus)}</TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap text-rose-600">{gh(it.deductions)}</TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap font-semibold">{gh(it.netPay)}</TableCell>
-                      <TableCell>{isEditable(itemsRun) && <Button variant="ghost" size="sm" onClick={() => removeItem(it.genericPayrollItemId)}><Trash2 className="w-3 h-3 text-red-500" /></Button>}</TableCell>
+      {/* Items management */}
+      <Dialog open={!!itemsRun} onOpenChange={(v) => { if (!v) setItemsRun(null) }}>
+        <DialogContent className="w-[95vw] sm:max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Users className="w-5 h-5 text-indigo-600" /> Staff lines</DialogTitle>
+            <DialogDescription>{itemsRun ? `${itemsRun.periodStart.split("T")[0]} → ${itemsRun.periodEnd.split("T")[0]} · Net ${gh(itemsRun.totalNetPay)}` : ""}</DialogDescription>
+          </DialogHeader>
+          {itemsRun && (
+            <div className="space-y-4">
+              {/* Eight money columns do not fit a phone. Same rows, stacked. */}
+              <div className="space-y-2 lg:hidden">
+                {(itemsRun.items ?? []).length === 0 ? (
+                  <p className="py-4 text-center text-sm text-slate-500">No lines yet.</p>
+                ) : (itemsRun.items ?? []).map((it) => (
+                  <div key={it.genericPayrollItemId} className={`rounded-lg border p-3 shadow-sm ${editingItemId === it.genericPayrollItemId ? "border-amber-400 bg-amber-50" : "border-slate-200 bg-white"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-900 break-words">{it.staffName ?? `#${it.genericStaffId}`}</div>
+                        <div className="text-xs text-slate-500">Net <span className="font-semibold tabular-nums text-slate-700">{gh(it.netPay)}</span></div>
+                      </div>
+                      {isEditable(itemsRun.status) && (
+                        <div className="flex shrink-0">
+                          <Button size="sm" variant="ghost" onClick={() => startEditItem(it)} aria-label="Edit line" title="Edit line">
+                            <Pencil className="h-4 w-4 text-slate-600" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => removeItem(it.genericPayrollItemId)} aria-label="Remove line">
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-1.5 text-sm">
+                      <div><span className="text-slate-500">Basic</span> <span className="font-medium tabular-nums">{gh(it.basicPay)}</span></div>
+                      <div><span className="text-slate-500">Daily</span> <span className="font-medium tabular-nums">{gh(it.dailyWage)}</span></div>
+                      <div><span className="text-slate-500">Comm.</span> <span className="font-medium tabular-nums">{gh(it.commission)}</span></div>
+                      <div><span className="text-slate-500">Bonus</span> <span className="font-medium tabular-nums">{gh(it.bonus)}</span></div>
+                      <div className="col-span-2">
+                        <span className="text-slate-500">Deductions</span>{" "}
+                        <button
+                          type="button"
+                          className="font-medium tabular-nums underline decoration-dotted underline-offset-2"
+                          onClick={() => openDeductions(it, itemsRun.status)}
+                        >
+                          {gh(it.deductions)}
+                        </button>
+                        {isEditable(itemsRun.status) ? (
+                          <Button size="sm" variant="outline" className="ml-2 h-7 px-2 text-xs"
+                                  onClick={() => openDeductions(it, itemsRun.status)}>
+                            <Plus className="mr-1 h-3 w-3" /> Add deduction
+                          </Button>
+                        ) : (
+                          <span className="ml-1 text-[11px] text-slate-400">view breakdown</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Staff</TableHead>
+                      <TableHead className="text-right px-2 whitespace-nowrap">Basic</TableHead>
+                      <TableHead className="text-right px-2 whitespace-nowrap">Daily</TableHead>
+                      <TableHead className="text-right px-2 whitespace-nowrap">Comm.</TableHead>
+                      <TableHead className="text-right px-2 whitespace-nowrap">Bonus</TableHead>
+                      <TableHead className="text-right px-2 whitespace-nowrap">Deduct</TableHead>
+                      <TableHead className="text-right px-2 whitespace-nowrap">Net</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
-                  ))}
-                  <TableRow className="bg-slate-50 font-semibold">
-                    <TableCell className="whitespace-nowrap">Total ({itemsRun.items.length})</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(itemsRun.items.reduce((s, i) => s + i.basicPay, 0))}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(itemsRun.items.reduce((s, i) => s + i.dailyWage, 0))}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(itemsRun.items.reduce((s, i) => s + i.commission, 0))}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(itemsRun.items.reduce((s, i) => s + i.bonus, 0))}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap text-rose-600">{gh(itemsRun.totalDeductions)}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(itemsRun.totalNetPay)}</TableCell>
-                    <TableCell></TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {(itemsRun.items ?? []).length === 0 ? (
+                      <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-4">No lines yet.</TableCell></TableRow>
+                    ) : (itemsRun.items ?? []).map((it) => (
+                      <TableRow key={it.genericPayrollItemId} className={editingItemId === it.genericPayrollItemId ? "bg-amber-50 hover:bg-amber-50" : undefined}>
+                        <TableCell className="font-medium min-w-[9rem]">
+                          {it.staffName ?? `#${it.genericStaffId}`}
+                          {/* Subtle on purpose: it is a prompt to open the
+                              breakdown, not a call to action. Nothing is
+                              deducted because an advance exists. */}
+                          {(loanHints.get(it.genericPayrollItemId)?.activeLoanCount ?? 0) > 0 && (
+                            <span
+                              className="ml-2 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-normal text-indigo-700"
+                              title={`${gh(loanHints.get(it.genericPayrollItemId)!.activeLoanOutstanding)} outstanding across ${loanHints.get(it.genericPayrollItemId)!.activeLoanCount} advance(s)`}
+                            >
+                              {loanHints.get(it.genericPayrollItemId)!.activeLoanCount === 1
+                                ? "active advance"
+                                : `${loanHints.get(it.genericPayrollItemId)!.activeLoanCount} active advances`}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">{gh(it.basicPay)}</TableCell>
+                        <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">{gh(it.dailyWage)}</TableCell>
+                        <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">{gh(it.commission)}</TableCell>
+                        <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">{gh(it.bonus)}</TableCell>
+                        <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">
+                          {/* Section 49: still ONE column. The total is the way
+                              in to what it is made of, rather than a column per
+                              deduction type that no phone could hold. */}
+                          <button
+                            type="button"
+                            className="underline decoration-dotted underline-offset-2 hover:text-indigo-700"
+                            title="What is this made of?"
+                            onClick={() => openDeductions(it, itemsRun.status)}
+                          >
+                            {gh(it.deductions)}
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-semibold px-2 whitespace-nowrap">{gh(it.netPay)}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
+                          {isEditable(itemsRun.status) && (
+                            <>
+                              <Button size="sm" variant="ghost" onClick={() => openDeductions(it, itemsRun.status)} aria-label="Add deduction" title="Add deduction (advance repayment, other, or keep as employee credit)"><HandCoins className="h-4 w-4 text-indigo-600" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => startEditItem(it)} aria-label="Edit line" title="Edit line"><Pencil className="h-4 w-4 text-slate-600" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => removeItem(it.genericPayrollItemId)} aria-label="Remove line" title="Remove line"><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                            </>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {isEditable(itemsRun.status) ? (
+                <div ref={itemFormRef} className="scroll-mt-4">
+                <FormSection
+                  title={editingItemId != null
+                    ? `Editing ${(itemsRun.items ?? []).find(i => i.genericPayrollItemId === editingItemId)?.staffName ?? "line"}`
+                    : "Add a line"}
+                  color="amber" columns={4} stackOnMobile
+                  action={editingItemId != null ? (
+                    <Button size="sm" variant="ghost" className="h-7 text-white hover:bg-white/20 hover:text-white" onClick={resetItemForm}>Cancel</Button>
+                  ) : undefined}
+                >
+                  <FormField label="Staff">
+                    <Select value={String(itemForm.genericStaffId)} onValueChange={(v) => prefillFromStaff(Number(v))} disabled={editingItemId != null}>
+                      <SelectTrigger><SelectValue placeholder="Pick staff" /></SelectTrigger>
+                      <SelectContent>{staff.filter(s => s.isActive || (itemsRun.items ?? []).some(i => i.genericStaffId === s.genericStaffId)).map(s => {
+                        const onRun = (itemsRun.items ?? []).some(i => i.genericStaffId === s.genericStaffId)
+                        return (
+                          <SelectItem key={s.genericStaffId} value={String(s.genericStaffId)}>
+                            {s.firstName} {s.lastName}
+                            {onRun && <span className="ml-1 text-xs text-slate-500">· already on this run</span>}
+                          </SelectItem>
+                        )
+                      })}</SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label="Payment method">
+                    <Select value={itemForm.paymentMethod} onValueChange={(v) => setItemForm({ ...itemForm, paymentMethod: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{[...GENERIC_PAYMENT_METHODS].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label="Basic pay"><NumberInput step="0.01" value={itemForm.basicPay} onChange={(e) => setItemForm({ ...itemForm, basicPay: Number(e.target.value) || 0 })} /></FormField>
+                  <FormField label="Daily wage"><NumberInput step="0.01" value={itemForm.dailyWage} onChange={(e) => setItemForm({ ...itemForm, dailyWage: Number(e.target.value) || 0 })} /></FormField>
+                  <FormField label="Commission"><NumberInput step="0.01" value={itemForm.commission} onChange={(e) => setItemForm({ ...itemForm, commission: Number(e.target.value) || 0 })} /></FormField>
+                  <FormField label="Bonus"><NumberInput step="0.01" value={itemForm.bonus} onChange={(e) => setItemForm({ ...itemForm, bonus: Number(e.target.value) || 0 })} /></FormField>
+                  <FormField label="Other deductions">
+                    {/* 442. Typed deductions only (uniform, damage...). Advance
+                        repayments are their own rows, listed below and added
+                        on save, so this box no longer has to be locked. */}
+                    <NumberInput step="0.01" value={itemForm.deductions}
+                                 onChange={(e) => setItemForm({ ...itemForm, deductions: Number(e.target.value) || 0 })} />
+                  </FormField>
+                  <FormField label="Keep as employee credit">
+                    <NumberInput step="0.01" value={itemForm.keepCredit}
+                                 onChange={(e) => setItemForm({ ...itemForm, keepCredit: Number(e.target.value) || 0 })} />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Part of the wage the worker asked the business to hold. Paid out later from{" "}
+                      <a href="/generic-employee-credit" className="underline underline-offset-2 hover:text-indigo-700">Employee Credit</a>.
+                    </p>
+                  </FormField>
+                  <FormField label="Notes"><Input value={itemForm.notes} onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value })} /></FormField>
+
+                  {/* What the worker gets now, worked out as they type. */}
+                  {itemForm.genericStaffId > 0 && (() => {
+                    const gross = (Number(itemForm.basicPay) || 0) + (Number(itemForm.dailyWage) || 0)
+                      + (Number(itemForm.commission) || 0) + (Number(itemForm.bonus) || 0)
+                    const advances = editingItemId != null
+                      ? lineFixed.advances
+                      : staffLoans.reduce((s, e) => s + payrollDeductionFor(e), 0)
+                    const other = (Number(itemForm.deductions) || 0) + lineFixed.otherItems
+                    const keep = Number(itemForm.keepCredit) || 0
+                    const paidNow = gross - advances - other - keep
+                    const who = staff.find(s => s.genericStaffId === itemForm.genericStaffId)
+                    const row = (label: string, v: number, cls = "") => (
+                      <div className={`flex justify-between gap-4 ${cls}`}>
+                        <span>{label}</span><span className="tabular-nums">{gh(v)}</span>
+                      </div>
+                    )
+                    return (
+                      <FormField label="&nbsp;" full>
+                        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+                          {row("Gross pay", gross)}
+                          {advances > 0 && row("− Advance repayments", advances, "text-slate-600")}
+                          {other > 0 && row("− Other deductions", other, "text-slate-600")}
+                          {keep > 0 && row(`− Kept for ${who ? who.firstName : "worker"} (employee credit)`, keep, "text-emerald-700")}
+                          <div className={`flex justify-between gap-4 border-t pt-1 font-semibold ${paidNow < 0 ? "text-rose-600" : "text-slate-900"}`}>
+                            <span>Paid now</span><span className="tabular-nums">{gh(paidNow)}</span>
+                          </div>
+                          {paidNow < 0 && <p className="text-xs text-rose-600">Deductions are more than the pay.</p>}
+                          {keep > 0 && paidNow >= 0 && (
+                            <p className="text-[11px] text-slate-500">
+                              The full gross is still payroll cost. The kept {gh(keep)} is added to the worker&apos;s
+                              Employee Credit when this payroll is approved.
+                            </p>
+                          )}
+                        </div>
+                      </FormField>
+                    )
+                  })()}
+
+                  {/* What this person already owes, BEFORE the line is added.
+                      The advance repayment is applied automatically on save, so
+                      without this the Deductions figure on the new line would be
+                      a number the user never typed and cannot account for.
+                      Section 50, moved to where the decision is actually made. */}
+                  {itemForm.genericStaffId > 0 && (staffLoansBusy || staffLoans.length > 0) && (
+                    <FormField label="&nbsp;" full>
+                      <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm">
+                        {staffLoansBusy ? (
+                          <span className="flex items-center gap-2 text-slate-500">
+                            <Loader2 className="h-4 w-4 animate-spin" /> Checking advances…
+                          </span>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 font-medium text-indigo-900">
+                              <HandCoins className="h-4 w-4" />
+                              {staffLoans.length === 1
+                                ? "1 active advance"
+                                : `${staffLoans.length} active advances`}
+                            </div>
+                            <ul className="mt-1.5 space-y-1">
+                              {staffLoans.map((e) => {
+                                // The SAME rules autoAddSuggestedDeductions
+                                // applies, so what is promised here is what
+                                // actually happens on save.
+                                const byPayroll = e.repaymentMethod === "PayrollDeduction"
+                                               || e.repaymentMethod === "Mixed"
+                                const willDeduct = payrollDeductionFor(e)
+                                return (
+                                  <li key={e.genericEmployeeLoanId}
+                                      className="flex flex-wrap items-baseline justify-between gap-x-3 text-indigo-900">
+                                    <span>
+                                      {e.loanNumber}
+                                      <span className="text-indigo-700/70"> · {gh(e.outstandingBalance)} outstanding</span>
+                                    </span>
+                                    <span className="text-xs">
+                                      {onLineLoanIds.has(e.genericEmployeeLoanId)
+                                        ? "already deducted on this line"
+                                        : willDeduct > 0
+                                        ? <>will deduct <strong className="tabular-nums">{gh(willDeduct)}</strong></>
+                                        : byPayroll
+                                          ? "no amount set — add it by hand"
+                                          : `repaid by ${e.repaymentMethod?.toLowerCase()} — not deducted here`}
+                                    </span>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                            <p className="mt-2 text-[11px] text-indigo-700/80">
+                              {editingItemId != null
+                                ? "Advances already on this line are not added again. Nothing is repaid until the payroll is approved."
+                                : "Added automatically when you add the line. Nothing is repaid until the payroll is approved."}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </FormField>
+                  )}
+
+                  <FormField label="&nbsp;" full>
+                    <div className="flex gap-2">
+                      {editingItemId != null && (
+                        <Button variant="outline" onClick={resetItemForm} disabled={itemSaving}>Cancel</Button>
+                      )}
+                      <Button onClick={addItem} disabled={itemSaving} className="flex-1">
+                        {itemSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : editingItemId != null ? "Save changes" : "Add line"}
+                      </Button>
+                    </div>
+                  </FormField>
+                </FormSection>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">Lines can only be edited while the run is a Draft.</p>
+              )}
             </div>
-          )}
-          {itemsRun && itemsRun.items.length === 0 && <div className="text-center text-slate-500 py-4">No staff lines yet. Add one below.</div>}
-          {itemsRun && isEditable(itemsRun) && (
-            <FormSection title="Add / update a line" color="amber">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <FormField label="Staff *">
-                  <Select value={itemForm.staffId} onValueChange={(v) => setItemForm((f) => ({ ...f, staffId: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
-                    <SelectContent>{staffList.map((s) => <SelectItem key={s.genericStaffId} value={String(s.genericStaffId)}>{s.firstName} {s.lastName}</SelectItem>)}</SelectContent>
-                  </Select>
-                </FormField>
-                <FormField label="Method">
-                  <Select value={itemForm.paymentMethod} onValueChange={(v) => setItemForm((f) => ({ ...f, paymentMethod: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{PAY_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                  </Select>
-                </FormField>
-                <FormField label="Basic pay"><NumberInput step="0.01" min="0" value={itemForm.basicPay} onChange={(e) => setItemForm((f) => ({ ...f, basicPay: e.target.value }))} /></FormField>
-                <FormField label="Daily wage"><NumberInput step="0.01" min="0" value={itemForm.dailyWage} onChange={(e) => setItemForm((f) => ({ ...f, dailyWage: e.target.value }))} /></FormField>
-                <FormField label="Commission"><NumberInput step="0.01" min="0" value={itemForm.commission} onChange={(e) => setItemForm((f) => ({ ...f, commission: e.target.value }))} /></FormField>
-                <FormField label="Bonus"><NumberInput step="0.01" min="0" value={itemForm.bonus} onChange={(e) => setItemForm((f) => ({ ...f, bonus: e.target.value }))} /></FormField>
-                <FormField label="Deductions"><NumberInput step="0.01" min="0" value={itemForm.deductions} onChange={(e) => setItemForm((f) => ({ ...f, deductions: e.target.value }))} /></FormField>
-                <FormField label="Notes"><Input value={itemForm.notes} onChange={(e) => setItemForm((f) => ({ ...f, notes: e.target.value }))} /></FormField>
-              </div>
-              <div className="flex justify-end mt-2">
-                <Button onClick={saveItem} disabled={itemSaving || !itemForm.staffId}>{itemSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}Add line</Button>
-              </div>
-            </FormSection>
           )}
         </DialogContent>
       </Dialog>
 
       {/* Mark paid */}
-      <Dialog open={!!paidRun} onOpenChange={(o) => !o && setPaidRun(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Mark as paid</DialogTitle></DialogHeader>
-          {paidRun && (
-            <div className="space-y-3">
-              <p className="text-sm text-slate-600">Confirm that <strong>{gh(paidRun.totalNetPay)}</strong> has been paid out{paidRun.cashAccountName ? ` from ${paidRun.cashAccountName}` : ""}.</p>
-              <div><Label className="text-xs text-slate-500">Pay date</Label><Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} /></div>
+      <Dialog open={!!paidRun} onOpenChange={(v) => { if (!v) setPaidRun(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-green-600" /> Mark paid</DialogTitle>
+            <DialogDescription>Posts a cash-out of {paidRun ? gh(paidRun.totalNetPay) : ""} to {paidRun?.cashAccountName ?? "the run's cash account"}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormField label="Pay date"><Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} /></FormField>
+            {paidRun && !paidRun.genericCashAccountId && <p className="text-xs text-amber-700">No cash account is set on this run — no cash-out will be posted.</p>}
+            <div className="flex gap-3 justify-end pt-2">
+              <Button variant="ghost" onClick={() => setPaidRun(null)}>Cancel</Button>
+              <Button onClick={confirmMarkPaid}>Mark paid</Button>
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaidRun(null)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={onMarkPaid}>Confirm paid</Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete */}
-      <ConfirmDeleteDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Delete payroll run" description={`Delete run for ${deleteTarget ? fmtPeriod(deleteTarget) : ""}? This cannot be undone.`} onConfirm={onDelete} />
+      {/* Reason (cancel / unapprove) */}
+      <Dialog open={reasonDlg.open} onOpenChange={(v) => { if (!v) { setReasonDlg({ open: false }); setReason("") } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{reasonDlg.kind === "unapprove" ? "Reopen run" : "Cancel run"}</DialogTitle>
+            <DialogDescription>{reasonDlg.kind === "unapprove" ? "Reverses the advance repayments, kept wages and any cash-out, and returns the run to Reopened." : "Cancels this run and reverses any advance repayments and kept wages it posted."}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormField label={reasonDlg.kind === "unapprove" ? "Reason *" : "Reason"}><ReasonSelect options={reasonDlg.kind === "unapprove" ? REOPEN_REASONS : CANCEL_REASONS} value={reason} onChange={setReason} /></FormField>
+            <div className="flex gap-3 justify-end pt-2">
+              <Button variant="ghost" onClick={() => { setReasonDlg({ open: false }); setReason("") }}>Back</Button>
+              <Button onClick={confirmReason}>{reasonDlg.kind === "unapprove" ? "Reopen" : "Cancel run"}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 306. Opens on the Deductions figure, from either surface. */}
+      <PayrollDeductionsDialog
+        target={deductionsFor}
+        onClose={() => setDeductionsFor(null)}
+        fmt={gh}
+        onChanged={async () => {
+          // A deduction rewrites the line's total AND the run's totals, so both
+          // have to be re-read. refreshItems already does exactly that -- it
+          // reloads the open run and swaps it into the list behind the dialog.
+          if (itemsRun) await refreshItems(itemsRun.genericPayrollRunId)
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
+        title="Delete this payroll run?"
+        description="Permanently deletes the run and its lines. Only Draft, Reopened or Cancelled runs can be deleted."
+        confirmLabel="Delete run"
+        errorTitle="Could not delete run"
+        onConfirm={async () => { if (deleteTarget) await performDelete(deleteTarget) }}
+      />
     </div>
   )
+
+  // A Draft run offers five actions. On desktop they are icon-only ghost
+  // buttons in a table cell; on mobile that same row overflowed the card, and
+  // the icon-only ones (Reopen / Cancel / Delete) carried their meaning solely
+  // in a `title` tooltip, which never opens on touch. So mobile gets a
+  // two-column grid and every button gets a word.
+  function renderActions(r: GenericPayrollRun, mobile: boolean) {
+    const cls = mobile ? "h-10 w-full" : ""
+    const v = mobile ? "outline" : "ghost"
+    const label = (text: string) => (mobile ? text : "")
+    const buttons = (
+      <>
+        <Button size="sm" variant={v} className={cls} onClick={() => router.push(`/generic-payroll/${r.genericPayrollRunId}`)} title="Details"><Eye className="h-4 w-4 mr-1" />{label("Details")}</Button>
+        {r.status === "Draft" && <Button size="sm" variant={v} className={cls} onClick={() => openItems(r)} title="Edit lines"><Users className="h-4 w-4 mr-1" />{label("Lines")}</Button>}
+        {r.status !== "Draft" && <Button size="sm" variant={v} className={cls} onClick={() => openItems(r)} title="View lines"><Users className="h-4 w-4 mr-1" />{label("Lines")}</Button>}
+        {(r.status === "Draft" || r.status === "Reopened") && <Button size="sm" variant={v} className={`${cls} text-blue-700`} onClick={() => approve(r)} title="Approve"><CheckCircle2 className="h-4 w-4 mr-1" />{label("Approve")}</Button>}
+        {r.status === "Approved" && <Button size="sm" variant={v} className={`${cls} text-green-700`} onClick={() => { setPaidRun(r); setPayDate(today()) }} title="Mark paid"><Banknote className="h-4 w-4 mr-1" />{label("Mark paid")}</Button>}
+        {(r.status === "Approved" || r.status === "Paid") && <Button size="sm" variant={v} className={`${cls} text-amber-700`} onClick={() => { setReasonDlg({ open: true, run: r, kind: "unapprove" }); setReason("") }} title="Reopen"><RotateCcw className="h-4 w-4 mr-1" />{label("Reopen")}</Button>}
+        {(r.status === "Draft" || r.status === "Approved") && <Button size="sm" variant={v} className={`${cls} text-rose-600`} onClick={() => { setReasonDlg({ open: true, run: r, kind: "cancel" }); setReason("") }} title="Cancel"><XCircle className="h-4 w-4 mr-1" />{label("Cancel")}</Button>}
+        {(r.status === "Draft" || r.status === "Reopened" || r.status === "Cancelled") && <Button size="sm" variant={v} className={`${cls} text-red-600`} onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 className="h-4 w-4 mr-1" />{label("Delete")}</Button>}
+      </>
+    )
+    // w-full so the grid fills MobileCardList's flex row rather than shrinking
+    // to its content.
+    return mobile ? <div className="grid w-full grid-cols-2 gap-2">{buttons}</div> : buttons
+  }
 }

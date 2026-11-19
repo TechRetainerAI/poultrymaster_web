@@ -419,7 +419,7 @@ class _RouteDialogState extends State<GenericRouteDialog> {
         : [
             dField('Route name *', AppInput(key: const ValueKey('route-name'), controller: _name)),
             dField('Description', AppInput(controller: _desc)),
-            dField('Start point (your location)',
+            dField('Start point',
                 PlaceField(controller: _start, hint: 'Where the route starts', keyPrefix: 'route-start', busy: _locating, onBusy: busy, onPlace: (p) => _placed(true, p))),
             dField(
                 'End point (destination)',
@@ -427,7 +427,6 @@ class _RouteDialogState extends State<GenericRouteDialog> {
                     controller: _end,
                     hint: 'Type destination name, city or address',
                     keyPrefix: 'route-end',
-                    gpsFirst: false,
                     busy: _locating,
                     onBusy: busy,
                     onPlace: (p) => _placed(false, p))),

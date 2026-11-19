@@ -20,10 +20,6 @@ const base = '/api/generic-company/g1';
 
 class FakePlaces implements PlacesBackend {
   @override
-  Future<({double lat, double lon})> position() async => (lat: 5.6, lon: -0.2);
-  @override
-  Future<String?> reverse(double lat, double lon) async => 'Osu, Accra';
-  @override
   Future<Place?> search(String q) async => q == 'nowhere' ? null : (name: '$q, Ghana', lat: 6.7, lon: -1.6);
   @override
   Future<({num seconds, num metres})?> drive(Place a, Place b) async => (seconds: 3900, metres: 52300);
@@ -109,7 +105,7 @@ void main() {
     expect(find.byKey(const ValueKey('delivery-Dispatch-1')), findsNothing);
   });
 
-  testWidgets('New Load: driver fills vehicle + transport, route fills places, search and GPS, the body sent', (tester) async {
+  testWidgets('New Load: driver fills vehicle + transport, route fills places, search, the body sent', (tester) async {
     final a = api();
     await open(tester, GenericDeliveriesScreen(session: await sessionFor(a), company: generic), size: phone);
     await tester.tap(find.byKey(const ValueKey('delivery-new')));
@@ -146,7 +142,8 @@ void main() {
     await tester.ensureVisible(find.byKey(const ValueKey('load-dest-search')));
     await tester.tap(find.byKey(const ValueKey('load-dest-search')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('load-start-gps')));
+    await tester.enterText(find.byKey(const ValueKey('load-start-text')), 'Osu');
+    await tester.tap(find.byKey(const ValueKey('load-start-search')));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('load-save')));
@@ -159,7 +156,7 @@ void main() {
     expect(b['vehicleName'], 'Van 1');
     expect(b['transportMode'], 'Van');
     expect(b['route'], 'East');
-    expect(b['startPoint'], 'Osu, Accra');
+    expect(b['startPoint'], 'Osu, Ghana');
     expect(b['destination'], 'Kumasi, Ghana');
     expect(b['farmId'], 'g1');
   });
@@ -192,7 +189,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('fleet-add')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('route-name')), 'North');
-    await tester.tap(find.byKey(const ValueKey('route-start-gps')));
+    await tester.enterText(find.byKey(const ValueKey('route-start-text')), 'Osu');
+    await tester.tap(find.byKey(const ValueKey('route-start-search')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('route-end-text')), 'Tamale');
     await tester.tap(find.byKey(const ValueKey('route-end-search')));
@@ -203,7 +201,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('route-save')));
     await tester.pumpAndSettle();
     final b = a.lastBody('$base/routes');
-    expect(b['startPoint'], 'Osu, Accra');
+    expect(b['startPoint'], 'Osu, Ghana');
     expect(b['endPoint'], 'Tamale, Ghana');
     expect(b['estimatedTime'], '1h 5m (52.3 km)');
   });

@@ -20,12 +20,35 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<ActionResult<IEnumerable<GenericLoanModel>>> List(string farmId)
             => Ok(await _svc.ListAsync(farmId));
 
+        // 455: the SPs raise the user-facing rules (no account, overdraw, more
+        // than is owed, cancel with repayments, ...) as P0001, returned as 400.
         [HttpPost]
         public async Task<ActionResult<int>> Create(string farmId, [FromBody] GenericLoanCreateRequest req)
         {
             req.FarmId = farmId;
-            return Ok(await _svc.CreateAsync(req));
+            try { return Ok(await _svc.CreateAsync(req)); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(ex.MessageText); }
         }
+
+        [HttpPut("{loanId:int}")]
+        public async Task<IActionResult> Update(string farmId, int loanId, [FromBody] GenericLoanUpdateRequest req)
+        {
+            req.FarmId = farmId;
+            try { await _svc.UpdateAsync(loanId, req); return NoContent(); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(ex.MessageText); }
+        }
+
+        [HttpPost("{loanId:int}/cancel")]
+        public async Task<IActionResult> Cancel(string farmId, int loanId, [FromBody] GenericLoanReasonRequest req)
+        {
+            try { await _svc.CancelAsync(loanId, farmId, req.Reason, req.By); return NoContent(); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(ex.MessageText); }
+        }
+
+        /// <summary>Every repayment of the company, newest first, reversed ones included.</summary>
+        [HttpGet("payments")]
+        public async Task<ActionResult<IEnumerable<GenericLoanPaymentModel>>> AllPayments(string farmId)
+            => Ok(await _svc.ListPaymentsAsync(null, farmId));
 
         [HttpGet("{loanId:int}/payments")]
         public async Task<ActionResult<IEnumerable<GenericLoanPaymentModel>>> Payments(string farmId, int loanId)
@@ -35,7 +58,15 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<ActionResult<int>> Repay(string farmId, int loanId, [FromBody] GenericLoanRepayRequest req)
         {
             req.FarmId = farmId;
-            return Ok(await _svc.RepayAsync(loanId, req));
+            try { return Ok(await _svc.RepayAsync(loanId, req)); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(ex.MessageText); }
+        }
+
+        [HttpPost("payments/{paymentId:int}/reverse")]
+        public async Task<IActionResult> ReversePayment(string farmId, int paymentId, [FromBody] GenericLoanReasonRequest req)
+        {
+            try { await _svc.ReversePaymentAsync(paymentId, farmId, req.Reason, req.By); return NoContent(); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(ex.MessageText); }
         }
     }
 

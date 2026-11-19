@@ -80,11 +80,16 @@ public partial class GenericReportService
                 FROM loans l CROSS JOIN LATERAL spgenericloan_payments(l."GenericLoanId", @farm) p
                 CROSS JOIN LATERAL (VALUES ('borrowing', 'Principal repaid', -p."PrincipalAmount"),
                                            ('other', 'Loan interest', p."InterestAmount"),
-                                           ('other', 'Loan fees', p."FeeAmount")) v(section, line, amount)
+                                           ('other', 'Loan fees', p."FeeAmount"),
+                                           -- 455: the "Other" part of a repayment left the bank too and paid off no debt.
+                                           ('other', 'Loan other charges', p."OtherAmount")) v(section, line, amount)
                 WHERE NOT p."IsReversed" AND p."PaymentDate" >= @start AND p."PaymentDate" < @finish + 1
                 UNION ALL
-                SELECT 'capital', 'Asset purchases', "PurchaseDate"::date, 'Asset #' || "GenericAssetId", "AssetName", "PurchaseCost"
-                FROM spgenericasset_list(@farm) WHERE "PurchaseDate" >= @start AND "PurchaseDate" < @finish + 1
+                -- 453: every posted cost line of the capital asset register (acquisitions,
+                -- added costs and signed corrections), dated when it was incurred.
+                SELECT 'capital', 'Asset purchases', c.costdate, 'Asset ' || a.assetnumber, a.assetname, c.amount
+                FROM genericcapitalassetcosts c JOIN genericcapitalassets a ON a.genericcapitalassetid = c.genericcapitalassetid
+                WHERE c.farmid = @farm AND c.status = 'Posted' AND c.costdate >= @start AND c.costdate < @finish + 1
             )
             SELECT section, line, day, ref, coalesce(description, ''), amount FROM entries
             WHERE amount <> 0 ORDER BY day DESC, ref, section, line

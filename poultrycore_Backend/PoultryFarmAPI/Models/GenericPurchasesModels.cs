@@ -365,6 +365,23 @@ namespace PoultryFarmAPIWeb.Models
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        // 448: payment status, as on the Poultry Expenses page. On write,
+        // AmountPaid NULL (or >= Amount) means paid in full, 0 means not paid
+        // (owed to the supplier), anything between is partly paid. On read it
+        // is resolved: what has been paid so far.
+        public decimal? AmountPaid { get; set; }
+        public DateTime? DueDate { get; set; }
+        public string? PaymentStatus { get; set; }     // read only (Paid / PartiallyPaid / Unpaid / NonCash)
+        public string? SourceType { get; set; }        // read only: set when another page made it
+        public string? CashAccountName { get; set; }   // read only
+        public decimal PaymentsApplied { get; set; }   // read only: applied by supplier payments
+    }
+
+    public class GenericExpenseDeleteRequest
+    {
+        [StringLength(500)]
+        public string? Reason { get; set; }
     }
 
     public class GenericExpenseRejectRequest
@@ -410,5 +427,19 @@ namespace PoultryFarmAPIWeb.Models
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        // Migration 456 (Poultry parity): TRF-YYYY-NNNN, bank/MoMo reference, reversal audit.
+        public string? TransferNumber { get; set; }
+        [StringLength(100)]
+        public string? ReferenceNumber { get; set; }
+        public string? ReversedBy { get; set; }
+        public DateTime? ReversedAt { get; set; }
+        public string? ReversalReason { get; set; }
+    }
+
+    public class GenericCashTransferReverseRequest
+    {
+        [Required, StringLength(500, MinimumLength = 3)]
+        public string Reason { get; set; } = string.Empty;
     }
 }

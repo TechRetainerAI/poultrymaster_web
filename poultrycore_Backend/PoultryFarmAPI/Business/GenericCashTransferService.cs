@@ -38,7 +38,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(GenericCashTransferModel m)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashtransfer_insert(p_farmid => @FarmId::text, p_fromgenericcashaccountid => @FromGenericCashAccountId::int, p_togenericcashaccountid => @ToGenericCashAccountId::int, p_amount => @Amount::numeric, p_transferdate => @TransferDate::timestamp, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashtransfer_insert(p_farmid => @FarmId::text, p_fromgenericcashaccountid => @FromGenericCashAccountId::int, p_togenericcashaccountid => @ToGenericCashAccountId::int, p_amount => @Amount::numeric, p_transferdate => @TransferDate::timestamp, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_referencenumber => @ReferenceNumber::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@FromGenericCashAccountId", m.FromGenericCashAccountId);
             cmd.Parameters.AddWithValue("@ToGenericCashAccountId", m.ToGenericCashAccountId);
@@ -47,9 +47,42 @@ namespace PoultryFarmAPIWeb.Business
                 m.TransferDate == default ? (object)DBNull.Value : m.TransferDate);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ReferenceNumber", (object?)m.ReferenceNumber ?? DBNull.Value);
 
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        // Create + approve in ONE database call (migration 456): a refused
+        // approval (not enough money) leaves no Draft behind.
+        public async Task<int> RecordAsync(GenericCashTransferModel m)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT spgenericcashtransfer_record(p_farmid => @FarmId::text, p_fromgenericcashaccountid => @From::int, p_togenericcashaccountid => @To::int, p_amount => @Amount::numeric, p_transferdate => @TransferDate::timestamp, p_referencenumber => @Ref::text, p_notes => @Notes::text, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@From", m.FromGenericCashAccountId);
+            cmd.Parameters.AddWithValue("@To", m.ToGenericCashAccountId);
+            cmd.Parameters.AddWithValue("@Amount", m.Amount);
+            cmd.Parameters.AddWithValue("@TransferDate", m.TransferDate == default ? (object)DBNull.Value : m.TransferDate);
+            cmd.Parameters.AddWithValue("@Ref", (object?)m.ReferenceNumber ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)m.CreatedBy ?? DBNull.Value);
+
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task ReverseAsync(int id, string farmId, string reason, string? reversedBy)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT spgenericcashtransfer_reverse(p_genericcashtransferid => @Id::int, p_farmid => @FarmId::text, p_reason => @Reason::text, p_reversedby => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Reason", reason);
+            cmd.Parameters.AddWithValue("@By", (object?)reversedBy ?? DBNull.Value);
+
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task ApproveAsync(int id, string farmId, string? approvedBy)
@@ -92,6 +125,11 @@ namespace PoultryFarmAPIWeb.Business
             ApprovedAt               = r.IsDBNull(r.GetOrdinal("ApprovedAt")) ? null : r.GetDateTime(r.GetOrdinal("ApprovedAt")),
             CreatedAt                = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt                = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+            TransferNumber           = r.IsDBNull(r.GetOrdinal("TransferNumber")) ? null : r.GetString(r.GetOrdinal("TransferNumber")),
+            ReferenceNumber          = r.IsDBNull(r.GetOrdinal("ReferenceNumber")) ? null : r.GetString(r.GetOrdinal("ReferenceNumber")),
+            ReversedBy               = r.IsDBNull(r.GetOrdinal("ReversedBy")) ? null : r.GetString(r.GetOrdinal("ReversedBy")),
+            ReversedAt               = r.IsDBNull(r.GetOrdinal("ReversedAt")) ? null : r.GetDateTime(r.GetOrdinal("ReversedAt")),
+            ReversalReason           = r.IsDBNull(r.GetOrdinal("ReversalReason")) ? null : r.GetString(r.GetOrdinal("ReversalReason")),
         };
     }
 }

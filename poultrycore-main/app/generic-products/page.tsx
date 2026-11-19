@@ -695,11 +695,19 @@ export default function GenericProductsPage() {
               <FormField label="Cost price *">
                 <NumberInput step="0.01" min="0" value={form.costPrice} onChange={(e) => setForm((f) => ({ ...f, costPrice: e.target.value }))} />
               </FormField>
-              {!editingId && (
-                <FormField label="Opening stock">
-                  <NumberInput step="0.01" min="0" value={form.openingStock} onChange={(e) => setForm((f) => ({ ...f, openingStock: e.target.value }))} />
-                </FormField>
-              )}
+              {/* Opening stock is set once, when the item is created (it posts the
+                  "Opening stock" movement); the update call has no opening-stock
+                  field. So on edit it is shown as saved, read-only. */}
+              <FormField
+                label="Opening stock"
+                hint={editingId ? "Set when the item was created. To change the stock, use Adjust Stock on Inventory." : undefined}
+              >
+                <NumberInput
+                  step="0.01" min="0" value={form.openingStock}
+                  disabled={editingId != null}
+                  onChange={(e) => setForm((f) => ({ ...f, openingStock: e.target.value }))}
+                />
+              </FormField>
               <FormField label="Low-stock alert at">
                 <NumberInput step="0.01" min="0" value={form.minimumStockAlert} onChange={(e) => setForm((f) => ({ ...f, minimumStockAlert: e.target.value }))} />
               </FormField>

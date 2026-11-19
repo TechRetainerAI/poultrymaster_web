@@ -94,15 +94,6 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task UpdateDriverLocationAsync(int id, string farmId, decimal lat, decimal lng)
-        {
-            using var conn = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand("SELECT sprestaurant_driver_update_location(p_id=>@I::int,p_farmid=>@F::text,p_lat=>@La::numeric,p_lng=>@Lo::numeric)", conn);
-            cmd.Parameters.AddWithValue("@I", id); cmd.Parameters.AddWithValue("@F", farmId);
-            cmd.Parameters.AddWithValue("@La", lat); cmd.Parameters.AddWithValue("@Lo", lng);
-            await conn.OpenAsync(); await cmd.ExecuteNonQueryAsync();
-        }
-
         public async Task<DriverStatsModel> GetDriverStatsAsync(int driverId, string farmId, DateTime? fromDate = null, DateTime? toDate = null)
         {
             using var conn = new NpgsqlConnection(_cs);

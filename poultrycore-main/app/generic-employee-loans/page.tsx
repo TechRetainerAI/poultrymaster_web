@@ -24,7 +24,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import {
-  ArrowLeft, HandCoins, Loader2, Plus, Undo2, Wallet, Users, AlertTriangle, Info, Eye,
+  HandCoins, Loader2, Plus, Undo2, Wallet, Users, AlertTriangle, Info, Eye,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -279,7 +279,6 @@ export default function GenericEmployeeLoansPage() {
         <main className="flex-1 min-w-0 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-end justify-between flex-wrap gap-2">
             <div>
-              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Users className="h-6 w-6 text-indigo-600" /> Employee Loans &amp; Advances
               </h1>

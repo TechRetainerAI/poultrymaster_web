@@ -459,6 +459,74 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await _cash.GetReconciliationsByAccountAsync(accountId, farmId));
         }
 
+        // ---- Cash count lifecycle, Poultry parity (migration 456) ----
+        [HttpGet("reconciliations/account-status")]
+        public async Task<ActionResult<IEnumerable<GenericCashAccountCountStatusModel>>> GetCountStatus(string farmId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _cash.GetCountStatusAsync(farmId));
+        }
+
+        // Save a DRAFT count. Moves no money; posting does.
+        [HttpPost("reconciliations/drafts")]
+        public async Task<IActionResult> CreateCountDraft(string farmId, [FromBody] GenericCashCountInput req, [FromQuery] string? createdBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            var id = await _cash.InsertCountAsync(farmId, req, createdBy);
+            return Created(string.Empty, new { GenericCashReconciliationId = id });
+        }
+
+        [HttpPut("reconciliations/{id:int}")]
+        public async Task<IActionResult> UpdateCountDraft(string farmId, int id, [FromBody] GenericCashCountInput req, [FromQuery] string? updatedBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            await _cash.UpdateCountAsync(id, farmId, req, updatedBy);
+            return NoContent();
+        }
+
+        [HttpDelete("reconciliations/{id:int}")]
+        public async Task<IActionResult> DeleteCountDraft(string farmId, int id, [FromQuery] string? userId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            await _cash.DeleteCountAsync(id, farmId, userId);
+            return NoContent();
+        }
+
+        [HttpPost("reconciliations/{id:int}/post")]
+        public async Task<IActionResult> PostCount(string farmId, int id, [FromQuery] string? postedBy)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            var adj = await _cash.PostCountAsync(id, farmId, postedBy);
+            return Ok(new { AdjustmentTransactionId = adj });
+        }
+
+        [HttpPost("reconciliations/{id:int}/reverse")]
+        public async Task<IActionResult> ReverseCount(string farmId, int id, [FromBody] GenericCashCountReverseRequest body, [FromQuery] string? reversedBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            await _cash.ReverseCountAsync(id, farmId, body.Reason.Trim(), reversedBy);
+            return NoContent();
+        }
+
+        // Recalculate every account's cached balance from its transactions.
+        [HttpPost("accounts/reconcile-balances")]
+        public async Task<IActionResult> RecalculateBalances(string farmId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            var n = await _cash.RecalculateBalancesAsync(farmId);
+            return Ok(new { Updated = n });
+        }
+
         // Reverse an existing Approved cash transaction: posts an equal-and-opposite
         // entry linked via ReversalOfTransactionId and marks the original Reversed.
         [HttpPost("transactions/{transactionId:long}/reverse")]

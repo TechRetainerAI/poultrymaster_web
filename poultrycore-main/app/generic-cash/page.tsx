@@ -22,7 +22,11 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
-import { Loader2, Wallet, ArrowLeftRight, Eye, Plus, Pencil, Trash2, RefreshCw, Scale, FileText, ArrowLeft } from "lucide-react"
+import { Loader2, Wallet, ArrowLeftRight, Eye, Plus, Pencil, Trash2, RefreshCw, Scale, FileText } from "lucide-react"
+import { SetupTaskBar } from "@/components/setup/setup-embed"
+import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
+import { POULTRY_CASH_REASONS } from "@/lib/api/poultry-finance"
+import { adjustCashAccount, recalculateCashBalances } from "@/lib/api/generic"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -91,10 +95,10 @@ export default function GenericCashPage() {
   const [txDlg, setTxDlg] = useState<{ open: boolean; acc?: GenericCashAccount; rows: GenericCashTransaction[] }>({ open: false, rows: [] })
 
   // Detail dialog
-  const [detailDlg, setDetailDlg] = useState<{ open: boolean; acc?: GenericCashAccount; detail?: GenericCashAccountDetails }>({ open: false })
 
   // Transfer dialog
   const [xferDlg, setXferDlg] = useState(false)
+  const [adjustDlg, setAdjustDlg] = useState(false)
   const [xferForm, setXferForm] = useState({ fromGenericCashAccountId: 0, toGenericCashAccountId: 0, amount: 0, notes: "" })
 
   useEffect(() => {
@@ -165,11 +169,15 @@ export default function GenericCashPage() {
     } finally { setSaving(false) }
   }
 
-  // Recalculate — reload details (ledger balances recalculated server-side)
+  // Recalculate — rebuild every stored balance from its transactions (456). Moves no money.
   async function recalculate() {
-    toast({ title: "Recalculating…" })
-    await load()
-    toast({ title: "Balances recalculated" })
+    try {
+      const r = await recalculateCashBalances()
+      await load()
+      toast({ title: "Balances recalculated", description: r ? `${r.updated} account(s) checked.` : undefined })
+    } catch (e: any) {
+      toast({ title: "Recalculate failed", description: e?.message, variant: "destructive" })
+    }
   }
 
   // Delete
@@ -188,13 +196,9 @@ export default function GenericCashPage() {
     } catch (e: any) { toast({ title: "Failed to load transactions", description: e?.message, variant: "destructive" }) }
   }
 
-  // Details
-  async function viewDetails(acc: GenericCashAccount) {
-    setDetailDlg({ open: true, acc })
-    try {
-      const detail = await getCashAccountDetails(acc.genericCashAccountId)
-      if (detail) setDetailDlg({ open: true, acc, detail })
-    } catch (e: any) { toast({ title: "Failed to load details", description: e?.message, variant: "destructive" }) }
+  // Details: Poultry opens the account's own page.
+  function viewDetails(acc: GenericCashAccount) {
+    router.push(`/generic-cash/${acc.genericCashAccountId}`)
   }
 
   // Transfer
@@ -231,24 +235,18 @@ export default function GenericCashPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           {/* Header — matching poultry */}
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Wallet className="h-6 w-6 text-sky-600" /> Cash Account
             </h1>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={openNew}>
-                <Plus className="h-4 w-4 mr-1" /> New account
-              </Button>
-              <Button size="sm" onClick={() => setXferDlg(true)}>
-                <ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => router.push("/generic-cash-reconciliation")}>
-                <Scale className="h-4 w-4 mr-1" /> Reconcile
-              </Button>
-              <Button size="sm" variant="outline" onClick={recalculate}>
-                <RefreshCw className="h-4 w-4 mr-1" /> Recalculate
-              </Button>
-            </div>
+            {/* Poultry's task bar (components/setup-views/poultry-cash-accounts.tsx). */}
+            <SetupTaskBar tasks={[
+              { id: "new", label: "New account", icon: Plus, primary: true, onClick: openNew },
+              { id: "transfer", label: "Transfer", icon: ArrowLeftRight, onClick: () => setXferDlg(true), group: "money" },
+              { id: "adjust", label: "Record Cash Adjustment", icon: Scale, onClick: () => setAdjustDlg(true), group: "money" },
+              { id: "reconcile", label: "Reconcile", icon: Scale, href: "/generic-cash-reconciliation", group: "check" },
+              { id: "recalc", label: "Recalculate", icon: RefreshCw, onClick: recalculate, group: "check" },
+              { id: "report", label: "Cash Account Report", icon: FileText, href: "/generic-reports/cash-accounts", group: "check" },
+            ]} />
           </div>
 
           {/* Cash flow link — matching poultry */}
@@ -514,70 +512,6 @@ export default function GenericCashPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Account detail dialog */}
-      <Dialog open={detailDlg.open} onOpenChange={(v) => setDetailDlg({ open: v })}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-sky-600" /> {detailDlg.acc?.accountName}
-            </DialogTitle>
-            <DialogDescription>{detailDlg.acc?.accountType} · {detailDlg.acc?.isActive ? "Active" : "Inactive"}</DialogDescription>
-          </DialogHeader>
-          {detailDlg.detail ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border bg-slate-50 p-3">
-                  <div className="text-[10px] uppercase text-slate-500">Opening Balance</div>
-                  <div className="text-lg font-semibold tabular-nums">{fmt(detailDlg.detail.openingBalance)}</div>
-                </div>
-                <div className="rounded-lg border bg-slate-50 p-3">
-                  <div className="text-[10px] uppercase text-slate-500">Current Balance</div>
-                  <div className={`text-lg font-semibold tabular-nums ${detailDlg.detail.currentBalance < 0 ? "text-rose-600" : ""}`}>{fmt(detailDlg.detail.currentBalance)}</div>
-                </div>
-                <div className="rounded-lg border bg-emerald-50 p-3">
-                  <div className="text-[10px] uppercase text-emerald-700">Total Money In</div>
-                  <div className="text-lg font-semibold tabular-nums text-emerald-700">{fmt(detailDlg.detail.totalMoneyIn)}</div>
-                </div>
-                <div className="rounded-lg border bg-rose-50 p-3">
-                  <div className="text-[10px] uppercase text-rose-700">Total Money Out</div>
-                  <div className="text-lg font-semibold tabular-nums text-rose-700">{fmt(detailDlg.detail.totalMoneyOut)}</div>
-                </div>
-                <div className="rounded-lg border bg-blue-50 p-3">
-                  <div className="text-[10px] uppercase text-blue-700">Transfer In</div>
-                  <div className="text-lg font-semibold tabular-nums text-blue-700">{fmt(detailDlg.detail.transferIn)}</div>
-                </div>
-                <div className="rounded-lg border bg-amber-50 p-3">
-                  <div className="text-[10px] uppercase text-amber-700">Transfer Out</div>
-                  <div className="text-lg font-semibold tabular-nums text-amber-700">{fmt(detailDlg.detail.transferOut)}</div>
-                </div>
-              </div>
-              <div className="rounded-lg border p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Ledger Balance</span>
-                  <span className="font-semibold tabular-nums">{fmt(detailDlg.detail.ledgerBalance)}</span>
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-sm text-slate-600">Total Adjustments</span>
-                  <span className="tabular-nums">{fmt(detailDlg.detail.totalAdjustments)}</span>
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-sm text-slate-600">Unreconciled</span>
-                  <span className="tabular-nums">{detailDlg.detail.unreconciledCount}</span>
-                </div>
-                {detailDlg.detail.lastReconciledAt && (
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-sm text-slate-600">Last Reconciled</span>
-                    <span className="text-xs text-slate-500">{fmtDateTime(detailDlg.detail.lastReconciledAt, detailDlg.detail)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-slate-500 py-6 justify-center"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-          )}
-        </DialogContent>
-      </Dialog>
-
       {/* Transfer dialog — matching poultry */}
       <Dialog open={xferDlg} onOpenChange={setXferDlg}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -628,6 +562,24 @@ export default function GenericCashPage() {
         confirmLabel="Remove account"
         errorTitle="Could not remove account"
         onConfirm={async () => { if (deleteTarget) await performDelete(deleteTarget) }}
+      />
+      {/* As on Poultry: a manual adjustment on one account, with a reason. */}
+      <RecordCashAdjustmentDialog
+        open={adjustDlg}
+        onOpenChange={setAdjustDlg}
+        accounts={accounts.map((a) => ({
+          accountId: a.genericCashAccountId,
+          accountName: a.accountName,
+          accountType: a.accountType,
+          isActive: a.isActive,
+        }))}
+        reasons={POULTRY_CASH_REASONS}
+        fmtMoney={fmt}
+        reconcileHref="/generic-cash-reconciliation"
+        onSubmit={async ({ accountId, amount, reason }) => {
+          await adjustCashAccount(accountId, { amount, reason })
+        }}
+        onDone={() => { void load() }}
       />
     </div>
   )
