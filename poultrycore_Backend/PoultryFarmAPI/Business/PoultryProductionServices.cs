@@ -160,6 +160,9 @@ namespace PoultryFarmAPIWeb.Business
         Task<string> PreviewManualMovementAsync(string farmId, int? productId, int? rawItemId, int? batchId, int? flockId);
         Task<string> PostManualMovementAsync(PoultryManualMovementRequest m);
         Task<string> ReverseManualMovementAsync(int movementId, PoultryManualMovementReverseRequest m);
+        // 440: a batch's flocks set to their counted birds in one save.
+        Task<string> PostBatchBirdCountAsync(PoultryBatchBirdCountRequest m);
+        Task<List<PoultryBirdCountSheetRow>> GetBirdCountSheetAsync(string farmId, int batchId, DateTime? date);
         Task<List<PoultryManualMovementModel>> GetManualMovementsAsync(string farmId);
         // 374: Broken Eggs / Dead Birds in Add Sale.
         Task<PoultryByproductSettings> GetByproductSettingsAsync(string farmId);
@@ -271,6 +274,47 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Date", m.EffectiveDate.HasValue ? m.EffectiveDate.Value.Date : DBNull.Value);
             cmd.Parameters.AddWithValue("@Reason", m.Reason ?? string.Empty); cmd.Parameters.AddWithValue("@Disp", (object?)m.Disposition ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Note", (object?)m.Note ?? DBNull.Value); cmd.Parameters.AddWithValue("@Key", (object?)m.RequestKey ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)m.CreatedBy ?? DBNull.Value);
+            await c.OpenAsync(); return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        /// <summary>441: a batch's open flocks with their birds on the count date and now.</summary>
+        public async Task<List<PoultryBirdCountSheetRow>> GetBirdCountSheetAsync(string farmId, int batchId, DateTime? date)
+        {
+            var list = new List<PoultryBirdCountSheetRow>();
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultrybirdcount_sheet(p_farmid => @FarmId::text, p_batchid => @B::int, p_date => @Date::date)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@B", batchId);
+            cmd.Parameters.AddWithValue("@Date", date.HasValue ? date.Value.Date : DBNull.Value);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new PoultryBirdCountSheetRow
+            {
+                FlockId = r.GetInt32(r.GetOrdinal("flockid")),
+                FlockName = r.IsDBNull(r.GetOrdinal("flockname")) ? "" : r.GetString(r.GetOrdinal("flockname")),
+                StartDate = r.IsDBNull(r.GetOrdinal("startdate")) ? null : r.GetDateTime(r.GetOrdinal("startdate")),
+                BirdsOnDate = r.IsDBNull(r.GetOrdinal("birdsondate")) ? null : r.GetInt32(r.GetOrdinal("birdsondate")),
+                BirdsNow = r.IsDBNull(r.GetOrdinal("birdsnow")) ? 0 : r.GetInt32(r.GetOrdinal("birdsnow")),
+                HasProductionRecord = !r.IsDBNull(r.GetOrdinal("hasproductionrecord")) && r.GetBoolean(r.GetOrdinal("hasproductionrecord")),
+            });
+            return list;
+        }
+
+        /// <summary>440/441: each flock's change (counted - birds on the count date) posted as its own manual movement, all in one transaction.</summary>
+        public async Task<string> PostBatchBirdCountAsync(PoultryBatchBirdCountRequest m)
+        {
+            var lines = System.Text.Json.JsonSerializer.Serialize(
+                m.Lines.Select(l => new { flockId = l.FlockId, countedBirds = l.CountedBirds, currentBirds = l.CurrentBirds }));
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrymanualmovement_bulkbirdcount(p_farmid => @FarmId::text, p_batchid => @B::int, " +
+                "p_effectivedate => @Date::date, p_lines => @Lines::jsonb, p_note => @Note::text, " +
+                "p_requestkey => @Key::text, p_by => @By::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@B", m.BatchId);
+            cmd.Parameters.AddWithValue("@Date", m.EffectiveDate.HasValue ? m.EffectiveDate.Value.Date : DBNull.Value);
+            cmd.Parameters.AddWithValue("@Lines", lines);
+            cmd.Parameters.AddWithValue("@Note", (object?)m.Note ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Key", (object?)m.RequestKey ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@By", (object?)m.CreatedBy ?? DBNull.Value);
             await c.OpenAsync(); return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
         }
