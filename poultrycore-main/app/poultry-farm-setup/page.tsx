@@ -3002,9 +3002,9 @@ function CompletedPanel({ status, opening, batchRecon, onSetUpMore }: {
               in Production Records, in Total Deaths, or in any dated mortality report.
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Stat label="Birds originally placed" value={opening.originallyPlaced} tone="blue" />
+              <Stat label="Birds originally placed (Into Flocks)" value={opening.originallyPlaced} tone="blue" />
               <Stat label="Opening live birds" value={opening.openingLiveBirds} tone="emerald" />
-              <Stat label="Historical reduction" value={opening.historicalReduction} tone="amber" />
+              <Stat label="Historical reduction (Before Tracking)" value={opening.historicalReduction} tone="amber" />
               <Stat label="Opening historical mortality" value={opening.historicalMortality} tone="rose" />
             </div>
             {fromBatches && (
@@ -3013,7 +3013,7 @@ function CompletedPanel({ status, opening, batchRecon, onSetUpMore }: {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <Stat small label="Birds bought" value={fromBatches.bought} tone="blue" />
                   <Stat small label="Sold before placing in a flock" value={fromBatches.sold} tone="amber" />
-                  <Stat small label="Died before placing in a flock" value={fromBatches.died} tone="rose" />
+                  <Stat small label="Died before placing in a flock (Day Old Chick)"value={fromBatches.died} tone="rose" />
                   <Stat small label="Not yet in a flock" value={fromBatches.notInFlock} tone="emerald" />
                 </div>
                 <p className="text-xs text-slate-600">

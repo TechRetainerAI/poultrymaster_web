@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle, Drumstick,
+  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle, Drumstick, ClipboardList,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -490,6 +490,10 @@ export function buildPoultryNavConfig(
           // lines on each flock's production record. Ungated like the
           // Production rows; the API gates on poultry.feed-usage.
           { id: "feed-distribution", title: "Distribute Feed", icon: Wheat, href: "/poultry-feed-distribution" },
+          // Batch bird count (440): every flock of a batch set to its counted
+          // birds in one save, each as a Stock Count Correction. Gated on its
+          // own IAM key (441), the same one the page and the API check.
+          { id: "batch-bird-count", title: "Batch Bird Count", icon: ClipboardList, href: "/poultry-batch-bird-count", visible: permissions.can("poultry.bird-count.view") },
           // Treatment Campaigns (339): one medication to many flocks over one
           // or more days, posted as medication lines on production records.
           // Ungated like the rows above; the API gates on poultry.health.

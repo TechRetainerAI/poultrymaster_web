@@ -64,6 +64,7 @@ const MOBILE_TINT = {
   blue:    "bg-blue-50 border-blue-200 sm:bg-white sm:border-slate-200",
   amber:   "bg-amber-50 border-amber-200 sm:bg-white sm:border-slate-200",
   slate:   "bg-slate-50 border-slate-300 sm:bg-white sm:border-slate-200",
+  rose:    "bg-rose-50 border-rose-200 sm:bg-white sm:border-slate-200",
 } as const
 
 function ScoreCard({
@@ -1291,7 +1292,7 @@ export function FlockBatchesPage() {
 
             {/* Bird totals (page bottom; standalone page only) */}
             {!embedded && !loading && flockBatches.length > 0 && (
-              <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : farmTotals ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-2 sm:grid-cols-4")}>
+              <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : farmTotals ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" : "grid-cols-2 sm:grid-cols-4")}>
                 <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.blue)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{(farmTotals?.bought ?? totalBirds).toLocaleString()}</div>
@@ -1300,9 +1301,21 @@ export function FlockBatchesPage() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Active Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{(farmTotals ? Math.max(0, farmTotals.left - totalInactiveBirds - farmTotals.notInFlock) : totalActiveBirds).toLocaleString()}</div>
                 </div>
-                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.slate)}>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Inactive Birds</div>
-                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">{totalInactiveBirds.toLocaleString()}</div>
+                {/* Every bird that died across all batches (before tracking
+                    included) -- the "died" of the Birds Left sum. */}
+                {farmTotals && (
+                  <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.rose)}
+                       title="Birds that died across all batches, including deaths before tracking began.">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Mortality</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums text-rose-600">{farmTotals.died.toLocaleString()}</div>
+                    {farmTotals.bought > 0 && (
+                      <div className="text-xs text-slate-400 mt-0.5">{(farmTotals.died / farmTotals.bought * 100).toFixed(1)}% of birds bought</div>
+                    )}
+                  </div>
+                )}
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.amber)}>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds Sold</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{totalBirdsSold.toLocaleString()}</div>
                 </div>
                 {/* Birds alive on the farm but not divided into flocks yet.
                     Active + Inactive + this = Total Birds Left. */}
@@ -1313,9 +1326,9 @@ export function FlockBatchesPage() {
                     <div className="mt-1 text-2xl font-bold tabular-nums text-sky-600">{farmTotals.notInFlock.toLocaleString()}</div>
                   </div>
                 )}
-                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.amber)}>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds Sold</div>
-                  <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{totalBirdsSold.toLocaleString()}</div>
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.slate)}>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Inactive Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">{totalInactiveBirds.toLocaleString()}</div>
                 </div>
               </div>
             )}

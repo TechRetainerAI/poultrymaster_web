@@ -415,6 +415,9 @@ export default function SalesPage() {
   const isEggsProduct = isEggProduct(formData.product)
   const isBirdProduct = isLiveBirdProduct(formData.product)
   const anyBirdLine = isBirdProduct || extraEggLines.some((l) => isLiveBirdProduct(l.product))
+  // A new bird sale must name its flock (439). Editing an old sale is not
+  // held to it: a posted sale's flock cannot change anyway.
+  const birdSaleNeedsFlock = anyBirdLine && !editingSale
 
   // 401: birds still inside a meat withdrawal period on the sale date. A
   // warning the seller must acknowledge, never a refusal: the farm decides.
@@ -1349,6 +1352,9 @@ export default function SalesPage() {
     if (!formData.saleDate) message = "Pick the date this sale happened."
     else if (!product) message = "Choose what was sold (eggs, chicken, manure, or other)."
     else if (!customerName) message = "Enter or select who bought from you."
+    // 439: a bird sale must come out of a flock -- with "All flocks" the birds
+    // left the stock but no flock, so Stock Movements fell below birds alive.
+    else if (birdSaleNeedsFlock && !formData.flockId) message = "Choose the flock the birds came from."
     else if (!Number.isFinite(quantity) || quantity <= 0) message = "Enter how many units were sold — use a number greater than zero."
     else if (isBirdProduct && birdPricingProblem(quantity, birdPricing)) message = birdPricingProblem(quantity, birdPricing)!
     else if (!Number.isFinite(unitPrice) || unitPrice <= 0) message = "Enter the price per unit — it must be greater than zero."
@@ -1845,9 +1851,9 @@ export default function SalesPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="flockId">Flock</Label>
+                  <Label htmlFor="flockId">Flock{birdSaleNeedsFlock && <span className="text-red-500"> *</span>}</Label>
                   <Select
-                    value={selectedFlockIdString}
+                    value={birdSaleNeedsFlock && !selectedFlockId ? "" : selectedFlockIdString}
                     onValueChange={(value) => {
                       const f = value ? Number(value) : 0
                       setFormData(prev => ({ ...prev, flockId: f }))
@@ -1858,10 +1864,10 @@ export default function SalesPage() {
                     }}
                   >
                     <SelectTrigger id="flockId">
-                      <SelectValue placeholder="All flocks" />
+                      <SelectValue placeholder={birdSaleNeedsFlock ? "Choose the flock" : "All flocks"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="0">All flocks</SelectItem>
+                      {!birdSaleNeedsFlock && <SelectItem value="0">All flocks</SelectItem>}
                       {shownFlocks.map((flock) => (
                         <SelectItem
                           key={flock.flockId}
