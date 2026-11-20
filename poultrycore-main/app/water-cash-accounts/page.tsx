@@ -34,6 +34,8 @@ import {
 } from "@/lib/api/water"
 import { cashByAccount } from "@/lib/cash/cash-flow"
 import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
+// 460: how much of this cash is being kept for staff.
+import { EmployeeCreditHeldNote } from "@/components/water/employee-credit-held-note"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const ACCOUNT_TYPES = ["FactoryCashBox", "OwnerCash", "MoMoWallet", "BankAccount", "DriverCash", "PettyCash", "Other"]
@@ -248,6 +250,7 @@ export default function WaterCashAccountsPage() {
             </div>
           </div>
 
+          <EmployeeCreditHeldNote totalCash={totalCash} fmt={fmt} className="mb-3" />
           <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total cash at hand</div><div className="text-xl font-semibold tabular-nums">{fmt(totalCash)}</div></CardContent></Card>
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Active accounts</div><div className="text-xl font-semibold">{accounts.filter(a => a.isActive).length}</div></CardContent></Card>

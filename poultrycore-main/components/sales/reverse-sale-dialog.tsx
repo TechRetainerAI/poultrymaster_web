@@ -31,6 +31,8 @@ import {
 import {
   defaultHandling, effectiveAction, paymentSourceLabel, restoreLabel, reversalOutcome, type Handling,
 } from "@/lib/sales/reversal"
+// 458: the same dialog reverses a Water sale.
+import { getWaterSaleReversalPreview, reverseWaterSale } from "@/lib/api/water-sale-reversal"
 
 export interface ReverseSaleResult {
   preview: SaleReversalPreview
@@ -49,6 +51,8 @@ interface Props {
   currencyCode: string
   onOpenChange: (open: boolean) => void
   onReversed: (result: ReverseSaleResult) => void
+  /** 458: which module's sale. Water customer payments post no cash, so the wording differs. */
+  module?: "poultry" | "water"
 }
 
 function Figure({ label, value, tone }: { label: string; value: string; tone?: "warn" | "good" }) {
@@ -66,8 +70,12 @@ function newKey(): string {
 }
 
 export function ReverseSaleDialog({
-  open, saleId, saleLabel, mode, farmId, userId, currencyCode, onOpenChange, onReversed,
+  open, saleId, saleLabel, mode, farmId, userId, currencyCode, onOpenChange, onReversed, module = "poultry",
 }: Props) {
+  const water = module === "water"
+  const api = water
+    ? { preview: getWaterSaleReversalPreview, reverse: reverseWaterSale }
+    : { preview: getSaleReversalPreview, reverse: reverseSale }
   const [preview, setPreview] = useState<SaleReversalPreview | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -87,7 +95,7 @@ export function ReverseSaleDialog({
     if (!saleId) return
     setLoading(true)
     setLoadError(null)
-    const res = await getSaleReversalPreview(saleId, farmId)
+    const res = await api.preview(saleId, farmId)
     setLoading(false)
     if (!res.success || !res.data) { setLoadError(res.message ?? "Could not load the sale."); return }
     setPreview(res.data)
@@ -116,7 +124,7 @@ export function ReverseSaleDialog({
     setError(null)
     const sent: Handling = {}
     for (const p of preview.payments) sent[p.key] = effectiveAction(p, handling)
-    const res = await reverseSale(saleId, {
+    const res = await api.reverse(saleId, {
       farmId, userId, reasonCode, reason: reasonText,
       paymentHandling: sent, expectedFingerprint: preview.fingerprint, idempotencyKey: idemKey.current,
     })
@@ -144,7 +152,7 @@ export function ReverseSaleDialog({
           </FormDialogTitle>
           <DialogDescription>
             {mode === "correct"
-              ? "A posted sale is not edited. It is reversed, and a new sale is opened filled in from it for you to fix and save."
+              ? `A ${water ? "saved" : "posted"} sale is not edited. It is reversed, and a new sale is opened filled in from it for you to fix and save.`
               : "The sale stays in the history, marked Reversed. Its revenue, what the customer owes and its stock are undone with opposite entries."}
           </DialogDescription>
         </DialogHeader>
@@ -188,6 +196,9 @@ export function ReverseSaleDialog({
                 {preview.payments.length > 0 && (
                   <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Release the payments applied to it (below)</li>
                 )}
+                {(preview.creditApplied ?? 0) > 0 && (
+                  <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Give back the {money(preview.creditApplied ?? 0)} of customer credit used on it</li>
+                )}
                 <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Keep the sale, its payments and its stock movements in the history</li>
               </ul>
             </FormSection>
@@ -210,7 +221,7 @@ export function ReverseSaleDialog({
                         <p className="text-sm font-semibold tabular-nums">{money(p.allocated)}</p>
                       </div>
                       <p className="text-xs text-slate-500">
-                        {[p.paymentMethod, p.cashAccountName].filter(Boolean).join(" · ") || "No cash account"}
+                        {[p.paymentMethod, p.cashAccountName].filter(Boolean).join(" · ") || (water ? "Payment" : "No cash account")}
                         {p.paymentTotal > p.allocated + 0.005 && ` · ${money(p.paymentTotal)} payment, ${money(p.allocated)} of it on this sale`}
                       </p>
                       {both ? (
@@ -224,7 +235,10 @@ export function ReverseSaleDialog({
                             <span className="text-sm">
                               <span className="font-medium">Reverse the payment</span>
                               <span className="block text-xs text-slate-600">
-                                {p.paymentNumbers ? `Payment ${p.paymentNumbers}` : "The money received"} is reversed. {p.cashAccountName || "Its cash account"} decreases by {money(p.allocated)}, shown in Cash Flow as a payment reversal (not an expense).
+                                {p.paymentNumbers ? `Payment ${p.paymentNumbers}` : "The money received"} is reversed.{" "}
+                                {water
+                                  ? `It stays on Cash Flow on the day it came in, and ${money(p.allocated)} goes out today as a payment reversal (not an expense).`
+                                  : `${p.cashAccountName || "Its cash account"} decreases by ${money(p.allocated)}, shown in Cash Flow as a payment reversal (not an expense).`}
                               </span>
                             </span>
                           </label>
@@ -233,19 +247,20 @@ export function ReverseSaleDialog({
                             <span className="text-sm">
                               <span className="font-medium">Keep it as customer credit</span>
                               <span className="block text-xs text-slate-600">
-                                The money stays received. {money(p.allocated)} becomes credit the customer can use on another sale. The cash account does not change.
+                                The money stays received. {money(p.allocated)} becomes credit the customer can use on another sale. {water ? "Cash Flow does not change." : "The cash account does not change."}
                               </span>
                             </span>
                           </label>
                         </RadioGroup>
                       ) : action === "ReversePayment" ? (
                         <p className="rounded-md bg-red-50 p-2.5 text-xs text-red-800">
-                          This sale has no customer to hold the money as credit, so the {money(p.allocated)} is reversed: {p.cashAccountName || "its cash account"} decreases by that amount.
+                          This sale has no customer to hold the money as credit, so the {money(p.allocated)} is reversed
+                          {water ? " (Cash Flow shows it going out today)." : `: ${p.cashAccountName || "its cash account"} decreases by that amount.`}
                         </p>
                       ) : (
                         <p className="rounded-md bg-slate-50 p-2.5 text-xs text-slate-700">
                           {p.reverseUnavailableReason || "This payment stays Posted."} Cash does not change; {money(p.allocated)} becomes customer credit.
-                          {" "}To give the money back, refund it from Customer Balances afterwards.
+                          {" "}To give the money back, refund it from {water ? "Customer Credits" : "Customer Balances"} afterwards.
                         </p>
                       )}
                     </div>
@@ -254,13 +269,15 @@ export function ReverseSaleDialog({
                 {outcome && (
                   <div className="grid grid-cols-2 gap-2">
                     <Figure label="Becomes customer credit" value={money(outcome.creditCreated)} />
-                    <Figure label="Money out of cash" value={money(outcome.cashOut)} tone={outcome.cashOut > 0 ? "warn" : undefined} />
+                    <Figure label={water ? "Payments reversed" : "Money out of cash"} value={money(outcome.cashOut)} tone={outcome.cashOut > 0 ? "warn" : undefined} />
                   </div>
                 )}
               </FormSection>
             ) : (
               <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">
-                Nothing was paid on this sale, so no money moves.
+                {(preview.creditApplied ?? 0) > 0
+                  ? "No money was paid on this sale; the customer credit used on it goes back to the customer."
+                  : "Nothing was paid on this sale, so no money moves."}
               </p>
             )}
 
@@ -280,7 +297,7 @@ export function ReverseSaleDialog({
                   onChange={(e) => setReason(e.target.value)}
                   placeholder={noteRequired
                     ? "Say what happened (needed for Other)"
-                    : mode === "correct" ? "Note (optional), e.g. price should have been 25 per crate" : "Note (optional)"}
+                    : mode === "correct" ? `Note (optional), e.g. price should have been 25 per ${water ? "bag" : "crate"}` : "Note (optional)"}
                   rows={2}
                   className="bg-white"
                 />

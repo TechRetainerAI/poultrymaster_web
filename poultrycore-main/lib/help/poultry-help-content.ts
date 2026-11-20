@@ -86,6 +86,7 @@ If the farm already has birds, run Initial Farm Setup (under Tools) once, so the
       { label: "Production Setup", href: "/poultry-setup?section=production" },
       { label: "Business Setup", href: "/poultry-setup?section=business" },
       { label: "Initial Farm Setup", href: "/poultry-farm-setup" },
+      { label: "Setup Guide page", href: "/poultry-setup-guide" },
     ],
   }),
   faq({

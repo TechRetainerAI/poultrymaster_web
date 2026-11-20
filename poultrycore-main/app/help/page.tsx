@@ -251,32 +251,6 @@ export default function HelpPage() {
               </div>
             ) : (
               <>
-                {/* Feature Guide */}
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <BookOpen className="w-5 h-5 text-indigo-600" />
-                    Feature Guide
-                  </h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                    {FEATURE_GUIDES.filter((g) => canOpen(g.path)).map((guide) => (
-                      <Link key={guide.path} href={guide.path} className="group">
-                        <Card className="h-full transition-all group-hover:-translate-y-0.5 group-hover:shadow-md">
-                          <CardContent className="p-4 text-center">
-                            {/* The icon in its own tinted disc: ten grey glyphs
-                                in a row are hard to tell apart at a glance, and
-                                this grid is meant to be scanned, not read. */}
-                            <div className={`mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-xl ${guide.tint}`}>
-                              <guide.icon className="h-6 w-6" />
-                            </div>
-                            <div className="text-sm font-medium text-slate-900">{guide.title}</div>
-                            <div className="mt-1 hidden text-xs text-slate-500 sm:block">{guide.description}</div>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Questions / Troubleshooting / Glossary */}
                 <Tabs value={tab} onValueChange={setTab}>
                   <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
@@ -384,6 +358,32 @@ export default function HelpPage() {
                     </Card>
                   </TabsContent>
                 </Tabs>
+
+                {/* Feature Guide */}
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-indigo-600" />
+                    Feature Guide
+                  </h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                    {FEATURE_GUIDES.filter((g) => canOpen(g.path)).map((guide) => (
+                      <Link key={guide.path} href={guide.path} className="group">
+                        <Card className="h-full transition-all group-hover:-translate-y-0.5 group-hover:shadow-md">
+                          <CardContent className="p-4 text-center">
+                            {/* The icon in its own tinted disc: ten grey glyphs
+                                in a row are hard to tell apart at a glance, and
+                                this grid is meant to be scanned, not read. */}
+                            <div className={`mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-xl ${guide.tint}`}>
+                              <guide.icon className="h-6 w-6" />
+                            </div>
+                            <div className="text-sm font-medium text-slate-900">{guide.title}</div>
+                            <div className="mt-1 hidden text-xs text-slate-500 sm:block">{guide.description}</div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               </>
             )}
 
