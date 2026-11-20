@@ -139,6 +139,7 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            req.SavedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? req.SavedBy;   // 460
             var item = await _svc.UpsertItemAsync(id, farmId, req);
             return item is null ? StatusCode(500, "Item upsert returned no row.") : Ok(item);
         }

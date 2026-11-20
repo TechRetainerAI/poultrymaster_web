@@ -126,7 +126,11 @@ export default function WaterPayrollPage() {
    */
   const [loanHints, setLoanHints] =
     useState<Map<number, WaterPayrollDeductionRunRow>>(new Map())
-  const [itemForm, setItemForm] = useState({ waterStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash", notes: "" })
+  // 460. `deductions` is the typed "Other deductions" ONLY; advance repayments
+  // are their own rows (added on save) and `keepCredit` is the wage kept as
+  // employee credit, saved in the same call as the line.
+  const blankItemForm = () => ({ waterStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, keepCredit: 0, paymentMethod: "Cash", notes: "" })
+  const [itemForm, setItemForm] = useState(blankItemForm)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
@@ -204,10 +208,8 @@ export default function WaterPayrollPage() {
     try {
       const list = await listEligibleWaterEmployeeLoans(staffId)
       setStaffLoans(list)
-      // Put the figure in the box, so the item shows what it will actually
-      // deduct rather than 0 followed by a number appearing after saving.
-      const auto = list.reduce((sum, e) => sum + payrollDeductionFor(e), 0)
-      setItemForm((f) => ({ ...f, deductions: auto }))
+      // 460: the repayment is shown below the form and added as its own row on
+      // save -- it is no longer put into the "Other deductions" box.
     } catch {
       // Not knowing about an advance must never stop an item being added.
       setStaffLoans([])
@@ -263,10 +265,25 @@ export default function WaterPayrollPage() {
     if (!editing) return
     if (!itemForm.waterStaffId) return toast({ title: "Pick staff", variant: "destructive" })
     try {
-      const saved = await upsertWaterPayrollItem(editing.waterPayrollRunId, itemForm)
+      const other = Number(itemForm.deductions) || 0
+      const keep = Number(itemForm.keepCredit) || 0
+      const saved = await upsertWaterPayrollItem(editing.waterPayrollRunId, {
+        waterStaffId: itemForm.waterStaffId,
+        basicPay: Number(itemForm.basicPay) || 0, dailyWage: Number(itemForm.dailyWage) || 0,
+        commission: Number(itemForm.commission) || 0, bonus: Number(itemForm.bonus) || 0,
+        deductions: other + keep, otherDeductions: other, employeeCredit: keep,
+        paymentMethod: itemForm.paymentMethod, notes: itemForm.notes || null,
+      })
       const added = await autoAddSuggestedDeductions(
         (saved as any).waterPayrollItemId, itemForm.waterStaffId)
-      setItemForm({ waterStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash", notes: "" })
+      const who = staff.find((s) => s.waterStaffId === itemForm.waterStaffId)
+      setItemForm(blankItemForm())
+      if (keep > 0) {
+        toast({
+          title: "Wages to keep",
+          description: `${keep.toFixed(2)} will be kept for ${who ? `${who.firstName} ${who.lastName}` : "this worker"} as employee credit when the payroll is approved.`,
+        })
+      }
       setStaffLoans([])
       await refreshEditing(); await load()
       toast({
@@ -688,8 +705,16 @@ export default function WaterPayrollPage() {
                       <NumberInput min={0} step="0.01" value={itemForm.commission} onChange={(e) => setItemForm({ ...itemForm, commission: Number(e.target.value) || 0 })} /></div>
                     <div><Label>Bonus</Label>
                       <NumberInput min={0} step="0.01" value={itemForm.bonus} onChange={(e) => setItemForm({ ...itemForm, bonus: Number(e.target.value) || 0 })} /></div>
-                    <div><Label>Deductions</Label>
+                    <div><Label>Other deductions</Label>
+                      {/* 460: typed deductions only (uniform, damage...). Advance
+                          repayments are their own rows, added on save. */}
                       <NumberInput min={0} step="0.01" value={itemForm.deductions} onChange={(e) => setItemForm({ ...itemForm, deductions: Number(e.target.value) || 0 })} /></div>
+                    <div><Label>Keep as employee credit</Label>
+                      <NumberInput min={0} step="0.01" value={itemForm.keepCredit} onChange={(e) => setItemForm({ ...itemForm, keepCredit: Number(e.target.value) || 0 })} />
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Part of the wage the worker asked you to hold. Paid out later from{" "}
+                        <a href="/water-employee-credit" className="underline underline-offset-2">Employee Credit</a>.
+                      </p></div>
                     {/* What this person already owes, BEFORE the item is
                         saved. The advance repayment is applied automatically on
                         save, so without this the Deductions figure would be a
@@ -730,7 +755,7 @@ export default function WaterPayrollPage() {
                             </ul>
                             <p className="mt-2 text-[11px] text-sky-700/80">
                               Added automatically when you save the item, and editable afterwards from the
-                              Deductions figure. Nothing is repaid until the payroll is approved.
+                              line's Deductions figure. Nothing is repaid until the payroll is approved.
                             </p>
                           </>
                         )}

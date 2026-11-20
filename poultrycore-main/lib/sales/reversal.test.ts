@@ -71,6 +71,8 @@ describe("labels", () => {
     expect(restoreLabel({ restoreQuantity: 300, restoreUnit: "eggs", restoreProductName: "Large" })).toBe("300 eggs (Large)")
     expect(restoreLabel({ restoreQuantity: 10, restoreUnit: "birds", restoreProductName: "Birds" })).toBe("10 birds")
     expect(restoreLabel({ restoreQuantity: 0, restoreUnit: "eggs", restoreProductName: "Large" })).toBeNull()
+    // 458: a water line names its own unit
+    expect(restoreLabel({ restoreQuantity: 10, restoreUnit: "Bag", restoreProductName: "Pure water" })).toBe("10 Bag (Pure water)")
   })
 
   it("names where a payment came from", () => {
