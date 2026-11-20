@@ -63,6 +63,7 @@ import {
   GraduationCap,
   ClipboardCheck,
   PlayCircle,
+  Compass,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -1019,6 +1020,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             one click away (they are also inside the System menu). Poultry
             only, since the videos teach the poultry screens. */}
         {poultryNav && renderNavItem({ href: "/poultry-videos", label: "Support Videos", icon: PlayCircle })}
+        {/* Setup Guide -- its own page; its words and pictures are read from the
+            Help Center's "set up my farm" answer, not copied. */}
+        {poultryNav && renderNavItem({ href: "/poultry-setup-guide", label: "Setup Guide", icon: Compass })}
+        {/* Help Center -- its own row under the videos, for the same reason
+            (it is also inside the System menu). */}
+        {poultryNav && renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
       </nav>
 
       {/* Logout */}

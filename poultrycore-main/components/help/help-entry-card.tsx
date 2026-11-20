@@ -2,14 +2,13 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { Check, ChevronDown, ChevronUp, ExternalLink, Link2 } from "lucide-react"
+import { ArrowRight, Check, ChevronDown, ChevronUp, ExternalLink, Images, Link2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { highlightRuns } from "@/lib/help/help-search"
 import type { HelpEntry } from "@/lib/help/help-types"
 import { shotsFor } from "@/lib/help/help-shots"
-import { HelpShots } from "./help-shots"
 
 export interface HelpTone {
   rail: string
@@ -139,7 +138,19 @@ export function HelpEntryCard({
           <div className="px-4 pb-4 pt-0 sm:px-5">
             <div className="border-t border-slate-100 pt-3 text-sm leading-relaxed text-slate-600">
               <HelpBody body={entry.body} matched={matched} />
-              <HelpShots shots={shotsFor(entry.id)} title={entry.title} />
+              {/* The picture walkthroughs live on the Setup Guide page now
+                  (components/help/setup-guide-card.tsx); an answer that has
+                  one points there instead of repeating the pictures. */}
+              {shotsFor(entry.id).length > 0 && (
+                <Link
+                  href={`/poultry-setup-guide#${entry.id}`}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                >
+                  <Images className="h-3.5 w-3.5" />
+                  See it step by step in the Setup Guide ({shotsFor(entry.id).length} pictures)
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              )}
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {links.map((l) => (
