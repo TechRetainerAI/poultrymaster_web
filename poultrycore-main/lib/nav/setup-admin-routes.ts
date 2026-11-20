@@ -29,7 +29,7 @@ export const SETUP_ADMIN_ROUTES: readonly string[] = [
   "/water-products", "/water-machines", "/water-boreholes",
   "/water-customers", "/water-suppliers",
   // Generic
-  "/generic-setup", "/generic-settings",
+  "/generic-setup", "/generic-settings", "/generic-business-features",
   // Hotel
   "/hotel-company-setup", "/hotel-setup", "/hotel-customers", "/hotel-suppliers",
   // Restaurant

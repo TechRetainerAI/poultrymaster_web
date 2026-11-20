@@ -219,11 +219,13 @@ export default function GenericBusinessFeaturesPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="max-w-4xl mx-auto space-y-4">
+          <div className="space-y-4">
+            <button type="button" onClick={() => router.back()} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700">
+              <ArrowLeft className="h-3 w-3 mr-1" /> Back
+            </button>
             {/* Page header */}
             <div className="flex items-end justify-between flex-wrap gap-2">
               <div>
-                <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
                 <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                   <Settings2 className="h-6 w-6 text-indigo-600" />
                   Business Features
@@ -283,7 +285,7 @@ export default function GenericBusinessFeaturesPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                     {groups.map(({ group, features }) => (
                       <Card key={group}>
                         <CardHeader className="pb-2">
@@ -333,7 +335,7 @@ export default function GenericBusinessFeaturesPage() {
                     ))}
 
                     {/* Info note */}
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 flex gap-3">
+                    <div className="lg:col-span-2 rounded-lg border border-slate-200 bg-white p-4 flex gap-3">
                       <Info className="h-5 w-5 text-slate-400 shrink-0 mt-0.5" />
                       <div className="text-sm text-slate-600">
                         <p className="font-medium">Disabling a feature hides it from menus</p>
