@@ -688,7 +688,41 @@ export const previewPoultryManualMovement = (q: { productId?: number | null; raw
   return jget<PoultryManualMovementPreview>(`/Poultry/stock/manual-movements/preview?${qs.toString()}`)
 }
 export const postPoultryManualMovement = (input: PoultryManualMovementInput) =>
-  jsend<PoultryManualMovementResult>(`/Poultry/stock/manual-movements`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
+  jsend<PoultryManualMovementResult>(`/Poultry/stock/manual-movements?farmId=${encodeURIComponent(activeFarmId())}`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
+// 440: Batch bird count -- one batch's flocks set to their counted birds in one
+// save; each flock's change is posted as its own Stock Count Correction movement.
+export interface PoultryBatchBirdCountInput {
+  batchId: number
+  /** yyyy-MM-dd: the day the birds were counted. */
+  effectiveDate: string
+  /** currentBirds = the birds ON THE COUNT DATE the page showed, so a flock that changed since is refused. */
+  lines: { flockId: number; countedBirds: number; currentBirds: number }[]
+  note?: string | null
+  requestKey?: string | null
+}
+export interface PoultryBatchBirdCountResult {
+  repeated: boolean
+  posted?: number
+  totalBefore?: number
+  totalAfter?: number
+  farmLiveBirds?: number
+  movements: { flockId: number; flockName?: string; before?: number; counted?: number; change: number; movementNo: string | null }[]
+}
+export const postPoultryBatchBirdCount = (input: PoultryBatchBirdCountInput) =>
+  jsend<PoultryBatchBirdCountResult>(`/Poultry/stock/bird-count?farmId=${encodeURIComponent(activeFarmId())}`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
+/** 441: a batch's open flocks with their birds at the END of the count date, and now. */
+export interface PoultryBirdCountSheetRow {
+  flockId: number
+  flockName: string
+  startDate: string | null
+  /** null = the flock had not started on the count date. */
+  birdsOnDate: number | null
+  birdsNow: number
+  hasProductionRecord: boolean
+}
+export const getPoultryBirdCountSheet = (batchId: number, date: string) =>
+  jget<PoultryBirdCountSheetRow[]>(`/Poultry/stock/bird-count/sheet?farmId=${encodeURIComponent(activeFarmId())}&batchId=${batchId}&date=${encodeURIComponent(date)}`)
+
 // 374: whether Broken Eggs / Dead Birds are offered in Add Sale.
 export interface PoultryByproductSettings {
   brokenEggsInSales: boolean
@@ -747,7 +781,7 @@ export const getByproductTracker = (role: ByproductRole, opts: { fromDate: strin
 }
 
 export const reversePoultryManualMovement = (movementId: number, reason: string) =>
-  jsend<{ movementId: number; movementNo: string; status: string }>(`/Poultry/stock/manual-movements/${movementId}/reverse`, "POST", { farmId: activeFarmId(), reason, reversedBy: activeUserId() })
+  jsend<{ movementId: number; movementNo: string; status: string }>(`/Poultry/stock/manual-movements/${movementId}/reverse?farmId=${encodeURIComponent(activeFarmId())}`, "POST", { farmId: activeFarmId(), reason, reversedBy: activeUserId() })
 
 // ===================== Recipes (slice 3) =====================
 export interface PoultryRecipeItem {

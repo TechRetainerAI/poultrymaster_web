@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { FieldCard } from "@/components/ui/field-card"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Loader2, Download, Undo2 } from "lucide-react"
+import { Plus, Loader2, Download, Undo2, ClipboardList } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useCurrency, useFmt } from "@/lib/currency"
@@ -32,6 +32,7 @@ import {
   type PoultryProduct, type PoultryStockTransaction, type PoultryRawMaterialItem, type PoultryManualMovement,
 } from "@/lib/api/poultry-inventory"
 import { ManualStockMovementDialog } from "@/components/poultry/manual-stock-movement-dialog"
+import { BatchBirdCountDialog } from "@/components/poultry/batch-bird-count-dialog"
 import { boxSize, formatEggQuantity, formatEggs, formatPackaged } from "@/lib/poultry/egg-packaging"
 import { useEggPackaging } from "@/hooks/use-egg-packaging"
 import { byproductRole } from "@/lib/poultry/byproducts"
@@ -136,9 +137,11 @@ export default function PoultryStockPage() {
   const [rawMoves, setRawMoves] = useState<Move[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
+  // 440: Batch bird count.
+  const [countOpen, setCountOpen] = useState(false)
   // 373: manual movements (MSM-00001), for their provenance and reversal.
   const [manual, setManual] = useState<PoultryManualMovement[]>([])
-  const { isAdmin } = usePermissions()
+  const { isAdmin, can } = usePermissions()
   const [reverseTarget, setReverseTarget] = useState<PoultryManualMovement | null>(null)
   const [reverseReason, setReverseReason] = useState("")
   const [reversing, setReversing] = useState(false)
@@ -436,6 +439,9 @@ export default function PoultryStockPage() {
               <Button variant="outline" className={TOOLBAR_BTN} onClick={handleExportCsv} disabled={loading}>
                 <Download className="w-4 h-4 mr-1" /> Export CSV
               </Button>
+              {can("poultry.bird-count.view") && (
+                <Button variant="outline" className={TOOLBAR_BTN} onClick={() => setCountOpen(true)}><ClipboardList className="w-4 h-4 mr-1" /> Batch bird count</Button>
+              )}
               <Button className={TOOLBAR_BTN} onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
             </div>
           </div>
@@ -566,6 +572,7 @@ export default function PoultryStockPage() {
       </div>
 
       <ManualStockMovementDialog open={open} onOpenChange={setOpen} products={products} rawItems={rawItems} onSaved={load} />
+      <BatchBirdCountDialog open={countOpen} onOpenChange={setCountOpen} onSaved={load} />
 
       {/* 373: reversal appends the opposite; the original stays in the list. */}
       <Dialog open={!!reverseTarget} onOpenChange={(o) => { if (!o) setReverseTarget(null) }}>

@@ -157,6 +157,39 @@ namespace PoultryFarmAPIWeb.Models
         public string? ReversedBy { get; set; }
     }
 
+    /// <summary>440: one batch's flocks set to their counted birds in one save.</summary>
+    public class PoultryBatchBirdCountRequest
+    {
+        [Required] public string FarmId { get; set; } = string.Empty;
+        public int BatchId { get; set; }
+        public DateTime? EffectiveDate { get; set; }
+        public List<PoultryBatchBirdCountLine> Lines { get; set; } = new();
+        public string? Note { get; set; }
+        public string? RequestKey { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+
+    /// <summary>441: one open flock of the batch, birds at the end of the count date and now.</summary>
+    public class PoultryBirdCountSheetRow
+    {
+        public int FlockId { get; set; }
+        public string FlockName { get; set; } = string.Empty;
+        public DateTime? StartDate { get; set; }
+        /// <summary>Null when the flock had not started on the count date.</summary>
+        public int? BirdsOnDate { get; set; }
+        public int BirdsNow { get; set; }
+        public bool HasProductionRecord { get; set; }
+    }
+
+    public class PoultryBatchBirdCountLine
+    {
+        public int FlockId { get; set; }
+        /// <summary>The birds counted; null = this flock was not counted.</summary>
+        public int? CountedBirds { get; set; }
+        /// <summary>The birds on the count date the page showed, so a flock that changed since is refused.</summary>
+        public int? CurrentBirds { get; set; }
+    }
+
     public class PoultryManualMovementModel
     {
         public int MovementId { get; set; }
