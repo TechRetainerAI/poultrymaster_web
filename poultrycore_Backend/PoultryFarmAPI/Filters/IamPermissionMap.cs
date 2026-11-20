@@ -211,6 +211,10 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/payments"] = "poultry.payments",
             ["poultry/products"] = "poultry.products",
             ["poultry/stock"] = "poultry.stock",
+            // 441. Batch Bird Count: setting every flock of a batch to its counted
+            // birds is its own right, not simply "can add a stock movement".
+            // GET sheet = view, POST = create. Longest prefix wins over poultry/stock.
+            ["poultry/stock/bird-count"] = "poultry.bird-count",
             // 413. Reconciling a batch's birds is part of managing the batch.
             ["poultry/bird-reconciliation"] = "poultry.flock-batches",
             ["poultry/production-batches"] = "poultry.production-records",

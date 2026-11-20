@@ -10,7 +10,7 @@ export type BirdsLeftLedgerRow = {
   id: string
   date: string
   type: "IN" | "OUT"
-  category: "Placement" | "Mortality" | "Bird sale" | "Cull / transfer / other"
+  category: "Placement" | "Mortality" | "Bird sale" | "Cull / transfer / other" | "Count correction"
   flockId: number
   flockName: string
   quantity: number
@@ -26,8 +26,25 @@ export type FlockBirdsSummary = {
   totalBirdSalesOut: number
   /** Culled, transferred out or otherwise lost before tracking began (Initial Farm Setup). */
   totalOtherOut: number
+  /** Net of the flock's bird count corrections (Stock Count Correction, Batch Bird Count): + up, - down. */
+  totalCorrection: number
   birdsLeftCalculated: number
   birdsLeftFromLatestLog: number | null
+}
+
+/**
+ * A flock's bird adjustment (GET /Poultry/stock/birds/adjustments): a stock count
+ * correction from Stock Movements or Batch Bird Count (440), or its reversal.
+ * quantity is signed. productionRecordId null = applied to the flock's own count
+ * (no production record yet).
+ */
+export type BirdCountCorrection = {
+  birdAdjustmentId: number
+  adjustmentDate: string
+  flockId: number | null
+  quantity: number
+  productionRecordId?: number | null
+  note?: string | null
 }
 
 /** The flock's server-side bird position (migration 421), when the API has it. */
@@ -61,6 +78,7 @@ export function buildBirdsLeftLedger(
   productionRecords: ProductionRecord[],
   sales: Sale[],
   positions?: FlockPositionLookup,
+  corrections: BirdCountCorrection[] = [],
 ): BirdsLeftLedgerRow[] {
   const rows: BirdsLeftLedgerRow[] = []
   const flockName = (id: number) => flocks.find((f) => f.flockId === id)?.name ?? `Flock #${id}`
@@ -144,6 +162,29 @@ export function buildBirdsLeftLedger(
     })
   }
 
+  // Bird count corrections (440). The flock's bird position keeps them out of
+  // "originally placed", so they are rows of their own -- up as IN, down as OUT.
+  // Without positions (API before 421) a correction made before the flock's first
+  // production record is already inside flock.quantity, so it is not repeated.
+  for (const c of corrections) {
+    const fid = c.flockId
+    if (fid == null) continue
+    const q = Number(c.quantity) || 0
+    if (q === 0) continue
+    if (!positions?.get(fid) && c.productionRecordId == null) continue
+    rows.push({
+      id: `adj-${c.birdAdjustmentId}`,
+      date: (c.adjustmentDate ?? "").split("T")[0] || "",
+      type: q > 0 ? "IN" : "OUT",
+      category: "Count correction",
+      flockId: fid,
+      flockName: flockName(fid),
+      quantity: Math.abs(q),
+      description: c.note?.trim() || (q > 0 ? "Stock count correction (more birds counted)" : "Stock count correction (fewer birds counted)"),
+      sourceId: c.birdAdjustmentId,
+    })
+  }
+
   rows.sort((a, b) => {
     const da = a.date || ""
     const db = b.date || ""
@@ -160,8 +201,9 @@ export function summarizeBirdsLeftByFlock(
   productionRecords: ProductionRecord[],
   sales: Sale[],
   positions?: FlockPositionLookup,
+  corrections: BirdCountCorrection[] = [],
 ): FlockBirdsSummary[] {
-  const ledger = buildBirdsLeftLedger(flocks, productionRecords, sales, positions)
+  const ledger = buildBirdsLeftLedger(flocks, productionRecords, sales, positions, corrections)
 
   return flocks.map((flock) => {
     const placedIn = placedFor(flock, positions)
@@ -171,7 +213,10 @@ export function summarizeBirdsLeftByFlock(
     const totalMortalityOut = sumOf("Mortality")
     const totalBirdSalesOut = sumOf("Bird sale")
     const totalOtherOut = sumOf("Cull / transfer / other")
-    const birdsLeftCalculated = Math.max(0, placedIn - totalMortalityOut - totalBirdSalesOut - totalOtherOut)
+    const totalCorrection = flockRows
+      .filter((r) => r.category === "Count correction")
+      .reduce((s, r) => s + (r.type === "IN" ? r.quantity : -r.quantity), 0)
+    const birdsLeftCalculated = Math.max(0, placedIn - totalMortalityOut - totalBirdSalesOut - totalOtherOut + totalCorrection)
     const fromLog = getBirdsLeftForFlockFromRecords(productionRecords, flock.flockId)
     const birdsLeftFromLatestLog =
       productionRecords.some((r) => r.flockId === flock.flockId) ? fromLog : null
@@ -183,6 +228,7 @@ export function summarizeBirdsLeftByFlock(
       totalMortalityOut,
       totalBirdSalesOut,
       totalOtherOut,
+      totalCorrection,
       birdsLeftCalculated,
       birdsLeftFromLatestLog,
     }
