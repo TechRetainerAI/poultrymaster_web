@@ -39,6 +39,10 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<WaterSaleModel>> GetAll(string farmId);
         Task Cancel(int id, string farmId);
         Task Delete(int id, string farmId);
+        // 458: reversal
+        Task<string> GetReversalPreview(int saleId, string farmId);
+        Task<string?> GetReversal(int saleId, string farmId);
+        Task<int> Reverse(int saleId, SaleReverseRequest req);
     }
 
     public interface IWaterPaymentService

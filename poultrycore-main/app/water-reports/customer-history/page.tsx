@@ -50,7 +50,8 @@ export default function CustomerHistoryReportPage() {
       const allSales = await listWaterSales()
       const inScope = (allSales ?? []).filter((s: any) => {
         const d = (s.saleDate ?? "").slice(0, 10)
-        return s.waterCustomerId === Number(customerId) && d >= fromDate && d <= toDate
+        // 458: reversed / cancelled sales are not owed and not revenue.
+        return s.waterCustomerId === Number(customerId) && d >= fromDate && d <= toDate && s.status !== "Cancelled"
       })
       const enriched: SaleRow[] = await Promise.all(inScope.map(async (s: any) => {
         const payments = await listWaterPaymentsBySale(s.waterSaleId).catch(() => [])

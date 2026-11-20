@@ -3,6 +3,8 @@
 import { EggsPerCrateLoader } from "@/hooks/use-eggs-per-crate"
 import { EggPackagingLoader } from "@/hooks/use-egg-packaging"
 import { useFarmAlertCount } from "@/hooks/use-farm-alert-count"
+// 465: Water has its own Alerts page; both hooks are called every render (rules of hooks).
+import { useWaterAlertCount } from "@/hooks/use-water-alerts"
 
 import { Button } from "@/components/ui/button"
 import { MessageCircle, User, Menu, Briefcase, Bell } from "lucide-react"
@@ -23,7 +25,11 @@ export function DashboardHeader() {
   const openChat = useChatStore((s) => s.openChat)
   const { isCollapsed, isMobileOpen, toggleMobile } = useSidebarStore()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
-  const alertCount = useFarmAlertCount()
+  const poultryAlertCount = useFarmAlertCount()
+  const waterAlertCount = useWaterAlertCount()
+  const alertCount = activeFarmType === "Water" ? waterAlertCount : poultryAlertCount
+  const alertsHref = activeFarmType === "Water" ? "/water-alerts" : "/poultry-alerts"
+  const showAlerts = activeFarmType === "Poultry" || activeFarmType === "Water"
   const [username, setUsername] = useState("")
   const [roleLabel, setRoleLabel] = useState("")
 
@@ -93,13 +99,13 @@ export function DashboardHeader() {
                 the active company on the way in (same behaviour as the sidebar),
                 because it is the one destination above all companies. */}
             <div className="flex items-center gap-1">
-              {/* Farm Alerts: completeness, unsorted eggs, flock alerts, stock
-                  running low. Poultry only -- the page is poultry's. */}
-              {activeFarmType === "Poultry" && (
+              {/* Alerts: Poultry's Farm Alerts (completeness, unsorted eggs, flock
+                  alerts, stock) or Water's Alerts (465). */}
+              {showAlerts && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => router.push("/poultry-alerts")}
+                  onClick={() => router.push(alertsHref)}
                   title={alertCount ? `Farm Alerts — ${alertCount} need attention` : "Farm Alerts"}
                   aria-label={alertCount ? `Farm Alerts, ${alertCount} need attention` : "Farm Alerts"}
                   className="relative shrink-0 text-slate-300 hover:text-white hover:bg-slate-800"
@@ -179,11 +185,11 @@ export function DashboardHeader() {
             )}
 
             <div className="flex items-center gap-0.5 shrink-0">
-              {activeFarmType === "Poultry" && (
+              {showAlerts && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => router.push("/poultry-alerts")}
+                  onClick={() => router.push(alertsHref)}
                   aria-label={alertCount ? `Farm Alerts, ${alertCount} need attention` : "Farm Alerts"}
                   className="relative text-slate-300 hover:text-white hover:bg-slate-800 h-10 w-10"
                 >

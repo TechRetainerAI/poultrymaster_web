@@ -205,6 +205,18 @@ namespace PoultryFarmAPIWeb.Models
         // NULL when nothing is paid yet, the single method used, or "Mixed".
         public string? PaymentMethod { get; set; }
 
+        // Migration 458 -- a saved sale is reversed, never deleted. Status stays
+        // 'Cancelled' (every reader already excludes it); SaleReversalId marks it.
+        public int? SaleReversalId { get; set; }
+        public string? ReversalNumber { get; set; }
+        public DateTime? ReversedAt { get; set; }
+        public string? ReversedBy { get; set; }
+        public string? ReversalReason { get; set; }
+        /// <summary>The reversed sale this one corrects (Edit &amp; repost).</summary>
+        public int? CorrectsSaleId { get; set; }
+        /// <summary>The sale that corrected this reversed one.</summary>
+        public int? CorrectedBySaleId { get; set; }
+
         // Populated by GetById / Create
         public List<WaterSaleItemModel> Items { get; set; } = new();
     }
@@ -223,6 +235,9 @@ namespace PoultryFarmAPIWeb.Models
         public string? Notes { get; set; }
 
         public string? CreatedBy { get; set; }
+
+        /// <summary>458: Edit &amp; repost -- the reversed sale this new sale replaces.</summary>
+        public int? CorrectsSaleId { get; set; }
 
         [Required]
         [MinLength(1)]

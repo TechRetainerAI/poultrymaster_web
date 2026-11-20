@@ -167,6 +167,9 @@ export const FLOW_GROUP_LABELS: Record<string, string> = {
   // Migration 307.
   EmployeeLoanOut: "Employee advance",
   EmployeeLoanIn: "Employee advance repaid",
+  // 441 / 460: money kept for staff -- handed in to keep, and paid out.
+  EmployeeCreditIn: "Employee credit received",
+  EmployeeCreditOut: "Employee credit paid out",
 }
 
 export const flowGroupLabel = (g: string): string => FLOW_GROUP_LABELS[g] ?? g
@@ -181,4 +184,4 @@ export const flowGroupLabel = (g: string): string => FLOW_GROUP_LABELS[g] ?? g
  * thing nobody notices for a quarter.
  */
 export const isInflowGroup = (g: string): boolean =>
-  g === "OperatingIn" || g === "FinancingIn" || g === "EmployeeLoanIn"
+  g === "OperatingIn" || g === "FinancingIn" || g === "EmployeeLoanIn" || g === "EmployeeCreditIn"
