@@ -688,7 +688,7 @@ export const previewPoultryManualMovement = (q: { productId?: number | null; raw
   return jget<PoultryManualMovementPreview>(`/Poultry/stock/manual-movements/preview?${qs.toString()}`)
 }
 export const postPoultryManualMovement = (input: PoultryManualMovementInput) =>
-  jsend<PoultryManualMovementResult>(`/Poultry/stock/manual-movements`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
+  jsend<PoultryManualMovementResult>(`/Poultry/stock/manual-movements?farmId=${encodeURIComponent(activeFarmId())}`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
 // 440: Batch bird count -- one batch's flocks set to their counted birds in one
 // save; each flock's change is posted as its own Stock Count Correction movement.
 export interface PoultryBatchBirdCountInput {
@@ -709,7 +709,7 @@ export interface PoultryBatchBirdCountResult {
   movements: { flockId: number; flockName?: string; before?: number; counted?: number; change: number; movementNo: string | null }[]
 }
 export const postPoultryBatchBirdCount = (input: PoultryBatchBirdCountInput) =>
-  jsend<PoultryBatchBirdCountResult>(`/Poultry/stock/bird-count`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
+  jsend<PoultryBatchBirdCountResult>(`/Poultry/stock/bird-count?farmId=${encodeURIComponent(activeFarmId())}`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
 /** 441: a batch's open flocks with their birds at the END of the count date, and now. */
 export interface PoultryBirdCountSheetRow {
   flockId: number
@@ -781,7 +781,7 @@ export const getByproductTracker = (role: ByproductRole, opts: { fromDate: strin
 }
 
 export const reversePoultryManualMovement = (movementId: number, reason: string) =>
-  jsend<{ movementId: number; movementNo: string; status: string }>(`/Poultry/stock/manual-movements/${movementId}/reverse`, "POST", { farmId: activeFarmId(), reason, reversedBy: activeUserId() })
+  jsend<{ movementId: number; movementNo: string; status: string }>(`/Poultry/stock/manual-movements/${movementId}/reverse?farmId=${encodeURIComponent(activeFarmId())}`, "POST", { farmId: activeFarmId(), reason, reversedBy: activeUserId() })
 
 // ===================== Recipes (slice 3) =====================
 export interface PoultryRecipeItem {
