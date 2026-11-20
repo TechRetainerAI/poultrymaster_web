@@ -5,7 +5,7 @@
 //
 // A Water user typing /hotel-rooms, or a Hotel user typing /water-staff, will
 // be shown a friendly "not available" screen instead of the page. This replaces
-// the separate WaterAccessGuard and HotelAccessGuard and covers all five types.
+// the separate WaterAccessGuard and HotelAccessGuard and covers all six types.
 //
 // Mounted once in app/layout.tsx. Deliberately waits for both the active farm
 // type and auth token before acting so SSR and initial hydration don't bounce.
@@ -38,6 +38,10 @@ const ROUTE_PREFIX_TO_TYPE: Record<string, CompanyType> = {
 
   // Generic
   "/generic-": "Generic",
+
+  // Livestock (cloned from Poultry; every route is prefixed)
+  "/livestock-": "Livestock",
+  "/livestock/": "Livestock",
 
   // Poultry-specific routes (the original module, many have no prefix)
   "/flocks": "Poultry",
@@ -86,6 +90,7 @@ const SHARED_ROUTES = new Set([
   "/hotel-dashboard",
   "/restaurant-dashboard",
   "/generic-dashboard",
+  "/livestock-dashboard",
 ])
 
 /**

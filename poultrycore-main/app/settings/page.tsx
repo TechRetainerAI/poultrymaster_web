@@ -33,6 +33,7 @@ export default function SettingsPage() {
     else if (activeFarmType === "Generic")    router.replace("/generic-setup")
     else if (activeFarmType === "Hotel")      router.replace("/hotel-company-setup")
     else if (activeFarmType === "Restaurant") router.replace("/restaurant-setup")
+    else if (activeFarmType === "Livestock")  router.replace("/livestock-company-settings")
     else                                      router.replace("/poultry-company-setup")
   }, [activeFarmType, router])
 

@@ -138,4 +138,22 @@ export const NAV_SURFACE: Record<NavAccent, NavSurface> = {
     triggerIdle: "text-rose-100 hover:bg-white/15 hover:text-white",
     triggerIcon: "text-rose-200",
   },
+  // Livestock. The one warm chassis: stone (brown-grey) instead of slate, so
+  // the panel itself says "earth" and amber-300 headings can't be mistaken
+  // for Poultry's orange-400. White on stone-800 is 14:1; stone-950 on
+  // amber-400 is 10:1. The bar is amber-800 (white text 7.1:1).
+  amber: {
+    panel:      "bg-stone-800 border-stone-700",
+    header:     "bg-stone-900 border-stone-700",
+    headerTitle: "text-white",
+    headerBlurb: "text-stone-400",
+    groupLabel: "text-amber-300",
+    rowIdle:    "text-white hover:bg-stone-700",
+    rowActive:  "bg-amber-400 text-stone-950",
+    iconIdle:   "text-stone-400",
+    iconActive: "text-stone-950",
+    link:       "text-amber-300 hover:text-amber-200",
+    triggerIdle: "text-amber-100 hover:bg-white/15 hover:text-white",
+    triggerIcon: "text-amber-200",
+  },
 }

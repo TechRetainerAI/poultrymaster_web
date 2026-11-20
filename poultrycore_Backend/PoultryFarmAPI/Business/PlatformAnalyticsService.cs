@@ -16,15 +16,15 @@ namespace PoultryFarmAPIWeb.Business
 
     public static class FeatureCatalog
     {
-        private static readonly string[] AllFamilies = { "Poultry", "Water", "Hotel", "Restaurant", "Generic" };
+        private static readonly string[] AllFamilies = { "Poultry", "Livestock", "Water", "Hotel", "Restaurant", "Generic" };
 
         public static readonly FeatureDef[] All =
         {
-            new("Production", new[] { "ProductionRecorded" }, new[] { "Poultry", "Water" }),
-            new("Batch Production", new[] { "BatchProductionPosted", "FeedProductionPosted" }, new[] { "Poultry", "Water" }),
+            new("Production", new[] { "ProductionRecorded" }, new[] { "Poultry", "Livestock", "Water" }),
+            new("Batch Production", new[] { "BatchProductionPosted", "FeedProductionPosted" }, new[] { "Poultry", "Livestock", "Water" }),
             new("Farm Setup", new[] { "FarmSetupCompleted", "CompanySetupCompleted" }, AllFamilies),
             new("Feed Usage", new[] { "FeedUsageRecorded" }, new[] { "Poultry" }),
-            new("Medication", new[] { "MedicationRecorded" }, new[] { "Poultry" }),
+            new("Medication", new[] { "MedicationRecorded" }, new[] { "Poultry", "Livestock" }),
             new("Sales", new[] { "SaleRecorded", "SaleCreated", "OrderCreated", "BookingCreated" }, AllFamilies),
             new("Customer Balances", new[] { "CustomerPaymentReceived", "PaymentRecorded" }, AllFamilies),
             new("Supplier Balances", new[] { "SupplierPaymentRecorded" }, AllFamilies),
@@ -32,8 +32,8 @@ namespace PoultryFarmAPIWeb.Business
             new("Inventory", new[] { "InventoryReceived", "InventoryMovementRecorded", "StockTakeCompleted" }, AllFamilies),
             new("Payroll", new[] { "PayrollApproved", "StaffPaymentRecorded" }, AllFamilies),
             new("Daily Closing", new[] { "DailyClosingCompleted", "NightAuditCompleted" }, AllFamilies),
-            new("Cash Reconciliation", new[] { "CashReconciled" }, new[] { "Poultry", "Water", "Restaurant", "Generic" }),
-            new("Driver Returns", new[] { "DriverReturnCompleted" }, new[] { "Poultry", "Water" }),
+            new("Cash Reconciliation", new[] { "CashReconciled" }, new[] { "Poultry", "Livestock", "Water", "Restaurant", "Generic" }),
+            new("Driver Returns", new[] { "DriverReturnCompleted" }, new[] { "Poultry", "Livestock", "Water" }),
             new("Front Desk", new[] { "CheckInCompleted", "CheckOutCompleted" }, new[] { "Hotel" }),
             new("Subscriptions", new[] { "SubscriptionCreated", "SubscriptionBillingGenerated" }, new[] { "Generic" }),
         };

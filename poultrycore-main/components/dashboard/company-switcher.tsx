@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createPortal } from "react-dom"
-import { Building2, ChevronsUpDown, Check, Loader2, Plus, Bird, Droplets, Briefcase, ShoppingBag } from "lucide-react"
+import { Building2, ChevronsUpDown, Check, Loader2, Plus, Bird, Droplets, Briefcase, ShoppingBag, PawPrint } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { getMyCompanies, switchCompany, type Company } from "@/lib/api/companies"
@@ -18,6 +18,7 @@ function typeIcon(type?: string | null) {
   if (type === "Poultry") return Bird
   if (type === "Generic") return ShoppingBag
   if (type === "Hotel") return Building2
+  if (type === "Livestock") return PawPrint
   return Building2
 }
 function typeColor(type?: string | null) {
@@ -25,6 +26,7 @@ function typeColor(type?: string | null) {
   if (type === "Poultry") return "text-orange-300"
   if (type === "Generic") return "text-violet-300"
   if (type === "Hotel") return "text-purple-300"
+  if (type === "Livestock") return "text-amber-300"
   return "text-slate-300"
 }
 
@@ -121,6 +123,7 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
       else if (c.type === "Generic")      router.push("/generic-dashboard")
       else if (c.type === "Hotel")        router.push("/hotel-dashboard")
       else if (c.type === "Restaurant")   router.push("/restaurant-dashboard")
+      else if (c.type === "Livestock")    router.push("/livestock-dashboard")
       else                                router.push("/dashboard")
     } catch (err: any) {
       toast({ title: "Switch failed", description: err?.message ?? String(err), variant: "destructive" })

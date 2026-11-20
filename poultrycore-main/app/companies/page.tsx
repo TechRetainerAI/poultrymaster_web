@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Building2, Bird, Droplets, Loader2, Check, UtensilsCrossed } from "lucide-react"
+import { Plus, Building2, Bird, Droplets, Loader2, Check, UtensilsCrossed, PawPrint } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -28,10 +28,12 @@ function CompanyIcon({ type }: { type: CompanyType }) {
   const Icon = type === "Water" ? Droplets
     : type === "Poultry" ? Bird
     : type === "Restaurant" ? UtensilsCrossed
+    : type === "Livestock" ? PawPrint
     : Building2
   const colour = type === "Water" ? "text-sky-500"
     : type === "Hotel" ? "text-purple-500"
     : type === "Restaurant" ? "text-rose-600"
+    : type === "Livestock" ? "text-amber-700"
     : "text-orange-500"
   return <Icon className={`h-5 w-5 shrink-0 ${colour}`} />
 }

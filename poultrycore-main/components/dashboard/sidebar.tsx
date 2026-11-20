@@ -63,6 +63,7 @@ import {
   GraduationCap,
   ClipboardCheck,
   PlayCircle,
+  PawPrint,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -80,6 +81,8 @@ import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
+import { buildLivestockNavConfig, navSectionHasRows } from "@/lib/nav/livestock-nav-config"
+import { useLivestockFeatures } from "@/hooks/use-livestock-species"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { navPathActive, type MegaMenuGroup, type NavAccent, type NavGroup } from "@/lib/nav/nav-model"
@@ -191,6 +194,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const isGeneric = activeFarmType === "Generic"
   const isHotel = activeFarmType === "Hotel"
   const isRestaurant = activeFarmType === "Restaurant"
+  const isLivestock = activeFarmType === "Livestock"
+  // Poultry is the fallback type everywhere below, so it must exclude every
+  // other type by name -- Livestock included, or it would get the poultry rail.
+  const isOtherType = isWater || isGeneric || isHotel || isRestaurant || isLivestock
   // Online orders arrive without anyone touching a till. All Orders carries a
   // count of the ones nobody has looked at yet; New Guest Orders carries the
   // ones still waiting to be accepted. Returns zeroes for every other company
@@ -200,6 +207,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // 318. null = never customised = the config's defaults, which is also what
   // renders while it loads.
   const quickLinkHrefs = useQuickLinkHrefs()
+  // Safe on every company type: the query only runs on a Livestock company.
+  const livestockFeatures = useLivestockFeatures()
   const [customiseOpen, setCustomiseOpen] = useState(false)
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -352,7 +361,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // The rail's own config, for the two company types that have adopted it.
   // Plain function calls, not hooks, so building one only for the active type
   // cannot change hook order.
-  const poultryNav = (!isWater && !isGeneric && !isHotel && !isRestaurant)
+  const poultryNav = !isOtherType
     ? buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length, quickLinkHrefs })
     : null
   const waterNav = isWater
@@ -361,6 +370,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // Hotel and Restaurant are fully generated from their nav configs, the same
   // way Poultry and Water are, so the sidebar and top nav cannot drift apart.
   const hotelNav = isHotel ? buildHotelNavConfig({ permissions }) : null
+  const livestockNav = isLivestock
+    ? buildLivestockNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length, quickLinkHrefs, showEggFeatures: livestockFeatures.eggs, showMilkFeatures: livestockFeatures.milk, showBreedingFeatures: livestockFeatures.breeding })
+    : null
   const restaurantNav = isRestaurant ? buildRestaurantNavConfig({ unseenOnlineOrders: unseenOnline, pendingGuestOrders: pendingOnline }, permissions) : null
 
   // Reports is a menu on the rail, not a config section: its contents come from
@@ -378,11 +390,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
       ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
     // #28: /reports is the poultry report page. Water, Generic, and Hotel have their own.
-    ...((permissions.featureAccess.canViewReports && !isWater && !isGeneric && !isHotel && !isRestaurant)
+    ...((permissions.featureAccess.canViewReports && !isOtherType)
       ? [{ href: "/reports", label: "Reports", icon: BarChart3 }] : []),
     { href: "/profile", label: "Account", icon: User },
     // Resources is poultry-specific (vaccination / feed / medication schedules).
-    ...((!isWater && !isGeneric && !isHotel && !isRestaurant) ? [{ href: "/resources", label: "Resources", icon: BookOpen }] : []),
+    ...((!isOtherType) ? [{ href: "/resources", label: "Resources", icon: BookOpen }] : []),
     { href: "#", label: "Alerts", icon: Bell, isButton: true, onClick: openAlerts, badge: alerts.length },
     { href: "/companies", label: "Companies", icon: Building2 },
     // Subscription billing is the ACCOUNT's own, not the company's trading
@@ -396,15 +408,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // The poultry farm profile. Water, Generic and Hotel have their own setup links
     // in their groups above; this is the equivalent row for Poultry, pointing at the
     // database-backed pages rather than /settings (now only a redirect).
-    ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewSettings)
+    ...((!isOtherType && permissions.featureAccess.canViewSettings)
       ? [{ href: "/poultry-setup?section=production", label: "Production Setup", icon: Settings },
          { href: "/poultry-setup?section=business", label: "Business Setup", icon: Settings }] : []),
     // Configuration, but a finance decision: it changes what the owner reads as
     // profit, so it follows the financial flag rather than the settings one.
-    ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewFinancial)
+    ...((!isOtherType && permissions.featureAccess.canViewFinancial)
       ? [{ href: "/poultry-financial-settings", label: "Financial Settings", icon: Coins }] : []),
     // /help is poultry-specific (flocks, eggs, vaccinations).
-    ...((!isWater && !isGeneric && !isHotel && !isRestaurant) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
+    ...((!isOtherType) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
     { href: "/terms", label: "Terms & Conditions", icon: ListTodo },
   ]
 
@@ -578,7 +590,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
    * `inlineLead` is rows only the drawer needs -- beside the rail the same
    * thing is the header's "View all" link.
    */
-  const sidebarAccent: NavAccent = isWater ? "sky" : isGeneric ? "emerald" : isHotel ? "violet" : isRestaurant ? "rose" : "orange"
+  const sidebarAccent: NavAccent = isWater ? "sky" : isGeneric ? "emerald" : isHotel ? "violet" : isRestaurant ? "rose" : isLivestock ? "amber" : "orange"
 
   const renderMenu = (
     label: string, Icon: any, groups: MegaMenuGroup[], menuKey: string,
@@ -726,9 +738,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {/* Dashboard — route depends on active company type */}
         <div>
           {renderNavItem({
-            href: isWater ? "/water-dashboard" : isGeneric ? "/generic-dashboard" : isHotel ? "/hotel-dashboard" : isRestaurant ? "/restaurant-dashboard" : "/dashboard",
+            href: isWater ? "/water-dashboard" : isGeneric ? "/generic-dashboard" : isHotel ? "/hotel-dashboard" : isRestaurant ? "/restaurant-dashboard" : isLivestock ? "/livestock-dashboard" : "/dashboard",
             label: "Dashboard",
-            icon: isWater ? Droplets : isGeneric ? ShoppingBag : isHotel ? Building2 : isRestaurant ? UtensilsCrossed : Home,
+            icon: isWater ? Droplets : isGeneric ? ShoppingBag : isHotel ? Building2 : isRestaurant ? UtensilsCrossed : isLivestock ? PawPrint : Home,
           })}
         </div>
 
@@ -847,6 +859,37 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 label: "Quick Links",
                 items: restaurantNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
               }], "menu:restaurantQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
+              })}
+            </div>
+          </>
+        ) : isLivestock ? (
+          <>
+            {/* Livestock: the poultry rail's layout, built from
+                buildLivestockNavConfig and tinted amber. A section shows only
+                once it has a page in it. */}
+            {navSectionHasRows(livestockNav!.setup) && renderMenu("Setup", Settings, livestockNav!.setup, "menu:livestockSetup", {
+              blurb: "Pens, animal groups, species, products, delivery, customers and your team.",
+              columns: 3,
+            })}
+            <div className="space-y-1">
+              {navSectionHasRows(livestockNav!.operations) && renderMenu("Operations", Factory, livestockNav!.operations, "menu:livestockOps", {
+                blurb: "Production, breeding, animal purchases, deliveries, stock and health.",
+                columns: 2,
+              })}
+              {navSectionHasRows(livestockNav!.salesMoney) && renderSalesMoneyMenus(livestockNav!.salesMoney, "livestock")}
+              {navSectionHasRows(livestockNav!.analytics) && renderMenu("Trackers", BarChart3, livestockNav!.analytics, "menu:livestockAnalytics", {
+                blurb: "Day-to-day trackers.", columns: 1,
+              })}
+              {navSectionHasRows(livestockNav!.tools) && renderMenu("Tools", Wrench, livestockNav!.tools, "menu:livestockTools", {
+                blurb: "Jobs run once: onboarding a farm, closing out a finished group.",
+                columns: 1,
+              })}
+              {livestockNav!.quickLinks.items.length > 0 && renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: livestockNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+              }], "menu:livestockQuickLinks", {
                 blurb: "The pages you open most days.", columns: 1,
               })}
             </div>
@@ -1004,6 +1047,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
               items: i === 0 ? [{ id: "account", title: "Account", icon: User, href: "/profile" }, ...g.items] : g.items,
             })), "menu:hotelSystem", {
               blurb: "Account, companies, billing.", columns: 1,
+            })
+          : livestockNav
+          // Livestock: the same System menu, with Account added the same way.
+          ? renderMenu("System", User, livestockNav.system.map((g, i) => ({
+              ...g,
+              items: i === 0 ? [{ id: "account", title: "Account", icon: User, href: "/profile" }, ...g.items] : g.items,
+            })), "menu:livestockSystem", {
+              blurb: "Alerts, activity, help, terms.", columns: 1,
             })
           : restaurantNav
           // Restaurant: System menu from the nav config.
