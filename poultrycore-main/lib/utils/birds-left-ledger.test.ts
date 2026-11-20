@@ -44,3 +44,43 @@ describe("Birds tracker with the opening position (419)", () => {
     expect(s.totalOtherOut).toBe(0)
   })
 })
+
+describe("Birds tracker with bird count corrections (440)", () => {
+  const rec = (flockId: number, left: number, mortality = 0) =>
+    ({ id: 10 + flockId, flockId, date: "2026-11-10T00:00:00", mortality, noOfBirdsLeft: left, noOfBirds: left + mortality }) as any
+
+  it("adds a count up as IN and a count down as OUT, and matches the latest record", () => {
+    // 1,000 placed; Batch Bird Count: +199 (applied to the latest record -> 1,199 left).
+    const positions: FlockPositionLookup = new Map([[1, pos({ originallyPlaced: 1000, openingLiveBirds: 1000 })]])
+    const up = [{ birdAdjustmentId: 7, adjustmentDate: "2026-11-16", flockId: 1, quantity: 199, productionRecordId: 11, note: "MSM-00008" }]
+    const ledger = buildBirdsLeftLedger([flock(1, 1000)], [rec(1, 1199)], [], positions, up)
+    expect(ledger.find((r) => r.category === "Count correction")).toMatchObject({ type: "IN", quantity: 199, description: "MSM-00008" })
+    const [s] = summarizeBirdsLeftByFlock([flock(1, 1000)], [rec(1, 1199)], [], positions, up)
+    expect(s).toMatchObject({ totalCorrection: 199, birdsLeftCalculated: 1199, birdsLeftFromLatestLog: 1199 })
+
+    const down = [{ birdAdjustmentId: 8, adjustmentDate: "2026-11-16", flockId: 1, quantity: -50, productionRecordId: 11 }]
+    const [d] = summarizeBirdsLeftByFlock([flock(1, 1000)], [rec(1, 950)], [], positions, down)
+    expect(d).toMatchObject({ totalCorrection: -50, birdsLeftCalculated: 950 })
+  })
+
+  it("a correction and its reversal cancel out", () => {
+    const positions: FlockPositionLookup = new Map([[1, pos({ originallyPlaced: 1000, openingLiveBirds: 1000 })]])
+    const both = [
+      { birdAdjustmentId: 1, adjustmentDate: "2026-11-16", flockId: 1, quantity: -50, productionRecordId: 11 },
+      { birdAdjustmentId: 2, adjustmentDate: "2026-11-16", flockId: 1, quantity: 50, productionRecordId: 11 },
+    ]
+    const [s] = summarizeBirdsLeftByFlock([flock(1, 1000)], [rec(1, 1000)], [], positions, both)
+    expect(s).toMatchObject({ totalCorrection: 0, birdsLeftCalculated: 1000 })
+  })
+
+  it("a flock with no production record: counted once (position keeps it out of originally placed)", () => {
+    // flock.quantity 1,010 = 1,000 placed + 10 counted; the position says 1,000 placed.
+    const positions: FlockPositionLookup = new Map([[1, pos({ originallyPlaced: 1000, openingLiveBirds: 1000 })]])
+    const c = [{ birdAdjustmentId: 3, adjustmentDate: "2026-11-16", flockId: 1, quantity: 10, productionRecordId: null }]
+    const [s] = summarizeBirdsLeftByFlock([flock(1, 1010)], [], [], positions, c)
+    expect(s).toMatchObject({ placedIn: 1000, totalCorrection: 10, birdsLeftCalculated: 1010 })
+    // Without positions flock.quantity already holds it: not added again.
+    const [n] = summarizeBirdsLeftByFlock([flock(1, 1010)], [], [], undefined, c)
+    expect(n).toMatchObject({ placedIn: 1010, totalCorrection: 0, birdsLeftCalculated: 1010 })
+  })
+})

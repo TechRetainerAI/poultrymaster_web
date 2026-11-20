@@ -138,6 +138,27 @@ namespace PoultryFarmAPIWeb.Controllers
             catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
         }
 
+        // 440/441: Batch bird count -- every counted flock of one batch adjusted in one
+        // save, each as its own manual movement (Stock Count Correction), measured
+        // against the flock's birds ON THE COUNT DATE. Own permission: poultry.bird-count.
+        [HttpGet("bird-count/sheet")]
+        public async Task<ActionResult<IEnumerable<PoultryBirdCountSheetRow>>> GetBirdCountSheet([FromQuery] string farmId, [FromQuery] int batchId, [FromQuery] DateTime? date)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (batchId <= 0) return BadRequest(new { message = "Choose the batch." });
+            return Ok(await _svc.GetBirdCountSheetAsync(farmId, batchId, date));
+        }
+
+        [HttpPost("bird-count")]
+        public async Task<IActionResult> PostBatchBirdCount([FromBody] PoultryBatchBirdCountRequest m)
+        {
+            if (m is null || string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (m.BatchId <= 0) return BadRequest(new { message = "Choose the batch." });
+            m.CreatedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? m.CreatedBy;
+            try { return Content(await _svc.PostBatchBirdCountAsync(m), "application/json"); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
         // 374: whether Broken Eggs / Dead Birds are offered in Add Sale. Anyone who
         // sells reads it; only an owner / admin changes it.
         [HttpGet("byproduct-settings")]

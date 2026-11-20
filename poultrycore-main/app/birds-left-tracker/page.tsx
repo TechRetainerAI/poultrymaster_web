@@ -32,11 +32,15 @@ import {
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 import { getFlockPositions } from "@/lib/api/flock-positions"
 import { positionsById } from "@/lib/flocks/bird-position"
-import type { FlockPositionLookup } from "@/lib/utils/birds-left-ledger"
+import type { BirdCountCorrection, FlockPositionLookup } from "@/lib/utils/birds-left-ledger"
+import { listPoultryBirdAdjustments } from "@/lib/api/poultry-inventory"
 import { getBatchBirdReconciliation, type BatchBirdReconciliationRow } from "@/lib/api/bird-reconciliation"
 import { isBatchNotArrived } from "@/lib/flocks/farm-bird-totals"
 import { batchUnplacedSummaries, batchUnplacedLedger } from "@/lib/flocks/batch-unplaced"
 
+
+/** +199 / -50 for a count correction. */
+const signedNum = (n: number) => `${n > 0 ? "+" : ""}${n.toLocaleString()}`
 
 export default function BirdsLeftTrackerPage() {
   const router = useRouter()
@@ -82,6 +86,8 @@ export default function BirdsLeftTrackerPage() {
 
   // Undefined before 421 is deployed: the ledger then uses flock.quantity.
   const [positions, setPositions] = useState<FlockPositionLookup | undefined>(undefined)
+  // 440: bird count corrections (Stock Count Correction / Batch Bird Count).
+  const [corrections, setCorrections] = useState<BirdCountCorrection[]>([])
 
   const loadData = useCallback(async () => {
     const { farmId, userId } = getUserContext()
@@ -91,14 +97,16 @@ export default function BirdsLeftTrackerPage() {
       setRefreshing(false)
       return
     }
-    const [flocksRes, prodRes, salesRes, batchesRes, posRows, reconRows] = await Promise.all([
+    const [flocksRes, prodRes, salesRes, batchesRes, posRows, reconRows, adjRows] = await Promise.all([
       getFlocks(userId, farmId),
       getProductionRecords(userId, farmId),
       getSales(userId, farmId),
       getFlockBatches(userId, farmId).catch(() => ({ success: false, data: [] as FlockBatch[] })),
       getFlockPositions(farmId),
       getBatchBirdReconciliation().catch(() => [] as BatchBirdReconciliationRow[]),
+      listPoultryBirdAdjustments().catch(() => []),
     ])
+    setCorrections(Array.isArray(adjRows) ? adjRows.filter((a) => a.flockId != null) : [])
     setRecon(Array.isArray(reconRows) ? reconRows : [])
     setBatches(batchesRes.success && Array.isArray(batchesRes.data) ? batchesRes.data : [])
     // 421: each flock's opening position, so a flock from Initial Farm Setup
@@ -135,12 +143,13 @@ export default function BirdsLeftTrackerPage() {
         records,
         sales,
         positions,
+        corrections,
       ),
-    [flocks, records, sales, positions],
+    [flocks, records, sales, positions, corrections],
   )
 
 
-  const ledger = useMemo(() => buildBirdsLeftLedger(flocks, records, sales, positions), [flocks, records, sales, positions])
+  const ledger = useMemo(() => buildBirdsLeftLedger(flocks, records, sales, positions, corrections), [flocks, records, sales, positions, corrections])
 
   // The flocks of the chosen batch (null = every batch).
   const batchFlockIds = useMemo(() => {
@@ -254,6 +263,7 @@ export default function BirdsLeftTrackerPage() {
           mortalityOut: acc.mortalityOut + r.deaths,
           salesOut: acc.salesOut + r.sales,
           otherOut: acc.otherOut + r.other,
+          correction: acc.correction,
           left: acc.left + r.left,
         }),
         byFlockRows.reduce(
@@ -262,9 +272,10 @@ export default function BirdsLeftTrackerPage() {
             mortalityOut: acc.mortalityOut + (Number(r.totalMortalityOut) || 0),
             salesOut: acc.salesOut + (Number(r.totalBirdSalesOut) || 0),
             otherOut: acc.otherOut + (Number(r.totalOtherOut) || 0),
+            correction: acc.correction + (Number(r.totalCorrection) || 0),
             left: acc.left + (Number(r.birdsLeftCalculated) || 0),
           }),
-          { placedIn: 0, mortalityOut: 0, salesOut: 0, otherOut: 0, left: 0 }
+          { placedIn: 0, mortalityOut: 0, salesOut: 0, otherOut: 0, correction: 0, left: 0 }
         ),
       ),
     [byFlockRows, batchRows]
@@ -519,6 +530,14 @@ export default function BirdsLeftTrackerPage() {
                                           </span>
                                         </div>
                                       )}
+                                      {row.totalCorrection !== 0 && (
+                                        <div className="col-span-2">
+                                          <span className="text-slate-500">Count corrections</span>{" "}
+                                          <span className={cn("font-medium tabular-nums", row.totalCorrection > 0 ? "text-emerald-700" : "text-red-700")}>
+                                            {signedNum(row.totalCorrection)}
+                                          </span>
+                                        </div>
+                                      )}
                                       <div className="col-span-2">
                                         <span className="text-slate-500">From last log</span>{" "}
                                         <span className="font-medium tabular-nums text-slate-700">
@@ -623,7 +642,7 @@ export default function BirdsLeftTrackerPage() {
                         </Button>
                       </div>
                     )}
-                    <Table className="w-full min-w-[920px]">
+                    <Table className="w-full min-w-[1020px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Flock</TableHead>
@@ -632,6 +651,7 @@ export default function BirdsLeftTrackerPage() {
                           <TableHead className="text-right">Deaths OUT</TableHead>
                           <TableHead className="text-right">Sales OUT</TableHead>
                           <TableHead className="text-right">Culled / other OUT</TableHead>
+                          <TableHead className="text-right" title="Stock Count Corrections (Stock Movements, Batch Bird Count): + more birds counted, - fewer">Count corrections</TableHead>
                           <TableHead className="text-right">Birds left</TableHead>
                           <TableHead className="text-right">From last log</TableHead>
                           <TableHead className="text-right">Difference</TableHead>
@@ -640,7 +660,7 @@ export default function BirdsLeftTrackerPage() {
                       <TableBody>
                         {byFlockRows.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={9} className="text-center text-slate-500 py-8">
+                            <TableCell colSpan={10} className="text-center text-slate-500 py-8">
                               {batchFilter !== "ALL" || flockFilter !== "ALL" ? "No flocks match this batch / flock." : "No flocks yet."}
                             </TableCell>
                           </TableRow>
@@ -660,6 +680,10 @@ export default function BirdsLeftTrackerPage() {
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-slate-700">
                                 {row.totalOtherOut.toLocaleString()}
+                              </TableCell>
+                              <TableCell className={cn("text-right tabular-nums",
+                                row.totalCorrection > 0 ? "text-emerald-700" : row.totalCorrection < 0 ? "text-red-700" : "text-slate-400")}>
+                                {row.totalCorrection === 0 ? "—" : signedNum(row.totalCorrection)}
                               </TableCell>
                               <TableCell className="text-right tabular-nums font-semibold text-sky-800">
                                 {row.birdsLeftCalculated.toLocaleString()}
@@ -688,6 +712,7 @@ export default function BirdsLeftTrackerPage() {
                             <TableCell className="text-right tabular-nums text-red-700">{b.deaths.toLocaleString()}</TableCell>
                             <TableCell className="text-right tabular-nums text-amber-800">{b.sales.toLocaleString()}</TableCell>
                             <TableCell className="text-right tabular-nums text-slate-700">{b.other.toLocaleString()}</TableCell>
+                            <TableCell className="text-right text-slate-400">—</TableCell>
                             <TableCell className="text-right tabular-nums font-semibold text-sky-800">{b.left.toLocaleString()}</TableCell>
                             <TableCell className="text-right text-slate-400">—</TableCell>
                             <TableCell className="text-right text-slate-400">—</TableCell>
@@ -714,6 +739,10 @@ export default function BirdsLeftTrackerPage() {
                             </TableCell>
                             <TableCell className="text-right tabular-nums font-bold text-slate-700">
                               {flockTotals.otherOut.toLocaleString()}
+                            </TableCell>
+                            <TableCell className={cn("text-right tabular-nums font-bold",
+                              flockTotals.correction > 0 ? "text-emerald-700" : flockTotals.correction < 0 ? "text-red-700" : "text-slate-400")}>
+                              {flockTotals.correction === 0 ? "—" : signedNum(flockTotals.correction)}
                             </TableCell>
                             <TableCell className="text-right tabular-nums font-bold text-sky-800">
                               {flockTotals.left.toLocaleString()}
