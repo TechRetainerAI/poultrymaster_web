@@ -174,6 +174,7 @@ function GenericSetupWizardContent() {
           <div className="max-w-3xl mx-auto space-y-4">
             {/* Header */}
             <div>
+              {(loading || step !== 1) && <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>}
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-indigo-600" /> Set up your business
               </h1>

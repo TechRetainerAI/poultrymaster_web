@@ -4,6 +4,7 @@
 // Email, five stat tiles, striped cards, the table, paging and the
 // status-gated actions; and the read-only batch view.
 
+import '../egg_packaging.dart' show EggDisplay, boxSize, currentEggPackaging, formatEggQuantity;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ import '../../shared/business_dates.dart';
 import '../../shared/company_clock.dart';
 import '../money/money_widgets.dart' show twoUp;
 import '../reports/report_export.dart';
+import '../reports/report_format.dart' show periodGroups, periodToRange, rangeToPeriod;
 import '../sales/sales_logic.dart' show pageNumbers, salePageSizes;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc, trackerDate, localDateKey, sortRows, toggleSort, SortState;
 import '../trackers/tracker_widgets.dart';
@@ -24,18 +26,19 @@ import 'batch_production_allocate_screen.dart';
 import 'batch_production_form.dart';
 import 'batch_production_logic.dart';
 import 'production_logic.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'production_records_screen.dart' show ProdCard;
 import 'production_day_view.dart';
 
 const _monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const _statusColors = <String, (Color, Color, Color)>{
-  'PendingAllocation': (TColors.amber100, Color(0xFF92400E), TColors.amber200),
-  'Allocated': (TColors.blue100, Color(0xFF1E40AF), Color(0xFFBFDBFE)),
-  'Posted': (TColors.emerald100, TColors.emerald800, Color(0xFFA7F3D0)),
+  'PendingAllocation': (TColors.amber100, Tone(0xFF92400E), TColors.amber200),
+  'Allocated': (TColors.blue100, Tone(0xFF1E40AF), Tone(0xFFBFDBFE)),
+  'Posted': (TColors.emerald100, TColors.emerald800, Tone(0xFFA7F3D0)),
   'Reversed': (TColors.slate100, TColors.slate700, TColors.slate200),
-  'Draft': (Color(0xFFF3F4F6), Color(0xFF374151), Color(0xFFE5E7EB)),
-  'Cancelled': (Color(0xFFFEE2E2), TColors.red700, Color(0xFFFECACA)),
+  'Draft': (Tone(0xFFF3F4F6), Tone(0xFF374151), Tone(0xFFE5E7EB)),
+  'Cancelled': (Tone(0xFFFEE2E2), TColors.red700, Tone(0xFFFECACA)),
 };
 
 Widget batchStatusBadge(Object? status) {
@@ -110,7 +113,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
     ..from = widget.date ?? ''
     ..to = widget.date ?? '';
   SortState _sort = (key: null, dir: null);
-  int _page = 1, _perPage = 10;
+  int _page = 1, _perPage = 15;
   PickSettings _picks = const PickSettings();
   Duration _offset = DateTime.now().timeZoneOffset;
 
@@ -242,7 +245,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
               actions: [
                 TextButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
-                  style: type == 'delete' ? FilledButton.styleFrom(backgroundColor: TColors.red600) : null,
+                  style: type == 'delete' ? FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)) : null,
                   onPressed: busy
                       ? null
                       : () async {
@@ -364,7 +367,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
       filename: 'batch-production-$_stamp',
       farmName: widget.company.name.isNotEmpty ? widget.company.name : 'Farm',
       landscape: true,
-      subtitle: 'Batches: ${rows.length}  |  Total Eggs: ${loc(t.eggs)} (${t.crates} crates + ${t.pieces} pcs)  |  Feed: ${t.feed.toStringAsFixed(2)} kg  |  '
+      subtitle: 'Batches: ${rows.length}  |  Total Eggs: ${loc(t.eggs)} (${t.crates} crates + ${t.pieces} pcs${_boxesOf(t.eggs) != null ? ' = ${_boxesOf(t.eggs)}' : ''})  |  Feed: ${t.feed.toStringAsFixed(2)} kg  |  '
           'Deaths: ${_n(t.deaths)}  |  Pending: ${t.pending}  |  Posted: ${t.posted}',
       sections: [
         ReportSection(
@@ -465,6 +468,14 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
 
   // ------------------------------------------------------------ filters sheet
 
+  /// View by Day's "Show in table": that day becomes the date filter.
+  void _showDay(String day) => setState(() {
+        _f
+          ..from = day
+          ..to = day;
+        _page = 1;
+      });
+
   Future<void> _openFilters() async {
     var from = _f.from, to = _f.to, status = _f.status, batch = _f.batch, month = _f.month, year = _f.year;
     await showModalBottomSheet<void>(
@@ -481,6 +492,27 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
               const SizedBox(height: 14),
               const Text('Date range', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
               const SizedBox(height: 10),
+              // Period presets drive the dates, as on Production Records. No
+              // dates is the unfiltered default, so it reads as All Time;
+              // hand-picked dates read as Custom.
+              AppSelect<String>(
+                key: const ValueKey('bpr-period'),
+                value: from.isEmpty && to.isEmpty ? 'allTime' : rangeToPeriod(from, to),
+                items: [for (final (_, opts) in periodGroups) for (final (k, l) in opts) AppSelectItem(value: k, label: l)],
+                onChanged: (p) => set(() {
+                  if (p == 'allTime') {
+                    from = '';
+                    to = '';
+                  } else if (p != null) {
+                    final r = periodToRange(p);
+                    if (r != null) {
+                      from = r.from;
+                      to = r.to;
+                    }
+                  }
+                }),
+              ),
+              const SizedBox(height: 12),
               FilterLabel('Start date', FilterDate(value: from, hint: 'Start date', onChanged: (v) => set(() => from = v))),
               const SizedBox(height: 12),
               FilterLabel('End date', FilterDate(value: to, hint: 'End date', onChanged: (v) => set(() => to = v))),
@@ -606,7 +638,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
 
     Widget tile(String label, String value, {Color? color, String? sub}) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label.toUpperCase(),
                 overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: .6, color: TColors.slate500)),
@@ -641,7 +673,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
             ]),
             const SizedBox(height: 12),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.emerald600, minimumSize: const Size.fromHeight(44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600), minimumSize: const Size.fromHeight(44)),
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Log Batch Production'),
@@ -658,11 +690,12 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
                 flockLabel: batchNameLabel,
                 batchLabel: batchScopeLabel,
                 batchPrefix: 'Flocks: ',
-                showBirds: false,
                 badge: (r) => batchStatusBadge(r['status']),
                 editIcon: Icons.open_in_new,
-                editTooltip: 'View',
+                editTooltip: 'Open',
+                description: 'Every batch production record logged on the chosen day.',
                 onEdit: _view,
+                onShowInTable: _showDay,
               ),
               icon: const Icon(Icons.calendar_month_outlined, size: 18),
               label: const Text('View by Day'),
@@ -689,7 +722,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                    decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                     child: Text('$active', style: const TextStyle(fontSize: 12, color: Colors.white)),
                   ),
                 ],
@@ -720,7 +753,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
             if (!_loading) ...[
               twoUp([
                 tile('Total Batches', loc(rows.length)),
-                tile('Total Eggs', loc(t.eggs), color: TColors.emerald600, sub: '${t.crates}c + ${t.pieces}p'),
+                tile('Total Eggs', loc(t.eggs), color: TColors.emerald600, sub: '${t.crates}c + ${t.pieces}p${_boxesOf(t.eggs) != null ? ' ≈ ${_boxesOf(t.eggs)}' : ''}'),
                 tile('Pending Allocation', loc(t.pending), color: TColors.amber600),
                 tile('Posted', loc(t.posted), color: TColors.emerald700),
                 tile('Feed (kg)', t.feed.toStringAsFixed(2), sub: 'Deaths: ${loc(t.deaths)}'),
@@ -779,9 +812,9 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
     final deaths = tNum(r['deaths']);
     final picks = [
       ('1st Pick', 'firstPickTotal', TColors.blue600),
-      ('2nd Pick', 'secondPickTotal', const Color(0xFFC2410C)),
-      ('3rd Pick', 'thirdPickTotal', const Color(0xFF7E22CE)),
-      if (_picks.enableFourth) ('4th Pick', 'fourthPickTotal', const Color(0xFF0F766E)),
+      ('2nd Pick', 'secondPickTotal', const Tone(0xFFC2410C)),
+      ('3rd Pick', 'thirdPickTotal', const Tone(0xFF7E22CE)),
+      if (_picks.enableFourth) ('4th Pick', 'fourthPickTotal', const Tone(0xFF0F766E)),
       ('Broken', 'brokenEggs', TColors.red700),
     ];
     return ProdCard(
@@ -800,10 +833,10 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
         Text(batchScopeLabel(r), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: tile('Eggs', loc(tNum(r['totalEggs'])), TColors.emerald100, TColors.emerald300, TColors.emerald800)),
+          Expanded(child: tile('Eggs', loc(tNum(r['totalEggs'])), TColors.emerald100, Tone.line(0xFF6EE7B7), Tone.fg(0xFF065F46))),
           const SizedBox(width: 8),
           Expanded(
-            child: tile('Birds Left', r['birdsLeft'] != null ? loc(tNum(r['birdsLeft'])) : '—', TColors.blue100, TColors.blue300, const Color(0xFF1E40AF)),
+            child: tile('Birds Left', r['birdsLeft'] != null ? loc(tNum(r['birdsLeft'])) : '—', Tone.bg(0xFFDBEAFE), Tone.line(0xFF93C5FD), const Tone.fg(0xFF1E40AF)),
           ),
         ]),
       ]),
@@ -860,9 +893,9 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
             ]),
             cellText(batchFormatAge(r)),
             cellText(_n(tNum(r['firstPickTotal'])), color: TColors.blue600),
-            cellText(_n(tNum(r['secondPickTotal'])), color: const Color(0xFFC2410C)),
-            cellText(_n(tNum(r['thirdPickTotal'])), color: const Color(0xFF7E22CE)),
-            if (fourth) cellText(_n(tNum(r['fourthPickTotal'])), color: const Color(0xFF0F766E)),
+            cellText(_n(tNum(r['secondPickTotal'])), color: const Tone.fg(0xFFC2410C)),
+            cellText(_n(tNum(r['thirdPickTotal'])), color: const Tone.fg(0xFF7E22CE)),
+            if (fourth) cellText(_n(tNum(r['fourthPickTotal'])), color: const Tone.fg(0xFF0F766E)),
             cellText(_n(tNum(r['brokenEggs'])), color: TColors.red700),
             cellText(_n(tNum(r['totalEggs'])), bold: true),
             cellText(batchEggPercent(r)),
@@ -1048,7 +1081,7 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
             actions: [
               OutlinedButton(onPressed: _busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                 onPressed: _busy
                     ? null
                     : () async {
@@ -1127,7 +1160,7 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
           Text(batchScopeLabel(b), style: const TextStyle(fontSize: 14, color: TColors.slate500)),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-            TBadge(batchStatusLabel(status), bg: Colors.white, fg: TColors.slate800, border: TColors.slate200),
+            TBadge(batchStatusLabel(status), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate800, border: TColors.slate200),
             if (canAllocate)
               FilledButton.icon(
                 onPressed: _allocate,
@@ -1137,7 +1170,7 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
             if (canRepost) FilledButton.icon(onPressed: _busy ? null : _repost, icon: const Icon(Icons.send, size: 16), label: const Text('Repost')),
             if (status == 'Posted')
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                 onPressed: _busy ? null : _reverse,
                 icon: const Icon(Icons.undo, size: 16),
                 label: const Text('Reverse'),
@@ -1177,6 +1210,7 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
                   ('Soft', n(b['softEggs'])),
                   ('Lost', n(b['lostEggs'])),
                   ('Total Eggs', n(b['totalEggs'])),
+                  if (_boxesOf(tNum(b['totalEggs'])) case final bx?) ('Egg boxes (equivalent)', bx),
                   ('Deaths', n(b['deaths'])),
                   ('Feed (kg)', n(b['feedKg'])),
                   ('Birds Left', b['birdsLeft'] == null ? '—' : n(b['birdsLeft'])),
@@ -1237,7 +1271,12 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
                       if (fifth) cellText(n(a['fifthPickEggs'])),
                       if (sixth) cellText(n(a['sixthPickEggs'])),
                       cellText(n(a['brokenEggs'])),
-                      cellText(n(a['totalEggs']), bold: true),
+                      _boxesOf(tNum(a['totalEggs'])) == null
+                          ? cellText(n(a['totalEggs']), bold: true)
+                          : Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                              cellText(n(a['totalEggs']), bold: true),
+                              Text('≈ ${_boxesOf(tNum(a['totalEggs']))}', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                            ]),
                       cellText(n(a['deaths'])),
                       cellText('${tNum(a['eggPercentage']).toStringAsFixed(1)}%', color: TColors.slate500),
                     ],
@@ -1278,4 +1317,11 @@ Widget? batchProductionScreenForHref(String href, Session s, Company c) {
     default:
       return id == null ? null : BatchProductionDetailScreen(session: s, company: c, batchId: id);
   }
+}
+
+/// 393: a batch's eggs in boxes on a box farm ("2 boxes + 3 crates + 5 pcs"),
+/// else null. Display only.
+String? _boxesOf(num? eggs) {
+  final p = currentEggPackaging;
+  return boxSize(p) != null ? formatEggQuantity(eggs ?? 0, p, EggDisplay.boxesCratesPieces) : null;
 }

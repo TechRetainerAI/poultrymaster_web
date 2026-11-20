@@ -17,7 +17,7 @@
     "start": "node server.js",
     "start:standalone": "node .next/standalone/server.js",
     "start:plesk": "NODE_ENV=production node server-plesk.js",
-    "screenshots": "node capture-screenshots.js"
+    "screenshots": "node scripts/help-screenshots/capture.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

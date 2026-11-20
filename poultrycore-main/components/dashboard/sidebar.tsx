@@ -145,6 +145,7 @@ interface SidebarProps {
 /** A sidebar row. `isButton`/`onClick`/`badge` are for rows that trigger an
  *  action instead of navigating — currently just Alerts. */
 type SidebarItem = {
+  id?: string
   href: string
   label: string
   icon: any
@@ -321,6 +322,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const genericMoneyItems = flat(genericNav.money)
   const genericPeopleItems = flat(genericNav.people)
   const genericSchoolItems = flat(genericNav.school)
+  const genericSetupItems = flat(genericNav.setup)
   const genericAdminItems = flat(genericNav.admin)
 
   // Hotel company nav items (shown when activeFarmType === "Hotel")
@@ -872,7 +874,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                   columns: 1,
                 })}
               {renderMenu(
-                isSub ? "Expenses & Vendors" : "Purchasing", DollarSign, genericNav.expenses, "menu:genericExpenses", {
+                isSub ? "Expenses & Vendors" : "Expenses", DollarSign, genericNav.expenses, "menu:genericExpenses", {
                   blurb: isSub ? "Vendors, expenses and recurring costs." : "Suppliers, purchases and expenses.",
                   columns: 1,
                 })}
@@ -891,10 +893,20 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                   blurb: "Classes, academic terms and student attendance.",
                   columns: 1,
                 })}
-              {renderMenu(
-                "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
-                  blurb: "Reports, setup and settings.",
+              {genericNav.reports.length > 0 && renderMenu(
+                "Reports", BarChart3, genericNav.reports, "menu:genericReports", {
+                  blurb: "Profit & loss, cash flow, expense, sales, inventory and balance reports.",
                   columns: 2,
+                })}
+              {genericNav.setup.length > 0 && renderMenu(
+                "Setup", Settings, genericNav.setup, "menu:genericSetup", {
+                  blurb: "Company profile, finance, delivery and your team.",
+                  columns: 2,
+                })}
+              {genericNav.admin.length > 0 && renderMenu(
+                "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
+                  blurb: "Account settings.",
+                  columns: 1,
                 })}
             </div>
           </>

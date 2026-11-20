@@ -19,12 +19,13 @@ import '../shared/business_dates.dart' show fmtInstant;
 import '../shared/company_clock.dart';
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// TIER_META: emoji and badge colours (bg, fg, border).
 const loyaltyTiers = <String, (String, Color, Color, Color)>{
-  'Bronze': ('🥉', Color(0xFFFEF3C7), Color(0xFFB45309), Color(0xFFFDE68A)),
-  'Silver': ('🥈', Color(0xFFF3F4F6), Color(0xFF374151), Color(0xFFE5E7EB)),
-  'Gold': ('🥇', Color(0xFFFEF9C3), Color(0xFFA16207), Color(0xFFFEF08A)),
-  'Platinum': ('💎', Color(0xFFF3E8FF), Color(0xFF7E22CE), Color(0xFFE9D5FF)),
+  'Bronze': ('🥉', Tone(0xFFFEF3C7), Tone(0xFFB45309), Tone(0xFFFDE68A)),
+  'Silver': ('🥈', Tone(0xFFF3F4F6), Tone(0xFF374151), Tone(0xFFE5E7EB)),
+  'Gold': ('🥇', Tone(0xFFFEF9C3), Tone(0xFFA16207), Tone(0xFFFEF08A)),
+  'Platinum': ('💎', Tone(0xFFF3E8FF), Tone(0xFF7E22CE), Tone(0xFFE9D5FF)),
 };
 
 /// DEFAULT_SETTINGS.
@@ -162,7 +163,7 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
     required String description,
     required List<(String, TextEditingController, String, bool, bool)> fields,
     required String confirm,
-    Color color = const Color(0xFFE11D48),
+    Color color = const Tone(0xFFE11D48),
   }) async =>
       await showDialog<bool>(
         context: context,
@@ -232,7 +233,7 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
         ('Order ID (optional)', order, 'Link to an order', true, false),
       ],
       confirm: 'Add Points',
-      color: const Color(0xFF16A34A),
+      color: const Tone(0xFF16A34A),
     )) {
       return;
     }
@@ -262,7 +263,7 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
         ('Description', desc, 'e.g. Discount on order', false, false),
       ],
       confirm: 'Redeem',
-      color: const Color(0xFFDC2626),
+      color: const Tone(0xFFDC2626),
     )) {
       return;
     }
@@ -298,7 +299,7 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
                   ]),
                   const SizedBox(height: 10),
                   if (snap.connectionState != ConnectionState.done)
-                    const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator(color: Color(0xFFF43F5E))))
+                    const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator(color: Tone.fg(0xFFF43F5E))))
                   else if (txns.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
@@ -317,7 +318,7 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
                               decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: TColors.slate200))),
                               child: Row(children: [
                                 Icon(earn ? Icons.arrow_circle_up_outlined : Icons.arrow_circle_down_outlined,
-                                    size: 20, color: earn ? const Color(0xFF22C55E) : const Color(0xFFEF4444)),
+                                    size: 20, color: earn ? const Tone.fg(0xFF22C55E) : const Tone.fg(0xFFEF4444)),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -331,7 +332,7 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
                                   ]),
                                 ),
                                 Text('${earn ? '+' : '-'}${_pts(tx['points'])}',
-                                    style: TextStyle(fontWeight: FontWeight.w600, color: earn ? const Color(0xFF16A34A) : const Color(0xFFDC2626))),
+                                    style: TextStyle(fontWeight: FontWeight.w600, color: earn ? const Tone.fg(0xFF16A34A) : const Tone.fg(0xFFDC2626))),
                               ]),
                             );
                           }),
@@ -407,7 +408,7 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
   Widget _switch(String label, String key) => Row(children: [
         Switch(
           value: _settings[key] == true,
-          activeTrackColor: const Color(0xFFE11D48),
+          activeTrackColor: const Tone.bg(0xFFE11D48),
           onChanged: (v) => setState(() => _settings[key] = v),
         ),
         const SizedBox(width: 8),
@@ -445,7 +446,7 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
           ],
           const SizedBox(height: 8),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48), minimumSize: const Size.fromHeight(44)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFFE11D48)), minimumSize: const Size.fromHeight(44)),
             onPressed: _saving ? null : _saveSettings,
             icon: _saving
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -499,14 +500,14 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           CircleAvatar(
             radius: 20,
-            backgroundColor: const Color(0xFFFFE4E6),
+            backgroundColor: const Tone.bg(0xFFFFE4E6),
             child: Text(name.isEmpty ? '?' : name[0].toUpperCase(),
-                style: const TextStyle(color: Color(0xFFE11D48), fontWeight: FontWeight.w700, fontSize: 13)),
+                style: const TextStyle(color: Tone.fg(0xFFE11D48), fontWeight: FontWeight.w700, fontSize: 13)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF111827))),
+              Text(name, style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF111827))),
               if (tStr(m['customerPhone']).isNotEmpty) Text(tStr(m['customerPhone']), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
               const SizedBox(height: 4),
               tierBadge(tStr(m['currentTier']).isEmpty ? 'Bronze' : tStr(m['currentTier'])),
@@ -519,9 +520,9 @@ class _RestaurantLoyaltyScreenState extends State<RestaurantLoyaltyScreen> {
         ]),
         const Divider(height: 20),
         Row(children: [
-          action('Earn', Icons.arrow_circle_up_outlined, const Color(0xFF16A34A), () => _earn(m)),
+          action('Earn', Icons.arrow_circle_up_outlined, const Tone(0xFF16A34A), () => _earn(m)),
           const SizedBox(width: 6),
-          action('Redeem', Icons.arrow_circle_down_outlined, const Color(0xFFEF4444), () => _redeem(m)),
+          action('Redeem', Icons.arrow_circle_down_outlined, const Tone(0xFFEF4444), () => _redeem(m)),
           const SizedBox(width: 6),
           action('History', Icons.history, TColors.slate500, () => _history(m)),
         ]),

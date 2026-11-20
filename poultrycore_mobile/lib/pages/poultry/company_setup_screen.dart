@@ -12,6 +12,7 @@ import '../shared/currencies.dart';
 import '../shared/search_picker.dart';
 import 'poultry_profile_form.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Setup → Company → Company Setup, as
 /// `app/poultry-company-setup/page.tsx`: the business details, saved with
 /// POST `/Poultry/company/setup` the first time (which also seeds the
@@ -186,9 +187,9 @@ class SetUpBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
-          color: const Color(0xFFDCFCE7), // green-100
+          color: const Tone.bg(0xFFDCFCE7), // green-100
           borderRadius: BorderRadius.circular(999),
         ),
-        child: const Text('✓ Set up', style: TextStyle(fontSize: 11, color: Color(0xFF15803D))),
+        child: const Text('✓ Set up', style: TextStyle(fontSize: 11, color: Tone.fg(0xFF15803D))),
       );
 }

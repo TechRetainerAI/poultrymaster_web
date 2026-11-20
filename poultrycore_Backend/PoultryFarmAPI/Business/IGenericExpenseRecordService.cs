@@ -11,5 +11,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> InsertAsync(GenericExpenseModel m);
         Task ApproveAsync(int id, string farmId, string? approvedBy);
         Task RejectAsync(int id, string farmId, string rejectionReason, string? approvedBy);
+        Task UpdateAsync(int id, GenericExpenseModel m, string? updatedBy);
+        Task DeleteAsync(int id, string farmId, string? reason, string? deletedBy);
     }
 }

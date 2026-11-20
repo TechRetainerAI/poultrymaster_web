@@ -3,6 +3,8 @@
 // products and raw materials — with the three stock tools, Export PDF / CSV,
 // New movement, the filters, and the phone card list (its `md:hidden` layout).
 
+import '../sales/sales_logic.dart' show byproductRole;
+import '../egg_packaging.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -28,6 +30,7 @@ import '../trackers/tracker_widgets.dart';
 import '../sales/credit_widgets.dart' show showReverseWithReason;
 import 'stock_dialogs.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// MOVEMENTS: what a manual entry can be, and which way it moves stock.
 const stockMovements = [('Increase', 1), ('Adjustment', 1), ('Decrease', -1), ('Damage/Loss', -1)];
 
@@ -36,20 +39,20 @@ const stockMovements = [('Increase', 1), ('Adjustment', 1), ('Decrease', -1), ('
       'Production' => (TColors.emerald100, TColors.emerald700),
       'Adjustment' || 'Adjust' => (TColors.slate100, TColors.slate700),
       'Decrease' || 'Return' || 'Delivery Return' => (TColors.amber100, TColors.amber700),
-      'Sale' => (TColors.blue100, const Color(0xFF1D4ED8)),
+      'Sale' => (TColors.blue100, const Tone(0xFF1D4ED8)),
       'Damage/Loss' => (TColors.red100, TColors.red700),
-      'Delivery Load' => (const Color(0xFFE0E7FF), const Color(0xFF4338CA)),
-      'Bird Adjustment' => (const Color(0xFFEDE9FE), const Color(0xFF6D28D9)),
-      'Sale Reversal' => (const Color(0xFFE0F2FE), TColors.sky800),
-      'Bird Sale' => (TColors.blue100, const Color(0xFF1D4ED8)),
-      'Sorting In' => (const Color(0xFFCCFBF1), const Color(0xFF115E59)),
-      'Sorting Out' => (const Color(0xFFFFEDD5), const Color(0xFF9A3412)),
+      'Delivery Load' => (const Tone(0xFFE0E7FF), const Tone(0xFF4338CA)),
+      'Bird Adjustment' => (const Tone(0xFFEDE9FE), const Tone(0xFF6D28D9)),
+      'Sale Reversal' => (const Tone(0xFFE0F2FE), TColors.sky800),
+      'Bird Sale' => (TColors.blue100, const Tone(0xFF1D4ED8)),
+      'Sorting In' => (const Tone(0xFFCCFBF1), const Tone(0xFF115E59)),
+      'Sorting Out' => (const Tone(0xFFFFEDD5), const Tone(0xFF9A3412)),
       'Egg Loss' => (TColors.red100, TColors.red700),
       'Internal Use' => (TColors.amber100, TColors.amber800),
       // 372: byproduct stock (Broken Eggs / Dead Birds); 373: manual movements.
       'Broken Egg Prod' || 'Mortality In' || 'Sorting Breakage' || 'Breakage In' || 'Hist Mortality In' =>
         (TColors.rose100, TColors.rose800),
-      'Broken Egg Disposal' || 'Mortality Disposal' || 'Disposal' || 'Hist Mortality Disp' => (const Color(0xFFE7E5E4), const Color(0xFF292524)),
+      'Broken Egg Disposal' || 'Mortality Disposal' || 'Disposal' || 'Hist Mortality Disp' => (const Tone(0xFFE7E5E4), const Tone(0xFF292524)),
       // Sorting Reversal, Opening and any type not listed: dark text on grey.
       _ => (TColors.slate200, TColors.slate800),
     };
@@ -62,6 +65,8 @@ bool isBirdStockProduct(Map p) => (p['isBirdProduct'] == true || p['name'] == 'B
 
 String stockSourceFor(String txnType) => switch (txnType) {
       'Production' => 'Production Record',
+      // 319/413: the flock's opening position (Initial Farm Setup or an existing flock)
+      'Opening Adjustment' => 'Opening position',
       // 372: byproducts generated (and disposed at once) by a production record / egg sorting
       'Broken Egg Prod' || 'Mortality In' => 'Production Record',
       'Broken Egg Disposal' || 'Mortality Disposal' => 'Production Record (disposed immediately)',
@@ -73,7 +78,63 @@ String stockSourceFor(String txnType) => switch (txnType) {
 
 num _r2(num v) => double.parse(v.toStringAsFixed(2));
 
+/// The packaging line under an egg movement's quantity (395):
+///   - a movement entered in boxes: exactly as entered, "32 boxes + 8 crates + 20 pcs";
+///   - any other intact-egg movement: the same eggs in the farm's packaging, "≈ …".
+/// Broken Eggs, birds and raw materials keep their own units (null).
+String? enteredAsLine(String item, num qty, Map? manualHeader) {
+  final h = manualHeader;
+  if (h != null && h['crates'] != null) {
+    return formatPackaged(PackagedQuantity(boxes: tIntOrNull(h['boxes']) ?? 0, crates: tIntOrNull(h['crates']) ?? 0, pieces: tIntOrNull(h['pieces']) ?? 0));
+  }
+  if (!item.toLowerCase().contains('egg') || byproductRole(item) != null) return null;
+  final p = currentEggPackaging;
+  final n = qty.truncate().abs();
+  final text = formatEggQuantity(n, p, boxSize(p) != null ? EggDisplay.boxesCratesPieces : EggDisplay.cratesPieces);
+  return text == formatEggs(n) ? null : '≈ $text';
+}
+
 String batchFlockLabel(Object? batch, Object? flock) => [tStr(batch), tStr(flock)].where((x) => x.isNotEmpty).join(' / ');
+
+/// A stored timestamp that carries a real clock time (not a bare business date).
+bool hasClockTime(Object? v) {
+  final s = tStr(v).trim();
+  return s.isNotEmpty && !RegExp(r'(T| )00:00:00(\.0+)?$').hasMatch(s) && RegExp(r'\d{2}:\d{2}').hasMatch(s);
+}
+
+/// The yyyy-MM-dd business date at the start of a stored date.
+String _businessDay(Object? v) => RegExp(r'^(\d{4}-\d{2}-\d{2})').firstMatch(tStr(v).trim())?[1] ?? '';
+
+/// The company-local calendar day of an instant, as yyyy-MM-dd.
+String instantDay(Object? v, Duration offset) {
+  final s = tStr(v).trim();
+  if (s.isEmpty) return '';
+  final zoned = RegExp(r'([Zz]|[+-]\d{2}:?\d{2})$').hasMatch(s);
+  final d = DateTime.tryParse(zoned ? s : '${s.replaceFirst(' ', 'T')}Z');
+  if (d == null) return '';
+  final l = d.toUtc().add(offset);
+  return '${l.year}-${'${l.month}'.padLeft(2, '0')}-${'${l.day}'.padLeft(2, '0')}';
+}
+
+/// 414: "Entered <time>" under a movement, only when it was posted on another
+/// day than it is effective (a historical adjustment entered today).
+bool enteredOnAnotherDay(Map m, Duration offset) =>
+    m['postedAt'] != null && _businessDay(m['date']) != instantDay(m['postedAt'], offset);
+
+/// The filtered rows' totals (every page, not just this one). In and out are
+/// kept apart: across different items a net would add kilograms to eggs, so
+/// the net is only given when one item is in view.
+({num totalIn, num totalOut, num net, String? oneItem, int itemCount}) stockMoveTotals(List<Map> rows) {
+  num totalIn = 0, totalOut = 0;
+  final items = <String>{};
+  for (final m in rows) {
+    final q = tNum(m['qty']);
+    if (q > 0) totalIn += q;
+    if (q < 0) totalOut += -q;
+    items.add(tStr(m['item']));
+  }
+  return (totalIn: totalIn, totalOut: totalOut, net: totalIn - totalOut, oneItem: items.length == 1 ? items.first : null, itemCount: items.length);
+}
 
 /// Every movement, newest first: product transactions, raw-material
 /// purchases, production usage and manual adjustments. [manual] (373, the
@@ -86,12 +147,21 @@ List<Map<String, Object?>> buildStockMoves(List<Map> txns, List<Map> purchases, 
   final out = <Map<String, Object?>>[
     for (final t in txns)
       {
-        'batchFlock': batchFlockLabel(t['batchCode'], t['flockName']),
+        // 413: a batch-pool bird row says so; a legacy row with no flock stays blank.
+        'batchFlock': batchFlockLabel(t['batchCode'], t['birdScope'] == 'BatchUnallocated' ? 'Not placed in a flock' : t['flockName']),
         'reason': t['reason'] == null ? null : tStr(t['reason']),
         'manualMovementId': tIntOrNull(t['manualMovementId']),
         'isReversal': t['manualReversal'] == true,
         'key': 'pt${t['poultryStockTransactionId']}',
-        'date': tStr(t['createdDate']),
+        // 414: the effective business date and the posting time are two facts.
+        // A historical adjustment entered today but effective in 2024 shows
+        // 2024, with "Entered <today, time>" under it. A row with no recorded
+        // time shows its date alone: midnight is never printed as a time.
+        'date': () {
+          final day = _businessDay(tStr(t['effectiveDate']).isNotEmpty ? t['effectiveDate'] : t['createdDate']);
+          return day.isNotEmpty ? '${day}T00:00:00' : tStr(t['createdDate']);
+        }(),
+        'postedAt': t['postedAt'] != null ? tStr(t['postedAt']) : (hasClockTime(t['createdDate']) ? tStr(t['createdDate']) : null),
         'item': tStr(t['productName']),
         'parentType': 'Finished Product',
         'movementType': tStr(t['txnType']),
@@ -102,6 +172,7 @@ List<Map<String, Object?>> buildStockMoves(List<Map> txns, List<Map> purchases, 
             ? '${t['manualReversal'] == true ? 'Reversal of ' : 'Manual movement '}${tStr(byId[tIntOrNull(t['manualMovementId'])]?['movementNo'])}'.trim()
             : stockSourceFor(tStr(t['txnType'])),
         'note': t['note'] == null ? null : tStr(t['note']),
+        'enteredAs': enteredAsLine(tStr(t['productName']), tNum(t['quantity']), t['manualReversal'] == true ? null : byId[tIntOrNull(t['manualMovementId'])]),
       },
     for (final p in purchases)
       {
@@ -211,6 +282,10 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
     FarmMoney.load(widget.session, widget.company).then((m) {
       if (mounted) setState(() => _fmt = m);
     });
+    // 393: egg movements show their packaging.
+    loadEggPackaging(widget.session, widget.company).then((_) {
+      if (mounted) setState(() {});
+    });
     CompanyClock.load(widget.session, widget.company).then((c) {
       if (mounted) setState(() => _offset = c.offset);
     });
@@ -252,8 +327,8 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
   List<String> _options(String key) => {for (final m in _moves) if (tStr(m[key]).isNotEmpty) tStr(m[key])}.toList()..sort();
 
   ReportDocument _doc(List<Map<String, Object?>> rows) {
-    final totalIn = rows.fold<num>(0, (s, m) => s + (tNum(m['qty']) > 0 ? tNum(m['qty']) : 0));
-    final totalOut = rows.fold<num>(0, (s, m) => s + (tNum(m['qty']) < 0 ? -tNum(m['qty']) : 0));
+    final t = stockMoveTotals(rows);
+    final totalIn = t.totalIn, totalOut = t.totalOut;
     return ReportDocument(
       title: 'Stock Movements',
       filename: 'poultry-stock-movements',
@@ -267,14 +342,21 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
       sections: [
         ReportSection(
           columns: const [
-            ReportColumn('Date'), ReportColumn('Item'), ReportColumn('Parent Type'), ReportColumn('Movement'), ReportColumn('Batch / Flock'),
+            ReportColumn('Date'), ReportColumn('Entered'), ReportColumn('Item'), ReportColumn('Parent Type'), ReportColumn('Movement'), ReportColumn('Batch / Flock'),
             ReportColumn('Reason'), ReportColumn('Qty', right: true),
+            // Egg rows: as entered (boxes / crates / pcs) or "≈" the equivalent.
+            ReportColumn('Packaging'),
             ReportColumn('Unit Price', right: true), ReportColumn('Total Value', right: true), ReportColumn('Source'), ReportColumn('Note'),
           ],
           rows: _exportRows(rows),
         ),
       ],
-      notes: ['Movements: ${loc(rows.length)}', 'Total in: +${loc(totalIn)}', 'Total out: -${loc(totalOut)}'],
+      notes: [
+        'Movements: ${loc(rows.length)}',
+        'Total in: +${loc(totalIn)}',
+        'Total out: -${loc(totalOut)}',
+        if (t.oneItem != null) 'Net (${t.oneItem}): ${t.net > 0 ? '+' : ''}${loc(t.net)}',
+      ],
     );
   }
 
@@ -287,16 +369,57 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
         if (_f.search.trim().isNotEmpty) ('Search', _f.search.trim()),
       ];
 
+  /// Totals of every filtered row (all pages). Net only for one item: across
+  /// items the units differ.
+  Widget _totalsPanel(List<Map> rows) {
+    final t = stockMoveTotals(rows);
+    Widget fig(String label, String value, {Color? color}) => Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+          Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+        ]);
+    return Container(
+      key: const ValueKey('stock-totals'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Wrap(spacing: 24, runSpacing: 8, children: [
+          fig('Movements', loc(rows.length)),
+          fig('Total in', '+${loc(t.totalIn)}', color: TColors.green700),
+          fig('Total out', '-${loc(t.totalOut)}', color: TColors.red600),
+          if (t.oneItem != null) fig('Net', '${t.net > 0 ? '+' : ''}${loc(t.net)}', color: t.net < 0 ? TColors.red600 : TColors.green700),
+        ]),
+        const SizedBox(height: 4),
+        Text.rich(
+          t.oneItem != null
+              ? TextSpan(children: [
+                  const TextSpan(text: 'Totals for '),
+                  TextSpan(text: t.oneItem, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  TextSpan(text: ' across all ${loc(rows.length)} filtered rows, not just this page.'),
+                ])
+              : TextSpan(
+                  text: 'Totals of all ${loc(rows.length)} filtered rows across ${t.itemCount} items, which may be in different units. '
+                      'Filter to one item for a meaningful total.'),
+          style: const TextStyle(fontSize: 11, color: TColors.slate500),
+        ),
+      ]),
+    );
+  }
+
+  /// The business date, with the time it was posted when one was recorded.
+  String _when(Map m) => fmtDateTime(m['date'], m['postedAt'] != null ? {'createdDate': m['postedAt']} : m, _offset);
+
   List<List<String>> _exportRows(List<Map<String, Object?>> rows) => [
         for (final m in rows)
           [
             tStr(m['date']).split('T').first,
+            m['postedAt'] != null ? fmtInstant(m['postedAt'], _offset) : '—',
             tStr(m['item']),
             tStr(m['parentType']),
             tStr(m['movementType']),
             tStr(m['batchFlock']).isEmpty ? '—' : tStr(m['batchFlock']),
             m['reason'] == null ? '—' : tStr(m['reason']),
             _signed(tNum(m['qty'])),
+            tStr(m['enteredAs']).isEmpty ? '—' : tStr(m['enteredAs']),
             m['unitCost'] != null ? _fmt(tNum(m['unitCost'])) : '—',
             m['total'] != null ? _fmt(tNum(m['total'])) : '—',
             tStr(m['source']),
@@ -322,7 +445,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
       return;
     }
     String esc(Object? v) => '"${tStr(v).replaceAll('"', '""')}"';
-    const headers = ['Date', 'Item', 'Parent Type', 'Movement', 'Batch / Flock', 'Reason', 'Qty', 'Unit Price', 'Total Value', 'Source', 'Note'];
+    const headers = ['Date', 'Entered', 'Item', 'Parent Type', 'Movement', 'Batch / Flock', 'Reason', 'Qty', 'Packaging', 'Unit Price', 'Total Value', 'Source', 'Note'];
     final lines = [
       headers.map(esc).join(','),
       for (final r in _exportRows(rows)) r.map(esc).join(','),
@@ -373,6 +496,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
       body: [
         Text(
           'The opposite is posted today and the original stays in the list.'
+          '${h['crates'] != null ? ' (entered as ${formatPackaged(PackagedQuantity(boxes: tIntOrNull(h['boxes']) ?? 0, crates: tIntOrNull(h['crates']) ?? 0, pieces: tIntOrNull(h['pieces']) ?? 0))} — the reversal undoes exactly this many eggs, whatever the box size is now)' : ''}'
           '${h['itemKind'] == 'Birds' ? " The flock's count goes back, and any Dead Birds it made come off." : ''}'
           '${h['convertedToBroken'] == true ? ' The Broken Eggs it made come off.' : ''}',
           style: const TextStyle(fontSize: 13, color: TColors.slate500),
@@ -477,6 +601,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
+                      if (rows.isNotEmpty) ...[_totalsPanel(rows), const SizedBox(height: 12)],
                       if (rows.isEmpty)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 24),
@@ -491,9 +616,11 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
                               return TBadge(tStr(m['movementType']), bg: bg, fg: fg);
                             }),
                             fields: [
-                              ('Date', fmtDateTime(m['date'], m, _offset), null),
+                              ('Date', _when(m), null),
+                              if (enteredOnAnotherDay(m, _offset)) ('Entered', fmtInstant(m['postedAt'], _offset), null),
                               ('Type', tStr(m['parentType']), null),
-                              ('Qty', _signed(tNum(m['qty'])), tNum(m['qty']) < 0 ? TColors.red600 : TColors.green700),
+                              ('Qty', '${_signed(tNum(m['qty']))}${tStr(m['enteredAs']).isNotEmpty ? ' · ${m['enteredAs']}' : ''}',
+                                  tNum(m['qty']) < 0 ? TColors.red600 : TColors.green700),
                               ('Unit price', m['unitCost'] != null ? _fmt(tNum(m['unitCost'])) : '—', null),
                               ('Total', m['total'] != null ? _fmt(tNum(m['total'])) : '—', null),
                               ('Source', tStr(m['source']), null),
@@ -527,13 +654,23 @@ const manualMovementReasons = [
   'Opening Inventory', 'Opening Bird Count', 'Historical Mortality', 'Historical Production',
   'Stock Count Correction', 'Unrecorded Breakage', 'Cull', 'Historical Sale / Use', 'Disposal',
   'Transfer Adjustment', 'Migration', 'Data Correction', 'Damage', 'Loss', 'Other',
+  // 413
+  'Historical Sale', 'Transfer Out',
+];
+
+/// 413: reasons that take birds away; never an increase (undo one by reversing it).
+const birdDecreaseReasons = [
+  'Historical Sale', 'Historical Sale / Use', 'Historical Mortality', 'Cull', 'Transfer Out', 'Damage', 'Loss', 'Disposal',
 ];
 
 /// reasonsFor: the reasons that fit the item and direction (the server applies
 /// the same rules). [kind] is birds / product / raw.
 List<String> manualReasonsFor(String kind, int sign, String? role, bool isEgg) => [
       for (final r in manualMovementReasons)
-        if (switch (r) {
+        // 413: a sale / loss of birds is always a decrease.
+        if (!(kind == 'birds' && sign > 0 && birdDecreaseReasons.contains(r)) &&
+            !(kind != 'birds' && (r == 'Historical Sale' || r == 'Transfer Out')) &&
+            switch (r) {
           'Historical Mortality' => (kind == 'birds' && sign < 0) || (role == 'DeadBirds' && sign > 0),
           'Cull' => kind == 'birds' && sign < 0,
           'Opening Bird Count' => kind == 'birds' && sign > 0,
@@ -574,6 +711,8 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
   String _target = '', _movement = 'Increase', _note = '', _reason = '', _disposition = 'Keep';
   String _batchId = '', _flockId = '', _date = _today();
   num _qty = 0, _unitCost = 0;
+  // 395: an intact-egg item on a box farm is entered as boxes + crates + pieces.
+  int _boxes = 0, _crates = 0, _pieces = 0;
   bool _saving = false;
   final String _key = _requestKey();
   List<Map>? _options;
@@ -601,7 +740,12 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
           ? 'raw'
           : (_product != null && isBirdStockProduct(_product!) ? 'birds' : 'product');
   int get _sign => stockMovements.firstWhere((m) => m.$1 == _movement, orElse: () => ('Increase', 1)).$2;
-  num get _q => _qty.abs();
+  EggPackaging get _pk => eggPackagingFor(widget.company.farmId);
+
+  /// 395: still ONE movement of eggs; the server converts with the company's packaging.
+  bool get _packagedEntry => _kind == 'product' && _isEgg && _role == null && boxSize(_pk) != null;
+  PackagedQuantity get _packagedQty => PackagedQuantity(boxes: _boxes, crates: _crates, pieces: _pieces);
+  num get _q => _packagedEntry ? toEggPieces(_packagedQty, _pk) : _qty.abs();
   String? get _role =>
       _preview?['systemRole'] as String? ?? (_product?['name'] == 'Broken Eggs' ? 'BrokenEggs' : (_product?['name'] == 'Dead Birds' ? 'DeadBirds' : null));
   bool get _isEgg => _preview?['isEgg'] == true;
@@ -700,7 +844,11 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
   Future<void> _save() async {
     final kind = _kind;
     if (kind == null) return _toast('Pick an item');
-    if (_q <= 0) return _toast('Quantity must be greater than 0');
+    if (_packagedEntry) {
+      final err = packagedQuantityError(_packagedQty, _pk);
+      if (err != null) return _toast(err);
+    }
+    if (_q <= 0) return _toast(_packagedEntry ? 'Enter at least one box, crate or egg' : 'Quantity must be greater than 0');
     if (_reason.isEmpty) return _toast('Choose the reason');
     if (_date.isEmpty) return _toast('Enter the effective date');
     if (_date.compareTo(_maxDate) > 0) return _toast('The effective date is in the future');
@@ -722,6 +870,8 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
         'unitCost': kind == 'birds' || _unitCost == 0 ? null : _unitCost,
         'batchId': kind == 'raw' ? null : _batchNum,
         'flockId': kind == 'raw' ? null : _flockNum,
+        // 413: the pool is explicit; "Not placed in a flock" is not just a missing flock.
+        'scope': kind == 'birds' ? (_flockId == unplacedFlock ? 'BatchUnallocated' : 'Flock') : null,
         'effectiveDate': _date,
         'reason': _reason,
         'disposition': _histMortality ? _disposition : null,
@@ -729,10 +879,17 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
         'requestKey': _key,
         'farmId': widget.company.farmId,
         'createdBy': widget.session.tokens.userId,
+        // 395: the server converts these with the company's packaging.
+        if (_packagedEntry) ...{'boxes': _boxes, 'crates': _crates, 'pieces': _pieces},
       });
       if (!mounted) return;
       final r = res is Map ? res : const {};
-      trackerToast(context, '${tStr(r['movementNo'])} posted', description: r['repeated'] == true ? 'This movement was already saved.' : null);
+      trackerToast(context, '${tStr(r['movementNo'])} posted',
+          description: r['repeated'] == true
+              ? 'This movement was already saved.'
+              : tStr(r['packaging']).isNotEmpty
+                  ? '${r['packaging']} = ${loc(r['eggs'] != null ? tNum(r['eggs']) : _q)} eggs'
+                  : null);
       Navigator.pop(context, true);
       return;
     } on ApiException catch (e) {
@@ -762,7 +919,7 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
       content: SizedBox(
         width: 440,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          formSection('Movement', const Color(0xFF2563EB), [
+          formSection('Movement', const Tone.bg(0xFF2563EB), [
             cell(
               'Item *',
               AppSelect<String>(
@@ -816,9 +973,39 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
                 onChanged: (v) => setState(() => _reason = v ?? ''),
               ),
             ),
-            cell(kind == 'birds' ? 'Birds *' : 'Quantity *',
-                NumBox(key: ValueKey('qty-${kind == 'birds'}'), value: _qty, decimal: kind != 'birds', onChanged: (v) => setState(() => _qty = v)),
-                hint: 'Always positive; the movement type sets the direction.'),
+            if (_packagedEntry)
+              cell(
+                'Quantity *',
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (final (k, label, value) in [
+                    ('boxes', 'boxes (${_pk.cratesPerBox}×${_pk.eggsPerCrate})', _boxes),
+                    ('crates', 'crates (${_pk.eggsPerCrate})', _crates),
+                    ('pieces', 'pieces', _pieces),
+                  ]) ...[
+                    if (k != 'boxes') const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        NumBox(
+                          key: ValueKey('manual-$k'),
+                          value: value,
+                          onChanged: (v) => setState(() {
+                            final n = v.isFinite ? (v < 0 ? 0 : v.truncate()) : 0;
+                            if (k == 'boxes') _boxes = n;
+                            if (k == 'crates') _crates = n;
+                            if (k == 'pieces') _pieces = n;
+                          }),
+                        ),
+                        Text(label, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                      ]),
+                    ),
+                  ],
+                ]),
+                hint: '= ${loc(_q)} eggs. Always positive; the movement type sets the direction.',
+              )
+            else
+              cell(kind == 'birds' ? 'Birds *' : 'Quantity *',
+                  NumBox(key: ValueKey('qty-${kind == 'birds'}'), value: _qty, decimal: kind != 'birds', onChanged: (v) => setState(() => _qty = v)),
+                  hint: 'Always positive; the movement type sets the direction.'),
             if (kind != 'birds') cell('Unit cost / value', NumBox(value: _unitCost, decimal: true, onChanged: (v) => _unitCost = v)),
             if (kind != null && kind != 'raw') ...[
               cell(
@@ -855,17 +1042,17 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
                     if (kind != 'birds') const AppSelectItem(value: _none, label: 'No flock'),
                     for (final f in _flocks)
                       () {
-                        final why = kind == 'birds'
-                            ? (f['isClosed'] == true ? 'closed' : (f['hasProductionRecord'] != true ? 'no production record yet' : null))
-                            : null;
+                        // 413: a flock exists without production records; only a
+                        // closed flock is out of reach (reopen it first).
+                        final closed = kind == 'birds' && f['isClosed'] == true;
                         return AppSelectItem(
                           value: '${f['flockId']}',
-                          label: '${tStr(f['flockName'])}${kind == 'birds' ? ' · ${why ?? '${loc(tNum(f['liveBirds']))} birds'}' : ''}',
-                          enabled: why == null,
+                          label: '${tStr(f['flockName'])}${kind != 'birds' ? '' : closed ? ' — closed' : ' — ${loc(tNum(f['liveBirds']))} birds available${f['hasProductionRecord'] == true ? '' : ' (no production record yet)'}'}',
+                          enabled: !closed,
                         );
                       }(),
                     if (kind == 'birds' && _pickedBatch != null)
-                      AppSelectItem(value: unplacedFlock, label: 'Not placed in a flock · ${loc(tNum(_pickedBatch!['unplacedBirds']))} birds'),
+                      AppSelectItem(value: unplacedFlock, label: 'Not placed in a flock — ${loc(tNum(_pickedBatch!['unplacedBirds']))} live birds'),
                   ],
                   onChanged: (v) {
                     setState(() {
@@ -920,10 +1107,19 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
                     ),
                   ]),
                 if (kind == 'birds' && _flockId.isNotEmpty && _flockId != unplacedFlock)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '${_pickedFlock?['hasProductionRecord'] == true ? "The flock’s latest production record takes the corrected count." : 'The flock has no production record yet, so its bird count itself is corrected.'} '
+                      "No production record is created and no day's deaths change.",
+                      style: const TextStyle(fontSize: 12, color: TColors.slate500),
+                    ),
+                  ),
+                if (kind == 'birds' && _flockId == unplacedFlock)
                   const Padding(
                     padding: EdgeInsets.only(top: 4),
                     child: Text(
-                      "The flock's latest production record takes the corrected count. No production record is created and no day's deaths change.",
+                      "Only the batch's birds that are in no flock change. No flock, no production record, no sale and no cash are touched.",
                       style: TextStyle(fontSize: 12, color: TColors.slate500),
                     ),
                   ),
@@ -931,6 +1127,16 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
                   const Padding(
                     padding: EdgeInsets.only(top: 4),
                     child: Text('The eggs are not lost: they move to Broken Eggs.', style: TextStyle(fontSize: 12, color: TColors.slate500)),
+                  ),
+                if (_packagedEntry && _preview != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '${formatPackaged(_packagedQty)} = ${_sign < 0 ? '−' : '+'}${loc(_q)} eggs. After: '
+                      '${formatEggQuantity(tNum(_preview!['itemOnHand']) + _sign * _q, _pk, EggDisplay.boxesCratesPieces)} (an equivalent; nothing is packed).',
+                      key: const ValueKey('manual-packaged-after'),
+                      style: const TextStyle(fontSize: 12, color: TColors.slate500),
+                    ),
                   ),
               ]),
             ),

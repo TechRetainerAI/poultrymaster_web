@@ -16,6 +16,7 @@ import 'report_shell.dart';
 import 'report_widgets.dart';
 import 'reports_catalog_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 num _n(Object? v) => toNum(v);
 num _r2(num n) => (n * 100).round() / 100;
 String _day(Object? v) => '${v ?? ''}'.length >= 10 ? '${v ?? ''}'.substring(0, 10) : '${v ?? ''}';
@@ -36,6 +37,8 @@ class MoneyRail {
     required this.reconcileHref,
     required this.entity,
     required this.catalog,
+    this.cashAccountsPath,
+    this.accent,
   });
 
   /// `/api/Poultry`, `/api/Water`.
@@ -50,6 +53,27 @@ class MoneyRail {
   /// "farm" (Poultry) or "company" (Water), in the money page's sentences.
   final String entity;
   final Widget Function(Session session, Company company) catalog;
+
+  /// The cash-accounts list when it is not `$api/cash-accounts` (Hotel's is
+  /// under /finance and answers with lower-case keys).
+  final String? cashAccountsPath;
+
+  /// The page's own colour where the web replaces Poultry's (Hotel's violet).
+  final Color? accent;
+
+  bool get isHotel => idPrefix == 'hotel';
+  String get cashAccountsApi => cashAccountsPath ?? '$api/cash-accounts';
+
+  /// The cash accounts with their camelCase keys (the web's `x.accountName ?? x.accountname`).
+  List<Map> accountsOf(Object? res) => [
+        for (final a in (res is List ? res : const []))
+          if (a is Map)
+            {
+              ...a,
+              for (final k in [id('CashAccountId'), 'accountName', 'accountType', 'openingBalance', 'currentBalance', 'allowNegativeBalance', 'isActive'])
+                k: a[k] ?? a[k.toLowerCase()],
+            },
+      ];
 
   String id(String suffix) => '$idPrefix$suffix';
 
@@ -433,7 +457,7 @@ class _CashAccountReportScreenState extends State<CashAccountReportScreen> {
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(8)),
           child: Text.rich(TextSpan(style: const TextStyle(fontSize: 12, color: slate600), children: [
             const TextSpan(text: 'Opening '),
             TextSpan(text: _money(t.opening), style: const TextStyle(fontWeight: FontWeight.w700, color: slate900)),
@@ -633,7 +657,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
               ),
             ),
             const Row(children: [
-              Icon(Icons.account_balance_wallet_outlined, color: Color(0xFF7C3AED)),
+              Icon(Icons.account_balance_wallet_outlined, color: Tone.fg(0xFF7C3AED)),
               SizedBox(width: 8),
               Text('Money Movement', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w600, color: slate900)),
             ]),
@@ -646,7 +670,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
                   Expanded(child: _date('From', _from, (v) => setState(() => _from = v))),
@@ -700,9 +724,9 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
                 title: 'Owner money',
                 note: 'What the owner put in and took out. A contribution is not revenue and a draw is not an expense — neither touches profit.',
                 tiles: [
-                  ('Contributions', _money(contributions), const Color(0xFF047857)),
-                  ('Draws', _money(draws), const Color(0xFFC2410C)),
-                  ('Net funding', _money(contributions - draws), contributions - draws >= 0 ? const Color(0xFF047857) : const Color(0xFFE11D48)),
+                  ('Contributions', _money(contributions), const Tone(0xFF047857)),
+                  ('Draws', _money(draws), const Tone(0xFFC2410C)),
+                  ('Net funding', _money(contributions - draws), contributions - draws >= 0 ? const Tone(0xFF047857) : const Tone(0xFFE11D48)),
                 ],
                 empty: om.isEmpty ? 'No owner money in this period.' : null,
                 child: ShellCards(
@@ -731,10 +755,10 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
                 title: 'Loans',
                 note: 'Borrowed money. Receiving it is not income, and the debt is what was borrowed — which can exceed what arrived if the lender withheld a fee.',
                 tiles: [
-                  ('Still owed', _money(_sum(liveLoans, 'outstandingPrincipal')), const Color(0xFF6D28D9)),
+                  ('Still owed', _money(_sum(liveLoans, 'outstandingPrincipal')), const Tone(0xFF6D28D9)),
                   ('Borrowed', _money(_sum(liveLoans, 'originalPrincipal')), null),
                   ('Received', _money(_sum(liveLoans, 'amountReceived')), null),
-                  ('Principal repaid', _money(_sum(liveLoans, 'totalPrincipalRepaid')), const Color(0xFF047857)),
+                  ('Principal repaid', _money(_sum(liveLoans, 'totalPrincipalRepaid')), const Tone(0xFF047857)),
                 ],
                 empty: _loans.isEmpty ? 'No loans on record.' : null,
                 footnote: 'Loan totals are as they stand today, not sliced by the period — an outstanding balance is a position, not a flow.',
@@ -812,9 +836,9 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
 
   static Color _statusColor(String s) => switch (s) {
         'Reversed' || 'Cancelled' => slate700,
-        'Overdue' => const Color(0xFF9F1239),
-        'PaidOff' => const Color(0xFF065F46),
-        _ => const Color(0xFF075985),
+        'Overdue' => const Tone(0xFF9F1239),
+        'PaidOff' => const Tone(0xFF065F46),
+        _ => const Tone(0xFF075985),
       };
 
   Widget _date(String label, String value, void Function(String) set) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -851,7 +875,7 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.only(bottom: 18),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Padding(padding: const EdgeInsets.only(top: 2), child: Icon(icon, size: 20, color: slate500)),

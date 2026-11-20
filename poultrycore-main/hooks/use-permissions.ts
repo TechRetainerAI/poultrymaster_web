@@ -306,9 +306,9 @@ export function usePermissions(): UserPermissions {
 
   const computeFromStorage = useCallback((): BasePermissions => {
     const isStaffStr = localStorage.getItem("isStaff")
-    const isStaff = isStaffStr === "true" || isStaffStr === true
+    const isStaff = isStaffStr === "true"
     const isSubscriberStr = localStorage.getItem("isSubscriber")
-    const isSubscriber = isSubscriberStr === "true" || isSubscriberStr === true
+    const isSubscriber = isSubscriberStr === "true"
     const rolesString = localStorage.getItem("roles") || "[]"
 
     let roles: string[] = []

@@ -87,9 +87,11 @@ export function useSearchPages(): SearchPage[] {
         catalog: { label: "Operations", items: g.catalog },
         subscriptions: { label: "Subscriptions", items: g.subscriptions },
         sales: { label: "Sales", items: g.sales },
-        purchasing: { label: "Purchasing", items: g.purchasing },
+        purchasing: { label: "Expenses", items: g.purchasing },
         money: { label: "Money", items: g.money },
         people: { label: "People", items: g.people },
+        reports: { label: "Reports", items: g.reports },
+        setup: { label: "Setup", items: g.setup },
         admin: { label: "Admin", items: g.admin },
       })
     } else if (activeFarmType === "Hotel") {

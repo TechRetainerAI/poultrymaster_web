@@ -12,6 +12,7 @@ import '../../../state/session.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const birdStockLockedReason =
     'Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock).';
 
@@ -160,10 +161,10 @@ class _SetProductStockDialogState extends State<SetProductStockDialog> {
             ),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              pill('${changed.length} change${changed.length == 1 ? '' : 's'}', changed.isNotEmpty ? TColors.amber100 : TColors.slate100,
-                  changed.isNotEmpty ? TColors.amber800 : TColors.slate600),
+              pill('${changed.length} change${changed.length == 1 ? '' : 's'}', changed.isNotEmpty ? TColors.amber100 : Tone.bg(0xFFF1F5F9),
+                  changed.isNotEmpty ? TColors.amber800 : Tone.fg(0xFF475569)),
               if (changed.isNotEmpty) ...[
-                pill('Net ${net > 0 ? '+' : ''}${loc(net)}', net < 0 ? TColors.rose100 : TColors.emerald100, net < 0 ? TColors.rose700 : TColors.emerald700),
+                pill('Net ${net > 0 ? '+' : ''}${loc(net)}', net < 0 ? TColors.rose100 : TColors.emerald100, net < 0 ? TColors.rose700 : Tone.fg(0xFF047857)),
                 TextButton.icon(onPressed: _busy ? null : _resetAll, icon: const Icon(Icons.undo, size: 14), label: const Text('Reset')),
               ],
             ]),
@@ -209,7 +210,7 @@ class _SetProductStockDialogState extends State<SetProductStockDialog> {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: dirty ? TColors.amber50 : Colors.white,
+        color: dirty ? TColors.amber50 : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(8),
       ),

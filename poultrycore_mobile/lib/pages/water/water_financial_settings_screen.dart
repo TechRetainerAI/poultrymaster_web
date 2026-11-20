@@ -9,6 +9,7 @@ import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 import '../shared/iam_permissions.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Water → Setup → Company → Financial Settings ("Cost Recognition"), as
 /// `app/water-financial-settings/page.tsx`: when packaging costs and when
 /// treatment chemical costs reach Profit & Loss, an optional future start
@@ -230,9 +231,9 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                 const SizedBox(height: 12),
                 if (!_deferralAvailable) ...[
                   const _Note(
-                    color: Color(0xFFF1F5F9), // slate-100
-                    border: Color(0xFFCBD5E1), // slate-300
-                    fg: Color(0xFF334155), // slate-700
+                    color: Tone(0xFFF1F5F9), // slate-100
+                    border: Tone(0xFFCBD5E1), // slate-300
+                    fg: Tone(0xFF334155), // slate-700
                     icon: Icons.lock_outline,
                     title: 'Expense-when-consumed is not available yet',
                     text: _deferralUnavailable,
@@ -242,9 +243,9 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                 // Never present a default as though somebody chose it.
                 if (_saved?['isConfigured'] != true) ...[
                   const _Note(
-                    color: Color(0xFFF0F9FF), // sky-50
-                    border: Color(0xFFBAE6FD), // sky-200
-                    fg: Color(0xFF0C4A6E), // sky-900
+                    color: Tone(0xFFF0F9FF), // sky-50
+                    border: Tone(0xFFBAE6FD), // sky-200
+                    fg: Tone(0xFF0C4A6E), // sky-900
                     icon: Icons.info_outline,
                     text: 'Nobody has set this up yet, so both are on the standard treatment: costs reach '
                         'Profit & Loss as you pay for them. Nothing changes until you save something '
@@ -253,7 +254,7 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                   const SizedBox(height: 12),
                 ],
                 _MethodSection(
-                  icon: const Icon(Icons.inventory_2_outlined, color: Color(0xFF0284C7)),
+                  icon: const Icon(Icons.inventory_2_outlined, color: Tone.fg(0xFF0284C7)),
                   title: 'Packaging Materials',
                   blurb: 'The film, rolls and bags a sachet or bottle physically consumes.',
                   categories: _groupCategories['Packaging']!,
@@ -264,7 +265,7 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                 ),
                 const SizedBox(height: 12),
                 _MethodSection(
-                  icon: const Icon(Icons.science_outlined, color: Color(0xFF059669)),
+                  icon: const Icon(Icons.science_outlined, color: Tone.fg(0xFF059669)),
                   title: 'Treatment Chemicals',
                   blurb: 'Independent of the packaging setting above — one can defer while the other does not.',
                   categories: _groupCategories['Treatment']!,
@@ -343,9 +344,9 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                 if (_dirty) ...[
                   const SizedBox(height: 12),
                   const _Note(
-                    color: Color(0xFFFFFBEB), // amber-50
-                    border: Color(0xFFFDE68A), // amber-200
-                    fg: Color(0xFF78350F), // amber-900
+                    color: Tone(0xFFFFFBEB), // amber-50
+                    border: Tone(0xFFFDE68A), // amber-200
+                    fg: Tone(0xFF78350F), // amber-900
                     icon: Icons.warning_amber_rounded,
                     text: _changeWarning,
                   ),
@@ -567,15 +568,15 @@ class _MethodSection extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: selected ? const Color(0xFFF0F9FF) : null, // sky-50
-                      border: Border.all(color: selected ? const Color(0xFF0EA5E9) : tokens.border),
+                      color: selected ? const Tone.bg(0xFFF0F9FF) : null, // sky-50
+                      border: Border.all(color: selected ? const Tone.line(0xFF0EA5E9) : tokens.border),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                            size: 18, color: selected ? const Color(0xFF0284C7) : tokens.mutedForeground),
+                            size: 18, color: selected ? const Tone.fg(0xFF0284C7) : tokens.mutedForeground),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
@@ -621,7 +622,7 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: solid ? const Color(0xFF171717) : (outline ? null : tokens.muted),
+        color: solid ? const Tone.bg(0xFF171717) : (outline ? null : tokens.muted),
         border: outline ? Border.all(color: tokens.border) : null,
         borderRadius: BorderRadius.circular(999),
       ),

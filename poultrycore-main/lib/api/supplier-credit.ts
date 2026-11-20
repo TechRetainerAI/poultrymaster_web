@@ -14,7 +14,7 @@
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 // 426: the same routes exist under Water/.
-import { creditModule } from "./credit-module"
+import { supplierCreditModule as creditModule } from "./credit-module"
 
 export interface SupplierCreditSummaryRow {
   supplierId: number

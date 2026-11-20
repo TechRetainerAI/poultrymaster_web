@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { highlightRuns } from "@/lib/help/help-search"
 import type { HelpEntry } from "@/lib/help/help-types"
+import { shotsFor } from "@/lib/help/help-shots"
+import { HelpShots } from "./help-shots"
 
 export interface HelpTone {
   rail: string
@@ -137,6 +139,7 @@ export function HelpEntryCard({
           <div className="px-4 pb-4 pt-0 sm:px-5">
             <div className="border-t border-slate-100 pt-3 text-sm leading-relaxed text-slate-600">
               <HelpBody body={entry.body} matched={matched} />
+              <HelpShots shots={shotsFor(entry.id)} title={entry.title} />
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {links.map((l) => (

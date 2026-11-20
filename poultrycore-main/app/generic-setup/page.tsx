@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CompanyTimeZoneField } from "@/components/settings/company-timezone-field"
-import { Loader2, Settings, CheckCircle2 } from "lucide-react"
+import { Loader2, Settings, CheckCircle2, ArrowLeft, Save } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -27,6 +27,7 @@ import {
   getBusinessCategories,
   getProfile,
   setupProfile,
+  updateProfile,
 } from "@/lib/api/generic"
 
 export default function GenericSetupPage() {
@@ -138,20 +139,28 @@ export default function GenericSetupPage() {
     setSaving(true)
     try {
       const chosen = GENERIC_BUSINESS_TYPES.find((t) => t.id === form.businessTypeId)
-      const updated = await setupProfile({
+      const body = {
         // Derived from the business type rather than asked for separately.
         businessCategoryId:
           legacyCategoryIdFor(chosen?.industryTemplate, categories)
           ?? (form.businessCategoryId ? Number(form.businessCategoryId) : null),
         businessDescription: form.businessDescription || null,
         defaultCurrency: form.defaultCurrency || "GHC",
-        openingCashBalance: Number(form.openingCashBalance) || 0,
+        // Opening cash seeds the Main Cash Box once, at setup. After that it is
+        // shown read-only and sent back unchanged.
+        openingCashBalance: profile
+          ? (profile.openingCashBalance ?? 0)
+          : (Number(form.openingCashBalance) || 0),
         businessStartDate: form.businessStartDate || null,
         mainLocation: form.mainLocation || null,
         ownerName: form.ownerName || null,
         phoneNumber: form.phoneNumber || null,
         notes: form.notes || null,
-      })
+      }
+      // POST /setup only inserts a profile when none exists (it skips an
+      // existing one), so an already set-up company must save with PUT or
+      // every edit is silently dropped.
+      const updated = profile ? await updateProfile(body) : await setupProfile(body)
       if (updated) {
         setProfile(updated)
 
@@ -184,43 +193,64 @@ export default function GenericSetupPage() {
     }
   }
 
+  const set = (key: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }))
+
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <Settings className="h-6 w-6 text-emerald-600" />
-              {profile ? "Business profile" : "Set up your business"}
-            </h1>
-            <p className="text-sm text-slate-500">
-              {profile
-                ? "Update your profile. Default lookups stay as they are; this form does not re-seed."
-                : "Pick a business category and basic details — we'll seed default expense categories, cash accounts, customer/supplier types, and payment methods."}
-            </p>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center gap-2 text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-            </div>
-          ) : (
-            <Card className="max-w-3xl">
-              <CardHeader>
-                <CardTitle>Profile</CardTitle>
-                <CardDescription>
+          <button type="button" onClick={() => router.back()} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
+            <ArrowLeft className="h-3 w-3 mr-1" /> Back
+          </button>
+          <form onSubmit={onSubmit}>
+            <div className="mb-4 flex items-end justify-between flex-wrap gap-2">
+              <div>
+                <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2 flex-wrap">
+                  <Settings className="h-6 w-6 text-emerald-600" />
+                  {profile ? "Business profile" : "Set up your business"}
                   {profile && (
-                    <span className="inline-flex items-center gap-1 text-emerald-700">
-                      <CheckCircle2 className="h-4 w-4" /> Already set up
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Already set up
                     </span>
                   )}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
+                </h1>
+                <p className="text-sm text-slate-500">
+                  {profile
+                    ? "Who this company is. Default lookups stay as they are; saving does not re-seed them."
+                    : "Pick your business type and basic details. We'll seed default expense categories, cash accounts, customer/supplier types and payment methods."}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => router.push("/generic-dashboard")}>Cancel</Button>
+                <Button type="submit" disabled={saving || loading}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  {profile ? "Save changes" : "Set up & continue"}
+                </Button>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center gap-2 text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* ---- business type ------------------------------------- */}
+                <Card className="lg:col-span-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Business type</CardTitle>
+                    <CardDescription>
+                      Sets what things are called, which menus appear, and the categories, accounts and
+                      starter plans you begin with. You can change all of it afterwards.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {/* The old "business category" list is still stored underneath,
+                        mapped from this choice, because some reports read it. */}
                     <Label>What kind of business is this?</Label>
                     <Select
                       value={form.businessTypeId}
@@ -235,107 +265,80 @@ export default function GenericSetupPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    {/* This is the question that actually does something. The old
-                        "business category" list is still stored underneath, mapped
-                        from this choice, because it is a label some reports read --
-                        but it never drove behaviour and asking it separately just
-                        made two dropdowns look like the same question. */}
-                    <p className="text-xs text-slate-500 mt-1">
-                      Sets what things are called, which menus appear, and the
-                      categories, accounts and starter plans you begin with. You can
-                      change all of it afterwards.
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">Restaurant, hotel, shop, salon, pharmacy, etc.</p>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  <div>
-                    <Label>Default currency</Label>
-                    <Input
-                      value={form.defaultCurrency}
-                      maxLength={10}
-                      onChange={(e) => setForm((f) => ({ ...f, defaultCurrency: e.target.value }))}
-                    />
-                  </div>
-                  <CompanyTimeZoneField />
+                {/* ---- owner & contact ----------------------------------- */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Owner &amp; contact</CardTitle>
+                    <CardDescription>Who runs the business and where to find it.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Owner name</Label>
+                      <Input value={form.ownerName} maxLength={150} onChange={set("ownerName")} />
+                    </div>
+                    <div>
+                      <Label>Phone number</Label>
+                      <Input value={form.phoneNumber} maxLength={50} onChange={set("phoneNumber")} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Main location</Label>
+                      <Input value={form.mainLocation} maxLength={255} onChange={set("mainLocation")} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Business description</Label>
+                      <Textarea rows={3} maxLength={500} value={form.businessDescription} onChange={set("businessDescription")} />
+                    </div>
+                  </CardContent>
+                </Card>
 
-                  <div>
-                    <Label>Business start date</Label>
-                    <Input
-                      type="date"
-                      value={form.businessStartDate}
-                      onChange={(e) => setForm((f) => ({ ...f, businessStartDate: e.target.value }))}
-                    />
-                  </div>
+                {/* ---- money & time -------------------------------------- */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Money &amp; time</CardTitle>
+                    <CardDescription>Currency, opening cash, start date and the company&apos;s timezone.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Default currency</Label>
+                      <Input value={form.defaultCurrency} maxLength={10} onChange={set("defaultCurrency")} />
+                    </div>
+                    <div>
+                      <Label>Business start date</Label>
+                      <Input type="date" value={form.businessStartDate} onChange={set("businessStartDate")} />
+                    </div>
+                    <div>
+                      <Label>Opening cash ({form.defaultCurrency})</Label>
+                      <NumberInput
+                        step="0.01"
+                        value={form.openingCashBalance}
+                        disabled={!!profile}
+                        onChange={set("openingCashBalance")}
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        {profile
+                          ? "Set once, at setup. Correct a balance from Cash & accounts."
+                          : "Seeds the \"Main Cash Box\" account."}
+                      </p>
+                    </div>
+                    <CompanyTimeZoneField />
+                  </CardContent>
+                </Card>
 
-                  <div>
-                    <Label>Owner name</Label>
-                    <Input
-                      value={form.ownerName}
-                      maxLength={150}
-                      onChange={(e) => setForm((f) => ({ ...f, ownerName: e.target.value }))}
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Phone number</Label>
-                    <Input
-                      value={form.phoneNumber}
-                      maxLength={50}
-                      onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Main location</Label>
-                    <Input
-                      value={form.mainLocation}
-                      maxLength={255}
-                      onChange={(e) => setForm((f) => ({ ...f, mainLocation: e.target.value }))}
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Opening cash ({form.defaultCurrency})</Label>
-                    <NumberInput
-                      
-                      step="0.01"
-                      value={form.openingCashBalance}
-                      onChange={(e) => setForm((f) => ({ ...f, openingCashBalance: e.target.value }))}
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Seeds the &quot;Main Cash Box&quot; account.</p>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <Label>Business description</Label>
-                    <Textarea
-                      rows={2}
-                      maxLength={500}
-                      value={form.businessDescription}
-                      onChange={(e) => setForm((f) => ({ ...f, businessDescription: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <Label>Notes</Label>
-                    <Textarea
-                      rows={2}
-                      maxLength={1000}
-                      value={form.notes}
-                      onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="md:col-span-2 flex justify-end gap-2 pt-2">
-                    <Button type="button" variant="outline" onClick={() => router.push("/generic-dashboard")}>Cancel</Button>
-                    <Button type="submit" disabled={saving}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      {profile ? "Save changes" : "Set up & continue"}
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
+                {/* ---- notes --------------------------------------------- */}
+                <Card className="lg:col-span-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Notes</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea rows={3} maxLength={1000} value={form.notes} onChange={set("notes")} />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </form>
         </main>
       </div>
     </div>

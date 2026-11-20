@@ -410,7 +410,7 @@ function FinancialActivityPageInner() {
           <Card><CardContent className="p-0 lg:p-4">
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-12 text-slate-500">
-                <Loader2 className="w-4 h-4 animate-spin" /> Loading financial activity...
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading financial activity…
               </div>
             ) : filtered.length === 0 ? (
               <div className="py-12 text-center text-sm text-slate-500 px-4">

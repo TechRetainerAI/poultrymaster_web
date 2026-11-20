@@ -27,6 +27,7 @@ import '../../poultry/trackers/tracker_widgets.dart';
 import '../restaurant_roles.dart' show restaurantRose;
 import 'restaurant_reports_catalog.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ---------------------------------------------------------------------------
 // Formatting (makeFmt)
 // ---------------------------------------------------------------------------
@@ -75,12 +76,26 @@ num sumOf(Iterable<Map> rows, num Function(Map r) f) => rows.fold<num>(0, (t, r)
 // ---------------------------------------------------------------------------
 
 class RRange {
-  const RRange({required this.from, required this.to, required this.date});
+  const RRange({required this.from, required this.to, required this.date, this.extra = const {}});
   final String from, to;
 
   /// The single-day value, for reports whose dateMode is single.
   final String date;
-  RRange copyWith({String? from, String? to, String? date}) => RRange(from: from ?? this.from, to: to ?? this.to, date: date ?? this.date);
+
+  /// The values of a report's own filters ([RDef.filters]), by key.
+  final Map<String, String> extra;
+  RRange copyWith({String? from, String? to, String? date, Map<String, String>? extra}) =>
+      RRange(from: from ?? this.from, to: to ?? this.to, date: date ?? this.date, extra: extra ?? this.extra);
+}
+
+/// A report's own dropdown filter (the Hotel Cash Flow page's Account and
+/// Source). The first option is the "all" one; its value is the default.
+class RFilter {
+  const RFilter(this.key, this.label, this.options);
+  final String key, label;
+
+  /// (value, label) pairs, from the loaded result's meta when they depend on data.
+  final List<(String, String)> Function(Object? meta) options;
 }
 
 String isoDay(DateTime d) =>
@@ -147,9 +162,35 @@ class RDef {
     this.tableHint,
     this.emptyText,
     this.rows,
+    this.presets = true,
+    this.showTable = true,
+    this.columnsFor,
+    this.filters = const [],
+    this.dateControl,
+    this.initialRange,
   });
   final Future<RLoad> Function(RCtx c, RRange r) load;
   final List<RCol> columns;
+
+  // The rest serve the Hotel reports that own their pages on the web
+  // (app/hotel-reports/<slug>/page.tsx), each with its own controls.
+
+  /// The range control's Today / 7 days / … buttons; the own-page reports
+  /// have only From and To.
+  final bool presets;
+
+  /// False when [panel] draws the page's tables itself; the export still
+  /// uses [columns] and the rows.
+  final bool showTable;
+
+  /// The export's columns when they depend on the result (Monthly: weeks, or
+  /// totals when there are none).
+  final List<RCol> Function(RLoad r)? columnsFor;
+  final List<RFilter> filters;
+
+  /// Replaces the dateMode's control (a week or a month picker).
+  final Widget Function(RRange r, ValueChanged<RRange> set)? dateControl;
+  final RRange Function(RRange r)? initialRange;
 
   /// KPI tiles above the table, also in the PDF and the CSV.
   final List<RCard> Function(RLoad r, RFmt f)? summary;
@@ -168,7 +209,7 @@ class RDef {
 // Presentation
 // ---------------------------------------------------------------------------
 
-const _tones = [Color(0xFF10B981), Color(0xFFF43F5E), Color(0xFF6366F1), Color(0xFFF59E0B)];
+const _tones = [Tone(0xFF10B981), Tone(0xFFF43F5E), Tone(0xFF6366F1), Tone(0xFFF59E0B)];
 
 class StatGrid extends StatelessWidget {
   const StatGrid(this.cards, {super.key});
@@ -196,14 +237,14 @@ class StatGrid extends StatelessWidget {
   // round a border whose sides differ in colour).
   Widget _card(RCard c, Color tone) => Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: TColors.slate200)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), borderRadius: BorderRadius.circular(10), border: Border.all(color: Tone.line(0xFFE2E8F0))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(width: 4, color: tone),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(c.value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: TColors.slate900)),
+                Text(c.value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
                 const SizedBox(height: 2),
                 Text(c.label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
               ]),
@@ -216,10 +257,10 @@ class StatGrid extends StatelessWidget {
 /// ToneBadge: good / warn / bad / muted.
 Widget toneBadge(String text, String tone) {
   final (bg, fg, border) = switch (tone) {
-    'good' => (const Color(0xFFECFDF5), const Color(0xFF047857), const Color(0xFFA7F3D0)),
-    'warn' => (const Color(0xFFFFFBEB), const Color(0xFFB45309), const Color(0xFFFDE68A)),
-    'bad' => (const Color(0xFFFEF2F2), const Color(0xFFB91C1C), const Color(0xFFFECACA)),
-    _ => (const Color(0xFFF8FAFC), const Color(0xFF475569), TColors.slate200),
+    'good' => (const Tone.bg(0xFFECFDF5), const Tone.fg(0xFF047857), const Tone.line(0xFFA7F3D0)),
+    'warn' => (const Tone(0xFFFFFBEB), const Tone(0xFFB45309), const Tone(0xFFFDE68A)),
+    'bad' => (const Tone(0xFFFEF2F2), const Tone(0xFFB91C1C), const Tone(0xFFFECACA)),
+    _ => (const Tone(0xFFF8FAFC), const Tone(0xFF475569), TColors.slate200),
   };
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -232,12 +273,12 @@ Widget toneBadge(String text, String tone) {
 Widget coloured(String text, Color color, {bool bold = false}) =>
     Text(text, textAlign: TextAlign.right, style: TextStyle(fontSize: 12, color: color, fontWeight: bold ? FontWeight.w600 : FontWeight.w500));
 
-const red700 = Color(0xFFB91C1C);
-const red600 = Color(0xFFDC2626);
-const amber700 = Color(0xFFB45309);
-const amber600 = Color(0xFFD97706);
-const emerald700 = Color(0xFF047857);
-const rose700 = Color(0xFFBE123C);
+const red700 = Tone(0xFFB91C1C);
+const red600 = Tone(0xFFDC2626);
+const amber700 = Tone(0xFFB45309);
+const amber600 = Tone(0xFFD97706);
+const emerald700 = Tone(0xFF047857);
+const rose700 = Tone.fg(0xFFBE123C);
 
 /// A titled card, as the web's chartCard / card.
 Widget reportCard(String title, String? hint, Widget body) => TCard(
@@ -279,7 +320,7 @@ class BarChartRows extends StatelessWidget {
               Row(mainAxisSize: MainAxisSize.min, children: [
                 Container(width: 10, height: 10, decoration: BoxDecoration(color: s.$2, borderRadius: BorderRadius.circular(2))),
                 const SizedBox(width: 4),
-                Text(s.$1, style: const TextStyle(fontSize: 11, color: TColors.slate600)),
+                Text(s.$1, style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF475569))),
               ]),
           ]),
         ),
@@ -287,7 +328,7 @@ class BarChartRows extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(items[i], maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate700)),
+            Text(items[i], maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF334155))),
             for (final (k, s) in series.indexed)
               Padding(
                 padding: const EdgeInsets.only(top: 3),
@@ -298,15 +339,15 @@ class BarChartRows extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: maxes[k] == 0 ? 0 : (s.$3[i].abs() / maxes[k]).clamp(0, 1).toDouble(),
                         minHeight: 8,
-                        color: signed && s.$3[i] < 0 ? const Color(0xFFE11D48) : s.$2,
-                        backgroundColor: TColors.slate100,
+                        color: signed && s.$3[i] < 0 ? const Tone.fg(0xFFE11D48) : s.$2,
+                        backgroundColor: Tone.bg(0xFFF1F5F9),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 110,
-                    child: Text(s.$4(s.$3[i]), textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: TColors.slate700)),
+                    child: Text(s.$4(s.$3[i]), textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF334155))),
                   ),
                 ]),
               ),
@@ -320,7 +361,7 @@ class BarChartRows extends StatelessWidget {
 Widget shareBars(List<(String, num)> slices, {String Function(num)? fmt}) {
   final total = slices.fold<num>(0, (t, s) => t + s.$2);
   const colors = [
-    Color(0xFFE11D48), Color(0xFFF43F5E), Color(0xFFFB7185), Color(0xFFFDA4AF), Color(0xFFFECDD3), Color(0xFF9F1239), Color(0xFFBE123C), Color(0xFF881337),
+    Tone(0xFFE11D48), Tone(0xFFF43F5E), Tone(0xFFFB7185), Tone(0xFFFDA4AF), Tone(0xFFFECDD3), Tone(0xFF9F1239), Tone(0xFFBE123C), Tone(0xFF881337),
   ];
   return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     for (final (i, (name, v)) in slices.indexed)
@@ -328,9 +369,9 @@ Widget shareBars(List<(String, num)> slices, {String Function(num)? fmt}) {
         padding: const EdgeInsets.only(bottom: 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate700))),
+            Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF334155)))),
             Text('${fmt != null ? '${fmt(v)}  ' : ''}${total == 0 ? 0 : (v / total * 100).toStringAsFixed(0)}%',
-                style: const TextStyle(fontSize: 12, color: TColors.slate700)),
+                style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF334155))),
           ]),
           const SizedBox(height: 3),
           ClipRRect(
@@ -339,7 +380,7 @@ Widget shareBars(List<(String, num)> slices, {String Function(num)? fmt}) {
               value: total == 0 ? 0 : (v / total).clamp(0, 1).toDouble(),
               minHeight: 8,
               color: colors[i % colors.length],
-              backgroundColor: TColors.slate100,
+              backgroundColor: Tone.bg(0xFFF1F5F9),
             ),
           ),
         ]),
@@ -362,13 +403,14 @@ class ReportTableCard extends StatelessWidget {
       return Text(c.value(r, fmt),
           textAlign: heading || !c.numeric ? TextAlign.left : TextAlign.right,
           style: heading
-              ? const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)
-              : const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate900));
+              ? const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A))
+              : const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A)));
     }
 
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (def.tableTitle != null) Text(def.tableTitle!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        // "{n}" in a title is the row count ("Payroll Runs (3)").
+        if (def.tableTitle != null) Text(def.tableTitle!.replaceAll('{n}', '${rows.length}'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         if (def.tableHint != null) ...[
           const SizedBox(height: 2),
           Text(def.tableHint!, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
@@ -378,7 +420,7 @@ class ReportTableCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 36),
             child: Column(children: [
-              const Icon(Icons.description_outlined, size: 32, color: Color(0xFFCBD5E1)),
+              const Icon(Icons.description_outlined, size: 32, color: Tone.fg(0xFFCBD5E1)),
               const SizedBox(height: 8),
               Text(def.emptyText ?? 'No data for this period.',
                   textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
@@ -389,7 +431,7 @@ class ReportTableCard extends StatelessWidget {
             Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 cell(cols.first, r, heading: true),
                 const SizedBox(height: 6),
@@ -413,6 +455,15 @@ class ReportTableCard extends StatelessWidget {
 // The shell
 // ---------------------------------------------------------------------------
 
+/// A yyyy-MM-dd date field, for the shell's controls and a report's own.
+Widget reportDateBox(String value, ValueChanged<String> onChanged) => AppDateField(
+      value: DateTime.tryParse(value),
+      hintText: value,
+      onChanged: (d) {
+        if (d != null) onChanged(isoDay(d));
+      },
+    );
+
 /// The presets that replaced the old Daily / Weekly / Monthly pages.
 List<(String, RRange Function(RRange))> reportPresets() {
   final n = DateTime.now();
@@ -426,12 +477,67 @@ List<(String, RRange Function(RRange))> reportPresets() {
   ];
 }
 
+/// What differs when another module renders its reports through this shell
+/// (the web passes module-report-shell an `accent` and an `indexHref`, and each
+/// router loads its own profile for the letterhead).
+class ReportFlavor {
+  const ReportFlavor({
+    required this.accent,
+    required this.accentSoft,
+    required this.accentBorder,
+    required this.accentText,
+    required this.href,
+    required this.profilePath,
+    required this.nameKey,
+    required this.fallbackName,
+    required this.find,
+    required this.openCatalog,
+    this.pdfRose = false,
+    this.pdfViolet = false,
+  });
+
+  /// The active preset and the Send button; then the email dialog's chosen
+  /// attachment (background, border, text).
+  final Color accent, accentSoft, accentBorder, accentText;
+
+  /// The reports index, for the sidebar's current row.
+  final String href;
+
+  /// The profile read for the letterhead and the currency, and its name field.
+  final String profilePath, nameKey, fallbackName;
+  final ({RestaurantReportEntry report, RestaurantReportGroup group})? Function(String slug) find;
+  final void Function(BuildContext context, Session session, Company company) openCatalog;
+  final bool pdfRose, pdfViolet;
+}
+
+const restaurantReportFlavor = ReportFlavor(
+  accent: restaurantRose,
+  accentSoft: Tone.bg(0xFFFFF1F2),
+  accentBorder: Tone.line(0xFFFDA4AF),
+  accentText: rose700,
+  href: '/restaurant-reports',
+  profilePath: '/api/Restaurant/setup/profile',
+  nameKey: 'restaurantName',
+  fallbackName: 'Restaurant',
+  find: findRestaurantReport,
+  openCatalog: openRestaurantReportsCatalog,
+  pdfRose: true,
+);
+
 class RestaurantReportScreen extends StatefulWidget {
-  const RestaurantReportScreen({super.key, required this.session, required this.company, required this.slug, required this.def});
+  const RestaurantReportScreen({
+    super.key,
+    required this.session,
+    required this.company,
+    required this.slug,
+    required this.def,
+    this.flavor = restaurantReportFlavor,
+  });
   final Session session;
   final Company company;
   final String slug;
   final RDef def;
+  final ReportFlavor flavor;
 
   @override
   State<RestaurantReportScreen> createState() => _RestaurantReportScreenState();
@@ -447,12 +553,13 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
 
   RCtx get _ctx => RCtx(widget.session, widget.company);
   RFmt get _fmt => RFmt(_currency);
-  ({RestaurantReportEntry report, RestaurantReportGroup group}) get _match => findRestaurantReport(widget.slug)!;
+  ({RestaurantReportEntry report, RestaurantReportGroup group}) get _match => widget.flavor.find(widget.slug)!;
 
   @override
   void initState() {
     super.initState();
-    _name = widget.company.name.isEmpty ? 'Restaurant' : widget.company.name;
+    _name = widget.company.name.isEmpty ? widget.flavor.fallbackName : widget.company.name;
+    _range = widget.def.initialRange?.call(_range) ?? _range;
     _loadProfile();
     _load();
   }
@@ -460,10 +567,10 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
   // Branding and currency for the exports. A failure is not fatal.
   Future<void> _loadProfile() async {
     try {
-      final p = await _ctx.map('/api/Restaurant/setup/profile');
+      final p = await _ctx.map(widget.flavor.profilePath);
       if (!mounted) return;
       setState(() {
-        _name = tStr(p['restaurantName']).isNotEmpty ? tStr(p['restaurantName']) : _name;
+        _name = tStr(p[widget.flavor.nameKey]).isNotEmpty ? tStr(p[widget.flavor.nameKey]) : _name;
         final addr = [p['address'], p['city'], p['country']].map(tStr).where((s) => s.isNotEmpty).join(', ');
         _address = addr.isEmpty ? null : addr;
         _phone = tStr(p['phone']).isEmpty ? null : tStr(p['phone']);
@@ -500,6 +607,8 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
     return derived.isNotEmpty ? RLoad(derived, r.meta) : r;
   }
 
+  List<RCol> _columns(RLoad r) => widget.def.columnsFor?.call(r) ?? widget.def.columns;
+
   String get _mode => _match.report.dateMode;
 
   String get _periodLabel => switch (_mode) {
@@ -520,6 +629,7 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
     final f = _fmt;
     final cards = widget.def.summary?.call(r, f) ?? const [];
     final title = _match.report.title;
+    final cols = _columns(r);
     return ReportDocument(
       title: title,
       filename: _filename,
@@ -536,11 +646,12 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
       cards: [for (final c in cards) (label: c.label, value: c.value, accent: null, note: null)],
       sections: [
         ReportSection(
-          columns: [for (final c in widget.def.columns) ReportColumn(c.label, right: c.numeric)],
-          rows: [for (final row in r.rows) [for (final c in widget.def.columns) c.value(row, f)]],
+          columns: [for (final c in cols) ReportColumn(c.label, right: c.numeric)],
+          rows: [for (final row in r.rows) [for (final c in cols) c.value(row, f)]],
         ),
       ],
-      rose: true,
+      rose: widget.flavor.pdfRose,
+      violet: widget.flavor.pdfViolet,
     );
   }
 
@@ -558,9 +669,10 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
       }
       b.writeln();
     }
-    b.writeln(widget.def.columns.map((c) => esc(c.label)).join(','));
+    final cols = _columns(r);
+    b.writeln(cols.map((c) => esc(c.label)).join(','));
     for (final row in r.rows) {
-      b.writeln(widget.def.columns.map((c) => esc(c.value(row, f))).join(','));
+      b.writeln(cols.map((c) => esc(c.value(row, f))).join(','));
     }
     return [0xEF, 0xBB, 0xBF, ...utf8.encode(b.toString())];
   }
@@ -583,6 +695,7 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
           title: _match.report.title,
           periodLabel: _periodLabel,
           propertyName: _name,
+          flavor: widget.flavor,
           pdf: () async => (bytes: await ReportExport.buildPdf(_document()!), filename: '$_filename.pdf'),
           csv: () => (bytes: _csvBytes(), filename: '$_filename-${isoDay(DateTime.now())}.csv'),
         ),
@@ -591,7 +704,7 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
   @override
   Widget build(BuildContext context) {
     final m = _match;
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/restaurant-reports');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: widget.flavor.href);
     final shaped = _shaped;
     final f = _fmt;
     final cards = shaped == null ? const <RCard>[] : (widget.def.summary?.call(shaped, f) ?? const []);
@@ -602,8 +715,8 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            style: TextButton.styleFrom(foregroundColor: TColors.slate600),
-            onPressed: () => openRestaurantReportsCatalog(context, widget.session, widget.company),
+            style: TextButton.styleFrom(foregroundColor: Tone.fg(0xFF475569)),
+            onPressed: () => widget.flavor.openCatalog(context, widget.session, widget.company),
             icon: const Icon(Icons.arrow_back, size: 16),
             label: const Text('All reports'),
           ),
@@ -618,11 +731,11 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Text(m.report.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                Text(m.report.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(999)),
-                  child: Text(m.group.label.toUpperCase(), style: const TextStyle(fontSize: 10, letterSpacing: .5, color: TColors.slate600)),
+                  decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(999)),
+                  child: Text(m.group.label.toUpperCase(), style: const TextStyle(fontSize: 10, letterSpacing: .5, color: Tone.fg(0xFF475569))),
                 ),
               ]),
               const SizedBox(height: 2),
@@ -651,11 +764,30 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
           ],
         ]),
         const SizedBox(height: 12),
-        if (_mode == 'range') _rangeControl(),
-        if (_mode == 'single') _singleControl(),
-        if (_mode == 'none')
+        if (widget.def.dateControl != null)
+          widget.def.dateControl!(_range, _setRange)
+        else if (_mode == 'range')
+          _rangeControl()
+        else if (_mode == 'single')
+          _singleControl()
+        else if (_mode == 'none' && widget.def.presets)
+          // The own-page reports with no dates simply have no control.
           const Text('This report shows the current position, so it has no date filter.',
               style: TextStyle(fontSize: 12, color: TColors.slate500)),
+        for (final flt in widget.def.filters) ...[
+          const SizedBox(height: 8),
+          Builder(builder: (_) {
+            final opts = flt.options(_result?.meta);
+            return FilterLabel(
+              flt.label,
+              AppSelect<String>(
+                value: _range.extra[flt.key] ?? opts.first.$1,
+                items: [for (final (v, l) in opts) AppSelectItem(value: v, label: l)],
+                onChanged: (v) => _setRange(_range.copyWith(extra: {..._range.extra, flt.key: v ?? opts.first.$1})),
+              ),
+            );
+          }),
+        ],
         const SizedBox(height: 12),
         if (_loading)
           TCard(
@@ -671,19 +803,13 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
         else if (shaped != null) ...[
           StatGrid(cards),
           if (panel != null) ...[panel, const SizedBox(height: 12)],
-          ReportTableCard(def: widget.def, rows: shaped.rows, fmt: f),
+          if (widget.def.showTable) ReportTableCard(def: widget.def, rows: shaped.rows, fmt: f),
         ],
       ]),
     );
   }
 
-  Widget _dateBox(String value, ValueChanged<String> onChanged) => AppDateField(
-        value: DateTime.tryParse(value),
-        hintText: value,
-        onChanged: (d) {
-          if (d != null) onChanged(isoDay(d));
-        },
-      );
+  Widget _dateBox(String value, ValueChanged<String> onChanged) => reportDateBox(value, onChanged);
 
   Widget _rangeControl() => TCard(
         padding: const EdgeInsets.all(12),
@@ -697,7 +823,8 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
             const SizedBox(width: 36, child: Text('To', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate500))),
             Expanded(child: _dateBox(_range.to, (v) => _setRange(_range.copyWith(to: v)))),
           ]),
-          const SizedBox(height: 10),
+          if (widget.def.presets) const SizedBox(height: 10),
+          if (widget.def.presets)
           Wrap(spacing: 6, runSpacing: 6, children: [
             for (final (label, compute) in reportPresets())
               Builder(builder: (_) {
@@ -705,7 +832,7 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
                 final active = v.from == _range.from && v.to == _range.to;
                 return active
                     ? FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: restaurantRose, visualDensity: VisualDensity.compact),
+                        style: FilledButton.styleFrom(backgroundColor: Tone.button(widget.flavor.accent), visualDensity: VisualDensity.compact),
                         onPressed: () => _setRange(v),
                         child: Text(label, style: const TextStyle(fontSize: 12)),
                       )
@@ -752,6 +879,7 @@ class RestaurantReportEmailDialog extends StatefulWidget {
     required this.propertyName,
     required this.pdf,
     required this.csv,
+    this.flavor = restaurantReportFlavor,
   });
   final Session session;
   final Company company;
@@ -760,6 +888,7 @@ class RestaurantReportEmailDialog extends StatefulWidget {
   final String propertyName;
   final Future<RAttachment> Function() pdf;
   final RAttachment Function() csv;
+  final ReportFlavor flavor;
 
   @override
   State<RestaurantReportEmailDialog> createState() => _RestaurantReportEmailDialogState();
@@ -843,13 +972,13 @@ class _RestaurantReportEmailDialogState extends State<RestaurantReportEmailDialo
                         height: 40,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: _attach == a ? const Color(0xFFFFF1F2) : null,
-                          border: Border.all(color: _attach == a ? const Color(0xFFFDA4AF) : TColors.slate200),
+                          color: _attach == a ? widget.flavor.accentSoft : null,
+                          border: Border.all(color: _attach == a ? widget.flavor.accentBorder : Tone.line(0xFFE2E8F0)),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text.rich(TextSpan(children: [
-                          TextSpan(text: a.toUpperCase(), style: TextStyle(fontWeight: FontWeight.w500, color: _attach == a ? rose700 : TColors.slate600)),
-                          TextSpan(text: a == 'pdf' ? ' formatted' : ' spreadsheet', style: const TextStyle(fontSize: 11, color: TColors.slate400)),
+                          TextSpan(text: a.toUpperCase(), style: TextStyle(fontWeight: FontWeight.w500, color: _attach == a ? widget.flavor.accentText : Tone.fg(0xFF475569))),
+                          TextSpan(text: a == 'pdf' ? ' formatted' : ' spreadsheet', style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF7F8EA3))),
                         ]), style: const TextStyle(fontSize: 14)),
                       ),
                     ),
@@ -865,7 +994,7 @@ class _RestaurantReportEmailDialogState extends State<RestaurantReportEmailDialo
           actions: [
             OutlinedButton(onPressed: _sending ? null : () => Navigator.pop(context), child: const Text('Cancel')),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(widget.flavor.accent)),
               onPressed: _sending ? null : _send,
               icon: _sending
                   ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

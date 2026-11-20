@@ -15,6 +15,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, FlowBucket,
 import '../trackers/tracker_widgets.dart';
 import 'cash_adjustment_dialog.dart';
 import 'money_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 // ------------------------------------------------------------------ logic
@@ -326,7 +327,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete adjustment'),
           ),
@@ -441,7 +442,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
           children: [
             Row(children: [
               _water
-                  ? const Icon(Icons.water_drop_outlined, size: 20, color: Color(0xFF0284C7))
+                  ? const Icon(Icons.water_drop_outlined, size: 20, color: Tone.fg(0xFF0284C7))
                   : const Icon(Icons.account_balance_wallet_outlined, size: 20, color: TColors.emerald600),
               const SizedBox(width: 6),
               const Text('Cash Flow', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -465,7 +466,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                     const SizedBox(width: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5),
-                      decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(999)),
+                      decoration: BoxDecoration(color: const Tone.bg(0xFFF59E0B), borderRadius: BorderRadius.circular(999)),
                       child: const Text('1', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
                     ),
                   ],
@@ -482,7 +483,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
             if (_water)
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
                 child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Where your money came from and went.', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)),
                   SizedBox(height: 4),
@@ -492,7 +493,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
               )
             else
             Container(
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 InkWell(
                   onTap: () => setState(() => _explainOpen = !_explainOpen),
@@ -601,7 +602,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Wrap(spacing: 8, runSpacing: 2, children: [
                     Text.rich(TextSpan(children: [const TextSpan(text: 'Opening '), TextSpan(text: _gh(tNum(s['openingCash'])), style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate900))])),
@@ -781,7 +782,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
             const SizedBox(width: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 5),
-              decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(999)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFF59E0B), borderRadius: BorderRadius.circular(999)),
               child: const Text('1', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
             ),
           ],
@@ -821,7 +822,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
           final net = tNum(_summary['netCashFlow']);
           return ListView(controller: controller, padding: const EdgeInsets.fromLTRB(16, 0, 16, 24), children: [
             const Row(children: [
-              Icon(Icons.lightbulb_outline, color: Color(0xFF0284C7)),
+              Icon(Icons.lightbulb_outline, color: Tone.fg(0xFF0284C7)),
               SizedBox(width: 8),
               Flexible(child: Text('Cash Flow Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
             ]),

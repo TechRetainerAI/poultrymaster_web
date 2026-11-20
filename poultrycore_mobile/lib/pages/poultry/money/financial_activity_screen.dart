@@ -17,6 +17,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, sortRows, toggleSort, S
 import '../trackers/tracker_widgets.dart';
 import 'money_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ------------------------------------------------------------------ logic
 
 const faTips = {
@@ -97,6 +98,27 @@ String positionLabel(Object? t) => _positionLabels[tStr(t)] ?? tStr(t);
       'Payroll' => ('/restaurant-payroll', 'View payroll'),
       'EmployeeLoanDisbursement' || 'EmployeeLoanReversal' || 'EmployeeLoanRepayment' || 'EmployeeLoanRepaymentReversal' =>
         ('/restaurant-staff-loans', 'View staff loan'),
+      _ => null,
+    };
+
+/// hotelActivitySourceLink (lib/api/hotel-financial-activity.ts).
+(String, String)? hotelActivitySourceLink(Map r) => switch (tStr(r['sourceType'])) {
+      'GuestPayment' || 'GuestPaymentVoid' => ('/hotel-payments', 'View payment'),
+      'CustomerPayment' || 'CustomerPaymentReversal' => ('/hotel-customer-balances', 'View customer balances'),
+      'RestaurantOrder' || 'RestaurantOrderReversal' => ('/hotel-restaurant', 'View orders'),
+      'DepositIn' || 'DepositOut' => ('/hotel-billing', 'View billing'),
+      'SupplierPayment' || 'SupplierPaymentReversal' => ('/hotel-supplier-payments', 'View supplier payment'),
+      'Expense' || 'ExpenseReversal' => ('/hotel-expenses', 'View expense'),
+      'SupplyPurchase' || 'SupplyPurchaseReversal' => ('/hotel-inventory?purchaseId=${tStr(r['sourceId'])}', 'View purchase'),
+      'SupplyUse' => ('/hotel-deferred-costs', 'View deferred inventory cost'),
+      'FinancingLoan' || 'FinancingLoanCancelled' || 'FinancingLoanPayment' || 'FinancingLoanPaymentReversal' => ('/hotel-loans', 'View loan'),
+      'OwnerMoney' || 'OwnerMoneyReversal' => ('/hotel-owner-money', 'View owner money'),
+      'CashTransfer' => ('/hotel-cash-transfers', 'View transfer'),
+      'CapitalAsset' || 'CapitalAssetReversal' || 'Depreciation' => ('/hotel-assets', 'View capital assets'),
+      'Payroll' => ('/hotel-payroll', 'View payroll'),
+      'LoanDisbursed' || 'LoanReversed' || 'LoanRepaid' || 'LoanRepayReversed' => ('/hotel-employee-loans', 'View staff loan'),
+      'ReconciliationAdjustment' || 'ReconciliationReversal' => ('/hotel-cash-reconciliation', 'View reconciliation'),
+      'CashAdjustment' || 'CashAdjustmentReversal' => ('/hotel-cash-accounts', 'View cash account'),
       _ => null,
     };
 
@@ -195,10 +217,14 @@ String activityCsv(List<Map> rows, Duration offset) {
 /// the same page in rose, over /Restaurant/financial-activity, with its own
 /// links.
 class FinancialActivityScreen extends StatefulWidget {
-  const FinancialActivityScreen({super.key, required this.session, required this.company, this.restaurant = false});
+  const FinancialActivityScreen({super.key, required this.session, required this.company, this.restaurant = false, this.hotel = false});
   final Session session;
   final Company company;
   final bool restaurant;
+
+  /// `app/hotel-financial-activity/page.tsx` (migration 336): the Restaurant
+  /// page in violet, over /Hotel/financial-activity, with the Hotel's links.
+  final bool hotel;
   @override
   State<FinancialActivityScreen> createState() => _FinancialActivityScreenState();
 }
@@ -246,7 +272,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
       if (first) _loading = true;
     });
     try {
-      final res = await _api.get(widget.restaurant ? '/api/Restaurant/financial-activity' : '/api/Poultry/financial-activity', query: {
+      final res = await _api.get(widget.hotel ? '/api/Hotel/financial-activity' : widget.restaurant ? '/api/Restaurant/financial-activity' : '/api/Poultry/financial-activity', query: {
         'farmId': widget.company.farmId,
         if (_from.isNotEmpty) 'fromDate': _from,
         if (_to.isNotEmpty) 'toDate': _to,
@@ -280,8 +306,8 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: widget.restaurant ? '/restaurant-financial-activity' : '/poultry-financial-activity');
-    final rest = widget.restaurant;
+    final lead = sidebarLeading(context, widget.session, widget.company, href: widget.hotel ? '/hotel-financial-activity' : widget.restaurant ? '/restaurant-financial-activity' : '/poultry-financial-activity');
+    final rest = widget.restaurant, hotel = widget.hotel;
     final rows = rowsOf(_data?['rows']);
     final s = _data?['summary'] is Map ? _data!['summary'] as Map : null;
     final types = {for (final r in rows) if (tStr(r['type']).isNotEmpty) tStr(r['type'])}.toList()..sort();
@@ -320,8 +346,8 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: rest ? const Color(0xFFFFE4E6) : const Color(0xFFE0E7FF), borderRadius: BorderRadius.circular(8)),
-                child: Icon(Icons.show_chart, size: 20, color: rest ? const Color(0xFFE11D48) : const Color(0xFF4338CA)),
+                decoration: BoxDecoration(color: hotel ? const Tone.bg(0xFFEDE9FE) : rest ? const Tone.bg(0xFFFFE4E6) : const Tone.bg(0xFFE0E7FF), borderRadius: BorderRadius.circular(8)),
+                child: Icon(Icons.show_chart, size: 20, color: hotel ? const Tone.fg(0xFF7C3AED) : rest ? const Tone.fg(0xFFE11D48) : const Tone.fg(0xFF4338CA)),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -335,12 +361,12 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               OutlinedButton.icon(
-                onPressed: () => _go(rest ? '/restaurant-cash-flow' : '/cash-flow', 'Cash Flow'),
+                onPressed: () => _go(hotel ? '/hotel-cash-flow' : rest ? '/restaurant-cash-flow' : '/cash-flow', 'Cash Flow'),
                 icon: const Icon(Icons.swap_horiz, size: 16),
                 label: const Text('Cash Flow'),
               ),
               OutlinedButton.icon(
-                onPressed: () => _go(rest ? '/restaurant-profit-loss' : '/poultry-profit-loss', 'Profit & Loss'),
+                onPressed: () => _go(hotel ? '/hotel-profit-loss' : rest ? '/restaurant-profit-loss' : '/poultry-profit-loss', 'Profit & Loss'),
                 icon: const Icon(Icons.bar_chart, size: 16),
                 label: const Text('Profit & Loss'),
               ),
@@ -361,13 +387,13 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: rest ? const Color(0xFFFFF1F2) : const Color(0xFFEEF2FF),
-                border: Border.all(color: rest ? const Color(0xFFFECDD3) : const Color(0xFFC7D2FE)),
+                color: hotel ? const Tone.bg(0xFFF5F3FF) : rest ? const Tone.bg(0xFFFFF1F2) : const Tone.bg(0xFFEEF2FF),
+                border: Border.all(color: hotel ? const Tone.line(0xFFDDD6FE) : rest ? const Tone.line(0xFFFECDD3) : const Tone.line(0xFFC7D2FE)),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 'Financial Activity combines cash movement and profit recognition so you can see why cash flow and profit may differ.',
-                style: TextStyle(fontSize: 12, color: rest ? const Color(0xFF881337) : const Color(0xFF312E81)),
+                style: TextStyle(fontSize: 12, color: hotel ? const Tone.fg(0xFF4C1D95) : rest ? const Tone.fg(0xFF881337) : const Tone.fg(0xFF312E81)),
               ),
             ),
             const SizedBox(height: 12),
@@ -550,7 +576,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
     final size = n > 17 ? 13.0 : n > 14 ? 15.0 : n > 11 ? 17.0 : 22.0;
     final body = Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label.toUpperCase(),
             overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: TColors.slate500)),
@@ -574,7 +600,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
         child: Text('This event did not change any tracked financial position.', style: TextStyle(fontSize: 13, color: TColors.slate500)),
       );
     }
-    final link = widget.restaurant ? restaurantActivitySourceLink(r) : activitySourceLink(r);
+    final link = widget.hotel ? hotelActivitySourceLink(r) : widget.restaurant ? restaurantActivitySourceLink(r) : activitySourceLink(r);
     const sm = TextStyle(fontSize: 11, color: TColors.slate500);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Tooltip(
@@ -616,7 +642,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
           InkWell(
             onTap: () => _go(link.$1, link.$2),
             child: Text('${link.$2} →',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: widget.restaurant ? TColors.rose700 : TColors.blue600)),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: widget.hotel ? const Tone.fg(0xFF6D28D9) : widget.restaurant ? TColors.rose700 : TColors.blue600)),
           ),
       ]),
     ]);
@@ -661,7 +687,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
                 InkWell(onTap: tog, child: cellText(formatActivityMoment(r['occurredAt'], r['createdAt'], _offset))),
                 Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, children: [
                   Text(tStr(r['type']), style: const TextStyle(fontWeight: FontWeight.w500)),
-                  if (r['isInternalTransfer'] == true) const TBadge('internal', bg: Colors.white, fg: TColors.slate600, border: TColors.slate200),
+                  if (r['isInternalTransfer'] == true) const TBadge('internal', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate600, border: TColors.slate200),
                 ]),
                 cellText(tStr(r['category']), color: TColors.slate600),
                 cellText(tStr(r['description']).isEmpty ? '—' : tStr(r['description'])),

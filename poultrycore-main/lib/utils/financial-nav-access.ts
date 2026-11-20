@@ -54,6 +54,10 @@ export function isFinancialNavItemVisible(
   // explain why. Deleting the nav entry and forgetting this line is the same
   // bug the Capital Investments note below records.
   if (href === "/poultry-employee-loans") return f.canViewCashLedger
+  // Migration 441. Employee Credit is the liability twin of the line above --
+  // same audience, same flag, and it must be named here or the allowlist's
+  // closing `return false` hides it from admins too.
+  if (href === "/poultry-employee-credit") return f.canViewCashLedger
   // Migration 288. Deferred Inventory Costs shows what stock cost and where
   // that cost went, so it rides the expense flag rather than the inventory
   // one: someone who can count the feed is not automatically someone who may
@@ -126,7 +130,7 @@ export function isFinancialNavItemVisible(
   if (href === "/generic-expenses" || href === "/recurring-expenses") return f.canEnterExpenses
   if (href === "/generic-cash-flow" || href === "/generic-financial-activity") return f.canViewCashLedger
   if (href === "/generic-cash" || href === "/generic-cash-transfers" || href === "/generic-cash-reconciliation") return f.canViewCashLedger
-  if (href === "/generic-owner-money" || href === "/generic-employee-loans") return f.canViewCashLedger
+  if (href === "/generic-owner-money" || href === "/generic-employee-loans" || href === "/generic-employee-credit") return f.canViewCashLedger
   if (href === "/generic-profit-loss") return isAdmin || f.canViewFinancial || f.canViewReports
   if (href === "/generic-daily-closings") return f.canViewCashLedger
   if (href === "/generic-customers" || href === "/generic-customer-payments") {

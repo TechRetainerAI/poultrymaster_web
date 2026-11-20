@@ -12,6 +12,7 @@ import '../../widgets/module_sidebar.dart';
 import '../poultry/trackers/tracker_logic.dart' show tStr;
 import '../poultry/trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key, required this.session, required this.company});
   final Session session;
@@ -215,7 +216,7 @@ class _AccountScreenState extends State<AccountScreen> {
       );
 
   Widget _verified(bool v) => v
-      ? const TBadge('Verified', bg: TColors.emerald50, fg: TColors.emerald700, border: Color(0xFFA7F3D0))
+      ? const TBadge('Verified', bg: TColors.emerald50, fg: TColors.emerald700, border: Tone.line(0xFFA7F3D0))
       : const TBadge('Not Verified', bg: TColors.slate50, fg: TColors.slate600, border: TColors.slate200);
 
   @override
@@ -251,14 +252,14 @@ class _AccountScreenState extends State<AccountScreen> {
                 const SizedBox(height: 10),
                 Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                   FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                     onPressed: _saving ? null : _cancel,
                     icon: const Icon(Icons.close, size: 16),
                     label: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
                   FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
                     onPressed: _saving ? null : _save,
                     icon: _saving
                         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -289,7 +290,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     _row('Email address', p['email'],
                         icon: Icons.mail_outline,
                         trailing: p['emailConfirmed'] == true
-                            ? const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.check, size: 16, color: Color(0xFF10B981)))
+                            ? const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.check, size: 16, color: Tone.fg(0xFF10B981)))
                             : null),
                     _row('Phone number', p['phoneNumber'], icon: Icons.phone_outlined),
                   ],

@@ -2,12 +2,13 @@
 
 // Generic Supplier Balances (Purchases & Suppliers → Supplier Balances).
 //
-// Deep copy of the poultry version: uses the shared <BalancesPage> with
-// supplier credit panel below the table. The only poultry feature NOT
-// replicated is supplier debts (no backend support yet on the generic side).
+// The Poultry page on the shared <BalancesPage>. 449 (Report 40): supplier debts
+// (record in the header, reverse on the debt's row) and Poultry's supplier
+// credit panel under the table, as on Poultry.
 
 import { BalancesPage } from "@/components/balances/balances-page"
-import { GenericSupplierCreditPanel } from "@/components/generic/generic-supplier-credit-panel"
+import { RecordSupplierDebtButton, ReverseSupplierDebtButton } from "@/components/balances/supplier-debts-panel"
+import { SupplierCreditPanel } from "@/components/suppliers/supplier-credit-panel"
 import { getCashAccounts } from "@/lib/api/generic"
 
 export default function GenericSupplierBalancesPage() {
@@ -29,11 +30,16 @@ export default function GenericSupplierBalancesPage() {
       }}
       partyHref={(supplierId) => `/generic-suppliers/${supplierId}/ledger`}
       documentHref={(doc) =>
-        doc.documentType === "Expense"
+        doc.documentType === "SupplierDebt" ? null
+          : doc.documentType === "Expense"
           ? `/generic-expenses?expenseId=${doc.documentId}`
           : `/generic-purchases?purchaseId=${doc.documentId}`
       }
-      afterTable={(_reload, paymentsVersion) => <GenericSupplierCreditPanel refreshKey={paymentsVersion} />}
+      headerActions={(reload) => <RecordSupplierDebtButton onChanged={reload} />}
+      documentActions={(doc, party, compact, reload) => (
+        <ReverseSupplierDebtButton doc={doc} partyName={party.partyName} compact={compact} onChanged={reload} />
+      )}
+      afterTable={(_reload, paymentsVersion) => <SupplierCreditPanel refreshKey={paymentsVersion} />}
       permissions={{
         view: "generic.supplier-balances.view",
         pay: "generic.supplier-payments.create",

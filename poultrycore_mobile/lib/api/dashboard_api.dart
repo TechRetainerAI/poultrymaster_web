@@ -3,8 +3,11 @@ import 'api_client.dart';
 
 /// A single headline figure on a dashboard.
 class Metric {
-  Metric(this.label, this.value, {this.isMoney = false, this.hint});
+  Metric(this.label, this.value, {this.isMoney = false, this.hint, this.key});
   final String label;
+
+  /// The summary field it came from ("totalEggsProduced"), when there was one.
+  final String? key;
   final Object? value;
   final bool isMoney;
 
@@ -121,7 +124,7 @@ class DashboardApi {
       if (value == null || value is Map || value is List) return;
       if (value is bool) return;
       metrics.add(Metric(_humanise(key), value,
-          isMoney: _looksMonetary(key), hint: _hintFor(key)));
+          isMoney: _looksMonetary(key), hint: _hintFor(key), key: key));
     }
 
     for (final key in preferred) {

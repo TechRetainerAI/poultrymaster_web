@@ -13,6 +13,7 @@ import '../poultry/sales/balances_widgets.dart' show CompactPager;
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, sortRows, toggleSort, SortState;
 import '../poultry/trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// One field of a resource form: key, label, kind (text / int / decimal / notes).
 typedef ResField = (String key, String label, String kind, String? hint);
 
@@ -215,8 +216,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.menu_book_outlined, size: 20, color: Color(0xFF16A34A)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFDCFCE7), borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.menu_book_outlined, size: 20, color: Tone.fg(0xFF16A34A)),
           ),
           const SizedBox(width: 12),
           const Expanded(
@@ -238,7 +239,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                   onTap: () => setState(() => _tab = i),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    decoration: BoxDecoration(color: _tab == i ? Colors.white : null, borderRadius: BorderRadius.circular(6)),
+                    decoration: BoxDecoration(color: _tab == i ? Tone.bg(0xFFFFFFFF) : null, borderRadius: BorderRadius.circular(6)),
                     child: Column(children: [
                       Icon(_kinds[i].icon, size: 16, color: _tab == i ? TColors.slate900 : TColors.slate500),
                       const SizedBox(height: 2),
@@ -261,7 +262,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
             Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
                 onPressed: () => _form(_tab),
                 icon: const Icon(Icons.add, size: 16),
                 label: Text(kind.addLabel),
@@ -292,7 +293,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   List<Widget> _cells(int k, Map<String, Object?> r) {
     String notes() => tStr(r['notes']).isEmpty ? '-' : tStr(r['notes']);
-    Widget badge(String s) => Align(alignment: Alignment.centerLeft, child: TBadge(s, bg: Colors.white, fg: TColors.slate800, border: TColors.slate200));
+    Widget badge(String s) => Align(alignment: Alignment.centerLeft, child: TBadge(s, bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate800, border: TColors.slate200));
     final actions = Row(mainAxisAlignment: MainAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
       IconButton(visualDensity: VisualDensity.compact, tooltip: 'Edit', icon: const Icon(Icons.edit_outlined, size: 16), onPressed: () => _form(k, editing: r)),
       IconButton(
@@ -403,7 +404,7 @@ class _ResourceDialogState extends State<_ResourceDialog> {
         ),
         actions: [
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),

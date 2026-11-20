@@ -20,6 +20,7 @@ import '../shared/reason_select.dart' show loanReversalReasons;
 import 'restaurant_money_kit.dart';
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The page's five cards, from the loans as loaded.
 ({num outstanding, int activeCount, num costsPaid, int overdue, num borrowed, num received, num repaid, String? nextDue})
     restaurantLoanStats(List<Map> loans) {
@@ -40,8 +41,8 @@ import 'restaurant_widgets.dart';
 }
 
 Widget _loanStatusBadge(Object? status) => switch (tStr(status)) {
-      'Active' => rStatusBadge('Active', bg: const Color(0xFFEFF6FF), fg: const Color(0xFF1D4ED8), border: const Color(0xFFBFDBFE)),
-      'PaidOff' => rStatusBadge('Paid off', bg: const Color(0xFFF0FDF4), fg: const Color(0xFF15803D), border: const Color(0xFFBBF7D0)),
+      'Active' => rStatusBadge('Active', bg: const Tone.bg(0xFFEFF6FF), fg: const Tone.fg(0xFF1D4ED8), border: const Tone.line(0xFFBFDBFE)),
+      'PaidOff' => rStatusBadge('Paid off', bg: const Tone.bg(0xFFF0FDF4), fg: const Tone.fg(0xFF15803D), border: const Tone.line(0xFFBBF7D0)),
       final s => rStatusBadge(s, bg: TColors.slate100, fg: TColors.slate600, border: TColors.slate200),
     };
 

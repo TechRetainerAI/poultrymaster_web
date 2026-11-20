@@ -81,7 +81,7 @@ void main() {
       final d = SetupDraft(batches: [batch], houses: [house], flocks: [flock('800', '800')]);
       final e = validateSetup(d, ctx()).errors.where((x) => x.field == 'numberOfBirds').single;
       expect(e.message,
-          'B1 is a batch you already had, so all 1,000 of its birds must be in a pen — 200 are unaccounted for. Put them in a pen, or lower the batch to 800.');
+          'B1 is a batch you already had, so all 1,000 of its birds must be accounted for — 200 are not. Put them in a pen, or explain them on the reconciliation step (sold, died, culled, transferred, or still alive and waiting).');
 
       batch.isHistorical = false;
       expect(validateSetup(d, ctx()).errors.where((x) => x.field == 'numberOfBirds'), isEmpty);
@@ -255,15 +255,23 @@ void main() {
 
       expect(find.text('Set Up Your Farm'), findsOneWidget);
       await tapText(tester, 'Quick Farm Setup');
-      expect(find.text('Houses/Pens'), findsOneWidget);
+      // The step name, and the amber band's title over the pens.
+      expect(find.text('Houses/Pens'), findsNWidgets(2));
       expect(find.text('Step 1 of 5'), findsWidgets);
 
       // ---- Houses: two pens of 600.
       await type(tester, 'gen.penCount', '2');
       await type(tester, 'gen.penCapacity', '600');
-      await tapText(tester, 'Create New Houses/Pens');
+      // The blue band carries the same words as its button.
+      final generate = find.widgetWithText(FilledButton, 'Create New Houses/Pens');
+      await tester.ensureVisible(generate);
+      await tester.tap(generate);
+      await tester.pumpAndSettle();
       await into(tester, find.text('PEN 2'));
       expect(find.text('PEN 1'), findsOneWidget);
+      // The New sale look: numbered cards with the amber "New" badge.
+      expect(find.text('New'), findsNWidgets(2));
+      expect(find.text('Add Another Row'), findsOneWidget);
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
@@ -271,7 +279,11 @@ void main() {
       expect(find.text('What batches/groups of birds do you currently have?'), findsOneWidget);
       await type(tester, 'gen.batchCount', '1');
       await type(tester, 'gen.batchBirds', '1000');
-      await tapText(tester, 'Create New Batches');
+      final generateBatches = find.widgetWithText(FilledButton, 'Create New Batches');
+      await tester.ensureVisible(generateBatches);
+      await tester.tap(generateBatches);
+      await tester.pumpAndSettle();
+      expect(find.text('Add Another Batch'), findsOneWidget);
       // The batch's own Start Date (the generator's default date comes first).
       await into(tester, find.text('Start Date *'));
       await tester.ensureVisible(find.text('Pick a date').at(1));

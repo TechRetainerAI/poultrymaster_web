@@ -24,7 +24,7 @@ const STATUS_COLORS: Record<string, string> = { Draft: "bg-slate-100 text-slate-
 export default function HotelShiftHandoverPage() {
   const router = useRouter(); const { toast } = useToast(); const logout = useLogout()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
-  const username = useAuthStore((s) => s.username) ?? ""
+  const username = useAuthStore((s) => s.user?.username) ?? ""
   const [items, setItems] = useState<any[]>([]); const [staff, setStaff] = useState<any[]>([]); const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ shiftDate: new Date().toISOString().slice(0, 10), shiftType: "Night", handoverBy: "", handoverTo: "", keyMessages: "", pendingItems: "", vipGuests: "", incidents: "", cashBalance: 0 })

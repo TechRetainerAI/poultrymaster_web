@@ -19,17 +19,18 @@ import '../shared/company_clock.dart';
 import 'restaurant_setup_screen.dart' show RestaurantTimeField;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const eventTypes = ['Corporate', 'Wedding', 'Birthday', 'HolidayParty', 'Buffet', 'Cocktail', 'Other'];
 const eventStatuses = ['All', 'Inquiry', 'Confirmed', 'Deposit', 'InProgress', 'Completed', 'Cancelled'];
 
 /// STATUS_COLORS: bg, fg.
 const eventStatusColors = <String, (Color, Color)>{
-  'Inquiry': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'Confirmed': (Color(0xFFDCFCE7), Color(0xFF15803D)),
-  'Deposit': (Color(0xFFFEF3C7), Color(0xFFB45309)),
-  'InProgress': (Color(0xFFF3E8FF), Color(0xFF7E22CE)),
-  'Completed': (Color(0xFFF3F4F6), Color(0xFF374151)),
-  'Cancelled': (Color(0xFFFEE2E2), Color(0xFFB91C1C)),
+  'Inquiry': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  'Confirmed': (Tone(0xFFDCFCE7), Tone(0xFF15803D)),
+  'Deposit': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
+  'InProgress': (Tone(0xFFF3E8FF), Tone(0xFF7E22CE)),
+  'Completed': (Tone(0xFFF3F4F6), Tone(0xFF374151)),
+  'Cancelled': (Tone(0xFFFEE2E2), Tone(0xFFB91C1C)),
 };
 
 /// NEXT_STATUS.
@@ -161,8 +162,8 @@ class _RestaurantEventsScreenState extends State<RestaurantEventsScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: _filter == s ? const Color(0xFFE11D48) : Colors.white,
-                          border: Border.all(color: _filter == s ? const Color(0xFFE11D48) : TColors.slate200),
+                          color: _filter == s ? const Tone.bg(0xFFE11D48) : Tone.bg(0xFFFFFFFF),
+                          border: Border.all(color: _filter == s ? const Tone.line(0xFFE11D48) : TColors.slate200),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text.rich(TextSpan(children: [
@@ -171,7 +172,7 @@ class _RestaurantEventsScreenState extends State<RestaurantEventsScreen> {
                             TextSpan(
                                 text: ' (${_events.where((e) => tStr(e['status']) == s).length})',
                                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400)),
-                        ]), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _filter == s ? Colors.white : const Color(0xFF4B5563))),
+                        ]), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _filter == s ? Colors.white : const Tone.fg(0xFF4B5563))),
                       ),
                     ),
                 ]),
@@ -194,21 +195,21 @@ class _RestaurantEventsScreenState extends State<RestaurantEventsScreen> {
   }
 
   Widget _info(IconData icon, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: const Color(0xFF4B5563)),
+        Icon(icon, size: 14, color: const Tone.fg(0xFF4B5563)),
         const SizedBox(width: 6),
-        Flexible(child: Text(text, style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563)))),
+        Flexible(child: Text(text, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF4B5563)))),
       ]);
 
   Widget _eventCard(Map ev) {
     final status = tStr(ev['status']);
-    final (sbg, sfg) = eventStatusColors[status] ?? (const Color(0xFFF3F4F6), const Color(0xFF374151));
+    final (sbg, sfg) = eventStatusColors[status] ?? (const Tone(0xFFF3F4F6), const Tone(0xFF374151));
     final start = tStr(ev['startTime']), end = tStr(ev['endTime']);
     final pph = tNum(ev['pricePerHead']), total = tNum(ev['totalAmount']), deposit = tNum(ev['depositAmount']);
     return TCard(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          Text(tStr(ev['name']), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+          Text(tStr(ev['name']), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
           if (tStr(ev['eventNumber']).isNotEmpty)
             Text('#${tStr(ev['eventNumber'])}', style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: TColors.slate500)),
           rBadge(_statusLabel(status), bg: sbg, fg: sfg),
@@ -226,7 +227,7 @@ class _RestaurantEventsScreenState extends State<RestaurantEventsScreen> {
           const SizedBox(height: 6),
           Wrap(spacing: 16, runSpacing: 4, children: [
             if (tStr(ev['contactName']).isNotEmpty)
-              Text(tStr(ev['contactName']), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF4B5563))),
+              Text(tStr(ev['contactName']), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Tone.fg(0xFF4B5563))),
             if (tStr(ev['contactPhone']).isNotEmpty) _info(Icons.phone_outlined, tStr(ev['contactPhone'])),
             if (tStr(ev['contactEmail']).isNotEmpty) _info(Icons.mail_outline, tStr(ev['contactEmail'])),
           ]),
@@ -238,19 +239,19 @@ class _RestaurantEventsScreenState extends State<RestaurantEventsScreen> {
               Text.rich(TextSpan(children: [
                 TextSpan(text: '\$${pph.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500)),
                 const TextSpan(text: '/head'),
-              ]), style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563))),
+              ]), style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF4B5563))),
             if (total > 0)
-              Text('Total: ${_money2.format(total)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF15803D))),
+              Text('Total: ${_money2.format(total)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tone.fg(0xFF15803D))),
             if (deposit > 0)
               Text('Deposit: ${deposit.toStringAsFixed(2)}${ev['depositPaid'] == true ? ' (Paid)' : ' (Unpaid)'}',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFFB45309))),
+                  style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFB45309))),
           ]),
         ],
         if (tStr(ev['specialRequests']).isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.only(left: 10),
-            decoration: const BoxDecoration(border: Border(left: BorderSide(color: Color(0xFFFECDD3), width: 2))),
+            decoration: const BoxDecoration(border: Border(left: BorderSide(color: Tone.line(0xFFFECDD3), width: 2))),
             child: Text(tStr(ev['specialRequests']),
                 style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: TColors.slate500)),
           ),
@@ -265,7 +266,7 @@ class _RestaurantEventsScreenState extends State<RestaurantEventsScreen> {
             ),
           IconButton(
             tooltip: 'Delete',
-            icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+            icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)),
             onPressed: () => _delete(ev),
           ),
         ]),

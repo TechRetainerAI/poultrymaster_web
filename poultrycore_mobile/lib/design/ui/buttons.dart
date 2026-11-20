@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../tokens.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The web `Button` variants.
 enum AppButtonVariant { primary, secondary, outline, ghost, destructive, link }
 
@@ -66,9 +67,9 @@ class AppButton extends StatelessWidget {
         fg = scheme.onSecondary;
       case AppButtonVariant.outline:
         final light = scheme.brightness == Brightness.light;
-        bg = light ? const Color(0xFFF8FAFC) : scheme.surface;
+        bg = light ? const Tone(0xFFF8FAFC) : scheme.surface;
         fg = scheme.onSurface;
-        side = BorderSide(color: light ? const Color(0xFFCBD5E1) : const Color(0xFF404040));
+        side = BorderSide(color: light ? const Tone.line(0xFFCBD5E1) : const Tone.line(0xFF334155));
       case AppButtonVariant.ghost:
       case AppButtonVariant.link:
         bg = Colors.transparent;

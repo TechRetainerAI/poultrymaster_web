@@ -23,6 +23,7 @@ import '../trackers/tracker_widgets.dart';
 import 'delivery_detail_screen.dart';
 import 'delivery_dialogs.dart';
 import 'delivery_logic.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../../shared/reason_select.dart' show reversalReasons;
 
 class DeliveriesScreen extends StatefulWidget {
@@ -204,7 +205,7 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
               actions: [
                 TextButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
-                  style: destructive ? FilledButton.styleFrom(backgroundColor: TColors.red600) : null,
+                  style: destructive ? FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)) : null,
                   onPressed: busy
                       ? null
                       : () async {
@@ -346,7 +347,7 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
           child: Padding(
             padding: const EdgeInsets.all(2),
             child: Material(
-              color: _tab == key ? Colors.white : Colors.transparent,
+              color: _tab == key ? Tone.bg(0xFFFFFFFF) : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               child: InkWell(
                 borderRadius: BorderRadius.circular(6),
@@ -677,7 +678,7 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
                 OutlinedButton.icon(onPressed: () => _editReturn(r), icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit')),
               if (st(r) == 'Draft')
                 OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(foregroundColor: TColors.green700, side: const BorderSide(color: Color(0xFFBBF7D0))),
+                  style: OutlinedButton.styleFrom(foregroundColor: TColors.green700, side: const BorderSide(color: Tone.line(0xFFBBF7D0))),
                   onPressed: () => _approve(r),
                   icon: const Icon(Icons.check_circle_outline, size: 16),
                   label: const Text('Approve & Reconcile'),
@@ -787,7 +788,7 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
     Widget link(IconData icon, String title, String sub, String href) => Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Material(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             shape: RoundedRectangleBorder(side: const BorderSide(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
             child: InkWell(
               borderRadius: BorderRadius.circular(8),

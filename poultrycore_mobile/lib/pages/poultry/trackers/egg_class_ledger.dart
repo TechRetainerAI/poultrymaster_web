@@ -13,20 +13,29 @@ import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../../shared/business_dates.dart' show formatLongDate;
+import '../egg_packaging.dart' show EggDisplay, boxSize, currentEggPackaging;
 import '../production/production_logic.dart' show eggsPerCrate;
 import '../reports/report_routes.dart' show openAppHref;
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// "962 cr + 10" (crates are display only); "10 eggs" under one crate.
+/// 393: a farm with Boxes on that shows quantities in boxes gets them first --
+/// "68 bx + 10 cr + 10" at 14 crates/box. An explicit [perCrate] (a
+/// historical figure) keeps crates only.
 String cratesText(num eggs, [int? perCrate]) {
+  final pk = perCrate == null ? currentEggPackaging : null;
   final per = perCrate ?? eggsPerCrate;
+  final box = pk != null && pk.display == EggDisplay.boxesCratesPieces ? boxSize(pk) : null;
   final n = eggs.round() < 0 ? 0 : eggs.round();
-  final crates = n ~/ per;
-  final loose = n % per;
-  if (crates == 0) return '$loose egg${loose == 1 ? '' : 's'}';
-  return loose > 0 ? '${loc(crates)} cr + $loose' : '${loc(crates)} cr';
+  final boxes = box != null ? n ~/ (box * per) : 0;
+  final rest = box != null ? n % (box * per) : n;
+  final crates = rest ~/ per;
+  final loose = rest % per;
+  if (boxes == 0 && crates == 0) return '$loose egg${loose == 1 ? '' : 's'}';
+  return [if (boxes > 0) '${loc(boxes)} bx', if (crates > 0) '${loc(crates)} cr', if (loose > 0) '$loose'].join(' + ');
 }
 
 String fmtCount(num n) => loc(n.round());
@@ -169,7 +178,7 @@ class _EggClassLedgerState extends State<EggClassLedger> {
             ? TColors.amber50
             : strong
             ? TColors.emerald50
-            : Colors.white,
+            : Tone.bg(0xFFFFFFFF),
         border: Border.all(
           color: highlight
               ? TColors.amber200
@@ -596,9 +605,9 @@ class _EggDrillScreenState extends State<EggDrillScreen> {
     final filtered = q.isNotEmpty;
     final band = inDir ? TColors.emerald50 : TColors.rose50;
     final bandBorder = inDir ? TColors.emerald200 : TColors.rose200;
-    final ink = inDir ? const Color(0xFF064E3B) : const Color(0xFF881337);
+    final ink = inDir ? const Tone(0xFF064E3B) : const Tone(0xFF881337);
     final amount = inDir ? TColors.emerald700 : TColors.rose700;
-    final rail = inDir ? const Color(0xFF34D399) : const Color(0xFFFB7185);
+    final rail = inDir ? const Tone(0xFF34D399) : const Tone(0xFFFB7185);
     final n = all.length;
 
     return Scaffold(
@@ -625,7 +634,7 @@ class _EggDrillScreenState extends State<EggDrillScreen> {
                       widget.bucket.label,
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ink),
                     ),
-                    TBadge(inDir ? 'Eggs in' : 'Eggs out', bg: Colors.white, fg: amount, border: bandBorder),
+                    TBadge(inDir ? 'Eggs in' : 'Eggs out', bg: Tone.bg(0xFFFFFFFF), fg: amount, border: bandBorder),
                     Text(
                       '${loc(widget.bucket.amount)} eggs',
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: amount),

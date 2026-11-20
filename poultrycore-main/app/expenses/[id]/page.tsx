@@ -133,7 +133,7 @@ export default function EditExpensePage() {
         poultryCashAccountId: expense.poultryCashAccountId ? String(expense.poultryCashAccountId) : "",
       })
     } else {
-      setError(result.message)
+      setError(result.message ?? "")
       setExpenseReceiptContext(null)
     }
 
@@ -229,7 +229,7 @@ export default function EditExpensePage() {
     if (result.success) {
       router.push("/expenses")
     } else {
-      setError(result.message)
+      setError(result.message ?? "")
       setLoading(false)
     }
   }

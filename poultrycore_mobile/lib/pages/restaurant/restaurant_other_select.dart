@@ -11,6 +11,7 @@ import '../../state/session.dart';
 import '../poultry/trackers/tracker_widgets.dart' show trackerToast;
 
 const _other = '__other__';
+const _none = '__none__';
 
 class RestaurantOtherSelect extends StatefulWidget {
   const RestaurantOtherSelect({
@@ -24,6 +25,7 @@ class RestaurantOtherSelect extends StatefulWidget {
     this.placeholder = 'Select',
     this.otherLabel = 'Other (type your own)',
     this.typePlaceholder = 'Type your own',
+    this.includeNone = false,
   });
 
   final Session session;
@@ -37,6 +39,9 @@ class RestaurantOtherSelect extends StatefulWidget {
   final String placeholder;
   final String otherLabel;
   final String typePlaceholder;
+
+  /// Adds a "None" choice that clears the value.
+  final bool includeNone;
 
   @override
   State<RestaurantOtherSelect> createState() => RestaurantOtherSelectState();
@@ -110,9 +115,10 @@ class RestaurantOtherSelectState extends State<RestaurantOtherSelect> {
     final opts = _options;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       AppSelect<String>(
-        value: _typing ? _other : ((widget.value ?? '').isEmpty ? null : widget.value),
+        value: _typing ? _other : ((widget.value ?? '').isEmpty ? (widget.includeNone ? _none : null) : widget.value),
         hintText: widget.placeholder,
         items: [
+          if (widget.includeNone) const AppSelectItem(value: _none, label: 'None'),
           for (final o in opts) AppSelectItem(value: o, label: o),
           AppSelectItem(value: _other, label: widget.otherLabel),
         ],
@@ -126,7 +132,7 @@ class RestaurantOtherSelectState extends State<RestaurantOtherSelect> {
             return;
           }
           setState(() => _typing = false);
-          widget.onChanged(v);
+          widget.onChanged(v == _none ? null : v);
         },
       ),
       if (_typing) ...[

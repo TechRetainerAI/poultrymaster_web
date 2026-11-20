@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { CalendarCheck, Check, Loader2, Plus, RefreshCw } from "lucide-react"
+import { CalendarCheck, Check, Loader2, Plus, RefreshCw, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -129,7 +129,7 @@ export default function GenericDailyClosingsPage() {
         await submitDailyClosing(created.genericDailyClosingId)
         toast({ title: `Closing #${created.genericDailyClosingId} created and submitted.`, description: "Totals aggregated automatically. Review and approve." })
         setOpen(false)
-        setForm({ closingDate: new Date().toISOString().slice(0, 10), openingCash: "", actualCashCounted: "0", managerNotes: "", differenceReason: "" })
+        setForm({ closingDate: new Date().toISOString().slice(0, 10), openingCash: "", actualCashCounted: "0", managerNotes: "", differenceReason: "", todaySales: 0, todayExpenses: 0, todayPurchasesPaid: 0, expectedCash: 0, customerDebt: 0, supplierDebt: 0 })
         await load()
       }
     } catch (e: any) {
@@ -165,6 +165,7 @@ export default function GenericDailyClosingsPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-start gap-3 min-w-0">
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <div className="w-10 h-10 shrink-0 rounded-lg bg-emerald-100 flex items-center justify-center">
                 <CalendarCheck className="w-5 h-5 text-emerald-600" />
               </div>

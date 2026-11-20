@@ -1,3 +1,5 @@
+import '../production/production_logic.dart' show eggsPerCrate;
+import '../egg_packaging.dart' show currentEggPackaging, eggBoxesSuffix;
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
@@ -15,6 +17,7 @@ import 'report_shell.dart';
 import 'report_widgets.dart';
 import 'reports_catalog_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 num _n(Object? v) => toNum(v);
 String _day(Object? v) => '${v ?? ''}'.length >= 10 ? '${v ?? ''}'.substring(0, 10) : '${v ?? ''}';
 
@@ -108,7 +111,8 @@ class _DailyBusinessSummaryScreenState extends State<DailyBusinessSummaryScreen>
                   'bank': sumR('bankCollected'),
                   'creditSales': sumR('creditSalesAmount'),
                   'customerCollections': 0,
-                  'eggsSold': sumR('cratesSold'),
+                  // Crates sold are crates: in eggs at the farm's crate size.
+                  'eggsSold': sumR('cratesSold') * eggsPerCrate,
                   'driverShortages': sumR('shortageAmount'),
                   'source': 'returns',
                 }
@@ -153,15 +157,15 @@ class _DailyBusinessSummaryScreenState extends State<DailyBusinessSummaryScreen>
       ('Bank', _m(i['bank']), null),
       ('Credit sales', _m(i['creditSales']), null),
       ('Customer collections', _m(i['customerCollections']), null),
-      ('Eggs sold', fmtNum(_n(i['eggsSold']), 3), null),
+      ('Eggs sold', '${fmtNum(_n(i['eggsSold']), 3)}${eggBoxesSuffix(_n(i['eggsSold']), currentEggPackaging)}', null),
       ('Driver shortages', _m(i['driverShortages']), _n(i['driverShortages']) != 0 ? 'rose' : null),
     ];
   }
 
   List<(String, String, String?)> get _productionCards => [
-        ('Eggs produced', fmtNum(_n(_s!['eggsProduced']), 3), null),
+        ('Eggs produced', '${fmtNum(_n(_s!['eggsProduced']), 3)}${eggBoxesSuffix(_n(_s!['eggsProduced']), currentEggPackaging)}', null),
         ('Broken eggs', fmtNum(_n(_s!['brokenEggs']), 3), _n(_s!['brokenEggs']) != 0 ? 'rose' : null),
-        ('Closing egg stock', fmtNum(_n(_s!['closingStock']), 3), null),
+        ('Closing egg stock', '${fmtNum(_n(_s!['closingStock']), 3)}${eggBoxesSuffix(_n(_s!['closingStock']), currentEggPackaging)}', null),
         ('Mortality', fmtNum(_n(_s!['mortality']), 3), _n(_s!['mortality']) != 0 ? 'rose' : null),
       ];
 
@@ -214,7 +218,7 @@ class _DailyBusinessSummaryScreenState extends State<DailyBusinessSummaryScreen>
           for (final c in cards)
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(c.$1.toUpperCase(), style: const TextStyle(fontSize: 10.5, letterSpacing: .5, color: slate500)),
                 const SizedBox(height: 4),
@@ -255,7 +259,7 @@ class _DailyBusinessSummaryScreenState extends State<DailyBusinessSummaryScreen>
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -487,9 +491,9 @@ class _ClosingReportScreenState extends State<ClosingReportScreen> {
               ? rose700
               : c == 8
                   ? switch (_rows[r]['status']) {
-                      'Approved' => const Color(0xFF15803D),
-                      'Submitted' => const Color(0xFF1D4ED8),
-                      'Rejected' => const Color(0xFFB91C1C),
+                      'Approved' => const Tone.fg(0xFF15803D),
+                      'Submitted' => const Tone.fg(0xFF1D4ED8),
+                      'Rejected' => const Tone.fg(0xFFB91C1C),
                       _ => null,
                     }
                   : null,
@@ -504,7 +508,7 @@ class _ClosingReportScreenState extends State<ClosingReportScreen> {
 // =========================================================================
 
 const closingCategorySections = <(String, Color, List<(String, String, bool)>)>[
-  ('Financial Summary', Color(0xFF2563EB), [
+  ('Financial Summary', Tone(0xFF2563EB), [
     ('Total Sales / Income', 'TotalSales', true),
     ('Total Expenses', 'TotalExpenses', true),
     ('Total Raw Material Purchases', 'TotalRawMaterialPurchases', true),
@@ -514,7 +518,7 @@ const closingCategorySections = <(String, Color, List<(String, String, bool)>)>[
     ('Net Profit / Loss', 'NetProfitLoss', true),
     ('Amount Owed by Customers', 'TotalOwedByCustomers', true),
   ]),
-  ('Production Summary', Color(0xFF059669), [
+  ('Production Summary', Tone(0xFF059669), [
     ('Total Eggs Produced', 'TotalEggsProduced', false),
     ('Total Good Eggs', 'TotalGoodEggs', false),
     ('Total Broken Eggs', 'TotalBrokenEggs', false),
@@ -526,14 +530,14 @@ const closingCategorySections = <(String, Color, List<(String, String, bool)>)>[
     ('Total Medication Consumed', 'TotalMedicationConsumed', false),
     ('Avg Production Cost / Egg', 'AvgProductionCostPerEgg', true),
   ]),
-  ('Inventory Summary', Color(0xFF4F46E5), [
+  ('Inventory Summary', Tone(0xFF4F46E5), [
     ('Opening Egg Stock', 'OpeningEggStock', false),
     ('Closing Egg Stock', 'ClosingEggStock', false),
     ('Eggs Sold', 'EggsSold', false),
     ('Raw Materials Purchased (value)', 'RawMaterialsPurchased', true),
     ('Raw Materials Consumed (qty)', 'RawMaterialsConsumed', false),
   ]),
-  ('Birds', Color(0xFF9333EA), [
+  ('Birds', Tone(0xFF9333EA), [
     ('Placed Birds (overall)', 'PlacedBirds', false),
     ('Birds Left', 'BirdsLeft', false),
     ('Birds Lost', 'BirdsLost', false),
@@ -542,12 +546,12 @@ const closingCategorySections = <(String, Color, List<(String, String, bool)>)>[
     ('Birds Purchased (inventory)', 'BirdsPurchased', false),
     ('Birds Sold (inventory)', 'BirdsSold', false),
   ]),
-  ('Losses', Color(0xFFDC2626), [
+  ('Losses', Tone(0xFFDC2626), [
     ('Production Loss (qty)', 'ProductionLossQty', false),
     ('Approved Loss Value', 'ApprovedLossValue', true),
     ('Broken Eggs', 'BrokenEggsTotal', false),
   ]),
-  ('Cash & Delivery', Color(0xFFD97706), [
+  ('Cash & Delivery', Tone(0xFFD97706), [
     ('Cash Sales Collected', 'CashSalesCollected', true),
     ('Cash Adjustments (net)', 'CashAdjustmentsNet', true),
     ('Estimated Cash Inflows', 'EstimatedCashInflows', true),
@@ -558,14 +562,14 @@ const closingCategorySections = <(String, Color, List<(String, String, bool)>)>[
   ]),
   // 375: byproduct reconciliation (Byproduct Inventory & Disposition report).
   // Its own categories: these never change the egg or live-bird figures above.
-  ('Broken Egg Byproducts', Color(0xFFE11D48), [
+  ('Broken Egg Byproducts', Tone(0xFFE11D48), [
     ('Opening', 'bp_BrokenEggsOpening', false),
     ('Generated', 'bp_BrokenEggsGenerated', false),
     ('Sold', 'bp_BrokenEggsSold', false),
     ('Disposed', 'bp_BrokenEggsDisposed', false),
     ('Carried forward', 'bp_BrokenEggsClosing', false),
   ]),
-  ('Mortality / Dead Bird Disposition', Color(0xFF57534E), [
+  ('Mortality / Dead Bird Disposition', Tone(0xFF57534E), [
     ('Opening', 'bp_DeadBirdsOpening', false),
     ('Dead birds generated', 'bp_DeadBirdsGenerated', false),
     ('Sold', 'bp_DeadBirdsSold', false),
@@ -656,7 +660,7 @@ class _ClosingByCategoryScreenState extends State<ClosingByCategoryScreen> {
   Widget build(BuildContext context) {
     final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-closing-report');
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: const Tone.bg(0xFFF9FAFB),
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Closing by Category')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
@@ -666,7 +670,7 @@ class _ClosingByCategoryScreenState extends State<ClosingByCategoryScreen> {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 _date('From', _from, (v) => _from = v),
@@ -691,7 +695,7 @@ class _ClosingByCategoryScreenState extends State<ClosingByCategoryScreen> {
             for (final (title, color, rows) in closingCategorySections)
               Container(
                 margin: const EdgeInsets.only(bottom: 14),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
                 clipBehavior: Clip.antiAlias,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Container(

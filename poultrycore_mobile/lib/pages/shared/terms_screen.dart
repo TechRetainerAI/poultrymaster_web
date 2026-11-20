@@ -7,6 +7,7 @@ import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 import '../poultry/trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const termsSections = [
   ('Use of the Platform',
       'VisibilityCore is provided to help you manage poultry farm operations, records, and reporting. You agree to use the platform only for lawful farm management activities.'),
@@ -42,7 +43,7 @@ class TermsScreen extends StatelessWidget {
             ]),
           ),
           const SizedBox(width: 8),
-          const TBadge('Effective immediately', bg: Color(0xFFFFF7ED), fg: Color(0xFFC2410C), border: Color(0xFFFDBA74)),
+          const TBadge('Effective immediately', bg: Tone.bg(0xFFFFF7ED), fg: Tone.fg(0xFFC2410C), border: Tone.line(0xFFFDBA74)),
         ]),
         const SizedBox(height: 20),
         TCard(

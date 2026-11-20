@@ -18,13 +18,17 @@ import 'money_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Money → Cash Transfers, as `app/poultry-cash-transfers/page.tsx`:
 /// money moved between the farm's own accounts. It is the same money in a
 /// different box — never money in or out on Cash Flow.
 
 const transferStatusFilters = ['All', 'Approved', 'Draft', 'Reversed', 'Cancelled'];
 
-const _sky600 = Color(0xFF0284C7);
+/// The Hotel posts both legs at once, so it has no Draft or Cancelled transfer.
+const hotelTransferStatusFilters = ['All', 'Approved', 'Reversed'];
+
+const _sky600 = Tone.fg(0xFF0284C7);
 
 (Color, Color) transferStatusTone(String s) => switch (s) {
       'Approved' => (TColors.emerald100, TColors.emerald800),
@@ -32,6 +36,10 @@ const _sky600 = Color(0xFF0284C7);
       'Cancelled' => (TColors.slate100, TColors.slate700),
       _ => (TColors.sky100, TColors.sky800),
     };
+
+/// The Hotel's badge for anything else is violet where Poultry's is sky.
+(Color, Color) transferStatusToneFor(MoneyRail r, String s) =>
+    r.isHotel && !const ['Approved', 'Reversed'].contains(s) ? (TColors.violet100, TColors.violet800) : transferStatusTone(s);
 
 String transferNumber(Map t, [String p = 'poultry']) =>
     tStr(t['transferNumber']).isNotEmpty ? tStr(t['transferNumber']) : '#${tStr(t['${p}CashTransferId'])}';
@@ -135,10 +143,10 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
     setState(() => _loading = true);
     try {
       final q = {'farmId': widget.company.farmId};
-      final r = await Future.wait([_api.get('${_r.api}/cash-accounts', query: q), _api.get('${_r.api}/cash-transfers', query: q)]);
+      final r = await Future.wait([_api.get(_r.cashAccountsApi, query: q), _api.get('${_r.api}/cash-transfers', query: q)]);
       if (!mounted) return;
       setState(() {
-        _accounts = rowsOf(r[0]);
+        _accounts = _r.accountsOf(r[0]);
         _rows = rowsOf(r[1]);
       });
     } on ApiException catch (e) {
@@ -179,8 +187,8 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            const Row(children: [
-              Icon(Icons.swap_horiz, size: 24, color: _sky600),
+            Row(children: [
+              Icon(Icons.swap_horiz, size: 24, color: _r.accent ?? _sky600),
               SizedBox(width: 8),
               Expanded(child: Text('Cash Transfers', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -192,7 +200,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
               ),
               InkWell(
                 onTap: () => openAppHref(context, widget.session, widget.company, _r.cashFlowHref, label: 'Cash Flow'),
-                child: const Text('Cash Flow', style: TextStyle(fontSize: 13, color: Color(0xFF0369A1))),
+                child: const Text('Cash Flow', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF0369A1))),
               ),
               const Text('.', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             ]),
@@ -201,7 +209,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
                 onPressed: () => _dialog(RecordTransferDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts, fmt: _fmt)),
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 44), backgroundColor: _r.accent),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Record transfer'),
               ),
@@ -232,7 +240,8 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
               }),
               extras: [
                 Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (final s in transferStatusFilters) filterChipButton(s, _status == s, () => setState(() => _status = s)),
+                  for (final s in _r.isHotel ? hotelTransferStatusFilters : transferStatusFilters)
+                    filterChipButton(s, _status == s, () => setState(() => _status = s), color: _r.accent),
                 ]),
               ],
             ),
@@ -246,7 +255,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
             else if (visible.isEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Text(
                   _rows.isEmpty ? 'No transfers yet. Record one when you move money between accounts.' : 'No transfers match these filters.',
                   textAlign: TextAlign.center,
@@ -261,7 +270,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
                 primary: (t) => transferNumber(t, _r.idPrefix),
                 secondary: (t) => '${_when(t)} · ${tStr(t['fromAccountName'])} → ${tStr(t['toAccountName'])}',
                 trailing: (t) {
-                  final (bg, fg) = transferStatusTone(tStr(t['status']));
+                  final (bg, fg) = transferStatusToneFor(_r, tStr(t['status']));
                   return Padding(padding: const EdgeInsets.only(left: 6), child: TBadge(tStr(t['status']), bg: bg, fg: fg));
                 },
                 highlights: (t) => [Highlight('Amount', _fmt(tNum(t['amount'])))],
@@ -304,7 +313,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
                         Text(_dash(t['createdBy']), style: const TextStyle(color: TColors.slate500)),
                         Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                           Builder(builder: (_) {
-                            final (bg, fg) = transferStatusTone(tStr(t['status']));
+                            final (bg, fg) = transferStatusToneFor(_r, tStr(t['status']));
                             return TBadge(tStr(t['status']), bg: bg, fg: fg);
                           }),
                           if (tStr(t['status']) == 'Reversed' && tStr(t['reversalReason']).isNotEmpty)
@@ -384,6 +393,22 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
     final farmId = widget.company.farmId;
     String? opt(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
     try {
+      // The Hotel records and posts a transfer in one request (migration 331).
+      if (_r.isHotel) {
+        await api.post('${_r.api}/cash-transfers', body: {
+          'farmId': farmId,
+          'fromHotelCashAccountId': int.parse(_from),
+          'toHotelCashAccountId': int.parse(_to),
+          'amount': _amountNum,
+          'transferDate': entryTimestamp(_date),
+          'referenceNumber': opt(_ref),
+          'notes': opt(_notes),
+        });
+        if (!mounted) return;
+        trackerToast(context, 'Transfer recorded');
+        Navigator.pop(context, true);
+        return;
+      }
       final res = await api.post('${_r.api}/cash-transfers', body: {
         'from${_r.cap}CashAccountId': int.parse(_from),
         'to${_r.cap}CashAccountId': int.parse(_to),
@@ -435,8 +460,8 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
       canPop: !_saving,
       child: AlertDialog(
         scrollable: true,
-        title: const Row(children: [
-          Icon(Icons.swap_horiz, color: _sky600),
+        title: Row(children: [
+          Icon(Icons.swap_horiz, color: _r.accent ?? _sky600),
           SizedBox(width: 6),
           Flexible(child: Text('Record Cash Transfer')),
         ]),
@@ -448,7 +473,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Movement', _sky600, [
+            formSection('Movement', _r.accent ?? _sky600, [
               FilterLabel(
                 'Transfer date *',
                 AppDateField(
@@ -486,7 +511,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
             ]),
             if (_from.isNotEmpty && _to.isNotEmpty && _amountNum > 0) ...[
               const SizedBox(height: 12),
-              formSection('After this transfer', TColors.slate600, [
+              formSection('After this transfer', Tone.bg(0xFF475569), [
                 Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   _preview('Source', _bal(_from), _fromAfter),
                   const SizedBox(height: 4),
@@ -503,7 +528,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
               ]),
             ],
             const SizedBox(height: 12),
-            formSection('Reference', TColors.slate600, [
+            formSection('Reference', Tone.bg(0xFF475569), [
               FilterLabel('Reference', AppInput(controller: _ref, hintText: 'Bank or MoMo reference')),
               FilterLabel('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4)),
             ]),
@@ -512,6 +537,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
         actions: [
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
             onPressed: _saving || _overdraw ? null : _save,
             child: Text(_saving ? 'Recording...' : 'Record Transfer'),
           ),
@@ -566,7 +592,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
       await widget.session.farmClient.post(
         '${_r.api}/cash-transfers/${tStr(t['${_r.idPrefix}CashTransferId'])}/reverse',
         query: {'farmId': widget.company.farmId, 'reversedBy': widget.session.tokens.userId ?? ''},
-        body: {'reason': _reason.text.trim()},
+        body: {if (_r.isHotel) 'farmId': widget.company.farmId, 'reason': _reason.text.trim()},
       );
       if (!mounted) return;
       trackerToast(context, 'Transfer reversed',
@@ -601,7 +627,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Transfer being reversed', TColors.slate600, [
+            formSection('Transfer being reversed', Tone.bg(0xFF475569), [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(transferNumber(t, _r.idPrefix), style: const TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 4),
@@ -620,7 +646,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
               ]),
             ]),
             const SizedBox(height: 12),
-            formSection('Why', TColors.amber600, [
+            formSection('Why', Tone.bg(0xFFD97706), [
               FilterLabel('Reason *', ReasonSelectField(controller: _reason, options: reversalReasons)),
               const Text('Written to the audit trail.', style: TextStyle(fontSize: 11, color: TColors.slate500)),
             ]),
@@ -630,7 +656,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
             onPressed: _saving ? null : _go,
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white),
             child: Text(_saving ? 'Reversing...' : 'Reverse Transfer'),
           ),
         ],

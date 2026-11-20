@@ -123,19 +123,16 @@ export async function getUserProfile(username: string): Promise<ApiResponse<User
       success: true,
       data: {
         farmId: localStorage.getItem("farmId") || "mock-farm-123",
-        userId: localStorage.getItem("userId") || "mock-user-123",
-        username: localStorage.getItem("username") || "demo_user",
+        id: localStorage.getItem("userId") || "mock-user-123",
+        userName: localStorage.getItem("username") || "demo_user",
         email: "demo@example.com",
         firstName: "Demo",
         lastName: "User",
         phoneNumber: "+1 (555) 123-4567",
-        roles: ["Admin"],
         isStaff: false,
         isSubscriber: true,
         farmName: localStorage.getItem("farmName") || "Demo Farm",
-        lastLoginDate: new Date().toISOString(),
-        createdDate: new Date().toISOString(),
-      },
+      } as UserProfile,
       message: "Profile loaded (API unavailable - using mock data)",
     }
   }

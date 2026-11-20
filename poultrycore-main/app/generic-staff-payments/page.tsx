@@ -31,7 +31,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
-import { Loader2, Plus, Banknote, Undo2 } from "lucide-react"
+import { ArrowLeft, Loader2, Plus, Banknote, Undo2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -198,6 +198,7 @@ export default function GenericStaffPaymentsPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
+              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Banknote className="h-6 w-6 text-indigo-600" /> Staff payments
               </h1>

@@ -1,15 +1,18 @@
 "use client"
 
-// Generic Supplier Payments — deep copy of the poultry version.
+// Generic Supplier Payments — the Poultry page on the shared <PaymentsLedgerPage>.
 //
-// Uses the shared <PaymentsLedgerPage> for the full poultry-level experience:
-// expandable allocations, sortable columns, summary cards, export, filters.
-// The standalone Draft/Approve page this replaced had none of these.
+// 449 (Report 40): "Record payment" in the header, as on Poultry -- a payment
+// spread over several bills, kept partly as credit, or an advance (applied to
+// nothing). Supplier debts (SD-) link nowhere, as on Poultry.
 
 import { PaymentsLedgerPage } from "@/components/balances/payments-ledger-page"
+import { RecordPartyPaymentButton } from "@/components/payments/record-customer-payment-button"
+import { usePermissions } from "@/hooks/use-permissions"
 import { getCashAccounts } from "@/lib/api/generic"
 
 export default function GenericSupplierPaymentsPage() {
+  const { can } = usePermissions()
   return (
     <PaymentsLedgerPage
       module="generic"
@@ -22,7 +25,8 @@ export default function GenericSupplierPaymentsPage() {
       }}
       partyHref={(supplierId) => `/generic-suppliers/${supplierId}/ledger`}
       documentHref={(a) =>
-        a.documentType === "Expense"
+        a.documentType === "SupplierDebt" ? null
+          : a.documentType === "Expense"
           ? `/generic-expenses?expenseId=${a.documentId}`
           : `/generic-purchases?purchaseId=${a.documentId}`
       }
@@ -30,6 +34,9 @@ export default function GenericSupplierPaymentsPage() {
         view: "generic.supplier-balances.view",
         reverse: "generic.supplier-payments.reverse",
       }}
+      headerActions={(reload) => can("generic.supplier-payments.create")
+        ? <RecordPartyPaymentButton side="supplier" onPosted={reload} />
+        : null}
     />
   )
 }

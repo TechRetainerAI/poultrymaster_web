@@ -192,7 +192,7 @@ export default function WaterDeliveryRunDetailsPage() {
                   <MobileCardList alwaysExpanded
                     striped
                     items={items}
-                    getKey={(it) => it.waterVehicleLoadingItemId}
+                    getKey={(it) => it.waterVehicleLoadingItemId ?? 0}
                     primary={(it) => it.productName ?? `Product #${it.waterProductId}`}
                     secondary={(it) => <span>{it.bagsLoaded} bags · {gh(it.expectedAmount ?? it.bagsLoaded * it.unitPrice)}</span>}
                     highlights={(it) => [
@@ -255,7 +255,7 @@ export default function WaterDeliveryRunDetailsPage() {
                       <MobileCardList alwaysExpanded
                         striped
                         items={retItems}
-                        getKey={(ri) => ri.waterDriverReturnItemId}
+                        getKey={(ri) => ri.waterDriverReturnItemId ?? 0}
                         primary={(ri) => ri.productName ?? `Product #${ri.waterProductId}`}
                         secondary={(ri) => <span>Sold {ri.bagsSold} · {gh(ri.expectedSales ?? ri.bagsSold * ri.unitPrice)}</span>}
                         highlights={(ri) => [

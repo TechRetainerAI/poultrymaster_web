@@ -1,603 +1,906 @@
 "use client"
 
-/**
- * Generic Loans — deep copy of Poultry Loans, adapted for Generic APIs.
- *
- * Who lent the business money, how much is still owed, and what each
- * repayment was actually made of (principal / interest / fees).
- */
+// Generic Loans (Financing) — Poultry's Loans page (app/poultry-loans) on
+// Generic's own tables ("GenericLoans" / "GenericLoanPayments", migration 455).
+//
+// A repayment is not one number: only the interest and the fees are a cost,
+// the principal is the business swapping cash for a smaller debt. The shared
+// LoanRepaymentDialog (components/cash/loan-repayment-dialog.tsx) asks for the
+// parts and shows the total, exactly as on Poultry.
+//
+// Money rules live in the SPs (455): every cash move is one ledger row on the
+// account, a received amount needs an account, a repayment cannot overdraw the
+// account or pay more principal than is owed, a loan with posted repayments
+// cannot be cancelled, and reversing or cancelling needs a reason.
+//
+// Beyond Poultry's page: Edit (terms only — the money is never edited) and
+// Cancel, which Poultry has on its API but not on its page.
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { CANCEL_REASONS, LOAN_REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { FormSection, FormField } from "@/components/ui/form-section"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { NumberInput } from "@/components/ui/number-input"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { FormSection, FormField } from "@/components/ui/form-section"
+import { Textarea } from "@/components/ui/textarea"
+import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { MobileCardList } from "@/components/ui/mobile-card-list"
-import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
-import { usePagination } from "@/hooks/use-pagination"
 import {
-  Banknote, ChevronDown, ChevronRight, HandCoins, Info,
-  Loader2, Plus, TrendingDown,
-} from "lucide-react"
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
+import { Ban, Banknote, ChevronDown, ChevronRight, HandCoins, Loader2, Pencil, Plus, Undo2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
-import { useFmt } from "@/lib/currency"
 import { cn } from "@/lib/utils"
-import { defaultReportRange } from "@/lib/date-ranges"
+import { useFmt } from "@/lib/currency"
 import {
-  getLoans, createLoan, getLoanPayments, repayLoan, getCashAccounts,
-  type GenericLoan, type GenericLoanPayment, type GenericCashAccount,
+  LoanRepaymentDialog, isRepayableLoan, type RepayableLoanOption,
+} from "@/components/cash/loan-repayment-dialog"
+import {
+  getCashAccounts, getLoans, getAllLoanPayments, createLoan, updateLoan, cancelLoan,
+  repayLoan, reverseLoanPayment,
+  type GenericCashAccount, type GenericLoan, type GenericLoanPayment,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
-
-const STATUS_FILTERS = ["All", "Active", "Paid"] as const
-const STATUS_COLORS: Record<string, string> = {
-  Active: "bg-blue-100 text-blue-700",
-  Paid: "bg-emerald-100 text-emerald-700",
-  PaidOff: "bg-emerald-100 text-emerald-700",
-  Defaulted: "bg-rose-100 text-rose-700",
-  Cancelled: "bg-slate-100 text-slate-700",
-}
 
 const LENDER_TYPES = ["Bank", "FinancialInstitution", "Individual", "Owner", "FamilyFriend", "Supplier", "Other"]
 const INTEREST_TYPES = ["Simple", "ReducingBalance", "Flat", "Unknown"]
 const FREQUENCIES = ["Weekly", "BiWeekly", "Monthly", "Quarterly", "Custom"]
+// Generic loans have no Draft state (Poultry's list has one).
+const STATUS_FILTERS = ["All", "Active", "PaidOff", "Cancelled"] as const
 
 function today() { return new Date().toISOString().slice(0, 10) }
+const dateOnly = (d?: string | null) => (d ? d.slice(0, 10) : "")
+
+const lenderCell = (l: GenericLoan) => {
+  const name = (l.lenderName ?? "").trim()
+  return name || <span className="italic text-slate-400">Lender not recorded</span>
+}
+
+const toLoanOption = (l: GenericLoan): RepayableLoanOption => ({
+  loanId: l.genericLoanId,
+  loanNumber: l.loanNumber,
+  lenderName: l.lenderName,
+  outstandingPrincipal: l.outstandingBalance,
+  status: l.status,
+  source: "Loan",
+  defaultAccountId: l.genericCashAccountId ?? null,
+})
+
+function statusClass(l: GenericLoan) {
+  if (l.status === "PaidOff") return "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+  if (l.status === "Cancelled") return "bg-slate-100 text-slate-700 hover:bg-slate-100"
+  if (l.isOverdue) return "bg-rose-100 text-rose-800 hover:bg-rose-100"
+  return "bg-amber-100 text-amber-800 hover:bg-amber-100"
+}
+
+const canEdit = (l: GenericLoan) => l.status !== "Cancelled"
+// Same rule as the SP: reverse every repayment first.
+const canCancel = (l: GenericLoan) => l.status !== "Cancelled" && l.paymentCount === 0
+
+const blankForm = () => ({
+  lenderName: "", lenderType: "Bank", accountNumber: "",
+  originalPrincipal: "0", amountReceived: "0", genericCashAccountId: "",
+  startDate: today(), interestRate: "", interestType: "ReducingBalance",
+  termMonths: "", paymentFrequency: "Monthly", nextPaymentDate: "", notes: "",
+})
+
+function LoanRepaymentTable({ payments, fmt, onReverse }: {
+  payments: GenericLoanPayment[]
+  fmt: (n: number) => string
+  onReverse: (p: GenericLoanPayment) => void
+}) {
+  if (payments.length === 0) {
+    return (
+      <div className="px-4 py-3 text-sm text-slate-500">
+        No repayments recorded against this loan yet.
+      </div>
+    )
+  }
+  return (
+    <div className="px-4 py-3">
+      <p className="mb-2 text-xs text-slate-500">The total is what left the bank. Only the interest and the fees reach the profit and loss.</p>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Payment #</TableHead>
+              <TableHead className="text-right">Principal</TableHead>
+              <TableHead className="text-right">Interest</TableHead>
+              <TableHead className="text-right">Fees</TableHead>
+              <TableHead className="text-right">Total paid</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {payments.map((p) => (
+              <TableRow key={p.genericLoanPaymentId} className="bg-white">
+                <TableCell className="whitespace-nowrap">{fmtDateTime(p.paymentDate, p)}</TableCell>
+                <TableCell className="font-medium">{p.paymentNumber ?? `#${p.genericLoanPaymentId}`}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmt(p.principalAmount)}</TableCell>
+                <TableCell className="text-right tabular-nums text-amber-700">{fmt(p.interestAmount)}</TableCell>
+                <TableCell className="text-right tabular-nums text-amber-700">{fmt(p.feeAmount)}</TableCell>
+                <TableCell className="text-right tabular-nums font-medium">
+                  <span className={p.status === "Reversed" ? "line-through text-slate-400" : ""}>
+                    {fmt(p.totalPayment)}
+                  </span>
+                </TableCell>
+                <TableCell className="text-slate-500">{p.accountName ?? "–"}</TableCell>
+                <TableCell>
+                  <Badge className={p.status === "Reversed"
+                    ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                    : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"}>
+                    {p.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  {p.status === "Posted" && (
+                    <Button size="sm" variant="outline" onClick={() => onReverse(p)}>
+                      <Undo2 className="h-3 w-3 mr-1" /> Reverse
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+}
+
+function LoanRepaymentList({ payments, fmt, onReverse }: {
+  payments: GenericLoanPayment[]
+  fmt: (n: number) => string
+  onReverse: (p: GenericLoanPayment) => void
+}) {
+  if (payments.length === 0) {
+    return <div className="text-xs text-slate-500">No repayments recorded against this loan yet.</div>
+  }
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Repayment history
+      </div>
+      <p className="text-[11px] text-slate-500">The total is what left the bank. Only the interest and the fees reach the profit and loss.</p>
+      {payments.map((p) => (
+        <div key={p.genericLoanPaymentId} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="font-medium text-slate-900">
+                {fmtDateTime(p.paymentDate, p)}
+              </div>
+              <div className="text-[11px] text-slate-500 truncate">
+                {p.paymentNumber ?? `#${p.genericLoanPaymentId}`}
+                {p.accountName ? ` · ${p.accountName}` : ""}
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className={cn("font-semibold tabular-nums",
+                                 p.status === "Reversed" ? "text-slate-400 line-through" : "text-slate-900")}>
+                {fmt(p.totalPayment)}
+              </div>
+              <Badge className={cn("mt-0.5 text-[10px]", p.status === "Reversed"
+                ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100")}>
+                {p.status}
+              </Badge>
+            </div>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+            <div>
+              <div className="text-slate-500">Principal</div>
+              <div className="font-medium tabular-nums">{fmt(p.principalAmount)}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Interest</div>
+              <div className="font-medium tabular-nums text-amber-700">{fmt(p.interestAmount)}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Fees</div>
+              <div className="font-medium tabular-nums text-amber-700">{fmt(p.feeAmount)}</div>
+            </div>
+          </div>
+          {p.status === "Posted" && (
+            <Button size="sm" variant="outline" className="mt-2 h-9 w-full"
+                    onClick={() => onReverse(p)}>
+              <Undo2 className="h-3 w-3 mr-1" /> Reverse
+            </Button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function GenericLoansPage() {
   const router = useRouter()
-  const logout = useLogout()
-  const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const activeFarmId = useAuthStore((s) => s.activeFarmId)
-  const gh = useFmt()
+  const logout = useLogout()
+  const { toast } = useToast()
+  const fmt = useFmt()
 
-  const [rows, setRows] = useState<GenericLoan[]>([])
   const [accounts, setAccounts] = useState<GenericCashAccount[]>([])
+  const [loans, setLoans] = useState<GenericLoan[]>([])
+  const [payments, setPayments] = useState<GenericLoanPayment[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState<string>("All")
 
-  const [statusFilter, setStatusFilter] = useState<string>("All")
-  const [search, setSearch] = useState("")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
+  const [newOpen, setNewOpen] = useState(false)
+  /** The loan being edited; null = recording a new one. */
+  const [editing, setEditing] = useState<GenericLoan | null>(null)
+  const [form, setForm] = useState(blankForm())
 
-  const [createOpen, setCreateOpen] = useState(false)
-  const [repayTarget, setRepayTarget] = useState<GenericLoan | null>(null)
+  const [repaying, setRepaying] = useState<GenericLoan | null>(null)
+  const [reversing, setReversing] = useState<GenericLoanPayment | null>(null)
+  const [cancelling, setCancelling] = useState<GenericLoan | null>(null)
+  const [reason, setReason] = useState("")
+
+  const paymentsByLoan = useMemo(() => {
+    const m = new Map<number, GenericLoanPayment[]>()
+    for (const p of payments) {
+      const list = m.get(p.genericLoanId)
+      if (list) list.push(p)
+      else m.set(p.genericLoanId, [p])
+    }
+    for (const list of m.values()) {
+      list.sort((a, b) => (a.paymentDate < b.paymentDate ? 1 : a.paymentDate > b.paymentDate ? -1 : 0))
+    }
+    return m
+  }, [payments])
+
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  const [paymentsCache, setPaymentsCache] = useState<Record<number, GenericLoanPayment[]>>({})
-
-  const toggle = (id: number) =>
+  const toggleExpanded = (id: number) =>
     setExpanded((prev) => {
       const next = new Set(prev)
       if (!next.delete(id)) next.add(id)
       return next
     })
 
-  const [form, setForm] = useState({
-    lenderName: "", lenderType: "", originalPrincipal: 0, amountReceived: 0,
-    interestRate: 0, interestType: "", frequency: "",
-    loanDate: today(), startDate: "", dueDate: "",
-    cashAccountId: null as number | null, notes: "",
-  })
-  const [repayForm, setRepayForm] = useState({
-    principalAmount: 0, interestAmount: 0, feeAmount: 0,
-    paymentDate: today(), cashAccountId: null as number | null, notes: "",
-  })
-
-  const load = useCallback(async () => {
-    const [loans, accts] = await Promise.allSettled([getLoans(), getCashAccounts()])
-    if (loans.status === "fulfilled") setRows(loans.value)
-    if (accts.status === "fulfilled") setAccounts(accts.value)
-    setLoading(false)
-  }, [])
+  const load = async () => {
+    setLoading(true)
+    try {
+      const [accs, ls, ps] = await Promise.all([getCashAccounts(), getLoans(), getAllLoanPayments()])
+      setAccounts(accs); setLoans(ls); setPayments(ps)
+    } catch (e: any) {
+      toast({ title: "Could not load loans", description: e?.message ?? String(e), variant: "destructive" })
+    } finally { setLoading(false) }
+  }
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
     if (!activeFarmId) return
-    setLoading(true)
-    void load()
-  }, [activeFarmType, activeFarmId, router, load])
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFarmType, activeFarmId, router])
 
-  const filtered = useMemo(() => {
-    let list = rows
-    if (statusFilter !== "All") {
-      list = list.filter((l) => l.status === statusFilter || (statusFilter === "Paid" && l.status === "PaidOff"))
+  // Poultry reads these from sppoultryloan_summary; the same sums, over the list.
+  const summary = useMemo(() => {
+    const live = loans.filter((l) => l.status !== "Cancelled")
+    const due = loans
+      .filter((l) => l.status === "Active" && l.outstandingBalance > 0 && l.nextPaymentDate)
+      .map((l) => l.nextPaymentDate as string)
+      .sort()
+    return {
+      activeLoans: loans.filter((l) => l.status === "Active").length,
+      totalBorrowed: live.reduce((s, l) => s + l.originalPrincipal, 0),
+      totalReceived: live.reduce((s, l) => s + l.amountReceived, 0),
+      outstandingPrincipal: loans.reduce((s, l) => s + l.outstandingBalance, 0),
+      totalPrincipalRepaid: loans.reduce((s, l) => s + l.totalPrincipalPaid, 0),
+      totalInterestPaid: loans.reduce((s, l) => s + l.totalInterestPaid, 0),
+      totalFeesPaid: loans.reduce((s, l) => s + l.totalFeesPaid, 0),
+      overdueLoans: loans.filter((l) => l.isOverdue).length,
+      nextPaymentDate: due[0] ?? null,
     }
-    return filterByDateAndSearch(list, {
-      search, searchKeys: ["lenderName", "notes", "status"],
-      dateFrom, dateTo, dateKey: "loanDate",
+  }, [loans])
+
+  const visible = useMemo(
+    () => (status === "All" ? loans : loans.filter((l) => l.status === status)),
+    [loans, status],
+  )
+  const pg = usePagination(visible)
+
+  const repayAccounts = useMemo(
+    () => accounts.map((a) => ({
+      accountId: a.genericCashAccountId,
+      accountName: a.accountName,
+      currentBalance: a.currentBalance,
+      allowNegativeBalance: a.allowNegativeBalance,
+      isActive: a.isActive,
+    })),
+    [accounts],
+  )
+
+  const openNew = () => { setEditing(null); setForm(blankForm()); setNewOpen(true) }
+  const openEdit = (l: GenericLoan) => {
+    setEditing(l)
+    setForm({
+      lenderName: l.lenderName ?? "", lenderType: l.lenderType || "Other", accountNumber: l.accountNumber ?? "",
+      originalPrincipal: String(l.originalPrincipal), amountReceived: String(l.amountReceived),
+      genericCashAccountId: l.genericCashAccountId ? String(l.genericCashAccountId) : "",
+      startDate: dateOnly(l.startDate ?? l.loanDate),
+      interestRate: l.interestRate ? String(l.interestRate) : "", interestType: l.interestType || "Unknown",
+      termMonths: l.termMonths != null ? String(l.termMonths) : "", paymentFrequency: l.paymentFrequency || "Monthly",
+      nextPaymentDate: dateOnly(l.nextPaymentDate), notes: l.notes ?? "",
     })
-  }, [rows, statusFilter, search, dateFrom, dateTo])
+    setNewOpen(true)
+  }
 
-  const pg = usePagination(filtered)
+  const saveLoan = async () => {
+    if (!form.lenderName.trim()) { toast({ title: "Who lent the money?", variant: "destructive" }); return }
+    setSaving(true)
+    try {
+      if (editing) {
+        await updateLoan(editing.genericLoanId, {
+          lenderName: form.lenderName.trim(),
+          lenderType: form.lenderType,
+          accountNumber: form.accountNumber.trim() || null,
+          interestRate: form.interestRate ? Number(form.interestRate) : null,
+          interestType: form.interestType || null,
+          termMonths: form.termMonths ? Number(form.termMonths) : null,
+          paymentFrequency: form.paymentFrequency || null,
+          nextPaymentDate: form.nextPaymentDate || null,
+          notes: form.notes.trim() || null,
+        })
+        toast({ title: "Loan updated" })
+      } else {
+        const princ = Number(form.originalPrincipal) || 0
+        const recv = Number(form.amountReceived) || 0
+        if (princ <= 0) { toast({ title: "Enter the loan amount", variant: "destructive" }); return }
+        if (recv > princ) { toast({ title: "Received cannot exceed the principal", variant: "destructive" }); return }
+        if (recv > 0 && !form.genericCashAccountId) {
+          toast({ title: "Which account received it?", variant: "destructive" }); return
+        }
+        await createLoan({
+          lenderName: form.lenderName.trim(),
+          lenderType: form.lenderType,
+          accountNumber: form.accountNumber.trim() || null,
+          originalPrincipal: princ,
+          amountReceived: recv,
+          genericCashAccountId: recv > 0 ? Number(form.genericCashAccountId) : null,
+          loanDate: form.startDate,
+          startDate: form.startDate,
+          interestRate: form.interestRate ? Number(form.interestRate) : null,
+          interestType: form.interestType || null,
+          termMonths: form.termMonths ? Number(form.termMonths) : null,
+          paymentFrequency: form.paymentFrequency || null,
+          nextPaymentDate: form.nextPaymentDate || null,
+          notes: form.notes.trim() || null,
+        })
+        toast({
+          title: "Loan recorded",
+          description: recv > 0
+            ? `${fmt(recv)} in. It is money in, not revenue — the business borrowed it.`
+            : "No money recorded as received yet.",
+        })
+      }
+      setNewOpen(false); setEditing(null)
+      await load()
+    } catch (e: any) {
+      toast({ title: editing ? "Could not update the loan" : "Could not record the loan",
+              description: e?.message ?? String(e), variant: "destructive" })
+    } finally { setSaving(false) }
+  }
 
-  const totals = useMemo(() => {
-    let borrowed = 0, outstanding = 0, repaid = 0, interest = 0, fees = 0
-    for (const l of rows) {
-      borrowed += l.originalPrincipal
-      outstanding += l.outstandingBalance
-      repaid += l.totalPrincipalPaid
-      interest += l.totalInterestPaid
-      fees += l.totalFeesPaid
+  const doReverse = async () => {
+    if (!reversing) return
+    if (reason.trim().length < 3) {
+      toast({ title: "Say why", description: "The reason is written to the audit trail.", variant: "destructive" })
+      return
     }
-    return { borrowed, outstanding, repaid, interest, fees, active: rows.filter((l) => l.status === "Active").length }
-  }, [rows])
-
-  async function doCreate() {
-    if (!form.lenderName.trim()) { toast({ title: "Lender name is required", variant: "destructive" }); return }
-    if (form.originalPrincipal <= 0) { toast({ title: "Amount must be > 0", variant: "destructive" }); return }
     setSaving(true)
     try {
-      const desc = [
-        form.lenderType && `Lender type: ${form.lenderType}`,
-        form.interestType && `Interest: ${form.interestType}`,
-        form.frequency && `Frequency: ${form.frequency}`,
-        form.notes,
-      ].filter(Boolean).join(". ")
-
-      await createLoan({
-        lenderName: form.lenderName.trim(),
-        originalPrincipal: form.originalPrincipal,
-        amountReceived: form.amountReceived || form.originalPrincipal,
-        interestRate: form.interestRate,
-        loanDate: form.loanDate,
-        startDate: form.startDate || undefined,
-        dueDate: form.dueDate || undefined,
-        genericCashAccountId: form.cashAccountId,
-        notes: desc || undefined,
-      })
-      toast({ title: "Loan recorded" })
-      setCreateOpen(false)
-      setForm({ lenderName: "", lenderType: "", originalPrincipal: 0, amountReceived: 0, interestRate: 0, interestType: "", frequency: "", loanDate: today(), startDate: "", dueDate: "", cashAccountId: null, notes: "" })
+      await reverseLoanPayment(reversing.genericLoanPaymentId, reason.trim())
+      toast({ title: "Repayment reversed", description: "The debt is back up and the cash returned." })
+      setReversing(null); setReason("")
       await load()
-    } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
-    finally { setSaving(false) }
+    } catch (e: any) {
+      toast({ title: "Could not reverse", description: e?.message ?? String(e), variant: "destructive" })
+    } finally { setSaving(false) }
   }
 
-  async function doRepay() {
-    if (!repayTarget) return
-    const total = repayForm.principalAmount + repayForm.interestAmount + repayForm.feeAmount
-    if (total <= 0) { toast({ title: "Payment must be > 0", variant: "destructive" }); return }
+  const doCancel = async () => {
+    if (!cancelling) return
+    if (reason.trim().length < 3) {
+      toast({ title: "Say why", description: "The reason is written to the audit trail.", variant: "destructive" })
+      return
+    }
     setSaving(true)
     try {
-      await repayLoan(repayTarget.genericLoanId, {
-        ...repayForm,
-        genericCashAccountId: repayForm.cashAccountId,
+      await cancelLoan(cancelling.genericLoanId, reason.trim())
+      toast({
+        title: "Loan cancelled",
+        description: cancelling.amountReceived > 0
+          ? `${fmt(cancelling.amountReceived)} taken back out of ${cancelling.accountName ?? "the account"}.`
+          : "Nothing was received, so no cash moved.",
       })
-      toast({ title: "Repayment recorded" })
-      setRepayTarget(null)
-      // Refresh payments cache
-      const payments = await getLoanPayments(repayTarget.genericLoanId)
-      setPaymentsCache((c) => ({ ...c, [repayTarget.genericLoanId]: payments }))
+      setCancelling(null); setReason("")
       await load()
-    } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
-    finally { setSaving(false) }
+    } catch (e: any) {
+      toast({ title: "Could not cancel", description: e?.message ?? String(e), variant: "destructive" })
+    } finally { setSaving(false) }
   }
 
-  async function loadPayments(loanId: number) {
-    if (paymentsCache[loanId]) return
-    try {
-      const payments = await getLoanPayments(loanId)
-      setPaymentsCache((c) => ({ ...c, [loanId]: payments }))
-    } catch { /* silently fail */ }
-  }
-
-  function handleExpand(l: GenericLoan) {
-    toggle(l.genericLoanId)
-    void loadPayments(l.genericLoanId)
-  }
-
-  const activeAccounts = accounts.filter((a) => a.isActive)
+  const openRepay = (l: GenericLoan) => setRepaying(l)
 
   return (
-    <TooltipProvider delayDuration={200}>
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-auto p-3 md:p-4 space-y-3">
-
-          <div className="flex items-center justify-between flex-wrap gap-2">
+        <main className="flex-1 min-w-0 overflow-auto p-4 md:p-6">
+          <div className="mb-4 flex items-end justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Banknote className="h-6 w-6 text-violet-600" /> Loans (Financing)
               </h1>
-              <p className="text-sm text-slate-500">Borrowing is not income. Repaying principal is not an expense. Only the interest and fees reach the P&amp;L.</p>
+              <p className="text-sm text-slate-500 max-w-2xl">
+                Money the business has borrowed. Borrowing is <strong>not income</strong> and repaying
+                principal is <strong>not an expense</strong> — only the interest and the fees are the
+                cost of borrowing.
+              </p>
             </div>
-            <Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1" /> New Loan</Button>
+            <Button onClick={openNew} className="h-11 sm:h-10">
+              <Plus className="h-4 w-4 mr-1" /> Record loan
+            </Button>
           </div>
 
-          {/* KPI tiles */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <Tile label="Total Borrowed" value={gh(totals.borrowed)}
-                  tip="Total principal borrowed across all loans." />
-            <Tile label="Still Owed" value={gh(totals.outstanding)} tone="text-violet-700"
-                  tip="Total outstanding principal across all active loans." />
-            <Tile label="Principal Repaid" value={gh(totals.repaid)} tone="text-emerald-700"
-                  tip="Total principal repaid across all loans." />
-            <Tile label="Interest Paid" value={gh(totals.interest)} tone="text-amber-700"
-                  tip="Total interest paid. This is a cost on the P&L." />
-            <Tile label="Active Loans" value={String(totals.active)}
-                  tip="Number of loans with status Active." />
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+            <Stat label="Still owed" value={fmt(summary.outstandingPrincipal)}
+                  hint={`${summary.activeLoans} active loan(s)`} accent="violet" />
+            <Stat label="Borrowed" value={fmt(summary.totalBorrowed)}
+                  hint={`${fmt(summary.totalReceived)} received`} />
+            <Stat label="Principal repaid" value={fmt(summary.totalPrincipalRepaid)} accent="emerald" />
+            <Stat label="Cost of borrowing"
+                  value={fmt(summary.totalInterestPaid + summary.totalFeesPaid)}
+                  hint="Interest and fees — the only part that is an expense" accent="amber" />
+            <Stat label="Next payment"
+                  value={summary.nextPaymentDate ? fmtDateTime(summary.nextPaymentDate) : "—"}
+                  hint={summary.overdueLoans > 0 ? `${summary.overdueLoans} overdue` : undefined}
+                  accent={summary.overdueLoans > 0 ? "rose" : "slate"} />
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-2 mb-4">
             {STATUS_FILTERS.map((s) => (
-              <Button key={s} size="sm" variant={statusFilter === s ? "default" : "outline"}
-                      onClick={() => setStatusFilter(s)}>
-                {s === "All" ? "All" : s}
-              </Button>
+              <Button key={s} size="sm" variant={status === s ? "default" : "outline"}
+                      onClick={() => setStatus(s)}>{s}</Button>
             ))}
           </div>
 
-          <ListFilters
-            search={search} setSearch={setSearch}
-            searchPlaceholder="Search lender, notes..."
-            dateFrom={dateFrom} setDateFrom={setDateFrom}
-            dateTo={dateTo} setDateTo={setDateTo}
-          />
-
           {loading ? (
-            <Card><CardContent className="py-12 text-center text-slate-600">
-              <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading loans...
+            <div className="flex items-center gap-2 text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : visible.length === 0 ? (
+            <Card><CardContent className="py-8 text-center text-slate-500">
+              {loans.length === 0 ? "No loans recorded yet." : "No loans match this filter."}
             </CardContent></Card>
           ) : (
-            <Card>
-              <CardContent className="p-0 md:p-2">
-                {filtered.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-slate-500">
-                    No loans match the current filters. Record a new loan to get started.
-                  </p>
-                ) : (
-                  <MobileCardList
-                    defaultOpen striped stripeAccent="blue"
-                    items={pg.pageItems} pagination={pg.paginationProps}
-                    getKey={(l: any) => l.genericLoanId}
-                    primary={(l: any) => l.lenderName || "Lender not recorded"}
-                    secondary={(l: any) => fmtDateTime(l.loanDate, l)}
-                    trailing={(l: any) => <Badge className={STATUS_COLORS[l.status] ?? "bg-slate-100"}>{l.status}</Badge>}
-                    highlights={(l: any) => [
-                      { label: "Borrowed", value: gh(l.originalPrincipal), accent: "blue" },
-                      { label: "Received", value: gh(l.amountReceived), accent: "blue" },
-                      { label: "Still owed", value: gh(l.outstandingBalance), accent: l.outstandingBalance > 0 ? "rose" : "emerald" },
-                    ]}
-                    details={(l: any) => [
-                      { label: "Interest rate", value: `${l.interestRate}%` },
-                      { label: "Principal paid", value: gh(l.totalPrincipalPaid) },
-                      { label: "Interest paid", value: gh(l.totalInterestPaid) },
-                      { label: "Fees paid", value: gh(l.totalFeesPaid) },
-                      { label: "Due date", value: l.dueDate ? fmtDateTime(l.dueDate, l) : "\u2014" },
-                      { label: "Notes", value: l.notes ?? "\u2014" },
-                    ]}
-                    actions={(l: any) => (
-                      <>
-                        {l.status === "Active" && (
-                          <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200"
-                            onClick={() => {
-                              setRepayTarget(l)
-                              setRepayForm({ principalAmount: 0, interestAmount: 0, feeAmount: 0, paymentDate: today(), cashAccountId: null, notes: "" })
-                            }}>
-                            <HandCoins className="h-4 w-4 mr-1" /> Repay
-                          </Button>
+            <MobileCardList
+              defaultOpen
+              striped
+              items={pg.pageItems}
+              getKey={(l) => String(l.genericLoanId)}
+              primary={(l) => (
+                <>{l.loanNumber ?? `#${l.genericLoanId}`} · {lenderCell(l)}</>
+              )}
+              secondary={(l) => (
+                <>
+                  <span>{fmtDateTime(l.startDate ?? l.loanDate, l)}</span>
+                  <span>·</span>
+                  <span className="text-xs">{l.lenderType}</span>
+                </>
+              )}
+              trailing={(l) => (
+                <Badge className={statusClass(l)}>{l.isOverdue ? "Overdue" : l.status}</Badge>
+              )}
+              highlights={(l) => [
+                { label: "Still owed", value: fmt(l.outstandingBalance) },
+                { label: "Borrowed", value: fmt(l.originalPrincipal) },
+              ]}
+              details={(l) => [
+                { label: "Received", value: fmt(l.amountReceived) },
+                { label: "Principal repaid", value: fmt(l.totalPrincipalPaid) },
+                { label: "Interest paid", value: fmt(l.totalInterestPaid) },
+                { label: "Fees paid", value: fmt(l.totalFeesPaid) },
+                { label: "Rate", value: l.interestRate ? `${l.interestRate}% ${l.interestType ?? ""}` : "–" },
+                { label: "Next payment", value: l.nextPaymentDate ? fmtDateTime(l.nextPaymentDate) : "–" },
+                { label: "Repayments", value: String(l.paymentCount) },
+              ]}
+              extra={(l) => (
+                <LoanRepaymentList
+                  payments={paymentsByLoan.get(l.genericLoanId) ?? []}
+                  fmt={fmt}
+                  onReverse={(p) => { setReversing(p); setReason("") }}
+                />
+              )}
+              actions={(l) => (
+                <>
+                  {isRepayableLoan(toLoanOption(l)) && (
+                    <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openRepay(l)}>
+                      <HandCoins className="h-4 w-4 mr-1" /> Repay
+                    </Button>
+                  )}
+                  {canEdit(l) && (
+                    <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(l)}>
+                      <Pencil className="h-4 w-4 mr-1" /> Edit
+                    </Button>
+                  )}
+                  {canCancel(l) && (
+                    <Button size="sm" variant="outline" className="flex-1 h-10 text-rose-700"
+                            onClick={() => { setCancelling(l); setReason("") }}>
+                      <Ban className="h-4 w-4 mr-1" /> Cancel
+                    </Button>
+                  )}
+                </>
+              )}
+              pagination={pg.paginationProps}
+              desktopTable={
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8" />
+                        <TableHead>Loan #</TableHead>
+                        <TableHead>Lender</TableHead>
+                        <TableHead className="text-right">Borrowed</TableHead>
+                        <TableHead className="text-right">Received</TableHead>
+                        <TableHead className="text-right">Repaid</TableHead>
+                        <TableHead className="text-right">Still owed</TableHead>
+                        <TableHead className="text-right">Interest</TableHead>
+                        <TableHead className="text-right">Fees</TableHead>
+                        <TableHead>Next payment</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pg.pageItems.map((l) => {
+                        const loanPayments = paymentsByLoan.get(l.genericLoanId) ?? []
+                        const open = expanded.has(l.genericLoanId)
+                        return (
+                        <Fragment key={l.genericLoanId}>
+                        <TableRow className="cursor-pointer" onClick={() => toggleExpanded(l.genericLoanId)}>
+                          <TableCell className="px-1">
+                            {open ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                                  : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {l.loanNumber ?? `#${l.genericLoanId}`}
+                            <div className="text-xs text-slate-500">
+                              {loanPayments.length === 0
+                                ? "no repayments"
+                                : `${loanPayments.length} repayment${loanPayments.length === 1 ? "" : "s"}`}
+                            </div>
+                          </TableCell>
+                          <TableCell>{lenderCell(l)}<div className="text-xs text-slate-500">{l.lenderType}</div></TableCell>
+                          <TableCell className="text-right tabular-nums">{fmt(l.originalPrincipal)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{fmt(l.amountReceived)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{fmt(l.totalPrincipalPaid)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{fmt(l.outstandingBalance)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-amber-700">{fmt(l.totalInterestPaid)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-amber-700">{fmt(l.totalFeesPaid)}</TableCell>
+                          <TableCell className={l.isOverdue ? "text-rose-600" : ""}>
+                            {l.nextPaymentDate ? fmtDateTime(l.nextPaymentDate) : "–"}
+                          </TableCell>
+                          <TableCell><Badge className={statusClass(l)}>{l.isOverdue ? "Overdue" : l.status}</Badge></TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {isRepayableLoan(toLoanOption(l)) && (
+                                <Button size="sm" variant="outline"
+                                        onClick={(e) => { e.stopPropagation(); openRepay(l) }}>
+                                  <HandCoins className="h-3 w-3 mr-1" /> Repay
+                                </Button>
+                              )}
+                              {canEdit(l) && (
+                                <Button size="sm" variant="outline" title="Edit the loan's terms"
+                                        onClick={(e) => { e.stopPropagation(); openEdit(l) }}>
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              )}
+                              {canCancel(l) && (
+                                <Button size="sm" variant="outline" className="text-rose-700" title="Cancel the loan"
+                                        onClick={(e) => { e.stopPropagation(); setCancelling(l); setReason("") }}>
+                                  <Ban className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {open && (
+                          <TableRow>
+                            <TableCell colSpan={12} className="bg-slate-50 p-0">
+                              <LoanRepaymentTable
+                                payments={loanPayments}
+                                fmt={fmt}
+                                onReverse={(p) => { setReversing(p); setReason("") }}
+                              />
+                            </TableCell>
+                          </TableRow>
                         )}
-                        <Button size="sm" variant="outline" className="flex-1 h-10"
-                          onClick={() => handleExpand(l)}>
-                          <TrendingDown className="h-4 w-4 mr-1" /> Payments
-                        </Button>
-                      </>
-                    )}
-                    desktopTable={
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader><TableRow>
-                            <TableHead className="w-8" />
-                            <TableHead>Date</TableHead>
-                            <TableHead>Lender</TableHead>
-                            <TableHead className="text-right">Borrowed</TableHead>
-                            <TableHead className="text-right">Received</TableHead>
-                            <TableHead className="text-right">Repaid</TableHead>
-                            <TableHead className="text-right">Still Owed</TableHead>
-                            <TableHead className="text-right">Interest</TableHead>
-                            <TableHead className="text-right">Fees</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow></TableHeader>
-                          <TableBody>
-                            {pg.pageItems.map((l: any) => {
-                              const open = expanded.has(l.genericLoanId)
-                              const payments = paymentsCache[l.genericLoanId] ?? []
-                              return (
-                                <Fragment key={l.genericLoanId}>
-                                  <TableRow className="cursor-pointer" onClick={() => handleExpand(l)}>
-                                    <TableCell className="px-1">
-                                      {open ? <ChevronDown className="w-4 h-4 text-slate-400" />
-                                            : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                                    </TableCell>
-                                    <TableCell className="whitespace-nowrap">{fmtDateTime(l.loanDate, l)}</TableCell>
-                                    <TableCell className="font-medium">{l.lenderName || <span className="italic text-slate-400">Not recorded</span>}</TableCell>
-                                    <TableCell className="text-right tabular-nums">{gh(l.originalPrincipal)}</TableCell>
-                                    <TableCell className="text-right tabular-nums">{gh(l.amountReceived)}</TableCell>
-                                    <TableCell className="text-right tabular-nums text-emerald-700">{gh(l.totalPrincipalPaid)}</TableCell>
-                                    <TableCell className={cn("text-right tabular-nums font-medium", l.outstandingBalance > 0 ? "text-violet-700" : "text-emerald-700")}>
-                                      {gh(l.outstandingBalance)}
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums text-amber-700">{gh(l.totalInterestPaid)}</TableCell>
-                                    <TableCell className="text-right tabular-nums text-amber-700">{gh(l.totalFeesPaid)}</TableCell>
-                                    <TableCell><Badge className={STATUS_COLORS[l.status] ?? "bg-slate-100"}>{l.status}</Badge></TableCell>
-                                    <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                      {l.status === "Active" && (
-                                        <Button size="sm" variant="ghost"
-                                          onClick={() => {
-                                            setRepayTarget(l)
-                                            setRepayForm({ principalAmount: 0, interestAmount: 0, feeAmount: 0, paymentDate: today(), cashAccountId: null, notes: "" })
-                                          }}>
-                                          <HandCoins className="h-4 w-4 text-emerald-600" />
-                                        </Button>
-                                      )}
-                                    </TableCell>
-                                  </TableRow>
-                                  {open && (
-                                    <TableRow>
-                                      <TableCell colSpan={11} className="bg-slate-50 p-0">
-                                        <div className="px-4 py-3">
-                                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                            Repayment History
-                                          </div>
-                                          {payments.length === 0 ? (
-                                            <p className="text-sm text-slate-500">No payments recorded for this loan.</p>
-                                          ) : (
-                                            <Table>
-                                              <TableHeader><TableRow>
-                                                <TableHead>Date</TableHead>
-                                                <TableHead className="text-right">Principal</TableHead>
-                                                <TableHead className="text-right">Interest</TableHead>
-                                                <TableHead className="text-right">Fees</TableHead>
-                                                <TableHead className="text-right">Total Paid</TableHead>
-                                                <TableHead>Status</TableHead>
-                                                <TableHead>Notes</TableHead>
-                                              </TableRow></TableHeader>
-                                              <TableBody>
-                                                {payments.map((p) => (
-                                                  <TableRow key={p.genericLoanPaymentId}
-                                                    className={p.isReversed ? "line-through text-slate-400" : ""}>
-                                                    <TableCell className="whitespace-nowrap">{fmtDateTime(p.paymentDate, p)}</TableCell>
-                                                    <TableCell className="text-right tabular-nums">{gh(p.principalAmount)}</TableCell>
-                                                    <TableCell className="text-right tabular-nums text-amber-700">{gh(p.interestAmount)}</TableCell>
-                                                    <TableCell className="text-right tabular-nums text-amber-700">{gh(p.feeAmount)}</TableCell>
-                                                    <TableCell className="text-right tabular-nums font-semibold">{gh(p.totalPayment)}</TableCell>
-                                                    <TableCell>
-                                                      <Badge className={p.isReversed ? "bg-slate-100 text-slate-700" : "bg-sky-100 text-sky-800"}>
-                                                        {p.isReversed ? "Reversed" : "Posted"}
-                                                      </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="text-sm text-slate-600">{p.notes ?? "\u2014"}</TableCell>
-                                                  </TableRow>
-                                                ))}
-                                              </TableBody>
-                                            </Table>
-                                          )}
-                                          {l.notes && (
-                                            <div className="mt-2 text-xs text-slate-500">
-                                              <span className="font-medium">Loan notes:</span> {l.notes}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  )}
-                                </Fragment>
-                              )
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    }
-                  />
-                )}
-              </CardContent>
-            </Card>
+                        </Fragment>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              }
+            />
           )}
 
-          <p className="text-[11px] leading-relaxed text-slate-500">
-            Loan totals are as they stand today, not sliced by the period &mdash; an outstanding
-            balance is a position, not a flow. A repayment is not one number: the principal
-            portion reduces the debt without being a cost, while interest and fees are the
-            cost of borrowing.
-          </p>
         </main>
       </div>
 
-      {/* Create loan dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      {/* ---- new / edit loan -------------------------------------------- */}
+      <Dialog open={newOpen} onOpenChange={(o) => { setNewOpen(o); if (!o) setEditing(null) }}>
+        <DialogContent className="max-w-2xl sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Record a new loan</DialogTitle>
-            <DialogDescription>Money borrowed from a lender. Not revenue.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Banknote className="w-5 h-5 text-violet-600" /> {editing ? "Edit Loan" : "Record a Loan"}
+            </DialogTitle>
+            <DialogDescription>
+              {editing
+                ? "Terms only. The amounts and the account cannot change — cancel the loan and record it again if they were wrong."
+                : "The money arriving is cash in, but it is not revenue — the business borrowed it and still owes it."}
+            </DialogDescription>
           </DialogHeader>
-          <FormSection title="Lender" color="indigo">
-            <FormField label="Lender name *">
-              <Input value={form.lenderName} onChange={(e) => setForm((f) => ({ ...f, lenderName: e.target.value }))} placeholder="Bank, person, or institution" />
-            </FormField>
-            <FormField label="Lender type">
-              <Select value={form.lenderType} onValueChange={(v) => setForm((f) => ({ ...f, lenderType: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {LENDER_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </FormField>
-          </FormSection>
-          <FormSection title="Amounts" color="emerald">
-            <FormField label="Amount borrowed *">
-              <NumberInput min={0} step="0.01" value={form.originalPrincipal}
-                onChange={(e) => setForm((f) => ({ ...f, originalPrincipal: Number(e.target.value) || 0 }))} />
-            </FormField>
-            <FormField label="Amount received">
-              <NumberInput min={0} step="0.01" value={form.amountReceived}
-                onChange={(e) => setForm((f) => ({ ...f, amountReceived: Number(e.target.value) || 0 }))}
-                placeholder="Same as borrowed if left blank" />
-            </FormField>
-            <FormField label="Cash account">
-              <Select value={form.cashAccountId?.toString() ?? ""} onValueChange={(v) => setForm((f) => ({ ...f, cashAccountId: v ? Number(v) : null }))}>
-                <SelectTrigger><SelectValue placeholder="Where the money arrived" /></SelectTrigger>
-                <SelectContent>
-                  {activeAccounts.map((a) => (
-                    <SelectItem key={a.genericCashAccountId} value={a.genericCashAccountId.toString()}>
-                      {a.accountName} ({gh(a.currentBalance)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-          </FormSection>
-          <FormSection title="Terms" color="slate">
-            <FormField label="Interest rate %">
-              <NumberInput min={0} step="0.01" value={form.interestRate}
-                onChange={(e) => setForm((f) => ({ ...f, interestRate: Number(e.target.value) || 0 }))} />
-            </FormField>
-            <FormField label="Interest type">
-              <Select value={form.interestType} onValueChange={(v) => setForm((f) => ({ ...f, interestType: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {INTEREST_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </FormField>
-            <FormField label="Payment frequency">
-              <Select value={form.frequency} onValueChange={(v) => setForm((f) => ({ ...f, frequency: v }))}>
-                <SelectTrigger><SelectValue placeholder="How often" /></SelectTrigger>
-                <SelectContent>
-                  {FREQUENCIES.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </FormField>
-          </FormSection>
-          <FormSection title="Dates" color="slate">
-            <FormField label="Loan date"><Input type="date" value={form.loanDate} onChange={(e) => setForm((f) => ({ ...f, loanDate: e.target.value }))} /></FormField>
-            <FormField label="Start date"><Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} /></FormField>
-            <FormField label="Due date"><Input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} /></FormField>
-          </FormSection>
-          <FormSection title="Notes" color="slate">
-            <FormField label="Notes" full>
-              <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} />
-            </FormField>
-          </FormSection>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={doCreate} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Record Loan"}
+
+          <div className="space-y-4">
+            <FormSection title="Lender" color="purple">
+              <FormField label="Lender *" full>
+                <Input value={form.lenderName} placeholder="Who lent the money?"
+                       onChange={(e) => setForm((f) => ({ ...f, lenderName: e.target.value }))} />
+              </FormField>
+              <FormField label="Lender type">
+                <Select value={form.lenderType} onValueChange={(v) => setForm((f) => ({ ...f, lenderType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{LENDER_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Account number">
+                <Input value={form.accountNumber}
+                       onChange={(e) => setForm((f) => ({ ...f, accountNumber: e.target.value }))} />
+              </FormField>
+            </FormSection>
+
+            <FormSection title="The money" color="green">
+              <FormField label="Amount borrowed *"
+                         info="What the business OWES. This is what the debt starts at.">
+                <NumberInput value={form.originalPrincipal} min={0} disabled={!!editing}
+                             onChange={(e) => setForm((f) => ({ ...f, originalPrincipal: e.target.value }))} />
+              </FormField>
+              <FormField label="Amount received"
+                         info="What actually ARRIVED. Less than the principal when the lender withheld a fee.">
+                <NumberInput value={form.amountReceived} min={0} disabled={!!editing}
+                             onChange={(e) => setForm((f) => ({ ...f, amountReceived: e.target.value }))} />
+              </FormField>
+              <FormField label="Account that received it" full>
+                <Select value={form.genericCashAccountId} disabled={!!editing}
+                        onValueChange={(v) => setForm((f) => ({ ...f, genericCashAccountId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Where did the money land?" /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.filter((a) => a.isActive || String(a.genericCashAccountId) === form.genericCashAccountId).map((a) => (
+                      <SelectItem key={a.genericCashAccountId} value={String(a.genericCashAccountId)}>
+                        {a.accountName} — {fmt(a.currentBalance)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              {!editing && Number(form.originalPrincipal) > Number(form.amountReceived) && Number(form.amountReceived) > 0 && (
+                <div className="col-span-full text-xs text-slate-500">
+                  {fmt(Number(form.originalPrincipal) - Number(form.amountReceived))} less than the
+                  principal — usually a fee the lender withheld. You will still owe the full{" "}
+                  {fmt(Number(form.originalPrincipal))}. Record the fee as an expense yourself if you
+                  want it in the accounts.
+                </div>
+              )}
+            </FormSection>
+
+            <FormSection title="Terms" color="blue">
+              <FormField label="Start date *">
+                <Input type="date" value={form.startDate} disabled={!!editing}
+                       onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+              </FormField>
+              <FormField label="Next payment due">
+                <Input type="date" value={form.nextPaymentDate}
+                       onChange={(e) => setForm((f) => ({ ...f, nextPaymentDate: e.target.value }))} />
+              </FormField>
+              <FormField label="Interest rate (%)">
+                <NumberInput value={form.interestRate} min={0}
+                             onChange={(e) => setForm((f) => ({ ...f, interestRate: e.target.value }))} />
+              </FormField>
+              <FormField label="Interest type">
+                <Select value={form.interestType} onValueChange={(v) => setForm((f) => ({ ...f, interestType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{INTEREST_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Term (months)">
+                <NumberInput value={form.termMonths} min={0}
+                             onChange={(e) => setForm((f) => ({ ...f, termMonths: e.target.value }))} />
+              </FormField>
+              <FormField label="Repayment frequency">
+                <Select value={form.paymentFrequency} onValueChange={(v) => setForm((f) => ({ ...f, paymentFrequency: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{FREQUENCIES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Notes" color="slate" columns={1}>
+              <FormField label="Notes">
+                <Textarea rows={2} value={form.notes}
+                          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+              </FormField>
+            </FormSection>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button type="button" onClick={() => { setNewOpen(false); setEditing(null) }}
+                    className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+            <Button onClick={saveLoan} disabled={saving}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{editing ? "Saving..." : "Recording..."}</>
+                      : <><Banknote className="w-4 h-4 mr-2" />{editing ? "Save Changes" : "Record Loan"}</>}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Repay dialog */}
-      <Dialog open={!!repayTarget} onOpenChange={(o) => !o && setRepayTarget(null)}>
-        <DialogContent className="max-w-lg">
+      {/* ---- repayment (shared with Poultry and Water) ------------------ */}
+      <LoanRepaymentDialog
+        open={!!repaying}
+        onOpenChange={(o) => { if (!o) setRepaying(null) }}
+        accounts={repayAccounts}
+        fmtMoney={fmt}
+        loan={repaying ? toLoanOption(repaying) : null}
+        entityLabel="business"
+        onSubmit={async (input) => {
+          await repayLoan(input.loanId, {
+            genericCashAccountId: input.accountId,
+            principalAmount: input.principalAmount,
+            interestAmount: input.interestAmount,
+            feeAmount: input.feeAmount,
+            otherAmount: input.otherAmount,
+            paymentDate: input.paymentDate,
+            paymentMethod: input.paymentMethod,
+            referenceNumber: input.referenceNumber,
+            notes: input.notes,
+            nextPaymentDate: input.nextPaymentDate,
+          })
+        }}
+        onDone={() => { setRepaying(null); void load() }}
+      />
+
+      {/* ---- reverse ---------------------------------------------------- */}
+      <Dialog open={!!reversing} onOpenChange={(o) => { if (!o) { setReversing(null); setReason("") } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Repay &mdash; {repayTarget?.lenderName}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Undo2 className="w-5 h-5 text-amber-600" /> Reverse Repayment
+            </DialogTitle>
             <DialogDescription>
-              Outstanding: <strong className="text-violet-700">{repayTarget ? gh(repayTarget.outstandingBalance) : ""}</strong>
+              The debt goes back up, the cash returns, and the interest and fee costs are cancelled.
+              Every original row stays on the record.
             </DialogDescription>
           </DialogHeader>
-          {repayTarget && (
-            <>
-              <FormSection title="Payment breakdown" color="emerald">
-                <FormField label="Principal">
-                  <NumberInput min={0} step="0.01" value={repayForm.principalAmount}
-                    onChange={(e) => setRepayForm((f) => ({ ...f, principalAmount: Number(e.target.value) || 0 }))} />
-                  <p className="text-[11px] text-slate-500 mt-0.5">Reduces the debt. Not a cost.</p>
-                </FormField>
-                <FormField label="Interest">
-                  <NumberInput min={0} step="0.01" value={repayForm.interestAmount}
-                    onChange={(e) => setRepayForm((f) => ({ ...f, interestAmount: Number(e.target.value) || 0 }))} />
-                  <p className="text-[11px] text-amber-700 mt-0.5">This IS a cost on the P&L.</p>
-                </FormField>
-                <FormField label="Fees">
-                  <NumberInput min={0} step="0.01" value={repayForm.feeAmount}
-                    onChange={(e) => setRepayForm((f) => ({ ...f, feeAmount: Number(e.target.value) || 0 }))} />
-                  <p className="text-[11px] text-amber-700 mt-0.5">This IS a cost on the P&L.</p>
-                </FormField>
-                <FormField label="Total" full>
-                  <p className="text-lg font-semibold tabular-nums">{gh(repayForm.principalAmount + repayForm.interestAmount + repayForm.feeAmount)}</p>
-                </FormField>
-              </FormSection>
-              <FormSection title="Details" color="slate">
-                <FormField label="Cash account">
-                  <Select value={repayForm.cashAccountId?.toString() ?? ""} onValueChange={(v) => setRepayForm((f) => ({ ...f, cashAccountId: v ? Number(v) : null }))}>
-                    <SelectTrigger><SelectValue placeholder="Paid from" /></SelectTrigger>
-                    <SelectContent>
-                      {activeAccounts.map((a) => (
-                        <SelectItem key={a.genericCashAccountId} value={a.genericCashAccountId.toString()}>
-                          {a.accountName} ({gh(a.currentBalance)})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormField>
-                <FormField label="Payment date">
-                  <Input type="date" value={repayForm.paymentDate}
-                    onChange={(e) => setRepayForm((f) => ({ ...f, paymentDate: e.target.value }))} />
-                </FormField>
-                <FormField label="Notes" full>
-                  <Input value={repayForm.notes}
-                    onChange={(e) => setRepayForm((f) => ({ ...f, notes: e.target.value }))} />
-                </FormField>
-              </FormSection>
-              {repayForm.principalAmount > repayTarget.outstandingBalance && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  Principal ({gh(repayForm.principalAmount)}) exceeds outstanding balance ({gh(repayTarget.outstandingBalance)}).
+
+          {reversing && (
+            <div className="space-y-4">
+              <FormSection title="Repayment being reversed" color="slate" columns={1}>
+                <div className="text-sm">
+                  <div className="font-medium">{reversing.paymentNumber ?? "#" + reversing.genericLoanPaymentId}</div>
+                  <div className="mt-1">
+                    {fmt(reversing.totalPayment)} on {fmtDateTime(reversing.paymentDate, reversing)}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {fmt(reversing.principalAmount)} principal · {fmt(reversing.interestAmount)} interest ·{" "}
+                    {fmt(reversing.feeAmount)} fees
+                  </div>
                 </div>
-              )}
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setRepayTarget(null)}>Cancel</Button>
-                <Button onClick={doRepay} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Record Payment"}
-                </Button>
-              </div>
-            </>
+              </FormSection>
+
+              <FormSection title="Why" color="amber" columns={1}>
+                <FormField label="Reason *" hint="Written to the audit trail.">
+                  <ReasonSelect options={LOAN_REVERSAL_REASONS} value={reason} onChange={setReason} />
+                </FormField>
+              </FormSection>
+            </div>
           )}
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button type="button" onClick={() => { setReversing(null); setReason("") }}
+                    className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+            <Button variant="destructive" onClick={doReverse} disabled={saving}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Reversing...</>
+                      : <><Undo2 className="w-4 h-4 mr-2" />Reverse</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---- cancel loan ------------------------------------------------ */}
+      <Dialog open={!!cancelling} onOpenChange={(o) => { if (!o) { setCancelling(null); setReason("") } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Ban className="w-5 h-5 text-rose-600" /> Cancel Loan
+            </DialogTitle>
+            <DialogDescription>
+              The debt is written off the books and the money received is taken back out of the
+              account it landed in. The loan stays on the record as Cancelled.
+            </DialogDescription>
+          </DialogHeader>
+
+          {cancelling && (
+            <div className="space-y-4">
+              <FormSection title="Loan being cancelled" color="slate" columns={1}>
+                <div className="text-sm">
+                  <div className="font-medium">{cancelling.loanNumber ?? "#" + cancelling.genericLoanId} · {cancelling.lenderName}</div>
+                  <div className="mt-1">
+                    {fmt(cancelling.originalPrincipal)} borrowed · {fmt(cancelling.amountReceived)} received
+                    {cancelling.accountName ? ` into ${cancelling.accountName}` : ""}
+                  </div>
+                </div>
+              </FormSection>
+
+              <FormSection title="Why" color="amber" columns={1}>
+                <FormField label="Reason *" hint="Written to the audit trail.">
+                  <ReasonSelect options={CANCEL_REASONS} value={reason} onChange={setReason} />
+                </FormField>
+              </FormSection>
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button type="button" onClick={() => { setCancelling(null); setReason("") }}
+                    className="bg-red-600 hover:bg-red-700 text-white">Keep loan</Button>
+            <Button variant="destructive" onClick={doCancel} disabled={saving}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Cancelling...</>
+                      : <><Ban className="w-4 h-4 mr-2" />Cancel loan</>}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
-    </TooltipProvider>
   )
 }
 
-function Tile({ label, value, tone, tip }: {
-  label: string; value: string; tone?: string; tip: string
+function Stat({
+  label, value, hint, accent = "slate",
+}: {
+  label: string
+  value: string
+  hint?: string
+  accent?: "slate" | "emerald" | "amber" | "rose" | "violet"
 }) {
+  const colour = {
+    slate: "text-slate-900",
+    emerald: "text-emerald-700",
+    amber: "text-amber-700",
+    rose: "text-rose-600",
+    violet: "text-violet-700",
+  }[accent]
   return (
     <Card>
-      <CardContent className="p-3">
-        <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-slate-500">
-          <span className="truncate">{label}</span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button type="button" className="ml-auto shrink-0 text-slate-400 hover:text-slate-600">
-                <Info className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs text-xs leading-snug">{tip}</TooltipContent>
-          </Tooltip>
-        </div>
-        <div className={cn("mt-1 text-lg font-semibold tabular-nums", tone ?? "text-slate-900")}>
-          {value}
-        </div>
+      <CardContent className="p-4">
+        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">{label}</p>
+        <div className={`text-lg sm:text-xl font-bold mt-1 truncate ${colour}`}>{value}</div>
+        {hint && <div className="text-xs text-slate-500 mt-0.5 truncate">{hint}</div>}
       </CardContent>
     </Card>
   )

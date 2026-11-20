@@ -18,6 +18,7 @@ import 'sales/credit_widgets.dart' show CreditTabs;
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Tools → Flock Closeout, as `app/flock-closeout/page.tsx`
 /// (migrations 338/339): three views over one read, fnflock_lifetimesummary.
 ///
@@ -36,9 +37,9 @@ String _day(Object? v) {
   return s.isEmpty ? '—' : (s.length >= 10 ? s.substring(0, 10) : s);
 }
 
-const _orange600 = Color(0xFFEA580C);
-const _orange100 = Color(0xFFFFEDD5);
-const _blue700 = Color(0xFF1D4ED8);
+const _orange600 = Tone.fg(0xFFEA580C);
+const _orange100 = Tone.bg(0xFFFFEDD5);
+const _blue700 = Tone.fg(0xFF1D4ED8);
 
 /// The page's permission keys, read once. Until they arrive the page shows (as
 /// the web does while usePermissions loads) and offers no Close or Reopen.
@@ -233,7 +234,7 @@ class _FlockCloseoutScreenState extends State<FlockCloseoutScreen> {
 
   Widget _kpi(String label, String value, {Color color = TColors.slate900}) => Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           const SizedBox(height: 2),

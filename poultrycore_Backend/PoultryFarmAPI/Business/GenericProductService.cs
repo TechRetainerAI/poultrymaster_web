@@ -94,13 +94,30 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(GenericProductModel m)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericproduct_insert(p_farmid => @FarmId::text, p_genericproductcategoryid => @GenericProductCategoryId::int, p_productname => @ProductName::text, p_sku => @SKU::text, p_barcode => @Barcode::text, p_unitofmeasure => @UnitOfMeasure::text, p_costprice => @CostPrice::numeric, p_sellingprice => @SellingPrice::numeric, p_wholesaleprice => @WholesalePrice::numeric, p_retailprice => @RetailPrice::numeric, p_openingstock => @OpeningStock::numeric, p_minimumstockalert => @MinimumStockAlert::numeric, p_trackinventory => @TrackInventory::boolean, p_supplierid => @SupplierId::int, p_isactive => @IsActive::boolean, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", conn);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericproduct_insert(" +
+                "p_farmid => @FarmId::text, p_genericproductcategoryid => @GenericProductCategoryId::int, " +
+                "p_productname => @ProductName::text, p_sku => @SKU::text, p_barcode => @Barcode::text, " +
+                "p_description => @Description::text, p_unitofmeasure => @UnitOfMeasure::text, " +
+                "p_purchaseunit => @PurchaseUnit::text, p_salesunit => @SalesUnit::text, " +
+                "p_costprice => @CostPrice::numeric, p_sellingprice => @SellingPrice::numeric, " +
+                "p_wholesaleprice => @WholesalePrice::numeric, p_retailprice => @RetailPrice::numeric, " +
+                "p_openingstock => @OpeningStock::numeric, p_minimumstockalert => @MinimumStockAlert::numeric, " +
+                "p_trackinventory => @TrackInventory::boolean, p_supplierid => @SupplierId::int, " +
+                "p_itemtype => @ItemType::text, p_cansell => @CanSell::boolean, " +
+                "p_canuseinproduction => @CanUseInProduction::boolean, p_canuseinternally => @CanUseInternally::boolean, " +
+                "p_isactive => @IsActive::boolean, p_notes => @Notes::text, " +
+                "p_expirydate => @ExpiryDate::date, p_trackexpiry => @TrackExpiry::boolean, " +
+                "p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@GenericProductCategoryId", (object?)m.GenericProductCategoryId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ProductName", m.ProductName);
             cmd.Parameters.AddWithValue("@SKU", (object?)m.SKU ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Barcode", (object?)m.Barcode ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Description", (object?)m.Description ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UnitOfMeasure", (object?)m.UnitOfMeasure ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PurchaseUnit", (object?)m.PurchaseUnit ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SalesUnit", (object?)m.SalesUnit ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CostPrice", m.CostPrice);
             cmd.Parameters.AddWithValue("@SellingPrice", m.SellingPrice);
             cmd.Parameters.AddWithValue("@WholesalePrice", (object?)m.WholesalePrice ?? DBNull.Value);
@@ -109,8 +126,14 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@MinimumStockAlert", m.MinimumStockAlert);
             cmd.Parameters.AddWithValue("@TrackInventory", m.TrackInventory);
             cmd.Parameters.AddWithValue("@SupplierId", (object?)m.SupplierId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ItemType", m.ItemType ?? "Product");
+            cmd.Parameters.AddWithValue("@CanSell", m.CanSell);
+            cmd.Parameters.AddWithValue("@CanUseInProduction", m.CanUseInProduction);
+            cmd.Parameters.AddWithValue("@CanUseInternally", m.CanUseInternally);
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ExpiryDate", (object?)m.ExpiryDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TrackExpiry", m.TrackExpiry);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
 
             await conn.OpenAsync();
@@ -120,14 +143,32 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateAsync(GenericProductModel m)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericproduct_update(p_genericproductid => @GenericProductId::int, p_farmid => @FarmId::text, p_genericproductcategoryid => @GenericProductCategoryId::int, p_productname => @ProductName::text, p_sku => @SKU::text, p_barcode => @Barcode::text, p_unitofmeasure => @UnitOfMeasure::text, p_costprice => @CostPrice::numeric, p_sellingprice => @SellingPrice::numeric, p_wholesaleprice => @WholesalePrice::numeric, p_retailprice => @RetailPrice::numeric, p_minimumstockalert => @MinimumStockAlert::numeric, p_trackinventory => @TrackInventory::boolean, p_supplierid => @SupplierId::int, p_isactive => @IsActive::boolean, p_notes => @Notes::text)", conn);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericproduct_update(" +
+                "p_genericproductid => @GenericProductId::int, p_farmid => @FarmId::text, " +
+                "p_genericproductcategoryid => @GenericProductCategoryId::int, " +
+                "p_productname => @ProductName::text, p_sku => @SKU::text, p_barcode => @Barcode::text, " +
+                "p_description => @Description::text, p_unitofmeasure => @UnitOfMeasure::text, " +
+                "p_purchaseunit => @PurchaseUnit::text, p_salesunit => @SalesUnit::text, " +
+                "p_costprice => @CostPrice::numeric, p_sellingprice => @SellingPrice::numeric, " +
+                "p_wholesaleprice => @WholesalePrice::numeric, p_retailprice => @RetailPrice::numeric, " +
+                "p_minimumstockalert => @MinimumStockAlert::numeric, " +
+                "p_trackinventory => @TrackInventory::boolean, p_supplierid => @SupplierId::int, " +
+                "p_itemtype => @ItemType::text, p_cansell => @CanSell::boolean, " +
+                "p_canuseinproduction => @CanUseInProduction::boolean, p_canuseinternally => @CanUseInternally::boolean, " +
+                "p_isactive => @IsActive::boolean, p_notes => @Notes::text, " +
+                "p_expirydate => @ExpiryDate::date, p_trackexpiry => @TrackExpiry::boolean, " +
+                "p_updatedby => @UpdatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericProductId", m.GenericProductId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@GenericProductCategoryId", (object?)m.GenericProductCategoryId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ProductName", m.ProductName);
             cmd.Parameters.AddWithValue("@SKU", (object?)m.SKU ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Barcode", (object?)m.Barcode ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Description", (object?)m.Description ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UnitOfMeasure", (object?)m.UnitOfMeasure ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PurchaseUnit", (object?)m.PurchaseUnit ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SalesUnit", (object?)m.SalesUnit ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CostPrice", m.CostPrice);
             cmd.Parameters.AddWithValue("@SellingPrice", m.SellingPrice);
             cmd.Parameters.AddWithValue("@WholesalePrice", (object?)m.WholesalePrice ?? DBNull.Value);
@@ -135,8 +176,15 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@MinimumStockAlert", m.MinimumStockAlert);
             cmd.Parameters.AddWithValue("@TrackInventory", m.TrackInventory);
             cmd.Parameters.AddWithValue("@SupplierId", (object?)m.SupplierId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ItemType", m.ItemType ?? "Product");
+            cmd.Parameters.AddWithValue("@CanSell", m.CanSell);
+            cmd.Parameters.AddWithValue("@CanUseInProduction", m.CanUseInProduction);
+            cmd.Parameters.AddWithValue("@CanUseInternally", m.CanUseInternally);
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ExpiryDate", (object?)m.ExpiryDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TrackExpiry", m.TrackExpiry);
+            cmd.Parameters.AddWithValue("@UpdatedBy", (object?)m.UpdatedBy ?? DBNull.Value);
 
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
@@ -152,6 +200,18 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
+
+        // ====================================================================
+        // Capability-filtered queries (migration 441)
+        // ====================================================================
+        public async Task<List<GenericProductModel>> GetSellableAsync(string farmId)
+            => (await GetAllAsync(farmId)).Where(p => p.CanSell).ToList();
+
+        public async Task<List<GenericProductModel>> GetProductionItemsAsync(string farmId)
+            => (await GetAllAsync(farmId)).Where(p => p.CanUseInProduction).ToList();
+
+        public async Task<List<GenericProductModel>> GetInternalUseItemsAsync(string farmId)
+            => (await GetAllAsync(farmId)).Where(p => p.CanUseInternally).ToList();
 
         public async Task<List<GenericProductLowStockRowModel>> GetLowStockAsync(string farmId)
         {
@@ -213,7 +273,10 @@ namespace PoultryFarmAPIWeb.Business
             ProductName              = r.GetString(r.GetOrdinal("ProductName")),
             SKU                      = r.IsDBNull(r.GetOrdinal("SKU")) ? null : r.GetString(r.GetOrdinal("SKU")),
             Barcode                  = r.IsDBNull(r.GetOrdinal("Barcode")) ? null : r.GetString(r.GetOrdinal("Barcode")),
+            Description              = r.IsDBNull(r.GetOrdinal("Description")) ? null : r.GetString(r.GetOrdinal("Description")),
             UnitOfMeasure            = r.IsDBNull(r.GetOrdinal("UnitOfMeasure")) ? null : r.GetString(r.GetOrdinal("UnitOfMeasure")),
+            PurchaseUnit             = r.IsDBNull(r.GetOrdinal("PurchaseUnit")) ? null : r.GetString(r.GetOrdinal("PurchaseUnit")),
+            SalesUnit                = r.IsDBNull(r.GetOrdinal("SalesUnit")) ? null : r.GetString(r.GetOrdinal("SalesUnit")),
             CostPrice                = r.GetDecimal(r.GetOrdinal("CostPrice")),
             SellingPrice             = r.GetDecimal(r.GetOrdinal("SellingPrice")),
             WholesalePrice           = r.IsDBNull(r.GetOrdinal("WholesalePrice")) ? null : r.GetDecimal(r.GetOrdinal("WholesalePrice")),
@@ -223,11 +286,19 @@ namespace PoultryFarmAPIWeb.Business
             MinimumStockAlert        = r.GetDecimal(r.GetOrdinal("MinimumStockAlert")),
             TrackInventory           = r.GetBoolean(r.GetOrdinal("TrackInventory")),
             SupplierId               = r.IsDBNull(r.GetOrdinal("SupplierId")) ? null : r.GetInt32(r.GetOrdinal("SupplierId")),
+            ItemType                 = r.IsDBNull(r.GetOrdinal("ItemType")) ? "Product" : r.GetString(r.GetOrdinal("ItemType")),
+            CanSell                  = r.GetBoolean(r.GetOrdinal("CanSell")),
+            CanUseInProduction       = r.GetBoolean(r.GetOrdinal("CanUseInProduction")),
+            CanUseInternally         = r.GetBoolean(r.GetOrdinal("CanUseInternally")),
             IsActive                 = r.GetBoolean(r.GetOrdinal("IsActive")),
             IsDeleted                = r.GetBoolean(r.GetOrdinal("IsDeleted")),
             Notes                    = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+            ExpiryDate               = r.IsDBNull(r.GetOrdinal("ExpiryDate")) ? null : r.GetDateTime(r.GetOrdinal("ExpiryDate")),
+            TrackExpiry              = r.GetBoolean(r.GetOrdinal("TrackExpiry")),
+            CreatedBy                = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
             CreatedAt                = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt                = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+            UpdatedBy                = r.IsDBNull(r.GetOrdinal("UpdatedBy")) ? null : r.GetString(r.GetOrdinal("UpdatedBy")),
         };
 
         // ====================================================================

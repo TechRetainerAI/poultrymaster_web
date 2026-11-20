@@ -262,20 +262,31 @@ class FlockRow {
 }
 
 class SetupDraft {
-  SetupDraft({this.mode = 'existing', List<BatchRow>? batches, List<HouseRow>? houses, List<FlockRow>? flocks})
-      : batches = batches ?? [],
+  SetupDraft({
+    this.mode = 'existing',
+    List<BatchRow>? batches,
+    List<HouseRow>? houses,
+    List<FlockRow>? flocks,
+    Map<String, BatchReconciliationDraft>? batchReconciliations,
+  })  : batches = batches ?? [],
         houses = houses ?? [],
-        flocks = flocks ?? [];
+        flocks = flocks ?? [],
+        batchReconciliations = batchReconciliations ?? {};
   String mode;
   List<BatchRow> batches;
   List<HouseRow> houses;
   List<FlockRow> flocks;
+
+  /// 413: per batch KEY, what happened to the birds that never went into a
+  /// pen. Drafts saved before 413 open with none.
+  Map<String, BatchReconciliationDraft> batchReconciliations;
 
   Map<String, dynamic> toJson() => {
         'mode': mode,
         'batches': [for (final b in batches) b.toJson()],
         'houses': [for (final h in houses) h.toJson()],
         'flocks': [for (final f in flocks) f.toJson()],
+        if (batchReconciliations.isNotEmpty) 'batchReconciliations': {for (final e in batchReconciliations.entries) e.key: e.value.toJson()},
       };
 
   /// Null when the text is not a draft (the web's "unreadable draft").
@@ -286,9 +297,85 @@ class SetupDraft {
       batches: [for (final b in j['batches'] as List) if (b is Map) BatchRow.fromJson(b)],
       houses: [for (final h in (j['houses'] is List ? j['houses'] as List : const [])) if (h is Map) HouseRow.fromJson(h)],
       flocks: [for (final f in j['flocks'] as List) if (f is Map) FlockRow.fromJson(f)],
+      batchReconciliations: {
+        if (j['batchReconciliations'] is Map)
+          for (final e in (j['batchReconciliations'] as Map).entries)
+            if (e.value is Map) '${e.key}': BatchReconciliationDraft.fromJson(e.value as Map),
+      },
     );
   }
 }
+
+/// One historical sale of never-placed birds, at its own price.
+class BatchSaleDraft {
+  BatchSaleDraft({required this.key, this.quantity = '', this.pricePerBird = '', this.amountReceived = '', this.valueUnknown = false, this.date = ''});
+  final String key;
+  String quantity, pricePerBird, amountReceived, date;
+  bool valueUnknown;
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'quantity': quantity,
+        'pricePerBird': pricePerBird,
+        'amountReceived': amountReceived,
+        'valueUnknown': valueUnknown,
+        'date': date,
+      };
+  factory BatchSaleDraft.fromJson(Map j) => BatchSaleDraft(
+        key: _s(j['key']),
+        quantity: _s(j['quantity']),
+        pricePerBird: _s(j['pricePerBird']),
+        amountReceived: _s(j['amountReceived']),
+        valueUnknown: j['valueUnknown'] == true,
+        date: _s(j['date']),
+      );
+}
+
+/// 413: the batch-level reconciliation the wizard collects. A bird placed in
+/// a pen is explained on its flock; one that never reached a pen, here.
+class BatchReconciliationDraft {
+  BatchReconciliationDraft({
+    List<BatchSaleDraft>? sales,
+    this.mortality = '',
+    this.culled = '',
+    this.transferred = '',
+    this.other = '',
+    this.otherNote = '',
+    this.stillAlive = '',
+  }) : sales = sales ?? [];
+  List<BatchSaleDraft> sales;
+  String mortality, culled, transferred, other, otherNote, stillAlive;
+
+  Map<String, dynamic> toJson() => {
+        'sales': [for (final s in sales) s.toJson()],
+        'mortality': mortality,
+        'culled': culled,
+        'transferred': transferred,
+        'other': other,
+        'otherNote': otherNote,
+        'stillAlive': stillAlive,
+      };
+  factory BatchReconciliationDraft.fromJson(Map j) => BatchReconciliationDraft(
+        sales: [for (final s in (j['sales'] is List ? j['sales'] as List : const [])) if (s is Map) BatchSaleDraft.fromJson(s)],
+        mortality: _s(j['mortality']),
+        culled: _s(j['culled']),
+        transferred: _s(j['transferred']),
+        other: _s(j['other']),
+        otherNote: _s(j['otherNote']),
+        stillAlive: _s(j['stillAlive']),
+      );
+}
+
+/// Birds a batch reconciliation explains (removed + still alive).
+int explainedByReconciliation(BatchReconciliationDraft? r) {
+  if (r == null) return 0;
+  final sold = r.sales.fold<int>(0, (a, s) => a + count(s.quantity));
+  return sold + count(r.mortality) + count(r.culled) + count(r.transferred) + count(r.other) + count(r.stillAlive);
+}
+
+/// Birds of an existing batch that already left its pool before this setup.
+int accountedBeforePlacing(SetupContext ctx, int? batchId) =>
+    batchId == null ? 0 : (_i(ctx.batchPositions[batchId]?['previouslyAccountedFor']) ?? 0);
 
 // --------------------------------------------------------------- context
 
@@ -338,13 +425,21 @@ class SetupContext {
     this.existingFlocks = const [],
     this.existingFlockNames = const [],
     this.allocatedByBatchId = const {},
+    this.batchPositions = const {},
     required this.businessDate,
   });
   final List<ExistingBatch> existingBatches;
   final List<ExistingHouse> existingHouses;
   final List<ExistingFlock> existingFlocks;
   final List<String> existingFlockNames;
+
+  /// Birds already allocated out of each existing batch (originally placed).
   final Map<int, int> allocatedByBatchId;
+
+  /// 413: batch-level history already posted, by batch id (a
+  /// BatchLedgerPosition). Empty on an older server: nothing was recorded
+  /// before placing.
+  final Map<int, Map> batchPositions;
 
   /// The company's business date, from the server.
   final String businessDate;
@@ -401,6 +496,10 @@ class SetupContext {
       ],
       existingFlockNames: [for (final x in l(c?['existingFlockNames'])) _s(x)],
       allocatedByBatchId: alloc,
+      batchPositions: {
+        for (final p in l(c?['batchPositions']))
+          if (p is Map && _i(p['batchId']) != null) _i(p['batchId'])!: p,
+      },
       businessDate: toBusinessDate(c?['businessDate']) ?? fallbackDate,
     );
   }
@@ -658,6 +757,7 @@ class BatchAllocationView {
     required this.isExisting,
     required this.batchBirds,
     required this.previouslyAllocated,
+    this.previouslyAccountedFor = 0,
     required this.thisAllocation,
     required this.available,
     required this.remaining,
@@ -668,10 +768,84 @@ class BatchAllocationView {
   final int index;
   final bool isExisting;
   final int batchBirds, previouslyAllocated, thisAllocation, available, remaining;
+
+  /// Birds already recorded as gone before reaching a pen (posted batch-level movements).
+  final int previouslyAccountedFor;
   final String status;
   final bool mustBeFullyAllocated;
-  int get overBy => previouslyAllocated + thisAllocation - batchBirds;
+  int get overBy => previouslyAllocated + previouslyAccountedFor + thisAllocation - batchBirds;
 }
+
+class BatchReconciliationView {
+  const BatchReconciliationView({
+    required this.batchKey,
+    required this.label,
+    required this.isHistorical,
+    required this.originalBirds,
+    required this.placed,
+    required this.previouslyAccountedFor,
+    required this.previous,
+    required this.existingBatchId,
+    required this.neverPlaced,
+    required this.explained,
+    required this.unexplained,
+    required this.saleValue,
+  });
+  final String batchKey, label;
+  final bool isHistorical;
+  final int originalBirds;
+
+  /// Placed (this session + before), measured as originally placed.
+  final int placed;
+
+  /// Already posted against the never-placed birds: shown, never re-posted.
+  final int previouslyAccountedFor;
+
+  /// The posted history behind previouslyAccountedFor; null for a new batch.
+  final Map? previous;
+  final int? existingBatchId;
+
+  /// Birds of the batch in no pen once this setup's flocks are placed.
+  final int neverPlaced;
+  final int explained;
+
+  /// Positive = still to explain; negative = over-explained.
+  final int unexplained;
+  final num saleValue;
+}
+
+/// Batches with birds that will not be in any pen once this setup is done,
+/// on ORIGINALLY placed birds (a flock's own deaths are never counted twice).
+List<BatchReconciliationView> batchReconciliationViews(SetupDraft d, SetupContext ctx) => [
+      for (final v in batchAllocationViews(d, ctx))
+        if (v.batchBirds > 0 && v.status != 'over' && v.remaining > 0)
+          () {
+            final r = d.batchReconciliations[v.batch.key];
+            final explained = explainedByReconciliation(r);
+            final saleValue = (r?.sales ?? const <BatchSaleDraft>[]).fold<num>(
+                0,
+                (a, s) => a +
+                    (s.valueUnknown ? 0 : (count(s.quantity) * ((num.tryParse(s.pricePerBird.trim()) ?? 0) * 100).round()).round() / 100));
+            return BatchReconciliationView(
+              batchKey: v.batch.key,
+              label: normalize(v.batch.batchCode).isNotEmpty
+                  ? normalize(v.batch.batchCode)
+                  : normalize(v.batch.batchName).isNotEmpty
+                      ? normalize(v.batch.batchName)
+                      : 'Batch',
+              isHistorical: v.mustBeFullyAllocated,
+              originalBirds: v.batchBirds,
+              placed: v.previouslyAllocated + v.thisAllocation,
+              previouslyAccountedFor: v.previouslyAccountedFor,
+              previous: v.batch.existingBatchId != null ? ctx.batchPositions[v.batch.existingBatchId] : null,
+              existingBatchId: v.batch.existingBatchId,
+              neverPlaced: v.remaining,
+              explained: explained,
+              unexplained: v.remaining - explained,
+              saleValue: saleValue,
+            );
+          }(),
+    ];
 
 /// Measured on the PLACED basis throughout (migration 325).
 List<BatchAllocationView> batchAllocationViews(SetupDraft d, SetupContext ctx) => [
@@ -683,11 +857,14 @@ List<BatchAllocationView> batchAllocationViews(SetupDraft d, SetupContext ctx) =
           final batchBirds = existing?.numberOfBirds ?? count(batch.numberOfBirds);
           final previously = existing == null ? 0 : (ctx.allocatedByBatchId[existing.batchId] ?? 0);
           final thisAlloc = d.flocks.fold(0, (s, f) => f.batchKey == batch.key ? s + count(f.originallyPlaced) : s);
-          final available = math.max(0, batchBirds - previously);
+          final accountedBefore = existing == null ? 0 : accountedBeforePlacing(ctx, existing.batchId);
+          // = fnpoultrybatch_unallocated before this setup places anything.
+          final available = math.max(0, batchBirds - previously - accountedBefore);
           final placed = previously + thisAlloc;
-          final status = batchBirds > 0 && placed > batchBirds
+          final accounted = placed + accountedBefore;
+          final status = batchBirds > 0 && accounted > batchBirds
               ? 'over'
-              : batchBirds > 0 && placed == batchBirds
+              : batchBirds > 0 && accounted == batchBirds
                   ? 'complete'
                   : placed == 0
                       ? 'unallocated'
@@ -698,6 +875,7 @@ List<BatchAllocationView> batchAllocationViews(SetupDraft d, SetupContext ctx) =
             isExisting: batch.existingBatchId != null,
             batchBirds: batchBirds,
             previouslyAllocated: previously,
+            previouslyAccountedFor: accountedBefore,
             thisAllocation: thisAlloc,
             available: available,
             remaining: math.max(0, available - thisAlloc),
@@ -1036,24 +1214,43 @@ double batchBalance(String totalCost, String amountPaid) =>
     final index = d.batches.indexOf(batch);
     var capacity = count(batch.numberOfBirds);
     var already = 0;
+    var accounted = 0;
     var label = normalize(batch.batchCode);
     if (batch.existingBatchId != null) {
       final e = ctx.existingBatches.where((b) => b.batchId == batch.existingBatchId).firstOrNull;
       if (e == null) return;
       capacity = e.numberOfBirds;
       already = ctx.allocatedByBatchId[e.batchId] ?? 0;
+      accounted = accountedBeforePlacing(ctx, e.batchId);
       label = e.batchCode;
     }
     if (capacity <= 0) return;
-    if (placed + already > capacity) {
+    // Mirrors FarmSetupValidator.cs: the pool before this setup places anything.
+    final pool = capacity - already - accounted;
+    final recon = d.batchReconciliations[key];
+    final explained = explainedByReconciliation(recon);
+    if (recon != null && count(recon.other) > 0 && normalize(recon.otherNote).isEmpty) {
+      err('batches', index, 'reconciliation', '$label: say what the "other" birds were.');
+    }
+    if (placed + already + accounted > capacity) {
       final note = already > 0 ? ' (${fmtInt(already)} already allocated)' : '';
+      err('batches', index, 'numberOfBirds', accounted > 0
+          ? 'Flocks from $label were placed with ${fmtInt(placed)} birds, but the batch had ${fmtInt(capacity)}$note and '
+              '${fmtInt(accounted)} were already recorded as sold, dead or otherwise gone before reaching a pen, so only '
+              '${fmtInt(math.max(pool, 0))} can still be placed.'
+          : 'Flocks from $label were placed with ${fmtInt(placed)} birds$note, but the batch only had ${fmtInt(capacity)}.');
+    } else if (explained > pool - placed) {
       err('batches', index, 'numberOfBirds',
-          'Flocks from $label were placed with ${fmtInt(placed)} birds$note, but the batch only had ${fmtInt(capacity)}.');
-    } else if (isHistoricalBatch(batch, ctx) && placed + already < capacity) {
-      final missing = capacity - (placed + already);
+          '$label: the reconciliation explains ${fmtInt(explained)} birds but only ${fmtInt(pool - placed)} never went into a pen'
+          '${accounted > 0 ? ' (${fmtInt(accounted)} more were already recorded earlier and are not asked about again).' : '.'}');
+    } else if (isHistoricalBatch(batch, ctx) && placed + already + accounted + explained < capacity) {
+      // 413: "in a pen" became "accounted for": the birds that never went into
+      // a pen can be explained on the reconciliation step.
+      final missing = pool - placed - explained;
       err('batches', index, 'numberOfBirds',
-          '$label is a batch you already had, so all ${fmtInt(capacity)} of its birds must be in a pen — '
-          '${fmtInt(missing)} are unaccounted for. Put them in a pen, or lower the batch to ${fmtInt(placed + already)}.');
+          '$label is a batch you already had, so all ${fmtInt(capacity)} of its birds must be accounted for — '
+          '${fmtInt(missing)} are not. Put them in a pen, or explain them on the reconciliation step '
+          '(sold, died, culled, transferred, or still alive and waiting).');
     }
   });
 
@@ -1174,5 +1371,36 @@ Map<String, dynamic> toRequest(SetupDraft d, SetupContext ctx, String userId, St
               'Notes': f.notes,
             };
           }(),
+      ],
+      // 413: posted by the server through the same function as the Batch page.
+      'BatchReconciliations': [
+        for (final e in d.batchReconciliations.entries)
+          if (d.batches.any((b) => b.key == e.key) && explainedByReconciliation(e.value) > 0)
+            {
+              'BatchKey': e.key,
+              'StillUnallocatedLive': count(e.value.stillAlive),
+              'Notes': null,
+              'Lines': [
+                for (final s in e.value.sales)
+                  if (count(s.quantity) > 0)
+                    {
+                      'Kind': 'Sale',
+                      'Quantity': count(s.quantity),
+                      'Date': normalize(s.date).isNotEmpty ? '${normalize(s.date)}T00:00:00' : null,
+                      'ValueUnknown': s.valueUnknown,
+                      'PricePerBird': s.valueUnknown ? null : (num.tryParse(s.pricePerBird.trim()) ?? 0),
+                      'AmountReceived': s.valueUnknown
+                          ? null
+                          : normalize(s.amountReceived).isNotEmpty
+                              ? num.tryParse(s.amountReceived.trim())
+                              : (count(s.quantity) * (num.tryParse(s.pricePerBird.trim()) ?? 0) * 100).round() / 100,
+                      'Classification': 'PreCutover',
+                    },
+                for (final (kind, q) in [('Mortality', e.value.mortality), ('Cull', e.value.culled), ('TransferOut', e.value.transferred)])
+                  if (count(q) > 0) {'Kind': kind, 'Quantity': count(q)},
+                if (count(e.value.other) > 0)
+                  {'Kind': 'Other', 'Quantity': count(e.value.other), 'Note': normalize(e.value.otherNote).isEmpty ? null : normalize(e.value.otherNote)},
+              ],
+            },
       ],
     };

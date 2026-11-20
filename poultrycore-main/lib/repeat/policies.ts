@@ -14,7 +14,7 @@
 
 import type { FeedUsage } from "@/lib/api/feed-usage"
 import type { HealthRecord } from "@/lib/api/health"
-import type { PoultryInternalUsage, InternalUseCategory } from "@/lib/api/internal-use"
+import type { PoultryInternalUsage, GenericInternalUsage, InternalUseCategory } from "@/lib/api/internal-use"
 import type { Expense } from "@/lib/api/expense"
 import { mustBeValid, type CopyPolicy } from "./repeat-previous"
 
@@ -139,6 +139,38 @@ export const internalUsePolicy: CopyPolicy<PoultryInternalUsage, InternalUseForm
   sourceDate: (s) => s.usageDate,
 }
 
+/** Report 40 Part 3: the same policy on Generic's internal use (genericProductId). */
+export interface GenericInternalUseForm extends Omit<InternalUseForm, "poultryProductId"> {
+  genericProductId: number
+}
+
+export const genericInternalUsePolicy: CopyPolicy<GenericInternalUsage, GenericInternalUseForm> = {
+  formType: "generic.internal-use",
+  noun: "internal use",
+  dateField: "usageDate",
+  fields: {
+    category:         { mode: "copy", from: (s) => s.category },
+    recipientName:    { mode: "copy", from: (s) => s.recipientName ?? null },
+    reason:           { mode: "copy", from: (s) => s.reason ?? null },
+    genericProductId: { mode: "copy", from: (s) => s.items?.[0]?.genericProductId ?? null,
+                        stillValid: mustBeValid("product", "That product") },
+    entryUnit:        { mode: "copy", from: (s) => s.items?.[0]?.entryUnit ?? null },
+    useStaffHelper:   { mode: "copy", from: (s) => (s.staffCount ?? 0) > 0 },
+    entryQuantity:    { mode: "review", from: (s) => ((s.staffCount ?? 0) > 0 ? null : s.items?.[0]?.entryQuantity ?? null),
+                        reason: "Confirm how much was used this time." },
+    staffCount:       { mode: "review", from: (s) => (s.staffCount ?? 0) > 0 ? s.staffCount : null,
+                        reason: "Staff on duty changes — confirm the head count." },
+    quantityPerStaff: { mode: "review", from: (s) => ((s.staffCount ?? 0) > 0 ? s.items?.[0]?.quantityPerStaff ?? null : null),
+                        reason: "Confirm the amount per person." },
+    unitCost:         { mode: "never", reason: "Cost is worked out from today's stock value." },
+    notes:            { mode: "never", reason: "Notes belong to the entry they were written for." },
+    usageDate:        { mode: "never", reason: "Today's business date is used." },
+  },
+  describe: (s) => `${s.items?.[0]?.productName ?? "product"} · ${s.items?.[0]?.entryQuantity ?? ""} ${s.items?.[0]?.entryUnit ?? ""}`.trim(),
+  sourceId: (s) => s.genericInternalUsageId,
+  sourceDate: (s) => s.usageDate,
+}
+
 // ------------------------------------------------------------------ Expenses
 export interface ExpenseForm {
   flockId: string
@@ -192,6 +224,46 @@ export function expensePolicy(opts: { includeAmount: boolean }): CopyPolicy<Expe
   }
 }
 
+/** Report 40 Part 11: Poultry's expense policy on Generic's expense fields. */
+export interface GenericExpenseForm {
+  expenseDate: string; genericExpenseCategoryId: string; description: string; amount: string
+  paymentMethod: string; genericCashAccountId: string; genericSupplierId: string
+  paymentStatus: "Paid" | "PartiallyPaid" | "Unpaid"; amountPaid: string; dueDate: string
+}
+type GenericExpenseSource = {
+  genericExpenseId: number; expenseDate: string; genericExpenseCategoryId: number; categoryName?: string | null
+  description?: string | null; paymentMethod: string; genericSupplierId?: number | null; amount: number
+  genericCashAccountId?: number | null; paymentStatus?: string | null; sourceType?: string | null
+}
+export function genericExpensePolicy(opts: { includeAmount: boolean }): CopyPolicy<GenericExpenseSource, GenericExpenseForm> {
+  const money = opts.includeAmount ? ("review" as const) : ("never" as const)
+  return {
+    formType: opts.includeAmount ? "generic.expense+amount" : "generic.expense",
+    noun: "expense",
+    dateField: "expenseDate",
+    fields: {
+      genericExpenseCategoryId: { mode: "copy", from: (s) => String(s.genericExpenseCategoryId), stillValid: mustBeValid("category", "That category") },
+      description:          { mode: "copy", from: (s) => s.description ?? "" },
+      paymentMethod:        { mode: "copy", from: (s) => (s.paymentMethod === "Credit" ? "Cash" : s.paymentMethod) },
+      genericSupplierId:    { mode: "copy", from: (s) => (s.genericSupplierId ? String(s.genericSupplierId) : null),
+                              stillValid: mustBeValid("supplier", "That supplier") },
+      amount:               { mode: money, from: (s) => (s.amount ? String(s.amount) : null),
+                              reason: opts.includeAmount ? "Confirm this period's amount." : "Amounts change — enter this one fresh." },
+      genericCashAccountId: { mode: money, from: (s) => (s.genericCashAccountId ? String(s.genericCashAccountId) : null),
+                              stillValid: mustBeValid("cashAccount", "That cash account"),
+                              reason: opts.includeAmount ? "Confirm which account paid it." : "Choose the account for this payment." },
+      paymentStatus:        { mode: money, from: (s) => (s.paymentStatus === "Unpaid" || s.paymentStatus === "PartiallyPaid" ? s.paymentStatus : "Paid") as GenericExpenseForm["paymentStatus"],
+                              reason: opts.includeAmount ? "Confirm whether this one is paid." : "Say whether this one is paid." },
+      amountPaid:           { mode: "never", reason: "Part payments are specific to one bill." },
+      dueDate:              { mode: "never", reason: "Each bill has its own due date." },
+      expenseDate:          { mode: "never", reason: "Today's business date is used." },
+    },
+    describe: (s) => `${s.categoryName ?? "Expense"} · ${s.description ?? ""}`,
+    sourceId: (s) => s.genericExpenseId,
+    sourceDate: (s) => s.expenseDate,
+  }
+}
+
 /** Expenses a workflow created (feed consumption, payroll, internal use ...) are not repeatable by hand. */
 export const isRepeatableExpense = (e: Pick<Expense, "sourceType">) => !e.sourceType
 
@@ -203,6 +275,12 @@ export const FIELD_LABELS = {
   internalUse: { category: "Reason", recipientName: "Who received it", reason: "Detail", poultryProductId: "Product",
                  entryUnit: "Unit", entryQuantity: "Quantity", useStaffHelper: "Per-staff helper", staffCount: "Staff count",
                  quantityPerStaff: "Per person", unitCost: "Unit cost", notes: "Notes", usageDate: "Date" },
+  genericInternalUse: { category: "Reason", recipientName: "Who received it", reason: "Detail", genericProductId: "Product",
+                 entryUnit: "Unit", entryQuantity: "Quantity", useStaffHelper: "Per-staff helper", staffCount: "Staff count",
+                 quantityPerStaff: "Per person", unitCost: "Unit cost", notes: "Notes", usageDate: "Date" },
+  genericExpense: { genericExpenseCategoryId: "Category", description: "Description", paymentMethod: "Payment method",
+             genericSupplierId: "Supplier", amount: "Amount", genericCashAccountId: "Cash account", paymentStatus: "Payment status",
+             amountPaid: "Amount paid", dueDate: "Due date", expenseDate: "Date" },
   expense: { category: "Category", description: "Description", paymentMethod: "Payment method", supplierId: "Supplier",
              flockId: "Flock", amount: "Amount", poultryCashAccountId: "Cash account", paymentStatus: "Payment status",
              amountPaid: "Amount paid", dueDate: "Due date", expenseDate: "Date" },

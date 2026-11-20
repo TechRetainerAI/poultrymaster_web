@@ -19,12 +19,13 @@ import '../shared/business_dates.dart' show fmtDateTime;
 import '../shared/company_clock.dart';
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// STATUS_COLORS: bg, fg.
 const giftCardStatusColors = <String, (Color, Color)>{
-  'Active': (Color(0xFFDCFCE7), Color(0xFF15803D)),
-  'Redeemed': (Color(0xFFF3E8FF), Color(0xFF7E22CE)),
-  'Expired': (Color(0xFFFEE2E2), Color(0xFFB91C1C)),
-  'Disabled': (Color(0xFFF3F4F6), Color(0xFF374151)),
+  'Active': (Tone.bg(0xFFDCFCE7), Tone.bg(0xFF15803D)),
+  'Redeemed': (Tone.bg(0xFFF3E8FF), Tone.bg(0xFF7E22CE)),
+  'Expired': (Tone.bg(0xFFFEE2E2), Tone.bg(0xFFB91C1C)),
+  'Disabled': (Tone.bg(0xFFF3F4F6), Tone.bg(0xFF374151)),
 };
 
 /// The "Paid with" choices for selling or reloading a card (migration 323).
@@ -141,12 +142,12 @@ class _RestaurantGiftCardsScreenState extends State<RestaurantGiftCardsScreen> {
                   Text('Card: ${tStr(card['cardNumber'])}', style: const TextStyle(fontSize: 13, color: TColors.slate500)),
                   const SizedBox(height: 10),
                   if (snap.connectionState != ConnectionState.done)
-                    const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator(color: Color(0xFFF43F5E))))
+                    const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator(color: Tone.fg(0xFFF43F5E))))
                   else if (txs.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Column(children: [
-                        Icon(Icons.history, size: 40, color: Color(0xFFD1D5DB)),
+                        Icon(Icons.history, size: 40, color: Tone.fg(0xFFD1D5DB)),
                         SizedBox(height: 6),
                         Text('No transactions yet', style: TextStyle(fontSize: 13, color: TColors.slate500)),
                       ]),
@@ -163,7 +164,7 @@ class _RestaurantGiftCardsScreenState extends State<RestaurantGiftCardsScreen> {
                               Expanded(
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                                    rBadge(tStr(tx['transactionType']), bg: Colors.white, border: TColors.slate200),
+                                    rBadge(tStr(tx['transactionType']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
                                     if (tStr(tx['orderId']).isNotEmpty)
                                       Text('Order #${tStr(tx['orderId'])}', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                                   ]),
@@ -182,7 +183,7 @@ class _RestaurantGiftCardsScreenState extends State<RestaurantGiftCardsScreen> {
                                     style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
-                                        color: tNum(tx['amount']) >= 0 ? const Color(0xFF15803D) : const Color(0xFFDC2626))),
+                                        color: tNum(tx['amount']) >= 0 ? const Tone.fg(0xFF15803D) : const Tone.fg(0xFFDC2626))),
                                 Text('Bal: ${_usd(tx['balanceAfter'])}', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                               ]),
                             ]),
@@ -276,15 +277,15 @@ class _RestaurantGiftCardsScreenState extends State<RestaurantGiftCardsScreen> {
         child: Row(children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.card_giftcard, size: 20, color: Color(0xFFF43F5E)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFFFF1F2), borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.card_giftcard, size: 20, color: Tone.fg(0xFFF43F5E)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 Text(tStr(card['cardNumber']), style: const TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.w600)),
-                rBadge(tStr(card['cardType']), bg: Colors.white, border: TColors.slate200),
+                rBadge(tStr(card['cardType']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
                 giftStatusBadge(tStr(card['status'])),
               ]),
               const SizedBox(height: 2),
@@ -505,7 +506,7 @@ class _CheckBalanceDialogState extends State<_CheckBalanceDialog> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDF4), border: Border.all(color: const Color(0xFFBBF7D0)), borderRadius: BorderRadius.circular(10)),
+                    color: const Tone.bg(0xFFF0FDF4), border: Border.all(color: const Tone.line(0xFFBBF7D0)), borderRadius: BorderRadius.circular(10)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Expanded(
@@ -514,7 +515,7 @@ class _CheckBalanceDialogState extends State<_CheckBalanceDialog> {
                     giftStatusBadge(tStr(_result!['status'])),
                   ]),
                   const SizedBox(height: 4),
-                  Text(_usd(_result!['currentBalance']), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF15803D))),
+                  Text(_usd(_result!['currentBalance']), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Tone.fg(0xFF15803D))),
                   Text('Initial: ${_usd(_result!['initialBalance'])}', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                 ]),
               ),
@@ -604,10 +605,10 @@ class _AmountDialogState extends State<_AmountDialog> {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFF9FAFB), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
             child: Row(children: [
               Expanded(child: Text(tStr(card['cardNumber']), style: const TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.w600))),
-              Text(_usd(card['currentBalance']), style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF15803D))),
+              Text(_usd(card['currentBalance']), style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFF15803D))),
             ]),
           ),
           const SizedBox(height: 12),

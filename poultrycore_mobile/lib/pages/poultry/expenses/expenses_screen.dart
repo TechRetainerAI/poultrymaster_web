@@ -30,6 +30,7 @@ import '../trackers/tracker_widgets.dart';
 import 'deferred_costs_screen.dart' show noSecondPaymentTooltip;
 import 'receipt_field.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ------------------------------------------------------------ receipts (lib/utils/expense-receipt.ts)
 
 final _receiptSuffix = RegExp(r'\s*::rcpt:(/receipt-uploads/[^\s]+)::\s*$', caseSensitive: false);
@@ -81,6 +82,65 @@ num? amountPaidForStatus(String status, num enteredPaid) => switch (status) {
     };
 
 bool requiresCashAccount(String status) => status == 'Paid' || status == 'PartiallyPaid';
+
+// ---- components/expense/feed-purchase-notice.tsx
+/// Feed is bought through Record Purchase (it goes into stock), not as a plain expense.
+const feedCategory = 'Feed';
+const feedPurchaseHref = '/poultry-supply-purchases?purchase=1';
+const feedExpenseBlockedMessage = "Feed can't be bought here. Use Record Purchase so the feed goes into stock.";
+
+bool isFeedCategory(String? category) => (category ?? '').trim().toLowerCase() == feedCategory.toLowerCase();
+
+// ---- lib/api/http-error.ts
+String _money2(num n) => fixed2(n);
+
+/// Paying more than the chosen account holds.
+String cashShortfallMessage(String? accountName, num balance, num payment) {
+  final name = (accountName ?? '').trim().isEmpty ? 'cash account' : accountName!.trim();
+  return 'Your $name has ${_money2(balance)}, cannot pay ${_money2(payment)}. Please top up or choose another account.';
+}
+
+/// The farmer-facing sentence for the database's overdraw refusal; null for
+/// any other message, so the caller keeps what it had.
+String? explainCashShortfall(String? message, [String? accountName]) {
+  final text = message ?? '';
+  if (!RegExp(r'would overdraw|would go negative|insufficient (funds|balance)', caseSensitive: false).hasMatch(text)) return null;
+  final m = RegExp(r'balance\s+(-?[\d,]+(?:\.\d+)?)\s*,\s*payment\s+(-?[\d,]+(?:\.\d+)?)', caseSensitive: false).firstMatch(text);
+  if (m != null) {
+    num n(String s) => num.parse(s.replaceAll(',', ''));
+    return cashShortfallMessage(accountName, n(m[1]!), n(m[2]!));
+  }
+  final name = (accountName ?? '').trim().isEmpty ? 'cash account' : accountName!.trim();
+  return 'Your $name does not have enough money for this payment. Please top up or choose another account.';
+}
+
+/// FeedPurchaseNotice: feed is bought on Record Purchase.
+class FeedPurchaseNotice extends StatelessWidget {
+  const FeedPurchaseNotice({super.key, required this.onGo});
+  final VoidCallback onGo;
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const ValueKey('feed-purchase-notice'),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: TColors.amber300), borderRadius: BorderRadius.circular(8)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text("You can't buy feed here.", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.amber900)),
+          const SizedBox(height: 4),
+          const Text(
+            'Feed purchases are recorded on Record Purchase, so the feed goes into stock and its cost is counted when the birds eat it.',
+            style: TextStyle(fontSize: 14, color: TColors.amber900),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            key: const ValueKey('feed-purchase-go'),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.amber600), visualDensity: VisualDensity.compact),
+            onPressed: onGo,
+            icon: const Icon(Icons.shopping_cart_outlined, size: 14),
+            label: const Text('Go to Record Purchase', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      );
+}
 
 /// validateExpensePayment's errors, in its order (the warning is left out:
 /// the form shows it as an alert of its own).
@@ -175,12 +235,12 @@ List<Map> filterExpenses(List<Map> rows, ExpenseFilters f) {
 const _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 (Color, Color) categoryColors(Object? c) => switch (tStr(c)) {
-      'Feed' => (const Color(0xFFDCFCE7), const Color(0xFF166534)),
-      'Veterinary' => (const Color(0xFFFEE2E2), const Color(0xFF991B1B)),
-      'Equipment' => (const Color(0xFFDBEAFE), const Color(0xFF1E40AF)),
-      'Labor' => (const Color(0xFFFEF9C3), const Color(0xFF854D0E)),
-      'Utilities' => (const Color(0xFFF3E8FF), const Color(0xFF6B21A8)),
-      _ => (const Color(0xFFF3F4F6), const Color(0xFF1F2937)),
+      'Feed' => (const Tone(0xFFDCFCE7), const Tone(0xFF166534)),
+      'Veterinary' => (const Tone(0xFFFEE2E2), const Tone(0xFF991B1B)),
+      'Equipment' => (const Tone(0xFFDBEAFE), const Tone(0xFF1E40AF)),
+      'Labor' => (const Tone(0xFFFEF9C3), const Tone(0xFF854D0E)),
+      'Utilities' => (const Tone(0xFFF3E8FF), const Tone(0xFF6B21A8)),
+      _ => (const Tone(0xFFF3F4F6), const Tone(0xFF1F2937)),
     };
 
 String _n2(num n) {
@@ -668,7 +728,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   ]),
                   const SizedBox(height: 12),
                   FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
                     onPressed: () => _openForm(),
                     icon: const Icon(Icons.add, size: 18),
                     label: const Text('Add Expense'),
@@ -678,12 +738,12 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0F9FF),
-                        border: Border.all(color: const Color(0xFFBAE6FD)),
+                        color: const Tone.bg(0xFFF0F9FF),
+                        border: Border.all(color: const Tone.line(0xFFBAE6FD)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 12, children: [
-                        Text('Showing expense #${_f.focusId} only.', style: const TextStyle(fontSize: 13, color: Color(0xFF0C4A6E))),
+                        Text('Showing expense #${_f.focusId} only.', style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF0C4A6E))),
                         OutlinedButton(
                           onPressed: () => setState(() => _f.focusId = null),
                           child: const Text('Show all expenses'),
@@ -716,7 +776,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                          decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                           child: Text('$_activeCount', style: const TextStyle(fontSize: 12, color: Colors.white)),
                         ),
                       ],
@@ -745,7 +805,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           ),
                           const SizedBox(height: 18),
                           FilledButton.icon(
-                            style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+                            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
                             onPressed: () => _openForm(),
                             icon: const Icon(Icons.add, size: 18),
                             label: const Text('Add First Expense'),
@@ -782,7 +842,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   Widget _statusBadge(Map e) {
     final st = expenseStatusLabel(e);
     final (bg, fg, border) = switch (st) {
-      'Non-cash' => (Colors.white, TColors.slate600, TColors.slate300),
+      'Non-cash' => (Tone(0xFFFFFFFF), TColors.slate600, TColors.slate300),
       'Paid' => (TColors.emerald100, TColors.emerald800, null),
       'Overdue' => (TColors.red100, TColors.red800, null),
       'Partially paid' => (TColors.amber100, TColors.amber800, null),
@@ -834,7 +894,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       actions: Row(children: [
         Expanded(
           child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
             onPressed: validId ? () => _openForm(tIntOrNull(e['expenseId'])) : null,
             icon: const Icon(Icons.edit_outlined, size: 16),
             label: const Text('Edit'),
@@ -844,7 +904,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         Expanded(
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.white,
+              backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
               foregroundColor: TColors.red600,
               side: const BorderSide(color: TColors.red200),
               minimumSize: const Size.fromHeight(40),
@@ -917,7 +977,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             Align(
               alignment: Alignment.centerLeft,
               child: TBadge(tStr(e['paymentMethod']).isEmpty ? 'N/A' : tStr(e['paymentMethod']),
-                  bg: Colors.white, fg: TColors.slate800, border: TColors.slate200),
+                  bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate800, border: TColors.slate200),
             ),
             Wrap(alignment: WrapAlignment.end, children: [
               icon('Edit', Icons.edit_outlined,
@@ -1004,7 +1064,7 @@ class _ExpenseCardState extends State<_ExpenseCard> {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: widget.striped ? TColors.amber100 : Colors.white,
+          color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -1068,6 +1128,12 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
   String _error = '';
 
   String _batch = _all, _flock = '', _category = '', _method = '', _account = '', _supplier = '', _status = 'Paid', _due = '';
+
+  /// The category the expense was saved with: one saved as Feed before the
+  /// feed rule can still be edited, but nothing new becomes Feed.
+  String _originalCategory = '';
+
+  bool get _feedBlocked => isFeedCategory(_category) && !(_edit && isFeedCategory(_originalCategory));
   late String _date = isoDay(DateTime.now().toUtc());
   final _amount = TextEditingController(), _paid = TextEditingController(), _desc = TextEditingController(), _note = TextEditingController();
   String _descChoice = '';
@@ -1112,6 +1178,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
         _flock = (tIntOrNull(e['flockId']) ?? 0) != 0 ? tStr(e['flockId']) : _all;
         _date = DateTime.tryParse(tStr(e['expenseDate']))?.toUtc().toIso8601String().substring(0, 10) ?? _date;
         _category = tStr(e['category']);
+        _originalCategory = _category;
         _desc.text = stripReceipt(raw);
         _amount.text = tStr(e['amount']);
         _method = tStr(e['paymentMethod']);
@@ -1145,9 +1212,9 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
     });
     String? guide;
     final amount = num.tryParse(_amount.text) ?? 0;
-    if (_flock.isEmpty) {
-      _error = 'Choose a flock';
-      guide = 'Select which flock this expense belongs to (or the closest match from the list).';
+    // The flock is optional now (none = farm-wide); feed is bought on Record Purchase.
+    if (_feedBlocked) {
+      _error = guide = feedExpenseBlockedMessage;
     } else if (_category.isEmpty) {
       _error = 'Choose a category';
       guide = 'Pick an expense category so reports and cash stay organized.';
@@ -1168,7 +1235,18 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
         paymentMethod: _method,
         cashAccountId: int.tryParse(_account),
       );
-      if (errs.isNotEmpty) _error = guide = errs.first;
+      if (errs.isNotEmpty) {
+        _error = guide = errs.first;
+      } else if (!_edit) {
+        // Paying more than the chosen account holds. The database would refuse
+        // it anyway ("would overdraw the cash account"); catching it here names
+        // the account and what to do, and sends nothing.
+        final acct = _account.isEmpty ? null : widget.accounts.where((a) => tStr(a['id']) == _account).firstOrNull;
+        final cashOut = requiresCashAccount(_status) ? (amountPaidForStatus(_status, num.tryParse(_paid.text) ?? 0) ?? amount) : 0;
+        if (acct != null && acct['allowNegativeBalance'] != true && cashOut > 0 && tNum(acct['currentBalance']) - cashOut < 0) {
+          _error = guide = cashShortfallMessage(tStr(acct['name']), tNum(acct['currentBalance']), cashOut);
+        }
+      }
     }
     if (guide != null) {
       trackerToast(context, 'Almost there', description: guide);
@@ -1200,7 +1278,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
       'description': description,
       'amount': amount,
       if (!_edit || _method.isNotEmpty) 'paymentMethod': _method,
-      'flockId': _flock == _all ? null : int.tryParse(_flock),
+      'flockId': _flock.isEmpty || _flock == _all ? null : int.tryParse(_flock),
       'poultryCashAccountId': requiresCashAccount(_status) && _account.isNotEmpty ? int.tryParse(_account) : null,
       'supplierId': _supplier.isEmpty ? null : int.tryParse(_supplier),
       'amountPaid': amountPaidForStatus(_status, num.tryParse(_paid.text) ?? 0),
@@ -1217,7 +1295,11 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
       Navigator.pop(context, true);
       return;
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      final acctName = widget.accounts.where((a) => tStr(a['id']) == _account).firstOrNull?['name'];
+      if (mounted) {
+        setState(() => _error = explainCashShortfall(e.message, acctName == null ? null : tStr(acctName)) ??
+            (e.message.isNotEmpty ? e.message : 'Could not save the expense. Please try again.'));
+      }
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -1271,7 +1353,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
               ]),
             )
           else ...[
-            formSection('Flock & Date', const Color(0xFF4F46E5), [
+            formSection('Flock & Date', const Tone.bg(0xFF4F46E5), [
               _field(
                 'Batch',
                 AppSelect<String>(
@@ -1298,10 +1380,10 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
                 hint: 'Filters flocks below.',
               ),
               _field(
-                'Select Flock *',
+                'Flock (optional)',
                 AppSelect<String>(
                   value: _flock.isEmpty ? null : _flock,
-                  hintText: 'Choose a flock',
+                  hintText: 'No flock (farm-wide)',
                   items: [
                     const AppSelectItem(value: _all, label: 'All flocks (farm-wide)'),
                     for (final f in flockOpts) AppSelectItem(value: tStr(f['flockId']), label: tStr(f['name'])),
@@ -1326,7 +1408,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Category & Payment', const Color(0xFF16A34A), [
+            formSection('Category & Payment', const Tone.bg(0xFF16A34A), [
               _field(
                 'Category *',
                 AppSelect<String>(
@@ -1336,6 +1418,16 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
                   onChanged: (v) => setState(() => _category = v ?? ''),
                 ),
               ),
+              if (_feedBlocked)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: FeedPurchaseNotice(onGo: () {
+                    // The dialog's own context is gone once it closes.
+                    final nav = Navigator.of(context);
+                    nav.pop(false);
+                    openAppHref(nav.context, widget.session, widget.company, feedPurchaseHref, label: 'Record Purchase');
+                  }),
+                ),
               _field(
                 'Amount *',
                 AppInput(
@@ -1372,7 +1464,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Supplier & Payment Status', const Color(0xFF0284C7), [
+            formSection('Supplier & Payment Status', const Tone.bg(0xFF0284C7), [
               _field(
                 'Supplier / Paid To',
                 AppSelect<String>(
@@ -1427,7 +1519,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
                 ),
             ]),
             const SizedBox(height: 12),
-            formSection('Description', const Color(0xFFD97706), [
+            formSection('Description', const Tone.bg(0xFFD97706), [
               if (widget.descriptionOptions != null) ...[
                 AppSelect<String>(
                   value: _descChoice.isEmpty ? null : _descChoice,
@@ -1457,7 +1549,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
       actions: [
         redCancelButton(() => Navigator.pop(context, false)),
         FilledButton.icon(
-          onPressed: busy || widget.flocksLoading || _fetching ? null : _submit,
+          onPressed: busy || widget.flocksLoading || _fetching || _feedBlocked ? null : _submit,
           icon: busy
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : Icon(_edit ? Icons.edit_outlined : Icons.attach_money, size: 16),

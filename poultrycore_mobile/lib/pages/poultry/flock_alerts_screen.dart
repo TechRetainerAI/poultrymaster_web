@@ -15,12 +15,13 @@ import 'sales/balances_widgets.dart' show LoadingLine;
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Tools → Flock Alerts, as `app/poultry-flock-alerts/page.tsx`
 /// (migration 338): each flock's figures today against its own recent history,
 /// with the numbers behind every alert. Alerts / Daily checks, the alert's own
 /// panel (the web's side sheet, a page here) and Alert settings.
 
-const _rose100 = Color(0xFFFFE4E6);
+const _rose100 = Tone.bg(0xFFFFE4E6);
 
 /// FlockAlertsController.
 class FlockAlertsApi {
@@ -65,7 +66,7 @@ Widget alertStatusBadge(Object? status) {
   final st = alertStatusStyle(status);
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-    decoration: BoxDecoration(color: Colors.white, border: Border.all(color: st.border), borderRadius: BorderRadius.circular(999)),
+    decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: st.border), borderRadius: BorderRadius.circular(999)),
     child: Text(st.label, style: TextStyle(fontSize: 11, color: st.fg)),
   );
 }
@@ -74,7 +75,7 @@ Widget alertStatusBadge(Object? status) {
 Widget _segments<T>(List<(T, String)> options, T value, ValueChanged<T> onChanged, {bool dark = false}) => Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: dark ? Colors.white : TColors.slate50,
+        color: dark ? Tone.bg(0xFFFFFFFF) : TColors.slate50,
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(6),
       ),
@@ -86,7 +87,7 @@ Widget _segments<T>(List<(T, String)> options, T value, ValueChanged<T> onChange
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: v == value ? (dark ? TColors.slate900 : Colors.white) : null,
+                color: v == value ? (dark ? Tone.button(TColors.slate900)! : Tone.bg(0xFFFFFFFF)) : null,
                 borderRadius: BorderRadius.circular(4),
                 boxShadow: v == value && !dark ? const [BoxShadow(color: Color(0x14000000), blurRadius: 2, offset: Offset(0, 1))] : null,
               ),
@@ -268,7 +269,7 @@ class _AlertRow extends StatelessWidget {
     final notes = tNum(a['noteCount']).toInt();
     final edge = isActiveAlertStatus(a['status']) ? sev.edge : TColors.slate300;
     return Material(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -423,7 +424,7 @@ class _FlockAlertScreenState extends State<FlockAlertScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: sg['isActive'] == true ? Colors.white : TColors.slate50,
+                  color: sg['isActive'] == true ? Tone.bg(0xFFFFFFFF) : TColors.slate50,
                   border: Border.all(color: TColors.slate200),
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -458,7 +459,7 @@ class _FlockAlertScreenState extends State<FlockAlertScreen> {
                 margin: const EdgeInsets.only(top: 6),
                 constraints: const BoxConstraints(maxHeight: 288),
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: TColors.slate900, borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: Tone.button(TColors.slate900)!, borderRadius: BorderRadius.circular(6)),
                 child: SingleChildScrollView(
                   child: SelectableText(
                     const JsonEncoder.withIndent('  ').convert([for (final x in alertSignals(a)) x['evidence']]),
@@ -856,7 +857,7 @@ class _SignalCardState extends State<_SignalCard> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0x80F8FAFC),
+            color: const Tone.bg(0x80F8FAFC),
             border: Border.all(color: TColors.slate100),
             borderRadius: BorderRadius.circular(6),
           ),

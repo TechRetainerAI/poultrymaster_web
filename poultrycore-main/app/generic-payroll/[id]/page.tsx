@@ -1,228 +1,58 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
+import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { NumberInput } from "@/components/ui/number-input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog"
-import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { PromptDialog } from "@/components/ui/prompt-dialog"
-import { CANCEL_REASONS } from "@/lib/reversal-reasons"
-import { Loader2, ArrowLeft, CheckCircle2, Wallet, XCircle, Plus, Trash2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, Loader2, Banknote } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
-import {
-  approvePayrollRun, cancelPayrollRun, deletePayrollItem, getPayrollRun, getStaff,
-  markPayrollRunPaid, upsertPayrollItem,
-  type GenericPayrollRun, type GenericStaff,
-} from "@/lib/api/generic"
+import { useFmt } from "@/lib/currency"
+import { getGenericPayrollRunDetails, type GenericPayrollRunDetails } from "@/lib/api/generic-payroll"
 
-function fmt(n: number) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
+const STATUS_STYLE: Record<string, string> = {
+  Draft: "bg-slate-100 text-slate-700",
+  Approved: "bg-blue-100 text-blue-700",
+  Paid: "bg-green-100 text-green-700",
+  Reopened: "bg-amber-100 text-amber-700",
+  Cancelled: "bg-rose-100 text-rose-700",
 }
+const d = (s?: string | null) => (s ? s.split("T")[0] : "—")
 
-function statusBadgeClass(s: string) {
-  switch (s) {
-    case "Draft":     return "bg-slate-100 text-slate-700 hover:bg-slate-100"
-    case "Approved":  return "bg-sky-100 text-sky-800 hover:bg-sky-100"
-    case "Paid":      return "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-    case "Cancelled": return "bg-rose-100 text-rose-800 hover:bg-rose-100"
-    default:          return "bg-slate-100 text-slate-700 hover:bg-slate-100"
-  }
-}
-
-const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Card"]
-
-export default function GenericPayrollRunDetailPage() {
+export default function GenericPayrollDetailPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
   const id = Number(params?.id)
+  const { toast } = useToast()
+  const gh = useFmt()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
-  const { toast } = useToast()
 
-  const [run, setRun] = useState<GenericPayrollRun | null>(null)
-  const [staff, setStaff] = useState<GenericStaff[]>([])
+  const [data, setData] = useState<GenericPayrollRunDetails | null>(null)
   const [loading, setLoading] = useState(true)
-  const [actionBusy, setActionBusy] = useState<"approve" | "pay" | "cancel" | null>(null)
-
-  const [open, setOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [editingItemId, setEditingItemId] = useState<number | null>(null)  // null = new
-  const [deleteItemId, setDeleteItemId] = useState<number | null>(null)
-  const [form, setForm] = useState({
-    genericStaffId: "",
-    basicPay: "0",
-    dailyWage: "0",
-    commission: "0",
-    bonus: "0",
-    deductions: "0",
-    paymentMethod: "Cash",
-    notes: "",
-  })
-
-  const reload = async () => {
-    setLoading(true)
-    try {
-      const [r, s] = await Promise.all([getPayrollRun(id), getStaff()])
-      setRun(r)
-      setStaff(s.filter((x) => x.isActive))
-    } catch (e: any) {
-      toast({ title: "Could not load payroll run", description: e?.message ?? String(e), variant: "destructive" })
-    } finally { setLoading(false) }
-  }
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
-    if (!id || Number.isNaN(id)) { setLoading(false); return }
-    reload()
+    if (id) void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, activeFarmType, router])
+  }, [activeFarmType, id])
 
-  const isDraft = run?.status === "Draft"
-  const isApproved = run?.status === "Approved"
-  const isPaid = run?.status === "Paid"
-  const isCancelled = run?.status === "Cancelled"
-
-  // Staff already on the run (for the "add line" dialog dropdown).
-  const staffOnRun = useMemo(() => new Set((run?.items ?? []).map((i) => i.genericStaffId)), [run])
-  const eligibleStaffForNewLine = useMemo(
-    () => staff.filter((s) => !staffOnRun.has(s.genericStaffId)),
-    [staff, staffOnRun]
-  )
-
-  const openAddLine = () => {
-    setEditingItemId(null)
-    const first = eligibleStaffForNewLine[0]
-    setForm({
-      genericStaffId: first ? String(first.genericStaffId) : "",
-      basicPay:   first?.salaryType === "Monthly" || first?.salaryType === "Weekly" || first?.salaryType === "Daily" ? String(first.basePay) : "0",
-      dailyWage:  "0",
-      commission: "0",
-      bonus:      "0",
-      deductions: "0",
-      paymentMethod: "Cash",
-      notes: "",
-    })
-    setOpen(true)
+  async function load() {
+    setLoading(true)
+    try { setData(await getGenericPayrollRunDetails(id)) }
+    catch (e: any) { toast({ title: "Could not load run", description: e?.message, variant: "destructive" }) }
+    finally { setLoading(false) }
   }
 
-  const openEditLine = (itemId: number) => {
-    const item = run?.items.find((i) => i.genericPayrollItemId === itemId)
-    if (!item) return
-    setEditingItemId(itemId)
-    setForm({
-      genericStaffId: String(item.genericStaffId),
-      basicPay:   String(item.basicPay),
-      dailyWage:  String(item.dailyWage),
-      commission: String(item.commission),
-      bonus:      String(item.bonus),
-      deductions: String(item.deductions),
-      paymentMethod: item.paymentMethod ?? "Cash",
-      notes: item.notes ?? "",
-    })
-    setOpen(true)
-  }
-
-  const onSaveLine = async () => {
-    if (!form.genericStaffId) {
-      toast({ title: "Pick a staff member", variant: "destructive" }); return
-    }
-    const nums = {
-      basicPay:   Number(form.basicPay),
-      dailyWage:  Number(form.dailyWage),
-      commission: Number(form.commission),
-      bonus:      Number(form.bonus),
-      deductions: Number(form.deductions),
-    }
-    for (const [k, v] of Object.entries(nums)) {
-      if (Number.isNaN(v) || v < 0) {
-        toast({ title: `${k} must be a non-negative number`, variant: "destructive" }); return
-      }
-    }
-    const net = nums.basicPay + nums.dailyWage + nums.commission + nums.bonus - nums.deductions
-    if (net < 0) {
-      toast({ title: "Net pay cannot be negative", variant: "destructive" }); return
-    }
-
-    setSaving(true)
-    try {
-      await upsertPayrollItem(id, {
-        genericStaffId: Number(form.genericStaffId),
-        basicPay:   nums.basicPay,
-        dailyWage:  nums.dailyWage,
-        commission: nums.commission,
-        bonus:      nums.bonus,
-        deductions: nums.deductions,
-        paymentMethod: form.paymentMethod || null,
-        notes: form.notes || null,
-      })
-      toast({ title: editingItemId == null ? "Line added." : "Line updated." })
-      setOpen(false)
-      await reload()
-    } catch (e: any) {
-      toast({ title: "Could not save line", description: e?.message ?? String(e), variant: "destructive" })
-    } finally { setSaving(false) }
-  }
-
-  const onDeleteLine = (itemId: number) => {
-    setDeleteItemId(itemId)
-  }
-
-  const onApprove = async () => {
-    if (!run || run.items.length === 0) {
-      toast({ title: "Add at least one staff line first", variant: "destructive" }); return
-    }
-    setActionBusy("approve")
-    try {
-      await approvePayrollRun(id)
-      toast({ title: "Run approved." })
-      await reload()
-    } catch (e: any) {
-      toast({ title: "Could not approve", description: e?.message ?? String(e), variant: "destructive" })
-    } finally { setActionBusy(null) }
-  }
-
-  const onMarkPaid = async () => {
-    if (!run?.genericCashAccountId) {
-      toast({ title: "Set a cash account on the run before paying", variant: "destructive" }); return
-    }
-    if (!confirm(`Mark this run Paid? This will debit ${fmt(run.totalNetPay)} from ${run.cashAccountName ?? "the cash account"}.`)) return
-    setActionBusy("pay")
-    try {
-      await markPayrollRunPaid(id)
-      toast({ title: "Run marked Paid; cash debited." })
-      await reload()
-    } catch (e: any) {
-      toast({ title: "Could not mark paid", description: e?.message ?? String(e), variant: "destructive" })
-    } finally { setActionBusy(null) }
-  }
-
-  // Cancelling asks for a reason picked from a list ("Other" lets them type one).
-  const [cancelOpen, setCancelOpen] = useState(false)
-  const onCancel = () => setCancelOpen(true)
-  const confirmCancel = async (reason: string) => {
-    setActionBusy("cancel")
-    try {
-      await cancelPayrollRun(id, reason || undefined)
-      toast({ title: "Run cancelled." })
-      await reload()
-    } catch (e: any) {
-      toast({ title: "Could not cancel", description: e?.message ?? String(e), variant: "destructive" })
-    } finally { setActionBusy(null) }
-  }
+  const run = data?.run
+  const ytd = data?.ytdTotals
+  const exp = data?.linkedExpense
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -230,236 +60,146 @@ export default function GenericPayrollRunDetailPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="mb-4">
-            <Link href="/generic-payroll" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700">
-              <ArrowLeft className="h-4 w-4 mr-1" /> Back to payroll
-            </Link>
-          </div>
+          <Button asChild variant="ghost" size="sm" className="mb-2 -ml-2 text-slate-600">
+            <Link href="/generic-payroll"><ArrowLeft className="h-4 w-4 mr-1" /> Back to Payroll</Link>
+          </Button>
 
           {loading ? (
-            <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+            <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
           ) : !run ? (
-            <Card><CardContent className="py-8 text-center text-slate-500">Payroll run not found.</CardContent></Card>
+            <div className="p-8 text-center text-slate-500">Payroll run not found.</div>
           ) : (
             <>
-              {/* Header card */}
-              <Card className="mb-4">
-                <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      Payroll run #{run.genericPayrollRunId}
-                      <Badge className={statusBadgeClass(run.status)}>{run.status}</Badge>
-                    </CardTitle>
-                    <p className="text-sm text-slate-500 mt-1">
-                      Period {run.periodStart.slice(0, 10)} → {run.periodEnd.slice(0, 10)}
-                      {run.payDate ? ` · Pay date ${run.payDate.slice(0, 10)}` : ""}
-                      {run.cashAccountName ? ` · Pay from ${run.cashAccountName}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isDraft && (
-                      <Button onClick={onApprove} disabled={actionBusy !== null}>
-                        {actionBusy === "approve" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                        Approve
-                      </Button>
-                    )}
-                    {isApproved && (
-                      <Button onClick={onMarkPaid} disabled={actionBusy !== null} className="bg-emerald-600 hover:bg-emerald-700">
-                        {actionBusy === "pay" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wallet className="h-4 w-4 mr-2" />}
-                        Mark paid
-                      </Button>
-                    )}
-                    {!isCancelled && (
-                      <Button variant="outline" onClick={onCancel} disabled={actionBusy !== null} className="text-rose-700 hover:bg-rose-50">
-                        {actionBusy === "cancel" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <div className="text-slate-500">Gross pay</div>
-                      <div className="text-lg font-semibold">{fmt(run.totalGrossPay)}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500">Deductions</div>
-                      <div className="text-lg font-semibold">{fmt(run.totalDeductions)}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500">Net pay</div>
-                      <div className="text-lg font-semibold text-emerald-700">{fmt(run.totalNetPay)}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500">Staff lines</div>
-                      <div className="text-lg font-semibold">{run.items.length}</div>
-                    </div>
-                  </div>
-                  {run.notes && (
-                    <div className="mt-4 text-sm">
-                      <div className="text-slate-500 mb-1">Notes</div>
-                      <div className="whitespace-pre-line">{run.notes}</div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+                  <Banknote className="h-6 w-6 text-green-600" />
+                  Payroll · {d(run.periodStart)} → {d(run.periodEnd)}
+                </h1>
+                <Badge className={STATUS_STYLE[run.status] ?? ""}>{run.status}</Badge>
+              </div>
 
-              {/* Items */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-base">Staff lines</CardTitle>
-                  {isDraft && (
-                    <Dialog open={open} onOpenChange={setOpen}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" onClick={openAddLine} disabled={eligibleStaffForNewLine.length === 0}>
-                          <Plus className="h-4 w-4 mr-1" />Add line
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{editingItemId == null ? "Add staff line" : "Edit staff line"}</DialogTitle>
-                          <DialogDescription>Net pay = Basic + Daily wage + Commission + Bonus − Deductions.</DialogDescription>
-                        </DialogHeader>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="md:col-span-2">
-                            <Label>Staff *</Label>
-                            <Select
-                              value={form.genericStaffId}
-                              onValueChange={(v) => setForm((f) => ({ ...f, genericStaffId: v }))}
-                              disabled={editingItemId != null}
-                            >
-                              <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
-                              <SelectContent>
-                                {(editingItemId == null ? eligibleStaffForNewLine : staff).map((s) => (
-                                  <SelectItem key={s.genericStaffId} value={String(s.genericStaffId)}>
-                                    {s.firstName} {s.lastName} — {s.role}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div><Label>Basic pay</Label>
-                            <NumberInput step="0.01" min="0" value={form.basicPay} onChange={(e) => setForm((f) => ({ ...f, basicPay: e.target.value }))} /></div>
-                          <div><Label>Daily wage</Label>
-                            <NumberInput step="0.01" min="0" value={form.dailyWage} onChange={(e) => setForm((f) => ({ ...f, dailyWage: e.target.value }))} /></div>
-                          <div><Label>Commission</Label>
-                            <NumberInput step="0.01" min="0" value={form.commission} onChange={(e) => setForm((f) => ({ ...f, commission: e.target.value }))} /></div>
-                          <div><Label>Bonus</Label>
-                            <NumberInput step="0.01" min="0" value={form.bonus} onChange={(e) => setForm((f) => ({ ...f, bonus: e.target.value }))} /></div>
-                          <div><Label>Deductions</Label>
-                            <NumberInput step="0.01" min="0" value={form.deductions} onChange={(e) => setForm((f) => ({ ...f, deductions: e.target.value }))} /></div>
-                          <div>
-                            <Label>Payment method</Label>
-                            <Select value={form.paymentMethod} onValueChange={(v) => setForm((f) => ({ ...f, paymentMethod: v }))}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
-                              <SelectContent>{PAYMENT_METHODS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </div>
-                          <div className="md:col-span-2">
-                            <Label>Notes</Label>
-                            <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                          <Button onClick={onSaveLine} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Save</Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-                </CardHeader>
-                <CardContent className="p-0">
-                  {run.items.length === 0 ? (
-                    <div className="py-8 text-center text-slate-500 text-sm">No staff lines yet. {isDraft && "Click \"Add line\" to start."}</div>
-                  ) : (
+              {/* Run summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Gross pay</div><div className="text-xl font-semibold tabular-nums">{gh(run.totalGrossPay)}</div></CardContent></Card>
+                <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Deductions</div><div className="text-xl font-semibold tabular-nums text-rose-600">{gh(run.totalDeductions)}</div></CardContent></Card>
+                <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Net pay</div><div className="text-xl font-semibold tabular-nums text-green-700">{gh(run.totalNetPay)}</div></CardContent></Card>
+                <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Pay date</div><div className="text-xl font-semibold">{d(run.payDate)}</div></CardContent></Card>
+              </div>
+
+              {/* Employee breakdown */}
+              <Card className="mb-4">
+                <CardContent className="p-4">
+                  <div className="mb-2 font-medium text-slate-700">Employee breakdown</div>
+                  <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Staff</TableHead>
-                          <TableHead className="text-right">Basic</TableHead>
-                          <TableHead className="text-right">Daily</TableHead>
-                          <TableHead className="text-right">Commission</TableHead>
-                          <TableHead className="text-right">Bonus</TableHead>
-                          <TableHead className="text-right">Deductions</TableHead>
-                          <TableHead className="text-right">Net</TableHead>
-                          <TableHead>Method</TableHead>
-                          {isDraft && <TableHead></TableHead>}
+                          <TableHead>Staff</TableHead><TableHead>Role</TableHead>
+                          <TableHead className="text-right">Basic</TableHead><TableHead className="text-right">Daily</TableHead>
+                          <TableHead className="text-right">Commission</TableHead><TableHead className="text-right">Bonus</TableHead>
+                          <TableHead className="text-right">Deductions</TableHead><TableHead className="text-right">Net</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {run.items.map((it) => (
-                          <TableRow
-                            key={it.genericPayrollItemId}
-                            className={isDraft ? "cursor-pointer hover:bg-slate-50" : undefined}
-                            onClick={isDraft ? () => openEditLine(it.genericPayrollItemId) : undefined}
-                          >
-                            <TableCell className="font-medium">
-                              {it.staffName} <span className="text-slate-400 text-xs">({it.staffRole})</span>
-                            </TableCell>
-                            <TableCell className="text-right">{fmt(it.basicPay)}</TableCell>
-                            <TableCell className="text-right">{fmt(it.dailyWage)}</TableCell>
-                            <TableCell className="text-right">{fmt(it.commission)}</TableCell>
-                            <TableCell className="text-right">{fmt(it.bonus)}</TableCell>
-                            <TableCell className="text-right">{fmt(it.deductions)}</TableCell>
-                            <TableCell className="text-right font-semibold text-emerald-700">{fmt(it.netPay)}</TableCell>
-                            <TableCell>{it.paymentMethod ?? "—"}</TableCell>
-                            {isDraft && (
-                              <TableCell>
-                                <Button
-                                  size="icon" variant="ghost"
-                                  className="text-rose-600 hover:bg-rose-50"
-                                  onClick={(e) => { e.stopPropagation(); onDeleteLine(it.genericPayrollItemId) }}
-                                  title="Remove line"
-                                ><Trash2 className="h-4 w-4" /></Button>
-                              </TableCell>
-                            )}
+                        {(run.items ?? []).length === 0 ? (
+                          <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-4">No staff lines.</TableCell></TableRow>
+                        ) : (run.items ?? []).map((it) => (
+                          <TableRow key={it.genericPayrollItemId}>
+                            <TableCell className="font-medium">{it.staffName ?? `#${it.genericStaffId}`}</TableCell>
+                            <TableCell>{it.staffRole ?? "—"}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(it.basicPay)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(it.dailyWage)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(it.commission)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(it.bonus)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(it.deductions)}</TableCell>
+                            <TableCell className="text-right tabular-nums font-semibold">{gh(it.netPay)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
 
-              {(isApproved || isPaid) && (
-                <p className="text-xs text-slate-500 mt-3">
-                  {isApproved
-                    ? "Run is approved. Click \"Mark paid\" to debit the cash account."
-                    : `Paid on ${run.paidAt ? new Date(run.paidAt).toLocaleString() : "—"} by ${run.paidBy ?? "—"}. A CashOut transaction was written for ${fmt(run.totalNetPay)}.`}
-                </p>
+              {/* YTD */}
+              {ytd && (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <Card><CardContent className="p-4"><div className="text-xs text-slate-500">YTD gross ({ytd.year})</div><div className="text-lg font-semibold tabular-nums">{gh(ytd.ytdGrossPaid)}</div></CardContent></Card>
+                    <Card><CardContent className="p-4"><div className="text-xs text-slate-500">YTD net paid</div><div className="text-lg font-semibold tabular-nums text-green-700">{gh(ytd.ytdNetPaid)}</div></CardContent></Card>
+                    <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Payroll runs</div><div className="text-lg font-semibold">{ytd.totalPayrollRuns}</div></CardContent></Card>
+                    <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Staff paid</div><div className="text-lg font-semibold">{ytd.totalStaffPaid}</div></CardContent></Card>
+                  </div>
+
+                  {data!.ytdByStaff.length > 0 && (
+                    <Card className="mb-4">
+                      <CardContent className="p-4">
+                        <div className="mb-2 font-medium text-slate-700">Year-to-date by staff ({ytd.year})</div>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Staff</TableHead><TableHead>Role</TableHead>
+                                <TableHead className="text-right">YTD gross</TableHead>
+                                <TableHead className="text-right">YTD deductions</TableHead>
+                                <TableHead className="text-right">YTD net</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {data!.ytdByStaff.map((s) => (
+                                <TableRow key={s.genericStaffId}>
+                                  <TableCell className="font-medium">{s.staffName ?? `#${s.genericStaffId}`}</TableCell>
+                                  <TableCell>{s.staffRole ?? "—"}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{gh(s.ytdGross)}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{gh(s.ytdDeductions)}</TableCell>
+                                  <TableCell className="text-right tabular-nums font-semibold">{gh(s.ytdNet)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
               )}
+
+              {/* Linked expense + audit */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="mb-2 font-medium text-slate-700">Linked expense</div>
+                    {exp ? (
+                      <dl className="text-sm space-y-1">
+                        <div className="flex justify-between"><dt className="text-slate-500">Category</dt><dd>{exp.category ?? "Payroll"}</dd></div>
+                        <div className="flex justify-between"><dt className="text-slate-500">Amount</dt><dd className="tabular-nums font-medium">{gh(exp.amount)}</dd></div>
+                        <div className="flex justify-between"><dt className="text-slate-500">Date</dt><dd>{d(exp.expenseDate)}</dd></div>
+                        <div className="flex justify-between"><dt className="text-slate-500">Description</dt><dd className="text-right">{exp.description ?? "—"}</dd></div>
+                      </dl>
+                    ) : (
+                      <p className="text-sm text-slate-500">No separate expense: Profit &amp; Loss counts the run's gross pay once it is paid.</p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="mb-2 font-medium text-slate-700">Audit</div>
+                    <dl className="text-sm space-y-1">
+                      <div className="flex justify-between"><dt className="text-slate-500">Created by</dt><dd>{run.createdBy ?? "—"}</dd></div>
+                      <div className="flex justify-between"><dt className="text-slate-500">Approved</dt><dd>{run.approvedBy ? `${run.approvedBy} · ${d(run.approvedAt)}` : "—"}</dd></div>
+                      <div className="flex justify-between"><dt className="text-slate-500">Paid</dt><dd>{run.paidBy ? `${run.paidBy} · ${d(run.paidAt)}` : "—"}</dd></div>
+                      {run.reopenedBy && <div className="flex justify-between"><dt className="text-slate-500">Reopened</dt><dd>{run.reopenedBy} · {d(run.reopenedAt)}</dd></div>}
+                      {run.reopenReason && <div className="flex justify-between"><dt className="text-slate-500">Reopen reason</dt><dd className="text-right">{run.reopenReason}</dd></div>}
+                      {run.reapprovedBy && <div className="flex justify-between"><dt className="text-slate-500">Reapproved</dt><dd>{run.reapprovedBy} · {d(run.reapprovedAt)}</dd></div>}
+                      <div className="flex justify-between"><dt className="text-slate-500">Cash account</dt><dd>{run.cashAccountName ?? "—"}</dd></div>
+                    </dl>
+                  </CardContent>
+                </Card>
+              </div>
             </>
           )}
         </main>
       </div>
-
-      <PromptDialog
-        open={cancelOpen}
-        onOpenChange={setCancelOpen}
-        title="Cancel this payroll run?"
-        options={CANCEL_REASONS}
-        label="Reason"
-        confirmLabel="Cancel run"
-        confirmVariant="destructive"
-        singleLine
-        onSubmit={confirmCancel}
-      />
-
-      <ConfirmDeleteDialog
-        open={deleteItemId !== null}
-        onOpenChange={(o) => { if (!o) setDeleteItemId(null) }}
-        title="Remove this payroll line?"
-        description="This staff line will be removed from the run."
-        confirmLabel="Remove"
-        successTitle="Line removed."
-        errorTitle="Could not remove line"
-        onConfirm={async () => {
-          if (deleteItemId === null) return
-          await deletePayrollItem(deleteItemId)
-          await reload()
-        }}
-      />
     </div>
   )
 }

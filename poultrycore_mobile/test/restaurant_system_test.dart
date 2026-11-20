@@ -14,10 +14,13 @@ import 'support/harness.dart';
 final restaurant = Company(farmId: 'farm-1', name: 'Rose Bistro', type: CompanyType.restaurant, role: 'Admin');
 
 void main() {
-  test('System menu: Users & Permissions, Account, Alerts, Companies, Billing, Activity Log, Terms', () {
-    final system = webNavGroups['restaurant']!.firstWhere((g) => g.title == 'System');
-    expect([for (final l in system.subGroups.single.links) l.label],
-        ['Users & Permissions', 'Account', 'Alerts', 'Companies', 'Billing', 'Activity Log', 'Terms & Conditions']);
+  test('System menu: Account, My Account, Companies, Billing; the rest stay on the All pages sheet', () {
+    final groups = webNavGroups['restaurant']!;
+    final system = groups.firstWhere((g) => g.title == 'System');
+    expect([for (final l in system.subGroups.single.links) l.label], ['Account', 'My Account', 'Companies', 'Billing']);
+    final more = groups.firstWhere((g) => g.title == 'More pages');
+    expect([for (final l in more.subGroups.single.links) l.label],
+        ['Users & Permissions', 'Alerts', 'Activity Log', 'Terms & Conditions', 'QR Codes']);
     expect(staffPagePath(CompanyType.restaurant), '/restaurant-staff');
   });
 

@@ -1,3 +1,4 @@
+import '../egg_packaging.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -12,8 +13,11 @@ import '../reports/report_format.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'sale_reversal.dart' show customerCreditTotal;
+import '../bird_pricing.dart';
+import '../flock_type.dart' show isBroilerBatch, isBroilerFlock, shouldSwitchToChicken, broilerSaleProduct;
 import 'sales_logic.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 export 'sales_logic.dart' show defaultCashAccountId;
 
 /// What a saved sale hands back to the Sales page: enough to offer the
@@ -55,7 +59,11 @@ class SaleFormScreen extends StatefulWidget {
     this.eggClasses = const [],
     this.eggsPerCrate = 30,
     this.correcting,
+    this.packaging,
   });
+
+  /// The farm's egg packaging (393); null = boxes off.
+  final EggPackaging? packaging;
   final Session session;
   final Company company;
   final List<Map> flocks;
@@ -107,6 +115,11 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
 
   List<Map> get _classes => widget.eggClasses;
   int get _epc => widget.eggsPerCrate;
+  EggPackaging get _pk => widget.packaging ?? EggPackaging(eggsPerCrate: _epc);
+
+  /// Which price the Unit price box edits, per line. Display only: the line
+  /// always keeps a crate price, plus a box / egg price when one was typed.
+  final Map<String, String> _priceUnit = {};
 
   @override
   void initState() {
@@ -117,7 +130,16 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     final fix = widget.correcting;
     if (fix != null) {
       f = SaleForm.correctionOf(fix.sale,
-          creditKept: fix.creditKept, defaultAccount: defaultCashAccountId(widget.cashAccounts), eggsPerCrate: _epc, flocks: widget.flocks);
+          creditKept: fix.creditKept, defaultAccount: defaultCashAccountId(widget.cashAccounts), eggsPerCrate: _epc, flocks: widget.flocks, packaging: _pk);
+      if (f.packagingRewritten) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            trackerToast(context, 'Packaging has changed since this sale',
+                description:
+                    "The corrected sale keeps exactly the same number of eggs, written in today's boxes and crates. Check the quantities and prices before saving.");
+          }
+        });
+      }
       if (f.creditAmount != null) _creditCtl.text = _jsNum(f.creditAmount!);
       final names = [for (final c in widget.customers) tStr(c['name'])];
       if (f.customerName.isNotEmpty && !names.contains(f.customerName)) {
@@ -125,12 +147,12 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         _otherCustomer.text = f.customerName;
       }
     } else {
-      f = SaleForm(eggsPerCrate: _epc)
+      f = SaleForm(eggsPerCrate: _epc, packaging: _pk)
         ..saleDate = isoDay(DateTime.now().toUtc())
         ..cashAccountId = defaultCashAccountId(widget.cashAccounts);
       // A new egg sale with no price yet starts at its class's price.
       final p = classPrice(_classes, null);
-      if (p != null) f.first.unitPrice = p;
+      if (p != null) f.setClass(f.first, null, _classes);
     }
     _desc.text = f.saleDescription;
     final api = widget.session.farmClient;
@@ -189,13 +211,164 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
 
   /// Code changed a line's numbers (a product switch, a class price): show them.
   void _sync(SaleItem l) {
-    for (final (field, v) in [('crates', l.crates), ('loose', l.loose), ('qty', l.quantity), ('price', l.unitPrice)]) {
+    for (final (field, v) in [('boxes', l.boxes), ('crates', l.crates), ('loose', l.loose), ('qty', l.quantity), ('price', _shownPrice(l))]) {
       final c = _ctl['${l.key}:$field'];
       if (c != null && num.tryParse(c.text) != v) c.text = _jsNum(v);
     }
   }
 
+  String _unitOf(SaleItem l) {
+    final u = _priceUnit[l.key] ?? 'Crate';
+    return !l.boxesOn && u == 'Box' ? 'Crate' : u;
+  }
+
+  num _round2(num n) => (n * 100 + 1e-9).round() / 100;
+
+  /// What the Unit price box shows for the chosen Price unit.
+  num _shownPrice(SaleItem l) {
+    // 401: per kg, the box is the price per kg.
+    if (l.perKg) return l.bird.pricePerKg ?? 0;
+    if (!l.isEggs) return l.unitPrice;
+    return switch (_unitOf(l)) {
+      'Box' => effectiveBoxPrice(l.unitPrice, l.pricePerBox, _pk),
+      'Egg' => _round2(effectivePiecePrice(l.unitPrice, l.pricePerPiece, _pk)),
+      _ => l.unitPrice,
+    };
+  }
+
+  /// The typed price sets the other two, so a box, a crate and an egg are
+  /// always priced from the same figure (the crate price kept to the cent).
+  void _setPrice(SaleItem l, num v) {
+    if (l.perKg) {
+      l.bird = l.bird.copyWith(pricePerKg: () => v);
+      f.syncFirstPerKg();
+      return;
+    }
+    final unit = _unitOf(l);
+    if (!l.isEggs || unit == 'Crate') {
+      l.unitPrice = v;
+      if (l.isEggs) {
+        l.pricePerBox = null;
+        l.pricePerPiece = null;
+      }
+    } else if (unit == 'Box') {
+      l.pricePerBox = v;
+      l.unitPrice = _round2(v / (boxSize(_pk) ?? 1));
+      l.pricePerPiece = null;
+    } else {
+      l.pricePerPiece = v;
+      l.unitPrice = _round2(v * _pk.eggsPerCrate);
+      l.pricePerBox = null;
+    }
+  }
+
   void _toast(String msg) => trackerToast(context, 'Almost there', description: msg);
+
+  // ------------------------------------------------ 401: broilers on the form
+
+  /// Broiler birds are sold as Chicken. Picking a broiler flock or batch
+  /// switches line 1's product, only away from eggs or a blank product.
+  void _chickenForBroiler(bool broiler) {
+    if (!broiler || !shouldSwitchToChicken(f.first.product)) return;
+    f.setProduct(f.first, broilerSaleProduct, _classes, widget.products);
+    _sync(f.first);
+  }
+
+  /// Flocks still inside a meat withdrawal period on the sale date
+  /// (`GET /Sale/meat-withdrawal`). A warning the seller must acknowledge,
+  /// never a refusal: the farm decides.
+  List<Map> _withdrawals = const [];
+  bool _ackWithdrawal = false;
+  String? _withdrawalFor;
+  (int, int?)? _ackFor;
+
+  bool get _anyBirdLine => f.items.any((l) => l.isBird);
+
+  List<Map> get _shownWithdrawals {
+    if (!_anyBirdLine) return const [];
+    final flock = f.flockId ?? 0;
+    return flock != 0 ? _withdrawals.where((w) => tIntOrNull(w['flockId']) == flock).toList() : _withdrawals;
+  }
+
+  /// Re-asks when the date or "is a bird being sold" changes; untick when the
+  /// list or the flock changes. Run from build, as the web's effects run.
+  void _watchWithdrawals() {
+    final key = _anyBirdLine && f.saleDate.isNotEmpty ? f.saleDate : null;
+    if (key != _withdrawalFor) {
+      _withdrawalFor = key;
+      if (key == null) {
+        _withdrawals = const [];
+      } else {
+        widget.session.farmClient
+            .get('/api/Sale/meat-withdrawal', query: {'farmId': widget.company.farmId, 'date': key.length >= 10 ? key.substring(0, 10) : key})
+            .then((res) {
+              if (mounted && _withdrawalFor == key) setState(() => _withdrawals = rowsOf(res));
+            })
+            .catchError((Object _) {
+              // A warning that cannot load must not block selling.
+            });
+      }
+    }
+    final ack = (_shownWithdrawals.length, f.flockId);
+    if (ack != _ackFor) {
+      _ackFor = ack;
+      _ackWithdrawal = false;
+    }
+  }
+
+  static String _localDate(Object? iso) {
+    final d = DateTime.tryParse('${iso ?? ''}'.split('T').first);
+    String two(int n) => n.toString().padLeft(2, '0');
+    return d == null ? '${iso ?? ''}' : '${two(d.day)}/${two(d.month)}/${d.year}';
+  }
+
+  Widget _withdrawalBanner() {
+    final list = _shownWithdrawals;
+    return Container(
+      key: const ValueKey('meat-withdrawal'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: TColors.amber50,
+        border: Border.all(color: const Tone.line(0xFFFCD34D)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Icon(Icons.warning_amber_rounded, size: 16, color: Tone.fg(0xFF78350F)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('${(f.flockId ?? 0) != 0 ? 'This flock is' : 'Some flocks are'} still inside a meat withdrawal period',
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Tone.fg(0xFF78350F))),
+            const SizedBox(height: 4),
+            for (final w in list)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text.rich(
+                  TextSpan(children: [
+                    const TextSpan(text: '• '),
+                    TextSpan(text: tStr(w['flockName']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    TextSpan(
+                        text: ': ${tStr(w['itemName'])}, last given ${_localDate(w['lastDoseDate'])}, '
+                            'meat withdrawal until ${_localDate(w['withdrawalUntil'])}'),
+                  ]),
+                  style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF78350F)),
+                ),
+              ),
+            const SizedBox(height: 4),
+            _checkLine(
+              _ackWithdrawal,
+              (v) => setState(() => _ackWithdrawal = v),
+              const Text('I have checked these birds can be sold. Record the sale anyway.',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF78350F))),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
 
   Future<void> _save() async {
     if (_saving) return;
@@ -206,7 +379,11 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
       return;
     }
     final sp = f.firstStockProduct(widget.products);
-    final msg = f.validate(available: f.firstAvailable(widget.products), stockUnits: stockUnitLabel(sp));
+    final msg = f.validate(
+      available: f.firstAvailable(widget.products),
+      stockUnits: stockUnitLabel(sp),
+      withdrawalUnacknowledged: _shownWithdrawals.isNotEmpty && !_ackWithdrawal,
+    );
     if (msg != null) return _toast(msg);
     if (!f.noMoneyNow && f.cashAccountId == null) {
       trackerToast(context, 'Cash account required', description: 'Choose which cash account this sale is received into.', error: true);
@@ -375,7 +552,105 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     ],
   );
 
-  Widget _num(TextEditingController c, ValueChanged<String> on, {bool decimal = false, String hint = '0'}) => AppInput(
+  /// What the quantity comes to, and the conversion and prices behind the total.
+  Widget _amountPanel(SaleItem l, int eggs) {
+    String pl(int n, String one, String many) => n == 1 ? one : many;
+    final parts = [
+      if (l.boxesOn && l.boxes > 0) '${thousands(l.boxes)} ${pl(l.boxes, 'Box', 'Boxes')}',
+      if (l.crates > 0) '${thousands(l.crates)} ${pl(l.crates, 'Crate', 'Crates')}',
+      if (l.loose > 0) '${thousands(l.loose)} ${pl(l.loose, 'Egg', 'Eggs')}',
+    ];
+    final cpb = boxSize(_pk) ?? 0;
+    String m(num n) => n.toStringAsFixed(2);
+    return Container(
+      key: ValueKey('${l.key}:amount'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(color: const Tone.bg(0xB3FFFBEB), border: Border.all(color: const Tone.line(0xFFFEF3C7)), borderRadius: BorderRadius.circular(6)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(color: TColors.amber100, borderRadius: BorderRadius.circular(6)),
+            child: const Icon(Icons.inventory_2_outlined, size: 16, color: TColors.amber700),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('${parts.join(' + ')} = ${thousands(eggs)} ${pl(eggs, 'Egg', 'Eggs')}',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate800)),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        if (l.boxesOn) ...[
+          _small('Box conversion: 1 Box = $cpb Crates = ${thousands(cpb * _pk.eggsPerCrate)} Eggs'),
+          _small('Box ${m(effectiveBoxPrice(l.unitPrice, l.pricePerBox, _pk))} · Crate ${m(l.unitPrice)} · '
+              'Egg ${m(effectivePiecePrice(l.unitPrice, l.pricePerPiece, _pk))}'),
+        ] else ...[
+          _small('1 Crate = ${_pk.eggsPerCrate} Eggs'),
+          if (l.loose > 0) _small('Pieces charged pro rata from the crate price'),
+        ],
+      ]),
+    );
+  }
+
+  /// 401: the live weight. Required per kg; per bird it is optional and feeds
+  /// the flock's kg-sold and feed-conversion figures.
+  Widget _birdPanel(SaleItem l) {
+    final bp = l.bird;
+    final avg = avgKgPerBird(l.quantity, bp.liveWeightKg);
+    final total = l.total(_epc);
+    final kgCtl = _ctl.putIfAbsent('${l.key}:kg', () => TextEditingController(text: bp.liveWeightKg == null ? '' : _jsNum(bp.liveWeightKg!)));
+    return Container(
+      key: ValueKey('${l.key}:bird'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: const Tone.bg(0xB3F0F9FF), border: Border.all(color: const Tone.line(0xFFE0F2FE)), borderRadius: BorderRadius.circular(6)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(6)),
+            child: const Icon(Icons.scale_outlined, size: 16, color: Tone.fg(0xFF0369A1)),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 144,
+            child: _label(
+              'Live weight (kg)${bp.perKg ? ' *' : ''}',
+              color: TColors.slate600,
+              _num(kgCtl, (v) => setState(() {
+                final kg = num.tryParse(v);
+                l.bird = l.bird.copyWith(liveWeightKg: () => v.isEmpty ? null : (kg == null || kg < 0 ? 0 : kg));
+                f.syncFirstPerKg();
+              }), decimal: true, hint: bp.perKg ? '0.0' : 'Optional', key: ValueKey('${l.key}:kg')),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        if (avg != null) _small('Average ${avg.toStringAsFixed(2)} kg a bird', color: TColors.slate600),
+        if (bp.perKg)
+          Text.rich(
+            TextSpan(children: [
+              TextSpan(text: '${fmtNum(bp.liveWeightKg ?? 0, 3)} kg × ${_money(bp.pricePerKg ?? 0)} = '),
+              TextSpan(text: _money(total), style: const TextStyle(fontWeight: FontWeight.w700)),
+              if (l.quantity > 0) TextSpan(text: ' · ${_money(perBirdPrice(total, l.quantity))} a bird'),
+            ]),
+            key: ValueKey('${l.key}:bird-sum'),
+            style: const TextStyle(fontSize: 12, color: TColors.slate600),
+          )
+        else
+          _small(
+            (bp.liveWeightKg ?? 0) > 0
+                ? "Weight kept for the flock's kg sold and feed conversion."
+                : 'Add the weight to track kg sold and feed conversion.',
+            color: TColors.slate600,
+          ),
+      ]),
+    );
+  }
+
+  Widget _num(TextEditingController c, ValueChanged<String> on, {bool decimal = false, String hint = '0', Key? key}) => AppInput(
+    key: key,
     controller: c,
     hintText: hint,
     keyboardType: TextInputType.numberWithOptions(decimal: decimal),
@@ -461,7 +736,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
   Widget _line(int index, SaleItem l, ({num available, String units, bool short})? stock) {
     final egg = l.isEggs;
     final first = index == 1;
-    final edge = egg ? const Color(0xFFF59E0B) : const Color(0xFF0EA5E9);
+    final edge = egg ? const Tone(0xFFF59E0B) : const Tone(0xFF0EA5E9);
     final shown = [
       for (final c in _classes)
         if (c['classKind'] == 'Unsorted' || c['isActive'] == true || tIntOrNull(c['poultryProductId']) == l.eggProductId) c,
@@ -473,8 +748,8 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         Container(
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: egg ? TColors.amber200 : const Color(0xFFBAE6FD)),
+            color: Tone.bg(0xFFFFFFFF),
+            border: Border.all(color: egg ? TColors.amber200 : const Tone.line(0xFFBAE6FD)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Stack(
@@ -510,7 +785,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                         if (f.hasExtraLines)
                           IconButton(
                             tooltip: 'Remove line',
-                            icon: const Icon(Icons.close, size: 18, color: Color(0xFFEF4444)),
+                            icon: const Icon(Icons.close, size: 18, color: Tone.fg(0xFFEF4444)),
                             onPressed: () => setState(() => f.removeLine(l)),
                           ),
                       ],
@@ -574,32 +849,37 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                     ),
                     const SizedBox(height: 10),
                     if (egg)
+                      // Boxes (on a box farm) | Crates | Pieces.
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _num(_c(l, 'crates', l.crates), (v) => setState(() => l.crates = int.tryParse(v) ?? 0)),
-                                _small('crates ($_epc)'),
-                              ],
+                          if (l.boxesOn) ...[
+                            Expanded(
+                              child: _label('Boxes', color: TColors.slate500,
+                                  _num(_c(l, 'boxes', l.boxes), (v) => setState(() => l.boxes = int.tryParse(v) ?? 0), key: ValueKey('${l.key}:boxes'))),
                             ),
+                            const SizedBox(width: 8),
+                          ],
+                          Expanded(
+                            child: _label('Crates', color: TColors.slate500,
+                                _num(_c(l, 'crates', l.crates), (v) => setState(() => l.crates = int.tryParse(v) ?? 0), key: ValueKey('${l.key}:crates'))),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [_num(_c(l, 'loose', l.loose), (v) => setState(() => l.loose = int.tryParse(v) ?? 0)), _small('loose eggs')],
-                            ),
+                            child: _label('Pieces', color: TColors.slate500,
+                                _num(_c(l, 'loose', l.loose), (v) => setState(() => l.loose = int.tryParse(v) ?? 0), key: ValueKey('${l.key}:pieces'))),
                           ),
                         ],
                       )
                     else
                       _label(
-                        'Quantity',
+                        // 401: a live-bird line counts birds.
+                        l.isBird ? 'Birds' : 'Quantity',
                         color: TColors.slate500,
-                        _num(_c(l, 'qty', l.quantity), (v) => setState(() => l.quantity = num.tryParse(v) ?? 0), decimal: true),
+                        _num(_c(l, 'qty', l.quantity), (v) => setState(() {
+                          l.quantity = num.tryParse(v) ?? 0;
+                          f.syncFirstPerKg();
+                        }), decimal: true, key: ValueKey('${l.key}:qty')),
                       ),
                     const SizedBox(height: 10),
                     Row(
@@ -609,47 +889,81 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                           child: _label(
                             'Unit price',
                             color: TColors.slate500,
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _num(
-                                  _c(l, 'price', l.unitPrice),
-                                  (v) => setState(() => l.unitPrice = num.tryParse(v) ?? 0),
-                                  decimal: true,
-                                  hint: '0.00',
-                                ),
-                                if (egg)
-                                  const Text(
-                                    'per crate',
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(fontSize: 11, color: TColors.slate500),
-                                  ),
-                              ],
+                            _num(
+                              _c(l, 'price', _shownPrice(l)),
+                              (v) => setState(() => _setPrice(l, num.tryParse(v) ?? 0)),
+                              decimal: true,
+                              hint: '0.00',
+                              key: ValueKey('${l.key}:price'),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _label(
+                            'Price unit',
+                            color: TColors.slate500,
+                            l.isBird
+                                ? AppSelect<BirdPricingBasis>(
+                                    key: ValueKey('${l.key}:bird-unit'),
+                                    value: l.bird.basis,
+                                    items: const [
+                                      AppSelectItem(value: BirdPricingBasis.perBird, label: 'Per bird'),
+                                      AppSelectItem(value: BirdPricingBasis.perKg, label: 'Per kg'),
+                                    ],
+                                    onChanged: (v) {
+                                      if (v == null) return;
+                                      setState(() {
+                                        l.bird = l.bird.copyWith(basis: v);
+                                        f.syncFirstPerKg();
+                                        _sync(l);
+                                      });
+                                    },
+                                  )
+                                : egg
+                                ? AppSelect<String>(
+                                    key: ValueKey('${l.key}:unit'),
+                                    value: _unitOf(l),
+                                    items: [
+                                      if (l.boxesOn) const AppSelectItem(value: 'Box', label: 'Per Box'),
+                                      const AppSelectItem(value: 'Crate', label: 'Per Crate'),
+                                      const AppSelectItem(value: 'Egg', label: 'Per Egg'),
+                                    ],
+                                    onChanged: (v) {
+                                      if (v == null) return;
+                                      setState(() {
+                                        _priceUnit[l.key] = v;
+                                        _sync(l);
+                                      });
+                                    },
+                                  )
+                                : const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 12),
+                                    child: Text('Per unit', style: TextStyle(fontSize: 14, color: TColors.slate500)),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             const Text('Line total', style: TextStyle(fontSize: 12, color: TColors.slate500)),
-                            const SizedBox(height: 6),
                             Text(
                               l.total(_epc).toStringAsFixed(2),
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: TColors.emerald700),
+                              key: ValueKey('${l.key}:total'),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: TColors.emerald700),
                             ),
-                            if (egg) const SizedBox(height: 16),
                           ],
                         ),
                       ],
                     ),
-                    if (egg && eggs > 0) ...[
-                      const SizedBox(height: 6),
-                      _small(
-                        '${l.crates} crate${l.crates == 1 ? '' : 's'}${l.loose > 0 ? ' + ${l.loose} loose' : ''} = ${thousands(eggs)} eggs'
-                        '${l.loose > 0 ? ' — loose eggs charged pro rata' : ''}',
-                      ),
-                    ],
+                    if (l.isBird) ...[const SizedBox(height: 8), _birdPanel(l)],
+                    if (egg && eggs > 0) ...[const SizedBox(height: 8), _amountPanel(l, eggs)],
                     if (first) ...[const SizedBox(height: 6), _stockNotice()],
                     if (!first && stock != null) ...[
                       const SizedBox(height: 6),
@@ -699,7 +1013,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         height: 42,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: on ? color : Colors.white,
+          color: on ? color : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: on ? color : TColors.slate200, width: 2),
           borderRadius: BorderRadius.circular(8),
         ),
@@ -718,7 +1032,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: f.useCredit ? const Color(0xFFEFF6FF) : Colors.white,
+        color: f.useCredit ? const Tone.bg(0xFFEFF6FF) : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: f.useCredit ? TColors.blue300 : TColors.slate200),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -747,7 +1061,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                 Text.rich(
                   TextSpan(children: [
                     TextSpan(text: '${f.customerName} has '),
-                    TextSpan(text: _money(f.creditAvailable), style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1D4ED8))),
+                    TextSpan(text: _money(f.creditAvailable), style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFF1D4ED8))),
                     const TextSpan(text: ' of credit. No new payment is recorded and no cash moves.'),
                   ]),
                   style: const TextStyle(fontSize: 12, color: TColors.slate600),
@@ -764,7 +1078,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                 children: [
                   _label(
                     'Credit to use',
-                    color: const Color(0xFF1E40AF),
+                    color: const Tone.fg(0xFF1E40AF),
                     _num(_creditCtl, (v) => setState(() => f.creditAmount = v.isEmpty ? null : num.tryParse(v)), decimal: true, hint: '0.00'),
                   ),
                   const SizedBox(height: 6),
@@ -791,6 +1105,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _watchWithdrawals();
     final fix = widget.correcting;
     final customerValue = f.showNewCustomerInput ? '__OTHER__' : (f.customerName.isEmpty ? null : f.customerName);
     final customerNames = <String>[];
@@ -813,7 +1128,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
           decoration: const BoxDecoration(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             border: Border(top: BorderSide(color: TColors.slate200)),
           ),
           // Pinned while the form scrolls; Cancel under Record sale, as the web's phone layout.
@@ -822,7 +1137,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
                 onPressed: _saving ? null : _save,
                 child: Text(_saving ? 'Saving…' : 'Record sale · ${_money(total)}'),
               ),
@@ -853,16 +1168,16 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFEFF6FF), borderRadius: BorderRadius.circular(6)),
               child: Text(
                 '${_money(fix.creditKept)} from the reversed sale is held as customer credit. '
                 'Save this as Pay later and you will be offered to apply it -- no new money is recorded.',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF1E40AF)),
+                style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF1E40AF)),
               ),
             ),
           ],
           const SizedBox(height: 14),
-          _section('Customer & Date', TColors.blue600, const Color(0x66EFF6FF), TColors.blue200, [
+          _section('Customer & Date', Tone.bg(0xFF2563EB), const Tone.bg(0x66EFF6FF), Tone.line(0xFFBFDBFE), [
             _label(
               'Customer *',
               trailing: const Tooltip(
@@ -934,6 +1249,8 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                   f.batchId = v ?? 0;
                   // A flock from another batch no longer fits: back to All flocks.
                   if (f.batchId != 0 && (f.flockId ?? 0) != 0 && batchOfFlock(widget.flocks, f.flockId) != f.batchId) f.flockId = 0;
+                  final breed = _batches.where((b) => tIntOrNull(b['batchId']) == f.batchId).firstOrNull?['breed'];
+                  _chickenForBroiler(isBroilerBatch(f.batchId, widget.flocks, breed?.toString()));
                 }),
               ),
             ),
@@ -959,6 +1276,8 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                   // Picking a flock picks its batch too.
                   final b = batchOfFlock(widget.flocks, f.flockId);
                   if ((f.flockId ?? 0) != 0 && b != 0) f.batchId = b;
+                  final fl = widget.flocks.where((x) => tIntOrNull(x['flockId']) == f.flockId).firstOrNull;
+                  _chickenForBroiler((f.flockId ?? 0) != 0 && isBroilerFlock(fl));
                 }),
               ),
             ),
@@ -966,21 +1285,21 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
           const SizedBox(height: 16),
           _section(
             'Items',
-            const Color(0xFFF59E0B),
-            const Color(0x66FFFBEB),
-            TColors.amber200,
+            const Tone.bg(0xFFF59E0B),
+            const Tone.bg(0x66FFFBEB),
+            Tone.line(0xFFFDE68A),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-                  decoration: BoxDecoration(color: const Color(0x40FFFFFF), borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(color: const Tone.bg(0x40FFFFFF), borderRadius: BorderRadius.circular(999)),
                   child: Text('${f.items.length}', style: const TextStyle(fontSize: 12, color: Colors.white)),
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
+                    backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
                     foregroundColor: TColors.amber700,
                     minimumSize: const Size(0, 34),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -992,6 +1311,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
               ],
             ),
             [
+              if (_shownWithdrawals.isNotEmpty) _withdrawalBanner(),
               for (var i = 0; i < f.items.length; i++) _line(i + 1, f.items[i], i == 0 ? null : stock[i - 1]),
               if (anyShort && f.firstShortfall(widget.products) == 0)
                 Container(
@@ -1067,7 +1387,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          _section('Payment', const Color(0xFF16A34A), const Color(0x66F0FDF4), const Color(0xFFBBF7D0), [
+          _section('Payment', const Tone.bg(0xFF16A34A), const Tone.bg(0x66F0FDF4), const Tone.line(0xFFBBF7D0), [
             // Only when this customer holds credit: money they already paid,
             // kept for them (e.g. from a reversed sale).
             if (f.creditAvailable > 0) _creditBox(),
@@ -1082,7 +1402,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                     _statusChoice(
                       'Paid now',
                       paidNowOn,
-                      const Color(0xFF16A34A),
+                      const Tone(0xFF16A34A),
                       () => setState(() {
                         f.partPayment = false;
                         f.paid = true;
@@ -1102,7 +1422,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                     _statusChoice(
                       'Pay later',
                       payLaterOn,
-                      const Color(0xFFF59E0B),
+                      const Tone(0xFFF59E0B),
                       () => setState(() {
                         f.partPayment = false;
                         f.paid = false;
@@ -1128,7 +1448,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
+                      color: const Tone.bg(0xFFEFF6FF),
                       border: Border.all(color: TColors.blue200),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -1137,7 +1457,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                       children: [
                         _label(
                           'Amount paid now *',
-                          color: const Color(0xFF1E40AF),
+                          color: const Tone.fg(0xFF1E40AF),
                           _num(_partPaid, (v) => setState(() => f.partPaidAmount = v.isEmpty ? null : num.tryParse(v)), decimal: true, hint: '0.00'),
                         ),
                         const SizedBox(height: 8),
@@ -1168,7 +1488,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Tone.bg(0xFFFFFFFF),
                   border: Border.all(color: TColors.slate200),
                   borderRadius: BorderRadius.circular(8),
                 ),

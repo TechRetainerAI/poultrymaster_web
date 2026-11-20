@@ -14,6 +14,7 @@ import '../trackers/tracker_widgets.dart';
 import 'batch_production_logic.dart';
 import 'production_logic.dart' show fetchBirdsOnDate;
 
+import 'package:poultrycore_mobile/design/tone.dart';
 class BatchAllocateScreen extends StatefulWidget {
   const BatchAllocateScreen({super.key, required this.session, required this.company, required this.batchId, this.returnTo});
   final Session session;
@@ -361,7 +362,7 @@ class _BatchAllocateScreenState extends State<BatchAllocateScreen> {
             alignment: Alignment.centerRight,
             child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(batchNameLabel(b), style: const TextStyle(fontWeight: FontWeight.w500)),
-              TBadge(tStr(b['status']), bg: Colors.white, fg: TColors.slate800, border: TColors.slate200),
+              TBadge(tStr(b['status']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate800, border: TColors.slate200),
             ]),
           ),
         ],

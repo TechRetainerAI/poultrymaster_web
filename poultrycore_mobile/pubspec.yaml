@@ -43,9 +43,15 @@ dependencies:
   # setup wizards, Terms) in-app, signed in as the same user. See
   # lib/pages/web_page_screen.dart.
   webview_flutter: ^4.10.0
+  # The Videos player: let the YouTube embed start without a second tap
+  # (Android) and play inline (iOS). Same versions the lock already had.
+  webview_flutter_android: ^4.14.1
+  webview_flutter_wkwebview: ^3.26.1
   pdf: ^3.13.1
   http_parser: ^4.1.2
   image_picker: ^1.2.4
+  # mailto:, tel: and WhatsApp links (Contact support, Videos "Open on YouTube").
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

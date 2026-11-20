@@ -19,6 +19,7 @@ import '../sales/sales_logic.dart' show salePageSizes, isFlockClosed;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc, trackerDate, localDateKey, sortRows, toggleSort, SortState, formatEggGradeLabel;
 import '../trackers/tracker_widgets.dart';
 import 'production_logic.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'production_records_screen.dart' show ProdCard;
 
 /// resolveEggProductionFlockName: the API's name unless it is the
@@ -356,7 +357,7 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
               actions: [
                 TextButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                   onPressed: busy
                       ? null
                       : () async {
@@ -500,7 +501,7 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
 
     Widget tile(String label, String value, Color color, {String? sub}) => Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: .6, color: TColors.slate500)),
             const SizedBox(height: 2),
@@ -518,8 +519,8 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
             Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(color: const Color(0xFFFEF9C3), borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.egg_outlined, size: 20, color: Color(0xFFCA8A04)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFFEF9C3), borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.egg_outlined, size: 20, color: Tone.fg(0xFFCA8A04)),
             ),
             const SizedBox(width: 12),
             const Expanded(
@@ -531,7 +532,7 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
           ]),
           const SizedBox(height: 12),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
             onPressed: () => _openForm(),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add Egg Sorting record'),
@@ -554,7 +555,7 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                   child: Text('$active', style: const TextStyle(fontSize: 12, color: Colors.white)),
                 ),
               ],
@@ -587,7 +588,7 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
                   const Text('Get started by creating your first egg production record.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate600)),
                   const SizedBox(height: 18),
                   FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
                     onPressed: () => _openForm(),
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('Add Egg Sorting record'),
@@ -676,7 +677,7 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
           Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
             Text(_n(tNum(p['totalProduction'])), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: TColors.emerald600)),
             const Text('eggs', style: TextStyle(fontSize: 12, color: TColors.slate500)),
-            TBadge(formatEggGradeLabel(p['eggGrade']), bg: const Color(0xFFF5F3FF), fg: const Color(0xFF6D28D9), border: const Color(0xFFDDD6FE)),
+            TBadge(formatEggGradeLabel(p['eggGrade']), bg: const Tone.bg(0xFFF5F3FF), fg: const Tone.fg(0xFF6D28D9), border: const Tone.line(0xFFDDD6FE)),
             if (broken > 0) ...[
               const Text('•', style: TextStyle(color: TColors.slate400)),
               Text('${_n(broken)} broken', style: const TextStyle(fontSize: 14, color: TColors.red600)),
@@ -688,19 +689,19 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
         LayoutBuilder(builder: (context, c) {
           final w = (c.maxWidth - 8) / 2;
           return Wrap(spacing: 8, runSpacing: 8, children: [
-            SizedBox(width: w, child: kv('1st Pick', _n(tNum(p['production9AM'])), Color(0xFF1D4ED8))),
-            SizedBox(width: w, child: kv('2nd Pick', _n(tNum(p['production12PM'])), const Color(0xFFC2410C))),
-            SizedBox(width: w, child: kv('3rd Pick', _n(tNum(p['production4PM'])), const Color(0xFF7E22CE))),
-            SizedBox(width: w, child: kv('4th Pick', _n(tNum(p['production4thPick'])), const Color(0xFF0F766E))),
+            SizedBox(width: w, child: kv('1st Pick', _n(tNum(p['production9AM'])), Tone(0xFF1D4ED8))),
+            SizedBox(width: w, child: kv('2nd Pick', _n(tNum(p['production12PM'])), const Tone(0xFFC2410C))),
+            SizedBox(width: w, child: kv('3rd Pick', _n(tNum(p['production4PM'])), const Tone(0xFF7E22CE))),
+            SizedBox(width: w, child: kv('4th Pick', _n(tNum(p['production4thPick'])), const Tone(0xFF0F766E))),
             SizedBox(width: w, child: kv('Broken', _n(broken), TColors.red600)),
-            SizedBox(width: c.maxWidth, child: kv('Size', formatEggGradeLabel(p['eggGrade']), const Color(0xFF5B21B6))),
+            SizedBox(width: c.maxWidth, child: kv('Size', formatEggGradeLabel(p['eggGrade']), const Tone(0xFF5B21B6))),
           ]);
         }),
         const SizedBox(height: 10),
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+              style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
               onPressed: () => _openForm(id),
               icon: const Icon(Icons.edit_outlined, size: 16),
               label: const Text('Edit'),
@@ -711,7 +712,7 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.white,
+                  backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
                   foregroundColor: TColors.red600,
                   side: const BorderSide(color: TColors.red200),
                   minimumSize: const Size.fromHeight(40),
@@ -747,7 +748,7 @@ class _EggSortingScreenState extends State<EggSortingScreen> {
             [
               cellText(trackerDate(p['productionDate']), bold: true),
               cellText(eggFlockName(p, _flocks)),
-              cellText(formatEggGradeLabel(p['eggGrade']), color: const Color(0xFF4C1D95)),
+              cellText(formatEggGradeLabel(p['eggGrade']), color: const Tone.fg(0xFF4C1D95)),
               cellText(_n(tNum(p['production9AM']))),
               cellText(_n(tNum(p['production12PM']))),
               cellText(_n(tNum(p['production4PM']))),
@@ -1135,12 +1136,12 @@ class _EggSortingFormPageState extends State<EggSortingFormPage> {
           f,
     ];
     const colors = [
-      (Color(0xFFEFF6FF), Color(0xFFBFDBFE), Color(0xFF1E40AF), Color(0xFF1D4ED8), TColors.blue600),
-      (Color(0xFFFFF7ED), Color(0xFFFED7AA), Color(0xFF9A3412), Color(0xFFC2410C), Color(0xFFEA580C)),
-      (Color(0xFFFAF5FF), Color(0xFFE9D5FF), Color(0xFF6B21A8), Color(0xFF7E22CE), Color(0xFF9333EA)),
-      (Color(0xFFF0FDFA), Color(0xFF99F6E4), Color(0xFF115E59), Color(0xFF0F766E), Color(0xFF0D9488)),
-      (Color(0xFFF0FDFA), Color(0xFF99F6E4), Color(0xFF115E59), Color(0xFF0F766E), Color(0xFF0D9488)),
-      (Color(0xFFF0FDFA), Color(0xFF99F6E4), Color(0xFF115E59), Color(0xFF0F766E), Color(0xFF0D9488)),
+      (Tone(0xFFEFF6FF), Tone(0xFFBFDBFE), Tone(0xFF1E40AF), Tone(0xFF1D4ED8), TColors.blue600),
+      (Tone(0xFFFFF7ED), Tone(0xFFFED7AA), Tone(0xFF9A3412), Tone(0xFFC2410C), Tone(0xFFEA580C)),
+      (Tone(0xFFFAF5FF), Tone(0xFFE9D5FF), Tone(0xFF6B21A8), Tone(0xFF7E22CE), Tone(0xFF9333EA)),
+      (Tone(0xFFF0FDFA), Tone(0xFF99F6E4), Tone(0xFF115E59), Tone(0xFF0F766E), Tone(0xFF0D9488)),
+      (Tone(0xFFF0FDFA), Tone(0xFF99F6E4), Tone(0xFF115E59), Tone(0xFF0F766E), Tone(0xFF0D9488)),
+      (Tone(0xFFF0FDFA), Tone(0xFF99F6E4), Tone(0xFF115E59), Tone(0xFF0F766E), Tone(0xFF0D9488)),
     ];
     final pickRows = <(int, String)>[
       (0, labels.first),
@@ -1164,8 +1165,8 @@ class _EggSortingFormPageState extends State<EggSortingFormPage> {
                 Container(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(color: const Color(0xFFFEF9C3), borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.egg_outlined, size: 20, color: Color(0xFFCA8A04)),
+                  decoration: BoxDecoration(color: const Tone.bg(0xFFFEF9C3), borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.egg_outlined, size: 20, color: Tone.fg(0xFFCA8A04)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1252,7 +1253,7 @@ class _EggSortingFormPageState extends State<EggSortingFormPage> {
                   ],
                   Container(
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: TColors.emerald50, border: Border.all(color: const Color(0xFFA7F3D0)), borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: TColors.emerald50, border: Border.all(color: const Tone.line(0xFFA7F3D0)), borderRadius: BorderRadius.circular(8)),
                     child: Row(children: [
                       const Expanded(child: Text('Total Eggs', style: TextStyle(fontWeight: FontWeight.w600, color: TColors.emerald800))),
                       Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -1271,7 +1272,7 @@ class _EggSortingFormPageState extends State<EggSortingFormPage> {
               Row(children: [
                 Expanded(
                   child: FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: TColors.red600, minimumSize: const Size.fromHeight(44)),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), minimumSize: const Size.fromHeight(44)),
                     onPressed: busy ? null : () => Navigator.of(context).maybePop(),
                     child: const Text('Cancel'),
                   ),
@@ -1279,7 +1280,7 @@ class _EggSortingFormPageState extends State<EggSortingFormPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
                     onPressed: busy ? null : _submit,
                     child: Text(_edit ? (_saving ? 'Updating...' : 'Update Record') : (_saving ? 'Creating...' : 'Create Record')),
                   ),
@@ -1327,7 +1328,7 @@ class _EggSortingFormPageState extends State<EggSortingFormPage> {
                 height: 40,
                 alignment: Alignment.centerLeft,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
                 child: Text(loc(total), style: TextStyle(fontWeight: FontWeight.w700, color: c.$4)),
               ),
             ]),

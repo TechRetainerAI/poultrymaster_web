@@ -1,6 +1,7 @@
 import 'plumbing_fields.dart';
 import 'package:flutter/material.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// How a field should be rendered.
 enum FieldKind { text, money, number, date, status, boolean }
 
@@ -251,15 +252,15 @@ String _humanise(String key) {
   final s = raw.toLowerCase();
   if (s.contains('cancel') || s.contains('reject') || s.contains('fail') ||
       s.contains('overdue') || s.contains('unpaid')) {
-    return (bg: const Color(0xFFFEE2E2), fg: const Color(0xFF991B1B));
+    return (bg: const Tone.bg(0xFFFEE2E2), fg: const Tone.fg(0xFF991B1B));
   }
   if (s.contains('pending') || s.contains('draft') || s.contains('partial') ||
       s.contains('submitted') || s.contains('await')) {
-    return (bg: const Color(0xFFFEF3C7), fg: const Color(0xFF92400E));
+    return (bg: const Tone.bg(0xFFFEF3C7), fg: const Tone.fg(0xFF92400E));
   }
   if (s.contains('active') || s.contains('approved') || s.contains('paid') ||
       s.contains('complete') || s.contains('closed') || s.contains('settled')) {
-    return (bg: const Color(0xFFDCFCE7), fg: const Color(0xFF166534));
+    return (bg: const Tone.bg(0xFFDCFCE7), fg: const Tone.fg(0xFF166534));
   }
-  return (bg: const Color(0xFFF1F5F9), fg: const Color(0xFF334155));
+  return (bg: const Tone.bg(0xFFF1F5F9), fg: const Tone.fg(0xFF334155));
 }

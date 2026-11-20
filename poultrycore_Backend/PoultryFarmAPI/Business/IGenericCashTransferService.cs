@@ -9,5 +9,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> InsertAsync(GenericCashTransferModel m);
         Task ApproveAsync(int id, string farmId, string? approvedBy);
         Task CancelAsync(int id, string farmId);
+        Task<int> RecordAsync(GenericCashTransferModel m);
+        Task ReverseAsync(int id, string farmId, string reason, string? reversedBy);
     }
 }

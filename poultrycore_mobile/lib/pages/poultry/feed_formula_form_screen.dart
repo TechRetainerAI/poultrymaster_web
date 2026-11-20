@@ -9,6 +9,7 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import '../lookup_loader.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Setup → Production → Feed Formulas → New / Edit, as the dialog
 /// in `app/poultry-feed-formulas/page.tsx`: the formula, then its ingredient
 /// lines — each a percentage of the batch or a fixed quantity — with the
@@ -18,13 +19,34 @@ import '../lookup_loader.dart';
 /// upsert keyed on poultryFeedFormulaId). Editing loads the full formula,
 /// since the list rows carry no lines.
 class FeedFormulaFormScreen extends StatefulWidget {
-  const FeedFormulaFormScreen({super.key, required this.session, required this.company, this.existing});
+  const FeedFormulaFormScreen({super.key, required this.session, required this.company, this.existing, this.asCopy = false});
   final Session session;
   final Company company;
   final Map<String, dynamic>? existing;
 
+  /// "Copy as my own formula": [existing]'s lines, saved as a new formula
+  /// named "My `name`".
+  final bool asCopy;
+
   @override
   State<FeedFormulaFormScreen> createState() => _FeedFormulaFormScreenState();
+}
+
+/// 385: seeds the default ingredients, age-named finished feeds and 1-tonne
+/// formulas (ensureDefaultFeedFormulas in lib/api/poultry-feed-production.ts).
+/// Once per farm -- a default the farm deletes stays deleted -- unless
+/// [force], which re-adds whichever defaults are missing. Returns
+/// (formulasCreated, itemsCreated).
+Future<(int, int)> ensureDefaultFeedFormulas(Session s, Company c, {bool force = false}) async {
+  final userId = s.tokens.userId;
+  final res = await s.farmClient.post('/api/Poultry/feed-formulas/ensure-defaults', query: {
+    'farmId': c.farmId,
+    if (userId != null && userId.isNotEmpty) 'userId': userId,
+    if (force) 'force': 'true',
+  });
+  final d = res is Map && res['data'] is Map ? res['data'] as Map : res is Map ? res : const {};
+  int n(Object? v) => int.tryParse('${v ?? ''}') ?? 0;
+  return (n(d['formulasCreated']), n(d['itemsCreated']));
 }
 
 /// RAW_MATERIAL_UNITS in lib/units.ts.
@@ -67,6 +89,9 @@ class _FeedFormulaFormScreenState extends State<FeedFormulaFormScreen> {
   bool _saving = false;
   int? _formulaId;
 
+  /// Editing a default makes it the farm's own (385), so the form says so.
+  bool _isDefault = false;
+
   Map<String, dynamic> get _scope => {'farmId': widget.company.farmId};
 
   @override
@@ -101,8 +126,9 @@ class _FeedFormulaFormScreenState extends State<FeedFormulaFormScreen> {
       try {
         final f = await client.get('/api/Poultry/feed-formulas/$id', query: _scope);
         if (f is Map) {
-          _formulaId = int.tryParse('${f['poultryFeedFormulaId']}');
-          _name.text = '${f['formulaName'] ?? ''}';
+          _formulaId = widget.asCopy ? null : int.tryParse('${f['poultryFeedFormulaId']}');
+          _name.text = widget.asCopy ? 'My ${f['formulaName'] ?? ''}' : '${f['formulaName'] ?? ''}';
+          _isDefault = !widget.asCopy && f['isDefault'] == true;
           _finishedId = f['finishedFeedItemId'] == null ? '' : '${f['finishedFeedItemId']}';
           _outputUnit = '${f['defaultOutputUnit'] ?? ''}';
           _notes.text = '${f['notes'] ?? ''}';
@@ -184,12 +210,33 @@ class _FeedFormulaFormScreenState extends State<FeedFormulaFormScreen> {
     final fixedUnits = {for (final l in fixed) if (l.unit.trim().isNotEmpty) l.unit.trim()};
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.existing != null ? 'Edit Feed Formula' : 'New Feed Formula')),
+      appBar: AppBar(title: Text(widget.existing != null && !widget.asCopy ? 'Edit Feed Formula' : 'New Feed Formula')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
               children: [
+                if (_isDefault) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Tone.bg(0xFFF0F9FF),
+                      border: Border.all(color: const Tone.line(0xFFBAE6FD)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text.rich(
+                      TextSpan(children: [
+                        TextSpan(
+                            text: "This is a default formula for 1,000 kg. Saving changes makes it your farm's own formula. "
+                                'To keep the default as it is, close this and use '),
+                        TextSpan(text: 'Copy', style: TextStyle(fontWeight: FontWeight.w700)),
+                        TextSpan(text: ' instead.'),
+                      ]),
+                      style: TextStyle(fontSize: 13, color: Tone.fg(0xFF0C4A6E)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 FormSection(title: 'Formula details', color: SectionColor.blue, stackOnMobile: true, children: [
                   AppField(label: 'Formula name', required: true,
                       child: AppInput(controller: _name, hintText: 'e.g. Layer Mash Formula')),
@@ -251,7 +298,7 @@ class _FeedFormulaFormScreenState extends State<FeedFormulaFormScreen> {
                             children: [
                               Icon(pctOk ? Icons.check_circle_outline : Icons.warning_amber_rounded,
                                   size: 16,
-                                  color: pctOk ? const Color(0xFF047857) : const Color(0xFFB45309)),
+                                  color: pctOk ? const Tone.fg(0xFF047857) : const Tone.fg(0xFFB45309)),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
@@ -259,7 +306,7 @@ class _FeedFormulaFormScreenState extends State<FeedFormulaFormScreen> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500,
-                                    color: pctOk ? const Color(0xFF047857) : const Color(0xFFB45309),
+                                    color: pctOk ? const Tone.fg(0xFF047857) : const Tone.fg(0xFFB45309),
                                   ),
                                 ),
                               ),

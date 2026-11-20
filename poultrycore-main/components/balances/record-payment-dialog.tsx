@@ -94,7 +94,8 @@ export function RecordPaymentDialog({
   // 367 / 370: a poultry payment need not be applied in full -- the rest is
   // kept as the customer's / supplier's credit (applied to nothing = an advance).
   // 424 / 426: water customer and supplier payments too.
-  const allowUnallocated = module === "poultry" || module === "water"
+  // 449: Generic supplier payments too (Generic customer credit is not built this way).
+  const allowUnallocated = module === "poultry" || module === "water" || (module === "generic" && !isCustomer)
   const creditWord = isCustomer ? "customer credit" : "supplier credit"
   const docWord = isCustomer ? "sale" : "purchase"
   const { isAdmin } = usePermissions()

@@ -10,6 +10,7 @@ import '../../../widgets/module_sidebar.dart';
 import '../../poultry/trackers/tracker_widgets.dart' show TColors;
 import 'restaurant_report_routes.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 class RestaurantReportEntry {
   const RestaurantReportEntry(this.slug, this.title, this.description, this.icon, {this.dateMode = 'range', this.isNew = false});
   final String slug;
@@ -35,7 +36,7 @@ class RestaurantReportGroup {
 }
 
 const restaurantReportGroups = [
-  RestaurantReportGroup('money', 'Money', Color(0xFF059669), [
+  RestaurantReportGroup('money', 'Money', Tone(0xFF059669), [
     RestaurantReportEntry('pnl', 'Profit & Loss', 'Revenue, cost of goods, expenses and net profit for the period',
         Icons.account_balance_wallet_outlined, isNew: true),
     RestaurantReportEntry('sales-summary', 'Sales Summary', 'Every headline sales number for a date range, in one place', Icons.attach_money,
@@ -53,7 +54,7 @@ const restaurantReportGroups = [
         Icons.volunteer_activism_outlined, isNew: true),
   ]),
   // 323 / 324: every report here reads the one cash ledger.
-  RestaurantReportGroup('cash', 'Cash & Ledger', Color(0xFF0284C7), [
+  RestaurantReportGroup('cash', 'Cash & Ledger', Tone(0xFF0284C7), [
     RestaurantReportEntry('cash-flow-detail', 'Cash Flow Detail', 'Every movement with running cash, daily chart, breakdowns and analysis',
         Icons.monitor_heart_outlined, isNew: true),
     RestaurantReportEntry('cash-movement', 'Cash Movement', 'Money in, out and cash held at the end of each day', Icons.swap_vert, isNew: true),
@@ -68,7 +69,7 @@ const restaurantReportGroups = [
     RestaurantReportEntry('closing-report', 'Closing Report', 'One row per closed day: sales, money in and out, over / short',
         Icons.event_available_outlined, isNew: true),
   ]),
-  RestaurantReportGroup('sales', 'Sales', Color(0xFFE11D48), [
+  RestaurantReportGroup('sales', 'Sales', Tone(0xFFE11D48), [
     RestaurantReportEntry('daily-sales', 'Daily Sales', 'One day in full — revenue, order types and payment split', Icons.attach_money,
         dateMode: 'single'),
     RestaurantReportEntry('revenue-trend', 'Revenue Trend', 'Daily revenue and order count across the period', Icons.trending_up),
@@ -76,14 +77,14 @@ const restaurantReportGroups = [
     RestaurantReportEntry('sales-by-category', 'Sales by Category', 'Revenue and quantity sold per menu category', Icons.pie_chart_outline),
     RestaurantReportEntry('peak-hours', 'Peak Hours', 'Busiest hours of a day by orders and revenue', Icons.schedule, dateMode: 'single'),
   ]),
-  RestaurantReportGroup('menu', 'Menu & Food', Color(0xFFD97706), [
+  RestaurantReportGroup('menu', 'Menu & Food', Tone(0xFFD97706), [
     RestaurantReportEntry('menu-engineering', 'Menu Engineering', 'Popularity against margin — Stars, Plowhorses, Puzzles and Dogs',
         Icons.soup_kitchen_outlined, isNew: true),
     RestaurantReportEntry('food-cost', 'Food Cost', 'Recipe cost against selling price, margin and food cost percent', Icons.restaurant,
         dateMode: 'none'),
     RestaurantReportEntry('waste', 'Waste', 'What was thrown away, why, and what it cost', Icons.delete_outline, isNew: true),
   ]),
-  RestaurantReportGroup('operations', 'Operations', Color(0xFF2563EB), [
+  RestaurantReportGroup('operations', 'Operations', Tone(0xFF2563EB), [
     RestaurantReportEntry('kitchen-performance', 'Kitchen Performance', 'Queue and cook times per station, and the slowest item on each',
         Icons.timer_outlined, isNew: true),
     RestaurantReportEntry('table-turnover', 'Table Turnover', 'Dwell time, turns per day and revenue per cover, per table',
@@ -96,7 +97,7 @@ const restaurantReportGroups = [
     RestaurantReportEntry('stock-on-hand', 'Stock on Hand', 'Current stock against par and reorder levels, worst first',
         Icons.inventory_2_outlined, dateMode: 'none', isNew: true),
   ]),
-  RestaurantReportGroup('guests', 'Guests & Channels', Color(0xFF7C3AED), [
+  RestaurantReportGroup('guests', 'Guests & Channels', Tone(0xFF7C3AED), [
     RestaurantReportEntry('customer-retention', 'Customer Retention', 'New against returning guests, repeat rate, visits and spend',
         Icons.favorite_border, isNew: true),
     RestaurantReportEntry('feedback', 'Guest Feedback', 'Ratings by source, including QR guest ratings', Icons.star_border, isNew: true),
@@ -155,8 +156,8 @@ class RestaurantReportsCatalogScreen extends StatelessWidget {
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFFFFE4E6), borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.bar_chart, size: 22, color: Color(0xFFBE123C)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFFFE4E6), borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.bar_chart, size: 22, color: Tone.fg(0xFFBE123C)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -174,7 +175,7 @@ class RestaurantReportsCatalogScreen extends StatelessWidget {
         for (final g in restaurantReportGroups) ...[
           Container(
             clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
                 color: g.color,
@@ -198,8 +199,8 @@ class RestaurantReportsCatalogScreen extends StatelessWidget {
                             if (r.isNew)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                decoration: BoxDecoration(color: const Color(0xFFFFE4E6), borderRadius: BorderRadius.circular(999)),
-                                child: const Text('New', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFBE123C))),
+                                decoration: BoxDecoration(color: const Tone.bg(0xFFFFE4E6), borderRadius: BorderRadius.circular(999)),
+                                child: const Text('New', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Tone.fg(0xFFBE123C))),
                               ),
                           ]),
                           const SizedBox(height: 2),
@@ -207,7 +208,7 @@ class RestaurantReportsCatalogScreen extends StatelessWidget {
                         ]),
                       ),
                       // Always visible: a hover-only chevron cannot be reached on touch.
-                      const Icon(Icons.chevron_right, size: 16, color: Color(0xFFCBD5E1)),
+                      const Icon(Icons.chevron_right, size: 16, color: Tone.fg(0xFFCBD5E1)),
                     ]),
                   ),
                 ),

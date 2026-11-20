@@ -62,26 +62,32 @@ class LightTokens {
 class DarkTokens {
   const DarkTokens._();
 
-  static const background = Color(0xFF0A0A0A);
-  static const foreground = Color(0xFFFAFAFA);
-  static const card = Color(0xFF0A0A0A);
-  static const cardForeground = Color(0xFFFAFAFA);
-  static const popover = Color(0xFF0A0A0A);
-  static const popoverForeground = Color(0xFFFAFAFA);
-  static const primary = Color(0xFFFAFAFA);
-  static const primaryForeground = Color(0xFF171717);
-  static const secondary = Color(0xFF262626);
-  static const secondaryForeground = Color(0xFFFAFAFA);
-  static const muted = Color(0xFF262626);
-  static const mutedForeground = Color(0xFFA1A1A1);
-  static const accent = Color(0xFF262626);
-  static const accentForeground = Color(0xFFFAFAFA);
-  static const destructive = Color(0xFF82181A);
-  static const destructiveForeground = Color(0xFFFAFAFA);
-  static const border = Color(0xFF262626);
-  static const input = Color(0xFF262626);
-  static const ring = Color(0xFF525252);
-  static const sidebar = Color(0xFF171717);
+  // Slate-based, matching the dark values Tone (tone.dart) gives the screens'
+  // own colours: the page sits lowest, cards one step up, dialogs one more.
+  // The web's .dark block made page and card the same #0A0A0A (cards vanished)
+  // and its destructive red #82181A was unreadable on black.
+  static const background = Color(0xFF0B1120);
+  static const foreground = Color(0xFFE2E8F0);
+  static const card = Color(0xFF131C2E);
+  static const cardForeground = Color(0xFFE2E8F0);
+  static const popover = Color(0xFF1A2438);
+  static const popoverForeground = Color(0xFFE2E8F0);
+  // A raised slate-blue with white text, like the light theme's near-black
+  // button: screens put white labels on the primary colour.
+  static const primary = Color(0xFF3B4C6B);
+  static const primaryForeground = Color(0xFFF8FAFC);
+  static const secondary = Color(0xFF1E293B);
+  static const secondaryForeground = Color(0xFFE2E8F0);
+  static const muted = Color(0xFF1E293B);
+  static const mutedForeground = Color(0xFF94A3B8);
+  static const accent = Color(0xFF1E293B);
+  static const accentForeground = Color(0xFFE2E8F0);
+  static const destructive = Color(0xFFF87171);
+  static const destructiveForeground = Color(0xFF0F172A);
+  static const border = Color(0xFF2A3650);
+  static const input = Color(0xFF2A3650);
+  static const ring = Color(0xFF64748B);
+  static const sidebar = Color(0xFF131C2E);
 
   static const chart = <Color>[
     Color(0xFF1447E6),

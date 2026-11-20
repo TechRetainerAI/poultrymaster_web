@@ -307,6 +307,13 @@ builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(con
 // of the line above. Also serves the structured payroll deductions, because
 // a loan repayment deduction is the reason that table exists.
 builder.Services.AddScoped<IPoultryEmployeeLoanService>(sp => new PoultryEmployeeLoanService(connectionString));
+builder.Services.AddScoped<IPoultryEmployeeCreditService>(sp => new PoultryEmployeeCreditService(connectionString));
+builder.Services.AddScoped<IGenericEmployeeCreditService>(sp => new GenericEmployeeCreditService(connectionString));   // 450
+builder.Services.AddScoped<IGenericDeferredInventoryCostService>(sp => new GenericDeferredInventoryCostService(connectionString));   // 452
+builder.Services.AddScoped<IGenericCapitalAssetService>(sp => new GenericCapitalAssetService(connectionString));   // 453
+builder.Services.AddScoped<IGenericPayRunService>(sp => new GenericPayRunService(connectionString));                     // 451
+builder.Services.AddScoped<IGenericPayrollTemplateService>(sp => new GenericPayrollTemplateService(connectionString));   // 451
+builder.Services.AddScoped<IGenericPayrollDeductionService>(sp => new GenericPayrollDeductionService(connectionString)); // 451
 // 318. Per-user, per-company Quick Links. A preference store, not an access one.
 builder.Services.AddScoped<IUserQuickLinkService>(sp => new UserQuickLinkService(connectionString));
 // 329/330. Platform billing: the Business Office's consolidated subscription.
@@ -433,6 +440,7 @@ builder.Services.AddScoped<IGenericCompanyService>(sp => new GenericCompanyServi
 builder.Services.AddScoped<IGenericProductService>(sp => new GenericProductService(connectionString));
 builder.Services.AddScoped<IGenericServiceCatalogService>(sp => new GenericServiceCatalogService(connectionString));
 builder.Services.AddScoped<IGenericInventoryService>(sp => new GenericInventoryService(connectionString));
+builder.Services.AddScoped<IGenericProductionRecordService>(sp => new GenericProductionRecordService(connectionString));
 builder.Services.AddScoped<IGenericDeliveryService>(sp => new GenericDeliveryService(connectionString));
 builder.Services.AddScoped<IGenericDriverService>(sp => new GenericDriverService(connectionString));
 builder.Services.AddScoped<IGenericRouteService>(sp => new GenericRouteService(connectionString));
@@ -440,6 +448,7 @@ builder.Services.AddScoped<IGenericLoanService>(sp => new GenericLoanService(con
 builder.Services.AddScoped<IGenericAssetService>(sp => new GenericAssetService(connectionString));
 builder.Services.AddScoped<IGenericCustomerCreditService>(sp => new GenericCustomerCreditService(connectionString));
 builder.Services.AddScoped<IGenericSupplierCreditService>(sp => new GenericSupplierCreditService(connectionString));
+builder.Services.AddScoped<IGenericSupplierCreditsLedgerService>(sp => new GenericSupplierCreditsLedgerService(connectionString));   // 449
 builder.Services.AddScoped<IGenericDeferredCostService>(sp => new GenericDeferredCostService(connectionString));
 
 // Phase 3: Customers + Sales + Customer Payments + Cash Transactions.
@@ -490,6 +499,8 @@ builder.Services.AddScoped<IPoultryAdvancedReportService>(sp => new PoultryAdvan
 builder.Services.AddScoped<IGenericStaffService>(sp => new GenericStaffService(connectionString));
 builder.Services.AddScoped<IGenericStaffAttendanceService>(sp => new GenericStaffAttendanceService(connectionString));
 builder.Services.AddScoped<IGenericPayrollService>(sp => new GenericPayrollService(connectionString));
+// Generic Employee Loans & Advances (migration 387).
+builder.Services.AddScoped<IGenericEmployeeLoanService>(sp => new GenericEmployeeLoanService(connectionString));
 // =================================================================
 
 // =================================================================

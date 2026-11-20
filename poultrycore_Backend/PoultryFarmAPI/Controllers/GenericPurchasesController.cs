@@ -302,6 +302,29 @@ namespace PoultryFarmAPIWeb.Controllers
             await _expenses.RejectAsync(id, farmId, body.RejectionReason, approvedBy);
             return NoContent();
         }
+
+        // 448: edit (Poultry Expenses parity).
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(string farmId, int id, [FromBody] GenericExpenseModel m, [FromQuery] string? updatedBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            m.FarmId = farmId;
+            await _expenses.UpdateAsync(id, m, updatedBy ?? User?.Identity?.Name);
+            var updated = await _expenses.GetByIdAsync(id, farmId);
+            return updated is null ? NotFound() : Ok(updated);
+        }
+
+        // 448: delete. An approved expense gives its cash back first.
+        [HttpPost("{id:int}/delete")]
+        public async Task<IActionResult> Delete(string farmId, int id, [FromBody] GenericExpenseDeleteRequest? body, [FromQuery] string? deletedBy)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            await _expenses.DeleteAsync(id, farmId, body?.Reason, deletedBy ?? User?.Identity?.Name);
+            return NoContent();
+        }
     }
 
     // =========================================================================
@@ -370,6 +393,35 @@ namespace PoultryFarmAPIWeb.Controllers
             if (guard is not null) return guard;
 
             await _transfers.CancelAsync(id, farmId);
+            return NoContent();
+        }
+
+        // Record = create + approve in one database call (Poultry's "Record
+        // transfer"). A refusal leaves nothing behind, so the page can never show
+        // success for a Draft that moved no money.
+        [HttpPost("record")]
+        public async Task<ActionResult<GenericCashTransferModel>> Record(string farmId, [FromBody] GenericCashTransferModel m, [FromQuery] string? createdBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            m.FarmId = farmId;
+            m.CreatedBy ??= createdBy;
+            var newId = await _transfers.RecordAsync(m);
+            var created = await _transfers.GetByIdAsync(newId, farmId);
+            return CreatedAtAction(nameof(GetById), new { farmId, id = newId }, created);
+        }
+
+        // Undo an APPROVED transfer: two opposite ledger rows, originals kept.
+        [HttpPost("{id:int}/reverse")]
+        public async Task<IActionResult> Reverse(string farmId, int id, [FromBody] GenericCashTransferReverseRequest body, [FromQuery] string? reversedBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            await _transfers.ReverseAsync(id, farmId, body.Reason.Trim(), reversedBy);
             return NoContent();
         }
     }

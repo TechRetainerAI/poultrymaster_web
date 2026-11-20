@@ -170,6 +170,33 @@ void main() {
     });
   });
 
+  testWidgets('Farm Alerts 387: the Vaccinations tile and the Vaccinations & reminders card', (tester) async {
+    final api = FakeApi()
+      ..gets['/api/ActivityChecks'] = {'businessDate': '2026-10-12', 'companyToday': '2026-10-12', 'checks': []}
+      ..gets[alertsBase] = []
+      ..gets['/api/Poultry/stock-supply'] = []
+      ..gets['/api/Poultry/lifecycle/summary'] = {'due': 1, 'overdue': 1}
+      ..gets['/api/Poultry/lifecycle/tasks'] = [
+        {'flockId': 7, 'milestoneId': 1, 'occurrence': 0, 'title': 'Gumboro', 'flockName': 'Flock A', 'status': 'Overdue', 'ageUnit': 'Day', 'ageValue': 14, 'daysUntilDue': -2},
+        {'flockId': 7, 'milestoneId': 2, 'occurrence': 0, 'title': 'Newcastle', 'flockName': 'Flock A', 'status': 'Due', 'ageUnit': 'Day', 'ageValue': 21, 'daysUntilDue': 0},
+        {'flockId': 7, 'milestoneId': 3, 'occurrence': 0, 'title': 'Later', 'flockName': 'Flock A', 'status': 'Upcoming', 'ageUnit': 'Day', 'ageValue': 40, 'daysUntilDue': 9},
+      ];
+    final b = await loadFarmAlertBreakdown(await sessionFor(api), company);
+    expect((b.lifecycleDue, b.lifecycleOverdue), (1, 1));
+    final tile = tilesFor(b).firstWhere((t) => t.id == 'lifecycle');
+    expect((tile.title, tile.value, tile.detail), ('Vaccinations', '2 due', '1 overdue'));
+    expect(tilesFor(b).map((t) => t.title), ['Production', 'Egg sorting', 'Flock health', 'Vaccinations', 'Stock']);
+
+    await open(tester, FarmAlertsScreen(session: await sessionFor(api), company: company), size: phone);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('lifecycle-reminders')), 400, scrollable: find.byType(Scrollable).last);
+    await tester.pumpAndSettle();
+    expect(find.text('Gumboro'), findsOneWidget);
+    expect(find.text('Newcastle'), findsOneWidget);
+    expect(find.text('Later'), findsNothing, reason: 'only due or overdue');
+    expect(find.text('2 due · 1 overdue'), findsOneWidget);
+    expect(find.text('Open Flock Lifecycle'), findsOneWidget);
+  });
+
   testWidgets('Farm Alerts: the status line, the four tiles and the three cards', (tester) async {
     final api = FakeApi()
       ..gets['/api/ActivityChecks'] = {

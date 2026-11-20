@@ -16,6 +16,7 @@ import 'trackers/tracker_widgets.dart';
 import 'treatment_campaign_logic.dart';
 import '../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Tools → Treatment Campaigns, as `app/poultry-treatment-campaigns/page.tsx`
 /// (migration 339): one medication, vaccine or treatment given to many flocks
 /// over one or more days. The web's three views — the list, ?new=1 and ?id= —
@@ -25,10 +26,10 @@ import '../shared/reason_select.dart';
 /// that day, so stock, costing and the expense come out exactly as if each flock
 /// had been edited by hand. Creating a campaign moves nothing.
 
-const _violet100 = Color(0xFFEDE9FE);
-const _violet600 = Color(0xFF7C3AED);
-const _violet700 = Color(0xFF6D28D9);
-const _sky700 = Color(0xFF0369A1);
+const _violet100 = Tone.bg(0xFFEDE9FE);
+const _violet600 = Tone.bg(0xFF7C3AED);
+const _violet700 = Tone.fg(0xFF6D28D9);
+const _sky700 = Tone(0xFF0369A1);
 
 /// The API (TreatmentCampaignsController). farmId in the query on reads and in
 /// the body on writes, as the web sends it.
@@ -92,8 +93,8 @@ Widget _title(BuildContext context, String title, String sub, {bool back = false
                   ]),
                 ),
               ),
-            Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: TColors.slate900)),
-            if (sub.isNotEmpty) Text(sub, style: const TextStyle(fontSize: 13, color: TColors.slate600)),
+            Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
+            if (sub.isNotEmpty) Text(sub, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569))),
           ]),
         ),
       ],
@@ -106,10 +107,10 @@ Widget campaignStatusBadge(Object? status) {
 
 Widget _stat(String label, String value, {bool bad = false}) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, letterSpacing: .4, color: TColors.slate500)),
-        Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: bad ? TColors.rose700 : TColors.slate900)),
+        Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: bad ? Tone.fg(0xFFBE123C) : Tone.fg(0xFF0F172A))),
       ]),
     );
 
@@ -132,8 +133,8 @@ Widget _whiteCard(Widget child, {EdgeInsets padding = const EdgeInsets.all(16)})
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: TColors.slate200),
+        color: Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: Tone.line(0xFFE2E8F0)),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
       ),
@@ -148,7 +149,7 @@ Widget _link(String text, VoidCallback onTap, {Color color = _sky700, double siz
 /// The pinned bar at the foot of New campaign and Record treatment.
 Widget _stickyBar(Widget message, Widget button) => Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(color: Color(0xF2FFFFFF), border: Border(top: BorderSide(color: TColors.slate200))),
+      decoration: const BoxDecoration(color: Tone.bg(0xF2FFFFFF), border: Border(top: BorderSide(color: Tone.line(0xFFE2E8F0)))),
       child: SafeArea(
         top: false,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
@@ -160,7 +161,7 @@ Widget _stickyBar(Widget message, Widget button) => Container(
     );
 
 ButtonStyle get _violetButton =>
-    FilledButton.styleFrom(backgroundColor: _violet600, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(46));
+    FilledButton.styleFrom(backgroundColor: Tone.button(_violet600), foregroundColor: Colors.white, minimumSize: const Size.fromHeight(46));
 
 // =============================================================================
 // List
@@ -227,7 +228,7 @@ class _TreatmentCampaignsScreenState extends State<TreatmentCampaignsScreen> {
             Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: _violet600, foregroundColor: Colors.white),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(_violet600), foregroundColor: Colors.white),
                 onPressed: _newCampaign,
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('New campaign'),
@@ -302,7 +303,7 @@ class _TreatmentCampaignsScreenState extends State<TreatmentCampaignsScreen> {
   Widget _withdrawalCell(Map c) {
     final egg = tStr(c['eggWithdrawalUntil']);
     final meat = tStr(c['meatWithdrawalUntil']);
-    if (egg.isEmpty && meat.isEmpty) return const Text('—', style: TextStyle(color: TColors.slate400));
+    if (egg.isEmpty && meat.isEmpty) return const Text('—', style: TextStyle(color: Tone.fg(0xFF7F8EA3)));
     return Text(
       '${egg.isNotEmpty ? 'Eggs until ${formatLongDate(_day(egg))}' : ''}'
       '${egg.isNotEmpty && meat.isNotEmpty ? ' · ' : ''}'
@@ -631,7 +632,7 @@ class _NewTreatmentCampaignScreenState extends State<NewTreatmentCampaignScreen>
                           padding: const EdgeInsets.only(top: 12),
                           child: Text(
                             "Save this dose and withdrawal as ${tStr(product['itemName'])}'s default for future campaigns",
-                            style: const TextStyle(fontSize: 13, color: TColors.slate700),
+                            style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF334155)),
                           ),
                         ),
                       ),
@@ -645,7 +646,7 @@ class _NewTreatmentCampaignScreenState extends State<NewTreatmentCampaignScreen>
                 Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Container(
                     padding: const EdgeInsets.fromLTRB(4, 4, 12, 8),
-                    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: TColors.slate100))),
+                    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tone.line(0xFFF1F5F9)))),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
                         Checkbox(
@@ -661,7 +662,7 @@ class _NewTreatmentCampaignScreenState extends State<NewTreatmentCampaignScreen>
                         ),
                         Expanded(
                           child: Text('Flocks (${selected.length} selected)',
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate800)),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF1E293B))),
                         ),
                       ]),
                       const Padding(
@@ -696,7 +697,7 @@ class _NewTreatmentCampaignScreenState extends State<NewTreatmentCampaignScreen>
         _stickyBar(
           Text(
             problem ?? '${_plural(selected.length, 'flock')}, ${_plural(days, 'day')}. No stock moves until a day is recorded.',
-            style: TextStyle(fontSize: 13, color: problem != null ? TColors.slate500 : TColors.slate600),
+            style: TextStyle(fontSize: 13, color: problem != null ? TColors.slate500 : Tone.fg(0xFF475569)),
           ),
           FilledButton(
             style: _violetButton,
@@ -717,7 +718,7 @@ class _NewTreatmentCampaignScreenState extends State<NewTreatmentCampaignScreen>
     return Container(
       key: ValueKey('flock-$id'),
       padding: const EdgeInsets.fromLTRB(4, 6, 12, 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: TColors.slate100))),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tone.line(0xFFF1F5F9)))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Checkbox(value: on, onChanged: (v) => setState(() => _picked[id] = v == true)),
@@ -728,7 +729,7 @@ class _NewTreatmentCampaignScreenState extends State<NewTreatmentCampaignScreen>
                 'House/Pen: ${tStr(f['houseName']).isEmpty ? '—' : tStr(f['houseName'])} · Bird count: ${f['birds'] == null ? '—' : fmtNum(tNum(f['birds']), 0)}',
                 style: const TextStyle(fontSize: 12, color: TColors.slate500),
               ),
-              if (on) Text('Suggested / day: ${fmtQty(sug, unit)}', style: const TextStyle(fontSize: 12, color: TColors.slate600)),
+              if (on) Text('Suggested / day: ${fmtQty(sug, unit)}', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF475569))),
             ]),
           ),
         ]),
@@ -986,7 +987,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
         actions: [
           OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not yet')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.emerald600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF059669)), foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Mark completed'),
           ),
@@ -1070,7 +1071,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
                   label: const Text('Mark completed'),
                 ),
                 OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(foregroundColor: TColors.rose700),
+                  style: OutlinedButton.styleFrom(foregroundColor: Tone.fg(0xFFBE123C)),
                   onPressed: _busy ? null : _cancel,
                   icon: const Icon(Icons.cancel_outlined, size: 16),
                   label: const Text('Cancel campaign'),
@@ -1107,7 +1108,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
                 ? 'Type the quantity actually given to each flock.'
                 : blocker ?? "${fmtQty(totals.actual, _unit)} to ${toPost.length} flock${toPost.length == 1 ? '' : 's'} · ${fmtQty(totals.remaining, _unit)} left";
         bar = _stickyBar(
-          Text(msg ?? '', style: TextStyle(fontSize: 13, color: blocker != null && !nothingEntered ? TColors.rose700 : TColors.slate600)),
+          Text(msg ?? '', style: TextStyle(fontSize: 13, color: blocker != null && !nothingEntered ? Tone.fg(0xFFBE123C) : Tone.fg(0xFF475569))),
           FilledButton(
             style: _violetButton,
             onPressed: blocker != null || _posting ? null : () => _confirmPost(totals.actual, toPost),
@@ -1140,7 +1141,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
               TextSpan(text: '$label: ', style: const TextStyle(color: TColors.slate500)),
               TextSpan(text: value),
             ]),
-            style: TextStyle(fontSize: 13, color: color ?? TColors.slate900),
+            style: TextStyle(fontSize: 13, color: color ?? Tone.fg(0xFF0F172A)),
           ),
         );
     return _whiteCard(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1158,7 +1159,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
           padding: const EdgeInsets.only(bottom: 6),
           child: Text(
             'Cancelled by ${tStr(c['cancelledBy']).isEmpty ? 'unknown' : tStr(c['cancelledBy'])} · ${fmtInstant(c['cancelledAtUtc'], _offset)} — ${tStr(c['cancelReason'])}. Days already recorded stay recorded.',
-            style: const TextStyle(fontSize: 13, color: TColors.rose700),
+            style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFBE123C)),
           ),
         ),
       if (c['status'] == 'Completed')
@@ -1166,7 +1167,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
           padding: const EdgeInsets.only(bottom: 6),
           child: Text(
             'Completed by ${tStr(c['completedBy']).isEmpty ? 'unknown' : tStr(c['completedBy'])} · ${fmtInstant(c['completedAtUtc'], _offset)}',
-            style: const TextStyle(fontSize: 13, color: TColors.emerald700),
+            style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF047857)),
           ),
         ),
       const Text(
@@ -1246,20 +1247,20 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
       key: ValueKey('grid-$id'),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: locked ? TColors.slate50 : Colors.white,
-        border: Border.all(color: TColors.slate200),
+        color: locked ? Tone.bg(0xFFF8FAFC) : Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: Tone.line(0xFFE2E8F0)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(tStr(r['flockName']), style: TextStyle(fontWeight: FontWeight.w600, color: locked ? TColors.slate500 : TColors.slate900)),
+        Text(tStr(r['flockName']), style: TextStyle(fontWeight: FontWeight.w600, color: locked ? TColors.slate500 : Tone.fg(0xFF0F172A))),
         if (tStr(r['houseName']).isNotEmpty) Text(tStr(r['houseName']), style: small),
         if (thisItem > 0 && x.state == 'ok')
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.warning_amber_rounded, size: 13, color: TColors.amber700),
+            const Icon(Icons.warning_amber_rounded, size: 13, color: Tone.fg(0xFFB45309)),
             const SizedBox(width: 4),
             Expanded(
               child: Text("Already ${fmtQty(thisItem, unit)} of this product on today's record",
-                  style: const TextStyle(fontSize: 12, color: TColors.amber700)),
+                  style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309))),
             ),
           ]),
         const SizedBox(height: 4),
@@ -1271,9 +1272,9 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
         const SizedBox(height: 8),
         if (x.state == 'posted')
           Row(children: [
-            const Icon(Icons.check_circle_outline, size: 15, color: TColors.emerald700),
+            const Icon(Icons.check_circle_outline, size: 15, color: Tone.fg(0xFF047857)),
             const SizedBox(width: 4),
-            Text('${fmtQty(tNum(r['postedQuantity']), unit)} recorded', style: const TextStyle(fontSize: 12, color: TColors.emerald700)),
+            Text('${fmtQty(tNum(r['postedQuantity']), unit)} recorded', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF047857))),
           ])
         else if (locked)
           Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -1303,7 +1304,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
                     hintText: '',
                     onChanged: (_) => setState(() {}),
                   ),
-                  if (invalid) const Text('Not a valid number', style: TextStyle(fontSize: 11, color: TColors.rose700)),
+                  if (invalid) const Text('Not a valid number', style: TextStyle(fontSize: 11, color: Tone.fg(0xFFBE123C))),
                 ]),
               ),
             ),
@@ -1321,7 +1322,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
       return _whiteCard(const Text('No treatment recorded yet.', style: TextStyle(fontSize: 13, color: TColors.slate500)));
     }
     final unit = _unit;
-    const small = TextStyle(fontSize: 12, color: TColors.slate600);
+    const small = TextStyle(fontSize: 12, color: Tone.fg(0xFF475569));
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       for (final d in _days) ...[
         Builder(builder: (_) {
@@ -1330,8 +1331,8 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
           final posted = d['status'] == 'Posted';
           return Container(
             decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: TColors.slate200),
+              color: Tone.bg(0xFFFFFFFF),
+              border: Border.all(color: Tone.line(0xFFE2E8F0)),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1345,10 +1346,10 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(formatLongDate(_day(d['businessDate'])),
-                            style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900)),
+                            style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A))),
                       ),
                       TBadge(posted ? 'Recorded' : 'Reversed',
-                          bg: posted ? TColors.emerald100 : TColors.slate200, fg: posted ? TColors.emerald700 : TColors.slate600),
+                          bg: posted ? TColors.emerald100 : Tone.bg(0xFFE2E8F0), fg: posted ? Tone.fg(0xFF047857) : Tone.fg(0xFF475569)),
                     ]),
                     const SizedBox(height: 4),
                     Padding(
@@ -1373,7 +1374,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
               ),
               if (open)
                 Container(
-                  color: const Color(0xCCF8FAFC),
+                  color: const Tone.bg(0xCCF8FAFC),
                   padding: const EdgeInsets.fromLTRB(34, 10, 12, 12),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Text(
@@ -1384,14 +1385,14 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
                     if (d['status'] == 'Reversed')
                       Text(
                         'Reversed by ${tStr(d['reversedBy']).isEmpty ? 'unknown' : tStr(d['reversedBy'])} · ${fmtInstant(d['reversedAtUtc'], _offset)} — ${tStr(d['reversalReason'])}',
-                        style: const TextStyle(fontSize: 12, color: TColors.rose700),
+                        style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFBE123C)),
                       ),
                     const SizedBox(height: 6),
                     for (final l in _dayLines[pid] ?? const <Map>[])
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(tStr(l['flockName']), style: const TextStyle(fontSize: 12, color: TColors.slate800)),
+                          Text(tStr(l['flockName']), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF1E293B))),
                           Text(
                             '${fmtQty(tNum(l['actualQuantity']), unit)}'
                             '${l['suggestedQuantity'] != null ? ' (suggested ${fmtQty(tNum(l['suggestedQuantity']), unit)})' : ''}'
@@ -1491,7 +1492,7 @@ class _RecordDialogState extends State<_RecordDialog> {
         content: SizedBox(
           width: 440,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(widget.summary, style: const TextStyle(fontSize: 13, color: TColors.slate600)),
+            Text(widget.summary, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569))),
             const SizedBox(height: 12),
             _field('Notes (optional)', AppInput(controller: _notes, hintText: 'e.g. Given in morning water')),
           ]),
@@ -1499,7 +1500,7 @@ class _RecordDialogState extends State<_RecordDialog> {
         actions: [
           OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _violet600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(_violet600), foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(context, _notes.text.trim()),
             child: const Text('Record'),
           ),

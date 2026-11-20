@@ -9,6 +9,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'money_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// `components/cash/loan-repayment-dialog.tsx`, the Loans-page way in: the
 /// loan is already chosen. A repayment is never one number — the dialog asks
 /// for principal, interest, fees and other, and SHOWS the total.
@@ -173,7 +174,7 @@ class _LoanRepaymentDialogState extends State<LoanRepaymentDialog> {
       child: AlertDialog(
         scrollable: true,
         title: const Row(children: [
-          Icon(Icons.payments_outlined, color: Color(0xFF7C3AED)),
+          Icon(Icons.payments_outlined, color: Tone.fg(0xFF7C3AED)),
           SizedBox(width: 6),
           Flexible(child: Text('Record a Repayment')),
         ]),
@@ -185,7 +186,7 @@ class _LoanRepaymentDialogState extends State<LoanRepaymentDialog> {
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Loan', TColors.slate600, [
+            formSection('Loan', Tone.bg(0xFF475569), [
               sel != null
                   ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(_label(sel), style: const TextStyle(fontWeight: FontWeight.w500)),
@@ -198,14 +199,14 @@ class _LoanRepaymentDialogState extends State<LoanRepaymentDialog> {
             ]),
             if (sel != null) ...[
               const SizedBox(height: 12),
-              formSection('What the payment is for', const Color(0xFF7C3AED), [
+              formSection('What the payment is for', const Tone.bg(0xFF7C3AED), [
                 _money('Principal', _principal, hint: 'Off the debt. Not an expense.'),
                 _money('Interest', _interest, hint: 'A cost. Reaches the P&L.'),
                 _money('Fees', _fee, hint: 'Also a cost.'),
                 _money('Other', _other),
               ]),
               const SizedBox(height: 12),
-              formSection('What this does', TColors.slate600, [
+              formSection('What this does', Tone.bg(0xFF475569), [
                 Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   _line('Leaves the account', Text(fmt(_total), style: const TextStyle(fontWeight: FontWeight.w600))),
                   const SizedBox(height: 4),
@@ -236,7 +237,7 @@ class _LoanRepaymentDialogState extends State<LoanRepaymentDialog> {
                 ]),
               ]),
               const SizedBox(height: 12),
-              formSection('Payment details', const Color(0xFF2563EB), [
+              formSection('Payment details', const Tone.bg(0xFF2563EB), [
                 FilterLabel(
                   'Paid from *',
                   AppSelect<String>(

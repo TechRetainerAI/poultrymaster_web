@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, ClipboardCheck, Check } from "lucide-react"
+import { Loader2, ClipboardCheck, Check, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -131,6 +131,7 @@ export default function GenericStudentAttendancePage() {
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="max-w-4xl mx-auto space-y-4">
+            <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
             <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
               <ClipboardCheck className="h-5 w-5" /> Student Attendance
             </h1>

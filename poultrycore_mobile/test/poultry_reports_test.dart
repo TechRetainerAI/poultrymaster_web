@@ -277,10 +277,10 @@ void main() {
     });
   });
 
-  testWidgets('catalogue: four sections, 36 reports, opens a native report', (tester) async {
+  testWidgets('catalogue: four sections, 37 reports, opens a native report', (tester) async {
     final api = FakeApi()..gets['/api/poultry/reports/mortality'] = {'summary': {}, 'rows': []};
     await open(tester, PoultryReportsCatalogScreen(session: await sessionFor(api), company: company), size: phone);
-    expect(find.text('36 reports in 4 sections — each with its own filters, summary cards and PDF export.'), findsOneWidget);
+    expect(find.text('37 reports in 4 sections — each with its own filters, summary cards and PDF export.'), findsOneWidget);
     await _see(tester, find.text('Mortality'));
     await tester.tap(find.text('Mortality'));
     await tester.pumpAndSettle();

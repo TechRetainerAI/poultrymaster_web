@@ -16,6 +16,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, jsNum, loc;
 import '../trackers/tracker_widgets.dart';
 import 'delivery_logic.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 class DeliveryDetailScreen extends StatefulWidget {
   const DeliveryDetailScreen({super.key, required this.session, required this.company, required this.loadingId});
   final Session session;
@@ -289,7 +290,7 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
                   width: w,
                   child: Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                       Text(fmt(v), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: rose ? TColors.rose600 : null)),

@@ -14,6 +14,7 @@ import 'asset_widgets.dart';
 import 'assets_screen.dart';
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// One capital investment, as `app/poultry-assets/[id]/page.tsx`: General,
 /// Financial and Source & audit, the cost history and the depreciation
 /// history with its reversal.
@@ -83,7 +84,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
 
   Widget _card(String title, List<Widget> lines) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [sectionLabel(title), ...lines]),
       );
 
@@ -154,8 +155,8 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFFEF2F2), border: Border.all(color: const Color(0xFFFECACA)), borderRadius: BorderRadius.circular(8)),
-            child: Text('This acquisition was reversed: ${tStr(a['reversalReason'])}', style: const TextStyle(fontSize: 13, color: Color(0xFF991B1B))),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFFEF2F2), border: Border.all(color: const Tone.line(0xFFFECACA)), borderRadius: BorderRadius.circular(8)),
+            child: Text('This acquisition was reversed: ${tStr(a['reversalReason'])}', style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF991B1B))),
           ),
         ],
         // Water's page answers its commonest question on it.
@@ -290,7 +291,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                         ? IconButton(
                             tooltip: 'Reverse this charge',
                             onPressed: () => _reverse(d),
-                            icon: const Icon(Icons.undo, size: 18, color: Color(0xFFEF4444)),
+                            icon: const Icon(Icons.undo, size: 18, color: Tone.fg(0xFFEF4444)),
                           )
                         : const SizedBox.shrink(),
                   ),
@@ -359,7 +360,7 @@ class _ReverseChargeDialogState extends State<_ReverseChargeDialog> {
             OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
             FilledButton(
               onPressed: _saving ? null : _go,
-              style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white),
               child: Text(_saving ? 'Saving…' : 'Reverse'),
             ),
           ],

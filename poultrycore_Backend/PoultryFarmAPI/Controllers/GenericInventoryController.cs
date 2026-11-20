@@ -128,6 +128,33 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         // ---------------------------------------------------------------------
+        // Capability-filtered queries (migration 441)
+        // ---------------------------------------------------------------------
+        [HttpGet("products/sellable")]
+        public async Task<ActionResult<IEnumerable<GenericProductModel>>> GetSellable(string farmId)
+        {
+            var guard = await EnsureGenericFarm(farmId);
+            if (guard is not null) return guard;
+            return Ok(await _products.GetSellableAsync(farmId));
+        }
+
+        [HttpGet("products/production")]
+        public async Task<ActionResult<IEnumerable<GenericProductModel>>> GetProductionItems(string farmId)
+        {
+            var guard = await EnsureGenericFarm(farmId);
+            if (guard is not null) return guard;
+            return Ok(await _products.GetProductionItemsAsync(farmId));
+        }
+
+        [HttpGet("products/internal-use")]
+        public async Task<ActionResult<IEnumerable<GenericProductModel>>> GetInternalUseItems(string farmId)
+        {
+            var guard = await EnsureGenericFarm(farmId);
+            if (guard is not null) return guard;
+            return Ok(await _products.GetInternalUseItemsAsync(farmId));
+        }
+
+        // ---------------------------------------------------------------------
         // Inventory reports
         // ---------------------------------------------------------------------
         [HttpGet("products/low-stock")]

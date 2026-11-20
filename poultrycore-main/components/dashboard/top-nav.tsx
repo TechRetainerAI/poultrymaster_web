@@ -359,7 +359,7 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
         )}
 
         {/* Sales, Expenses & Money — combined mega-menu matching poultry pattern.
-            Three columns: Sales | Expenses/Purchasing | Money, so the user sees
+            Three columns: Sales | Expenses | Money, so the user sees
             all financial pages in one place instead of hunting three dropdowns. */}
         <NavMegaMenu
           label="Sales, Expenses & Money" icon={Wallet}
@@ -404,14 +404,38 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
           />
         )}
 
-        {/* Admin — 2 columns: Reports | Setup & Account */}
-        <NavMegaMenu
-          label="Admin" icon={Settings}
-          title="Admin"
-          blurb="Reports, setup and settings."
-          groups={nav.admin}
-          columns={2} widthRem={30} layout="grid" accent="emerald"
-        />
+        {/* Reports — Financial, Sales & Stock, Subscription */}
+        {nav.reports.length > 0 && (
+          <NavMegaMenu
+            label="Reports" icon={BarChart3}
+            title="Reports"
+            blurb="Profit & loss, cash flow, expense, sales, inventory and balance reports."
+            groups={nav.reports}
+            columns={nav.reports.length >= 3 ? 3 : 2} widthRem={nav.reports.length >= 3 ? 42 : 30} layout="grid" accent="emerald"
+          />
+        )}
+
+        {/* Setup — Company, Finance, Delivery, People */}
+        {nav.setup.length > 0 && (
+          <NavMegaMenu
+            label="Setup" icon={Settings}
+            title="Setup"
+            blurb="Company profile, finance, delivery and your team."
+            groups={nav.setup}
+            columns={2} widthRem={30} layout="grid" accent="emerald"
+          />
+        )}
+
+        {/* Admin — Account */}
+        {nav.admin.length > 0 && (
+          <NavMegaMenu
+            label="Admin" icon={Settings}
+            title="Admin"
+            blurb="Account settings."
+            groups={nav.admin}
+            columns={1} widthRem={18} layout="grid" accent="emerald"
+          />
+        )}
 
         <div className="ml-auto flex items-center gap-1">
           <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} accent="emerald" />

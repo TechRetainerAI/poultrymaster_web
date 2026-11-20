@@ -491,7 +491,7 @@ export function ReportTableCards({
   columns, rows, totalsRow, children,
 }: {
   columns: PdfExportColumn[]
-  rows: (string | number | null | undefined)[][]
+  rows: (string | number | null | undefined)[][] | Record<string, any>[]
   totalsRow?: (string | number | null | undefined)[]
   children: ReactNode
 }) {
@@ -503,6 +503,12 @@ export function ReportTableCards({
   const [limit, setLimit] = useState(STEP)
   const text = (v: string | number | null | undefined) =>
     v == null || v === "" ? "—" : String(v)
+
+  const cell = (row: (string | number | null | undefined)[] | Record<string, any>, idx: number) => {
+    if (Array.isArray(row)) return row[idx]
+    const k = columns[idx]?.key
+    return k ? row[k] : undefined
+  }
 
   // Nothing to card up: let the table through at every width so the report's
   // own "no rows in this period" message is what the reader gets.
@@ -524,9 +530,9 @@ export function ReportTableCards({
         <div className="lg:hidden print:hidden space-y-2">
           {shown.map((row, i) => (
             <div key={i} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="font-semibold text-slate-900 break-words">{text(row[0])}</div>
+              <div className="font-semibold text-slate-900 break-words">{text(cell(row, 0))}</div>
               {columns.length > 1 && (
-                <div className="mt-0.5 text-sm text-slate-600 break-words">{text(row[1])}</div>
+                <div className="mt-0.5 text-sm text-slate-600 break-words">{text(cell(row, 1))}</div>
               )}
               {columns.length > 2 && (
                 <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-sm">
@@ -534,7 +540,7 @@ export function ReportTableCards({
                     <div key={ci} className="min-w-0">
                       <div className="text-xs text-slate-500">{c.header}</div>
                       <div className={cn("font-medium break-words", c.align === "right" && "tabular-nums")}>
-                        {text(row[ci + 2])}
+                        {text(cell(row, ci + 2))}
                       </div>
                     </div>
                   ))}
