@@ -67,6 +67,14 @@ export function buildLivestockNavConfig({
         { href: "/livestock-animals", label: "Animal register", icon: Tag },
       ],
     },
+    // Same four groups as Poultry's Operations panel: the day's work only.
+    // Things you maintain (pens, groups, the register, formulas) are in Setup,
+    // and the many-group jobs (feed many groups, head count, campaigns,
+    // alerts) are in Tools -- as on the poultry side.
+    //
+    // Group ORDER is load-bearing in the 2x2 grid: the two long groups
+    // (Production, Inventory & Health) share row 1 and the two short ones
+    // (Delivery, Purchase) row 2, so the panel stays short.
     operations: [
       {
         key: "production",
@@ -75,19 +83,20 @@ export function buildLivestockNavConfig({
           { id: "records",  title: "Daily records",      icon: ClipboardList, href: "/livestock-production-records" },
           { id: "breeding", title: "Breeding & births",  icon: Baby,          href: "/livestock-breeding" },
           { id: "weighins", title: "Weigh-ins & growth", icon: Scale,         href: "/livestock-weigh-ins" },
-          { id: "missing",  title: "Missing records",    icon: CalendarX,     href: "/livestock-missing-records" },
+          // Making feed from ingredients is production, as Poultry's Feed Production.
+          { id: "mixing",   title: "Feed mixing",        icon: Factory,       href: "/livestock-feed-production" },
         ],
       },
       {
-        key: "stock",
-        label: "Feed & Stock",
+        key: "inventory-health",
+        label: "Inventory & Health",
         items: [
-          { id: "items",        title: "Feed & stock",      icon: Boxes,        href: "/livestock-items" },
-          { id: "distribution", title: "Feed many groups",  icon: Truck,        href: "/livestock-feed-distribution" },
-          { id: "formulas",     title: "Feed formulas",     icon: FlaskConical, href: "/livestock-feed-formulas" },
-          { id: "mixing",       title: "Feed mixing",       icon: Factory,      href: "/livestock-feed-production" },
-          { id: "supply",       title: "Days of supply",    icon: Hourglass,    href: "/livestock-feed-supply" },
-          { id: "losses",       title: "Losses",            icon: PackageMinus, href: "/livestock-losses" },
+          { id: "items",        title: "Feed & stock",             icon: Boxes,        href: "/livestock-items" },
+          // Poultry's Stock movements: opening + in - out = closing per group.
+          { id: "animalstock",  title: "Animal stock",             icon: LayersIcon,   href: "/livestock-animal-stock" },
+          { id: "health",       title: "Health records",           icon: HeartPulse,   href: "/livestock-health" },
+          { id: "vaccinations", title: "Vaccinations & deworming", icon: Syringe,      href: "/livestock-vaccinations" },
+          { id: "losses",       title: "Loss & damage",            icon: PackageMinus, href: "/livestock-losses" },
         ],
       },
       {
@@ -98,24 +107,15 @@ export function buildLivestockNavConfig({
         ],
       },
       {
-        key: "health",
-        label: "Health",
+        key: "purchase",
+        label: "Purchase",
         items: [
-          { id: "alerts",       title: "Farm alerts",               icon: Bell,       href: "/livestock-alerts" },
-          { id: "health",       title: "Health records",            icon: HeartPulse, href: "/livestock-health" },
-          { id: "vaccinations", title: "Vaccinations & deworming",  icon: Syringe,    href: "/livestock-vaccinations" },
-          { id: "treatments",   title: "Treatment campaigns",       icon: Pill,       href: "/livestock-treatments" },
-        ],
-      },
-      {
-        key: "animals",
-        label: "Animals",
-        items: [
-          { id: "groups",  title: "Animal groups",   icon: Layers,  href: "/livestock-groups" },
-          { id: "batches", title: "Intake batches",  icon: Package, href: "/livestock-batches" },
-          { id: "animals", title: "Animal register", icon: Tag,     href: "/livestock-animals" },
-          { id: "headcount", title: "Head count",     icon: ListChecks, href: "/livestock-head-count" },
-          { id: "animalstock", title: "Animal stock", icon: LayersIcon, href: "/livestock-animal-stock" },
+          // Poultry's "Flock Purchases (Batches)". Also in Setup > Farm, beside
+          // the groups they are divided into.
+          { id: "batches",         title: "Animal purchases", icon: Package,      href: "/livestock-batches" },
+          // Opens the Record purchase dialog on Feed & stock straight away
+          // (?purchase=1, handled in app/livestock-items/page.tsx).
+          { id: "record-purchase", title: "Record purchase",            icon: ShoppingCart, href: "/livestock-items?purchase=1" },
         ],
       },
     ],
@@ -184,25 +184,65 @@ export function buildLivestockNavConfig({
         ],
       },
     ],
+    // Group ORDER is load-bearing: a 2-column grid filled row by row, with
+    // Farm taking two rows --
+    //   Farm     | Production
+    //   (Farm)   | Company
+    //   Delivery |
+    // Keep columns={2} on the livestock Setup menu in top-nav.tsx and
+    // sidebar.tsx in step with it.
     setup: [
+      {
+        // Poultry's Setup > Farm (Houses, Flock Groups, Batches).
+        key: "farm",
+        label: "Farm",
+        // Takes two rows, so Company sits right under Production.
+        rowSpan: 2,
+        items: [
+          { id: "pens",          title: "Pens",                       icon: Warehouse, href: "/livestock-pens" },
+          { id: "groups",        title: "Animal groups",              icon: Layers,    href: "/livestock-groups" },
+          { id: "animals",       title: "Animal register",            icon: Tag,       href: "/livestock-animals" },
+          { id: "batches-setup", title: "Animal purchases", icon: Package,   href: "/livestock-batches" },
+        ],
+      },
+      {
+        key: "production-setup",
+        label: "Production",
+        items: [
+          { id: "formulas", title: "Feed formulas", icon: FlaskConical, href: "/livestock-feed-formulas" },
+        ],
+      },
       {
         key: "company",
         label: "Company",
         items: [
           { id: "company-settings", title: "Company settings", icon: CompanyIcon, href: "/livestock-company-settings" },
           { id: "species",          title: "Animals kept",     icon: PawPrint,    href: "/livestock-animals-kept" },
-          { id: "pens",             title: "Pens",             icon: Warehouse,   href: "/livestock-pens" },
         ],
       },
       {
         key: "delivery-setup",
         label: "Delivery",
         items: [
-          { id: "delivery-setup", title: "Drivers, vehicles & routes", icon: RouteIcon, href: "/livestock-delivery-setup" },
+          { id: "delivery-setup", title: "Delivery setup", icon: RouteIcon, href: "/livestock-delivery-setup" },
         ],
       },
     ],
-    tools: [],
+    // Poultry's Tools: jobs across many groups at once, and the farm checks.
+    tools: [
+      {
+        key: "tools",
+        label: "Tools",
+        items: [
+          { id: "missing",      title: "Missing records",     icon: CalendarX,  href: "/livestock-missing-records" },
+          { id: "distribution", title: "Feed many groups",    icon: Wheat,      href: "/livestock-feed-distribution" },
+          { id: "headcount",    title: "Head count",          icon: ListChecks, href: "/livestock-head-count" },
+          { id: "treatments",   title: "Treatment campaigns", icon: Pill,       href: "/livestock-treatments" },
+          { id: "supply",       title: "Days of supply",      icon: Hourglass,  href: "/livestock-feed-supply" },
+          { id: "alerts",       title: "Farm alerts",         icon: Bell,       href: "/livestock-alerts" },
+        ],
+      },
+    ],
     system: [
       {
         key: "system",

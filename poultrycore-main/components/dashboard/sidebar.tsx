@@ -870,11 +870,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 once it has a page in it. */}
             {navSectionHasRows(livestockNav!.setup) && renderMenu("Setup", Settings, livestockNav!.setup, "menu:livestockSetup", {
               blurb: "Pens, animal groups, species, products, delivery, customers and your team.",
-              columns: 3,
+              columns: 2,
             })}
             <div className="space-y-1">
               {navSectionHasRows(livestockNav!.operations) && renderMenu("Operations", Factory, livestockNav!.operations, "menu:livestockOps", {
-                blurb: "Production, breeding, animal purchases, deliveries, stock and health.",
+                blurb: "Production, stock and health, deliveries and purchases.",
                 columns: 2,
               })}
               {navSectionHasRows(livestockNav!.salesMoney) && renderSalesMoneyMenus(livestockNav!.salesMoney, "livestock")}
@@ -882,7 +882,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Day-to-day trackers.", columns: 1,
               })}
               {navSectionHasRows(livestockNav!.tools) && renderMenu("Tools", Wrench, livestockNav!.tools, "menu:livestockTools", {
-                blurb: "Jobs run once: onboarding a farm, closing out a finished group.",
+                blurb: "Jobs across many groups at once, and the farm's checks.",
                 columns: 1,
               })}
               {livestockNav!.quickLinks.items.length > 0 && renderMenu("Quick Links", Star, [{

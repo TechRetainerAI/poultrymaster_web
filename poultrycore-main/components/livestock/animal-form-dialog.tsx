@@ -6,7 +6,7 @@
 // animal NEW to the group (bought, born, brought in -- the group gains one) or
 // one already counted there that is only now getting a tag (nothing moves)?
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,12 +16,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/hooks/use-toast"
 import {
-  listAnimals, listGroups, saveAnimal,
-  type AnimalInput, type AnimalSex, type AnimalSource, type LivestockAnimal, type LivestockGroup,
+  listAnimals, listBatches, listGroups, saveAnimal,
+  type AnimalInput, type AnimalSex, type AnimalSource, type LivestockAnimal, type LivestockBatch, type LivestockGroup,
 } from "@/lib/api/livestock"
 import { useLivestockSpecies } from "@/hooks/use-livestock-species"
 import { BreedSelect } from "@/components/livestock/breed-age-inputs"
 import { AMBER_BUTTON, todayIso } from "./livestock-page"
+import { groupBirthDate } from "./tag-many-dialog"
 
 const NONE = "__none"
 
@@ -35,15 +36,18 @@ export function AnimalFormDialog({ open, onOpenChange, animal, presetGroupId, on
   const { toast } = useToast()
   const { byCode } = useLivestockSpecies()
   const [groups, setGroups] = useState<LivestockGroup[]>([])
+  const [batches, setBatches] = useState<LivestockBatch[]>([])
   const [parents, setParents] = useState<LivestockAnimal[]>([])
   const [form, setForm] = useState<AnimalInput>(blank())
   const [isNew, setIsNew] = useState<"yes" | "no">("no")
   const [saving, setSaving] = useState(false)
   const isEdit = !!animal
+  const auto = useRef<{ breed: string | null; birth: string | null }>({ breed: null, birth: null })
 
   useEffect(() => {
     if (!open) return
     listGroups().then(setGroups).catch(() => setGroups([]))
+    if (!animal) listBatches().then(setBatches).catch(() => setBatches([]))
     if (animal) {
       setForm({
         tagNumber: animal.tagNumber, name: animal.name, sex: animal.sex, breed: animal.breed, birthDate: animal.birthDate,
@@ -53,12 +57,29 @@ export function AnimalFormDialog({ open, onOpenChange, animal, presetGroupId, on
     } else {
       setForm({ ...blank(), groupId: presetGroupId ?? undefined })
       setIsNew("no")
+      auto.current = { breed: null, birth: null }
     }
   }, [open, animal, presetGroupId])
 
   const group = groups.find((g) => g.groupId === (animal?.groupId ?? form.groupId))
   const speciesCode = animal?.speciesCode ?? group?.speciesCode
   const species = speciesCode ? byCode.get(speciesCode) : undefined
+
+  // Already counted in the group: its breed and birth date are the group's, so
+  // fill them in. Only blanks and earlier fill-ins are replaced.
+  const counted = !isEdit && isNew === "no" && !!group
+  const birthDefault = counted ? groupBirthDate(group, batches) : null
+  useEffect(() => {
+    if (!open || !counted) return
+    const prev = auto.current
+    const next = { breed: group!.breed, birth: birthDefault }
+    setForm((f) => ({
+      ...f,
+      breed: f.breed == null || f.breed === prev.breed ? next.breed : f.breed,
+      birthDate: f.birthDate == null || f.birthDate === prev.birth ? next.birth : f.birthDate,
+    }))
+    auto.current = next
+  }, [open, counted, group?.groupId, group?.breed, birthDefault]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Possible parents: same kind, any status (a dead dam is still the mother).
   useEffect(() => {
@@ -94,9 +115,9 @@ export function AnimalFormDialog({ open, onOpenChange, animal, presetGroupId, on
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-6xl">
         <DialogHeader><DialogTitle>{isEdit ? `Edit tag ${animal!.tagNumber}` : "Register a tagged animal"}</DialogTitle></DialogHeader>
-        <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-1">
           {!isEdit && (
             <div>
               <Label>Group</Label>

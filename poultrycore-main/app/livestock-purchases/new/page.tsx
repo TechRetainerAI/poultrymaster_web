@@ -34,7 +34,6 @@ export default function NewLivestockPurchasePage() {
   const [accounts, setAccounts] = useState<CashAccount[]>([])
   const [supplierId, setSupplierId] = useState<number | null>(null)
   const [date, setDate] = useState(todayIso())
-  const [reference, setReference] = useState("")
   const [dueDate, setDueDate] = useState("")
   const [notes, setNotes] = useState("")
   const [rows, setRows] = useState<Row[]>([blankRow()])
@@ -64,7 +63,7 @@ export default function NewLivestockPurchasePage() {
       : r.kind === "Expense"
       ? { lineType: "Expense", expenseCategory: r.category, description: r.description.trim() || null, groupId: null, quantity: Number(r.quantity), unitCost: Number(r.unitCost) || 0 }
       : { lineType: "Animals", speciesCode: r.speciesCode, quantity: Number(r.quantity), unitCost: Number(r.unitCost) || 0, breed: r.breed || null, ageAtIntake: r.age || null })
-    const input: PurchaseInput = { supplierId, date, reference: reference.trim() || null, dueDate: dueDate || null, notes: notes.trim() || null,
+    const input: PurchaseInput = { supplierId, date, reference: null, dueDate: dueDate || null, notes: notes.trim() || null,
       lines, amountPaid, accountId: amountPaid > 0 ? accountId : null }
     setSaving(true)
     try {
@@ -77,7 +76,7 @@ export default function NewLivestockPurchasePage() {
   }
 
   const rowsOk = rows.some((r) => r.quantity) && rows.every((r) => !r.quantity || (r.kind === "Item" ? r.itemId : r.kind === "Expense" ? r.category : r.speciesCode))
-  const canSave = rowsOk && date && (amountPaid === 0 || accountId) && (supplierId || amountPaid >= total) && !short
+  const canSave = rowsOk && date && (payment === "none" || accountId) && (supplierId || amountPaid >= total) && !short
 
   return (
     <LivestockPage title="New purchase" icon={ShoppingCart} back={{ href: "/livestock-purchases", label: "Purchases" }}>
@@ -86,7 +85,7 @@ export default function NewLivestockPurchasePage() {
           <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="lg:col-span-2"><Label>Supplier</Label><SupplierSelect value={supplierId} onChange={setSupplierId} allowNone /></div>
             <div><Label htmlFor="pu-date">Date</Label><Input id="pu-date" type="date" max={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} /></div>
-            <div><Label htmlFor="pu-ref">Invoice / receipt no.</Label><Input id="pu-ref" value={reference} onChange={(e) => setReference(e.target.value)} /></div>
+            <div><Label>Invoice no.</Label><div className="h-9 px-3 flex items-center rounded-md border border-dashed bg-stone-50 text-sm text-stone-500">Given automatically (LP-0001…)</div></div>
           </CardContent>
         </Card>
 
@@ -160,9 +159,9 @@ export default function NewLivestockPurchasePage() {
             {payment === "part" && (
               <div><Label htmlFor="pu-paid">Amount paid</Label><Input id="pu-paid" type="number" min={0} step="0.01" value={paid} onChange={(e) => setPaid(e.target.value)} /></div>
             )}
-            {amountPaid > 0 && (
+            {payment !== "none" && (
               <div>
-                <Label>Paid from</Label>
+                <Label>Paid from (cash account)</Label>
                 <Select value={accountId ? String(accountId) : ""} onValueChange={(v) => setAccountId(Number(v))}>
                   <SelectTrigger><SelectValue placeholder={accounts.length ? "Choose" : "Add a cash account first"} /></SelectTrigger>
                   <SelectContent>{accounts.map((a) => <SelectItem key={a.accountId} value={String(a.accountId)}>{a.name} · {fmtMoney(a.balance)}</SelectItem>)}</SelectContent>
@@ -173,14 +172,14 @@ export default function NewLivestockPurchasePage() {
             {payment !== "full" && (
               <div><Label htmlFor="pu-due">Pay by</Label><Input id="pu-due" type="date" min={date} value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
             )}
-            {payment !== "full" && total > 0 && <p className="sm:col-span-3 text-sm text-stone-600">Still owed: <strong>{fmtMoney(Math.max(total - amountPaid, 0))}</strong></p>}
+            {payment !== "full" && total > 0 && <p className="sm:col-span-3 text-sm text-stone-600">Paying now: <strong className="text-emerald-700">{fmtMoney(amountPaid)}</strong> · Still owed: <strong>{fmtMoney(Math.max(total - amountPaid, 0))}</strong></p>}
             <div className="sm:col-span-3"><Label htmlFor="pu-notes">Notes</Label><Textarea id="pu-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
           </CardContent>
         </Card>
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => router.back()}>Cancel</Button>
-          <Button className={AMBER_BUTTON} disabled={saving || !canSave} onClick={save}>{saving ? "Saving…" : `Record purchase · ${fmtMoney(total)}`}</Button>
+          <Button className={AMBER_BUTTON} disabled={saving || !canSave} onClick={save}>{saving ? "Saving…" : (amountPaid > 0 ? `Record purchase · paying ${fmtMoney(amountPaid)} now` : "Record purchase · nothing paid now")}</Button>
         </div>
         {rows.some((r) => r.kind === "Animals" && r.quantity) && (
           <p className="text-xs text-stone-500 text-right">Each line of animals ({fmtNum(rows.filter((r) => r.kind === "Animals").reduce((s, r) => s + (Number(r.quantity) || 0), 0))} head in all) becomes an intake batch; divide it into groups next.</p>

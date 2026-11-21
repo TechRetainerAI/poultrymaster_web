@@ -52,7 +52,7 @@ export default function LivestockItemPage() {
       back={back}
       actions={
         <>
-          {item.isActive && <Button className={AMBER_BUTTON} onClick={() => setDialog("change")}>Add / correct stock</Button>}
+          {item.isActive && <Button className={AMBER_BUTTON} onClick={() => setDialog("change")}>Correct count</Button>}
           <Button variant="outline" onClick={() => setDialog("edit")}><Pencil className="h-4 w-4 mr-1" />Edit</Button>
           {!item.hasMovements && (
             <Button variant="outline" onClick={() => setDialog("delete")}><Trash2 className="h-4 w-4 text-rose-600" /></Button>

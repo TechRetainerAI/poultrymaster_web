@@ -622,11 +622,11 @@ function LivestockTopNav({ permissions, onOpenAlerts, alertCount, quickLinkHrefs
         {navSectionHasRows(nav.setup) && (
           <NavMegaMenu label="Setup" icon={Settings} title="Setup"
             blurb="Pens, animal groups, species, products, delivery, customers and your team."
-            groups={nav.setup} columns={3} widthRem={41} layout="grid" accent="amber" />
+            groups={nav.setup} columns={2} widthRem={32} layout="grid" accent="amber" />
         )}
         {navSectionHasRows(nav.operations) && (
           <NavMegaMenu label="Operations" icon={Factory} title="Operations"
-            blurb="Production, breeding, animal purchases, deliveries, stock and health."
+            blurb="Production, stock and health, deliveries and purchases."
             groups={nav.operations} columns={2} widthRem={36} layout="grid" accent="amber" />
         )}
         {navSectionHasRows(nav.salesMoney) && (
@@ -640,7 +640,7 @@ function LivestockTopNav({ permissions, onOpenAlerts, alertCount, quickLinkHrefs
         )}
         {navSectionHasRows(nav.tools) && (
           <NavMegaMenu label="Tools" icon={Wrench} title="Tools"
-            blurb="Jobs run once: onboarding a farm, closing out a finished group."
+            blurb="Jobs across many groups at once, and the farm's checks."
             groups={nav.tools} columns={1} widthRem={19} layout="grid" accent="amber" />
         )}
         {nav.quickLinks.items.length > 0 && <NavDropdown group={nav.quickLinks} accent="amber" />}

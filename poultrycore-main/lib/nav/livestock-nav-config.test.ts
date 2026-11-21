@@ -48,7 +48,17 @@ describe("livestock nav", () => {
   it("hides setup pages from an ordinary employee", () => {
     const { nav, visible } = rows(false)
     expect(visible.some(isSetupAdminRoute)).toBe(false)
-    expect(navSectionHasRows(nav.setup)).toBe(false)
+    // Daily-work rows in Setup > Farm stay, as Poultry's Flock Groups do.
+    const setupRows = nav.setup.flatMap((g) => g.items.filter((i) => i.visible !== false).map((i) => i.href))
+    expect(setupRows).toContain("/livestock-groups")
+    expect(setupRows).not.toContain("/livestock-pens")
+  })
+
+  it("lays Operations out as Poultry does", () => {
+    const { nav } = rows(true)
+    expect(nav.operations.map((g) => g.label)).toEqual(["Production", "Inventory & Health", "Delivery", "Purchase"])
+    expect(nav.operations.flatMap((g) => g.items.map((i) => i.href))).toContain("/livestock-items?purchase=1")
+    expect(navSectionHasRows(nav.tools)).toBe(true)
   })
 
   it("shows the default quick links until the user customises them", () => {

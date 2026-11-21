@@ -314,6 +314,23 @@ export const saveAnimal = (input: AnimalInput, animalId?: number) =>
   animalId
     ? call<{ animalId: number }>("PUT", `/Livestock/animals/${animalId}`, withFarm(input))
     : call<{ animalId: number }>("POST", "/Livestock/animals", withFarm(input))
+/** One row of "Tag several animals": what tells this animal apart. */
+export interface TagManyRow {
+  tagNumber: string; name: string | null; sex: AnimalSex; breed: string | null; birthDate: string | null
+  damId: number | null; sireId: number | null; notes: string | null
+}
+export interface TagManyInput {
+  groupId: number
+  addsToHead: boolean
+  source: AnimalSource
+  acquiredDate: string | null
+  /** Price paid for EACH animal. */
+  purchaseCost: number | null
+  animals: TagManyRow[]
+}
+/** All or nothing (468). */
+export const saveAnimals = (input: TagManyInput) =>
+  call<{ animalIds: number[] }>("POST", "/Livestock/animals/many", withFarm(input))
 export const deleteAnimal = (animalId: number) => call<void>("DELETE", `/Livestock/animals/${animalId}?${q()}`)
 export const setAnimalStatus = (animalId: number, status: AnimalStatus, date: string | null, notes: string | null) =>
   call<void>("PUT", `/Livestock/animals/${animalId}/status`, withFarm({ status, date, notes }))
@@ -376,10 +393,6 @@ export interface ItemInput {
   speciesCode: string | null
   notes: string | null
   isActive?: boolean
-  /** Create only. */
-  openingQuantity?: number | null
-  openingUnitCost?: number | null
-  openingDate?: string | null
 }
 
 export const listItems = (category?: ItemCategory | "Health", includeInactive = false) =>
@@ -390,7 +403,7 @@ export const saveItem = (input: ItemInput, itemId?: number) =>
     ? call<{ itemId: number }>("PUT", `/Livestock/items/${itemId}`, withFarm(input))
     : call<{ itemId: number }>("POST", "/Livestock/items", withFarm(input))
 export const deleteItem = (itemId: number) => call<void>("DELETE", `/Livestock/items/${itemId}?${q()}`)
-export const changeStock = (input: { itemId: number; date: string; type: "StockIn" | "Adjustment"; quantity: number; unitCost: number | null; notes: string | null }) =>
+export const changeStock = (input: { itemId: number; date: string; type: "Adjustment"; quantity: number; unitCost: number | null; notes: string | null }) =>
   call<LivestockItem & { movementId: number }>("POST", "/Livestock/stock", withFarm(input))
 export const reverseStockChange = (movementId: number, reason: string) =>
   call<void>("POST", `/Livestock/stock/${movementId}/reversal`, withFarm({ reason }))

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { BarChart3, ClipboardList, Layers, MoreHorizontal, Pencil, Plus, RotateCcw, Tag, Trash2, Undo2 } from "lucide-react"
+import { BarChart3, ClipboardList, Layers, MoreHorizontal, Pencil, Plus, RotateCcw, Tag, Tags, Trash2, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -29,6 +29,7 @@ import { BreedingDialog } from "@/components/livestock/breeding-dialog"
 import { GroupFormDialog } from "@/components/livestock/group-form-dialog"
 import { HeadChangeDialog } from "@/components/livestock/head-change-dialog"
 import { AnimalFormDialog } from "@/components/livestock/animal-form-dialog"
+import { TagManyDialog } from "@/components/livestock/tag-many-dialog"
 import {
   AMBER_BUTTON, EmptyState, LivestockPage, LoadError, Loading, StatCard, fmtAge, fmtDate, fmtNum, todayIso,
 } from "@/components/livestock/livestock-page"
@@ -45,7 +46,7 @@ export default function LivestockGroupPage() {
   const [breeding, setBreeding] = useState<BreedingEvent[]>([])
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [dialog, setDialog] = useState<null | "edit" | "change" | "tag" | "close" | "delete" | "breeding">(null)
+  const [dialog, setDialog] = useState<null | "edit" | "change" | "tag" | "tagMany" | "close" | "delete" | "breeding">(null)
   const [reversing, setReversing] = useState<HeadMovement | null>(null)
 
   const load = useCallback(async () => {
@@ -98,6 +99,7 @@ export default function LivestockGroupPage() {
               <DropdownMenuItem asChild><Link href={`/livestock/reports/group-summary?groupId=${groupId}`}><BarChart3 className="h-4 w-4 mr-2" />Whole-life summary</Link></DropdownMenuItem>
               <DropdownMenuItem onClick={() => setDialog("edit")}><Pencil className="h-4 w-4 mr-2" />Edit details</DropdownMenuItem>
               {isActive && <DropdownMenuItem onClick={() => setDialog("tag")}><Tag className="h-4 w-4 mr-2" />Tag an animal</DropdownMenuItem>}
+              {isActive && <DropdownMenuItem onClick={() => setDialog("tagMany")}><Tags className="h-4 w-4 mr-2" />Tag several animals</DropdownMenuItem>}
               {isActive && species?.breedsOnFarm && <DropdownMenuItem onClick={() => setDialog("breeding")}><Plus className="h-4 w-4 mr-2" />Record breeding</DropdownMenuItem>}
               {isActive
                 ? <DropdownMenuItem onClick={() => setDialog("close")}><Undo2 className="h-4 w-4 mr-2" />Close group</DropdownMenuItem>
@@ -192,8 +194,9 @@ export default function LivestockGroupPage() {
 
         <TabsContent value="animals" className="pt-3 space-y-3">
           {isActive && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setDialog("tag")}><Tag className="h-4 w-4 mr-1" /> Tag an animal</Button>
+              <Button variant="outline" onClick={() => setDialog("tagMany")}><Tags className="h-4 w-4 mr-1" /> Tag several</Button>
             </div>
           )}
           {animals.length === 0 ? (
@@ -282,6 +285,7 @@ export default function LivestockGroupPage() {
       <BreedingDialog open={dialog === "breeding"} onOpenChange={(o) => !o && setDialog(null)} preset={{ groupId }} onSaved={load} />
       <GroupFormDialog open={dialog === "edit"} onOpenChange={(o) => !o && setDialog(null)} group={group} onSaved={load} />
       {dialog === "change" && <HeadChangeDialog open onOpenChange={(o) => !o && setDialog(null)} group={group} onSaved={load} />}
+      <TagManyDialog open={dialog === "tagMany"} onOpenChange={(o) => !o && setDialog(null)} presetGroupId={groupId} onSaved={load} />
       <AnimalFormDialog open={dialog === "tag"} onOpenChange={(o) => !o && setDialog(null)} presetGroupId={groupId} onSaved={load} />
       <PromptDialog
         open={dialog === "close"}

@@ -232,6 +232,20 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpPost]
         public Task<IActionResult> Create([FromBody] JsonElement body) => Save(null, body);
 
+        /// <summary>
+        /// Tag several animals into one group at once (468). Body: { farmId, groupId, addsToHead,
+        /// source, acquiredDate, purchaseCost, breed, animals: [{ tagNumber, name, sex, breed, birthDate, notes }] }.
+        /// All or nothing. Returns { animalIds: [...] }.
+        /// </summary>
+        [HttpPost("many")]
+        public Task<IActionResult> CreateMany([FromBody] JsonElement body)
+            => Write(FarmOf(body), async by =>
+            {
+                var ids = await Db.JsonAsync("splivestockanimal_savemany", Text("p_farmid", FarmOf(body)),
+                    Jsonb("p_animals", body.GetRawText()), Text("p_by", by));
+                return JsonText($"{{\"animalIds\":{ids}}}");
+            });
+
         [HttpPut("{id:int}")]
         public Task<IActionResult> Update(int id, [FromBody] JsonElement body) => Save(id, body);
 

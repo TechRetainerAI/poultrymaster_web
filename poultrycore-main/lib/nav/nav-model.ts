@@ -74,6 +74,12 @@ export interface MegaMenuGroup {
   key: string
   label: string
   items: MegaMenuItem[]
+  /**
+   * Grid layout only: a tall group may take two rows, so two short groups can
+   * stack beside it with no gap between them (livestock Setup: Farm spans
+   * Production and Company). Ignored by the column layout.
+   */
+  rowSpan?: 2
 }
 // NOTE: groups used to carry a `color` for a 2x2 dot beside the heading. The
 // dot is gone (arbitrary hues that encoded nothing, and some vanished against

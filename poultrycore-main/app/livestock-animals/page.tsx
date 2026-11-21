@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Search, Tag } from "lucide-react"
+import { Plus, Search, Tag, Tags } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { listAnimals, type AnimalStatus, type LivestockAnimal } from "@/lib/api/livestock"
 import { useLivestockSpecies } from "@/hooks/use-livestock-species"
 import { AnimalFormDialog } from "@/components/livestock/animal-form-dialog"
+import { TagManyDialog } from "@/components/livestock/tag-many-dialog"
 import { AMBER_BUTTON, EmptyState, LivestockPage, LoadError, Loading, fmtAge } from "@/components/livestock/livestock-page"
 
 const ALL = "__all"
@@ -26,6 +27,7 @@ export default function LivestockAnimalsPage() {
   const [search, setSearch] = useState("")
   const [term, setTerm] = useState("")
   const [creating, setCreating] = useState(false)
+  const [tagMany, setTagMany] = useState(false)
 
   // Search waits for a pause in typing.
   useEffect(() => { const t = setTimeout(() => setTerm(search.trim()), 300); return () => clearTimeout(t) }, [search])
@@ -43,7 +45,12 @@ export default function LivestockAnimalsPage() {
       title="Animal register"
       description="Tagged animals: who they are, where they are, and their parents."
       icon={Tag}
-      actions={<Button className={AMBER_BUTTON} onClick={() => setCreating(true)}><Plus className="h-4 w-4 mr-1" /> Register animal</Button>}
+      actions={
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setTagMany(true)}><Tags className="h-4 w-4 mr-1" /> Tag several</Button>
+          <Button className={AMBER_BUTTON} onClick={() => setCreating(true)}><Plus className="h-4 w-4 mr-1" /> Register animal</Button>
+        </div>
+      }
     >
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
@@ -106,6 +113,7 @@ export default function LivestockAnimalsPage() {
         </div>
       )}
 
+      <TagManyDialog open={tagMany} onOpenChange={setTagMany} onSaved={load} />
       <AnimalFormDialog open={creating} onOpenChange={setCreating} onSaved={(id) => router.push(`/livestock-animals/${id}`)} />
     </LivestockPage>
   )
