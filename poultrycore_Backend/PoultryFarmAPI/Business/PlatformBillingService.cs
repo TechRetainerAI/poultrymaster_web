@@ -316,6 +316,16 @@ namespace PoultryFarmAPIWeb.Business
                 var v = await cmd.ExecuteScalarAsync();
                 return v is decimal d ? d : Convert.ToDecimal(v ?? 0);
             }
+            // Livestock bills by animals alive in its groups (migration 466) -- the
+            // same head count its pages show. Every livestock tier is starter
+            // until an admin sets real tiers, so this never invents a charge.
+            if (string.Equals(metricType, "ActiveAnimalCount", StringComparison.OrdinalIgnoreCase))
+            {
+                using var cmd = new NpgsqlCommand("SELECT spplatformbilling_activeanimals(@F)", conn);
+                cmd.Parameters.AddWithValue("@F", farmId);
+                var v = await cmd.ExecuteScalarAsync();
+                return v is decimal d ? d : Convert.ToDecimal(v ?? 0);
+            }
             // Water bills by production lines the COMPANY records (admin-app
             // spec 5/7) - operational data, read-only to billing. Until a
             // company records lines, the configured manual scale still applies

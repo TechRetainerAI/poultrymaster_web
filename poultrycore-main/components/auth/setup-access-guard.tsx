@@ -30,8 +30,7 @@ export function SetupAccessGuard() {
     if (!isSetupAdminRoute(pathname)) return
 
     toast({ title: "Setup is for admins", description: "Ask the account owner or an admin to make this change." })
-    // dashboardHomeForType predates the Restaurant type.
-    router.replace(activeFarmType === "Restaurant" ? "/restaurant-dashboard" : dashboardHomeForType(activeFarmType))
+    router.replace(dashboardHomeForType(activeFarmType))
   }, [pathname, router, toast, activeFarmType, permissions.isLoading, permissions.isAdmin])
 
   return null

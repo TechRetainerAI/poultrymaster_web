@@ -29,13 +29,14 @@ export default function DashboardPage() {
     else if (activeFarmType === "Generic") router.replace("/generic-dashboard")
     else if (activeFarmType === "Hotel")   router.replace("/hotel-dashboard")
     else if (activeFarmType === "Restaurant") router.replace("/restaurant-dashboard")
+    else if (activeFarmType === "Livestock") router.replace("/livestock-dashboard")
   }, [activeFarmType, router])
 
-  // Restaurant and Hotel never see this page's poultry cards (Flock Alerts,
+  // Restaurant, Hotel and Livestock never see this page's poultry cards (Flock Alerts,
   // Farm Completeness, stock, charts), not even for the moment before the
   // redirect above lands. The early return sits below every hook, so hook
   // order is unchanged.
-  const isHospitality = activeFarmType === "Restaurant" || activeFarmType === "Hotel"
+  const isHospitality = activeFarmType === "Restaurant" || activeFarmType === "Hotel" || activeFarmType === "Livestock"
 
   // Check if user has 2FA enabled
   useEffect(() => {

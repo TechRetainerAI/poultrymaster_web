@@ -246,6 +246,64 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/supplier-payments"] = "poultry.supplier-payments",
             ["poultry/balances"] = "poultry.supplier-balances",
 
+            // ---- Livestock (458+) ----------------------------------------------
+            // Each key mirrors a poultry twin (splivestock_iammirror): pens <-
+            // houses, groups/animals <- flocks, batches <- flock-batches.
+            ["livestock/species"] = "livestock.species",
+            ["livestock/pens"] = "livestock.pens",
+            ["livestock/company"] = "office.settings",   // 467, as water/company
+            ["livestock/batches"] = "livestock.batches",
+            ["livestock/groups"] = "livestock.groups",
+            ["livestock/animals"] = "livestock.animals",
+            ["livestock/overview"] = "livestock.groups",
+            // 459
+            ["livestock/items"] = "livestock.items",
+            ["livestock/stock"] = "livestock.stock",
+            ["livestock/production-records"] = "livestock.production-records",
+            ["livestock/breeding"] = "livestock.breeding",
+            ["livestock/weigh-ins"] = "livestock.weigh-ins",
+            // 460
+            ["livestock/health"] = "livestock.health",
+            ["livestock/vaccination"] = "livestock.vaccination",
+            ["livestock/treatments"] = "livestock.treatments",
+            ["livestock/feed-formulas"] = "livestock.feed-formulas",
+            ["livestock/feed-production"] = "livestock.feed-production",
+            // Feeding many groups writes their daily records.
+            ["livestock/feed-distribution"] = "livestock.production-records",
+            ["livestock/feed-supply"] = "livestock.items",
+            ["livestock/alerts"] = "livestock.alerts",
+            // 461
+            ["livestock/cash-accounts"] = "livestock.cash",
+            ["livestock/purchases"] = "livestock.purchases",
+            ["livestock/supplier-payments"] = "livestock.supplier-payments",
+            ["livestock/supplier-balances"] = "livestock.supplier-balances",
+            ["livestock/losses"] = "livestock.losses",
+            ["livestock/head-count"] = "livestock.head-count",
+            ["livestock/animal-stock"] = "livestock.animal-stock",
+            // 462
+            ["livestock/sales"] = "livestock.sales",
+            ["livestock/customer-payments"] = "livestock.customer-payments",
+            ["livestock/customer-balances"] = "livestock.customer-balances",
+            ["livestock/expenses"] = "livestock.expenses",
+            // 463
+            ["livestock/cash-transfers"] = "livestock.cash-transfers",
+            ["livestock/cash-reconciliation"] = "livestock.cash-reconciliation",
+            ["livestock/staff"] = "livestock.staff",
+            ["livestock/payroll"] = "livestock.payroll",
+            ["livestock/staff-loans"] = "livestock.staff-loans",
+            ["livestock/owner-money"] = "livestock.owner-money",
+            ["livestock/loans"] = "livestock.loans",
+            ["livestock/assets"] = "livestock.assets",
+            ["livestock/reports"] = "livestock.reports",
+            // 464
+            ["livestock/daily-closing"] = "livestock.daily-closing",
+            ["livestock/missing-records"] = "livestock.production-records",
+            ["livestock/drivers"] = "livestock.drivers",
+            ["livestock/vehicles"] = "livestock.vehicles",
+            ["livestock/routes"] = "livestock.routes",
+            ["livestock/deliveries"] = "livestock.deliveries",
+            ["livestock/driver-returns"] = "livestock.driver-returns",
+
             // ---- Water --------------------------------------------------------
             ["water/company"] = "office.settings",
             ["water/farm-settings"] = "office.settings",

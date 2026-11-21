@@ -23,6 +23,8 @@ import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
+import { buildLivestockNavConfig } from "@/lib/nav/livestock-nav-config"
+import { useLivestockFeatures } from "@/hooks/use-livestock-species"
 import { buildGenericNavGroups } from "@/lib/nav/generic-nav-config"
 import {
   HOTEL_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS, WATER_REPORT_NAV_GROUPS,
@@ -59,7 +61,8 @@ function homePage(type: string | null): SearchPage {
     type === "Water" ? "/water-dashboard" :
     type === "Generic" ? "/generic-dashboard" :
     type === "Hotel" ? "/hotel-dashboard" :
-    type === "Restaurant" ? "/restaurant-dashboard" : "/dashboard"
+    type === "Restaurant" ? "/restaurant-dashboard" :
+    type === "Livestock" ? "/livestock-dashboard" : "/dashboard"
   return { href, title: "Dashboard", group: "Home", icon: Home, keywords: ["home", "overview", "main", "summary"] }
 }
 
@@ -68,6 +71,7 @@ export function useSearchPages(): SearchPage[] {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const genericModules = useGenericModules()
   const quickLinkHrefs = useQuickLinkHrefs()
+  const livestockFeatures = useLivestockFeatures()
   const showEggFeatures = usePoultryEggFeatures()
   const showBroilerFeatures = usePoultryBroilerFeatures()
 
@@ -100,6 +104,8 @@ export function useSearchPages(): SearchPage[] {
     } else if (activeFarmType === "Restaurant") {
       const gate = <T extends { href: string }>(items: T[]) => filterRestaurantNavItems(items, featureAccess, isAdmin)
       pages = flattenNavConfig(buildRestaurantNavConfig({}, permissions), gateReports(RESTAURANT_REPORT_NAV_GROUPS, gate))
+    } else if (activeFarmType === "Livestock") {
+      pages = flattenNavConfig(buildLivestockNavConfig({ permissions, onOpenAlerts: noop, quickLinkHrefs, showEggFeatures: livestockFeatures.eggs, showMilkFeatures: livestockFeatures.milk, showBreedingFeatures: livestockFeatures.breeding }))
     } else {
       // Poultry, and the first paint before the persisted farm type rehydrates.
       const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: noop, quickLinkHrefs, showEggFeatures, showBroilerFeatures })
@@ -115,7 +121,7 @@ export function useSearchPages(): SearchPage[] {
     }
     const home = homePage(activeFarmType)
     return [home, ...pages.filter((p) => p.href !== home.href)]
-  }, [permissions, activeFarmType, genericModules, quickLinkHrefs, showEggFeatures, showBroilerFeatures])
+  }, [permissions, activeFarmType, genericModules, quickLinkHrefs, showEggFeatures, showBroilerFeatures, livestockFeatures])
 }
 
 /** `/mock/` in the message = the API failed and the wrapper made data up. */
@@ -176,7 +182,7 @@ async function loadRecords(type: string | null, canOpen: (href: string) => boole
     return out
   }
 
-  if (type === "Hotel" || type === "Restaurant") return out
+  if (type === "Hotel" || type === "Restaurant" || type === "Livestock") return out
   if (!userId || !farmId) return out
 
   const [customers, suppliers, flocks, houses] = await Promise.all([

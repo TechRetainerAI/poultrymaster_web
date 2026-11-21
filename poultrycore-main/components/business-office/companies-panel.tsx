@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, ArrowRight, Pencil, Trash2 } from "lucide-react"
+import { Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, ArrowRight, Pencil, Trash2, PawPrint } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -34,9 +34,9 @@ import { getBusinessTemplateFor } from "@/lib/api/generic-subscriptions"
 const COMPANY_TYPES: CompanyType[] =
   Array.from(new Set(BUSINESS_TYPES.map((t) => t.companyType)))
 
-function typeIcon(t: string) { return t === "Water" ? Droplets : t === "Poultry" ? Bird : t === "Generic" ? ShoppingBag : Building2 }
-function typeTone(t: string) { return t === "Water" ? "bg-sky-100 text-sky-700" : t === "Poultry" ? "bg-orange-100 text-orange-700" : t === "Generic" ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-700" }
-function typeStrip(t: string) { return t === "Water" ? "bg-sky-400" : t === "Poultry" ? "bg-orange-400" : t === "Generic" ? "bg-violet-400" : "bg-slate-300" }
+function typeIcon(t: string) { return t === "Water" ? Droplets : t === "Poultry" ? Bird : t === "Generic" ? ShoppingBag : t === "Livestock" ? PawPrint : Building2 }
+function typeTone(t: string) { return t === "Water" ? "bg-sky-100 text-sky-700" : t === "Poultry" ? "bg-orange-100 text-orange-700" : t === "Generic" ? "bg-violet-100 text-violet-700" : t === "Livestock" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700" }
+function typeStrip(t: string) { return t === "Water" ? "bg-sky-400" : t === "Poultry" ? "bg-orange-400" : t === "Generic" ? "bg-violet-400" : t === "Livestock" ? "bg-amber-700" : "bg-slate-300" }
 
 export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }) {
   const router = useRouter()
