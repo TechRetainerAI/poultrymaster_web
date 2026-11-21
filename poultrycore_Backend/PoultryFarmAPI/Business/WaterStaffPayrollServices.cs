@@ -290,8 +290,12 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<WaterPayrollItemModel?> UpsertItemAsync(int runId, string farmId, WaterPayrollItemUpsertRequest req)
         {
             using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterpayrollitem_upsert(p_waterpayrollrunid => @WaterPayrollRunId::int, p_farmid => @FarmId::text, p_waterstaffid => @WaterStaffId::int, p_basicpay => @BasicPay::numeric, p_dailywage => @DailyWage::numeric, p_commission => @Commission::numeric, p_bonus => @Bonus::numeric, p_deductions => @Deductions::numeric, p_paymentmethod => @PaymentMethod::text, p_notes => @Notes::text)", c);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterpayrollitem_upsert(p_waterpayrollrunid => @WaterPayrollRunId::int, p_farmid => @FarmId::text, p_waterstaffid => @WaterStaffId::int, p_basicpay => @BasicPay::numeric, p_dailywage => @DailyWage::numeric, p_commission => @Commission::numeric, p_bonus => @Bonus::numeric, p_deductions => @Deductions::numeric, p_paymentmethod => @PaymentMethod::text, p_notes => @Notes::text, p_otherdeductions => @OtherDeductions::numeric, p_employeecredit => @EmployeeCredit::numeric, p_savedby => @SavedBy::text)", c);
             cmd.Parameters.AddWithValue("@WaterPayrollRunId", runId);
+            // 460: other deductions and keep-as-credit, sent separately.
+            cmd.Parameters.AddWithValue("@OtherDeductions", (object?)req.OtherDeductions ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@EmployeeCredit",  (object?)req.EmployeeCredit  ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SavedBy",         (object?)req.SavedBy         ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@WaterStaffId", req.WaterStaffId);
             cmd.Parameters.AddWithValue("@BasicPay",   req.BasicPay);

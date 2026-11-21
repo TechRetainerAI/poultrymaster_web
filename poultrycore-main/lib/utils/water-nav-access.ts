@@ -41,6 +41,8 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   "/water-stock": (f) => f.canViewWaterInventory,
   "/water-inventory": (f) => f.canViewWaterInventory,
   "/water-supply-purchases": (f) => f.canViewWaterInventory,
+  "/water-purchase-receipts": (f) => f.canViewWaterInventory,   // 462
+  "/water-restock-forecast": (f) => f.canViewWaterInventory,    // 464
   // Old address of the page above; it only redirects there now.
   "/water-raw-materials": (f) => f.canViewWaterInventory,
   "/water-loss-records": (f) => f.canViewWaterInventory,
@@ -64,6 +66,7 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // disclosure to protect and a new permission would only strip the page
   // from staff who can already see the data.
   "/water-cash-flow": (f) => f.canViewCashLedger,
+  "/water-financial-activity": (f) => f.canViewCashLedger,   // 461: same rule as Cash Flow
   "/water-cash-accounts": (f) => f.canViewCashLedger,
   // Counting cash is a cash-ledger job; it rides the same flag rather than
   // introducing a permission nobody has been granted yet.
@@ -88,6 +91,8 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // and reverse advances should not be. That is the opposite of the poultry
   // allow-list, where omitting the href would have hidden it from everyone.
   "/water-employee-loans": (f) => f.canViewCashLedger,
+  // 460: same rule -- it pays money out of cash accounts.
+  "/water-employee-credit": (f) => f.canViewCashLedger,
   "/water-payments": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales,
   "/water-daily-closing": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canViewCashLedger,
 

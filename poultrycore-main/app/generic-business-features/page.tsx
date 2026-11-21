@@ -219,11 +219,13 @@ export default function GenericBusinessFeaturesPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="max-w-4xl mx-auto space-y-4">
+          <div className="space-y-4">
+            <button type="button" onClick={() => router.back()} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700">
+              <ArrowLeft className="h-3 w-3 mr-1" /> Back
+            </button>
             {/* Page header */}
             <div className="flex items-end justify-between flex-wrap gap-2">
               <div>
-                <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
                 <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                   <Settings2 className="h-6 w-6 text-indigo-600" />
                   Business Features
@@ -284,26 +286,51 @@ export default function GenericBusinessFeaturesPage() {
                   </Card>
                 ) : (
                   <div className="space-y-4">
-                    {groups.map(({ group, features }) => (
-                      <Card key={group}>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">{group}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="divide-y">
-                            {features.map((f) => {
-                              const isEnabled = Boolean(modules[f.key])
-                              const isRecommended = recommended?.[f.key] ?? null
-
-                              return (
-                                <div
-                                  key={f.key}
-                                  className="flex items-center justify-between gap-4 py-3"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-sm font-medium text-slate-900">
-                                        {f.label}
+                    {groups.map(({ group, features }) => {
+                      const onCount = features.filter((f) => Boolean(modules[f.key])).length
+                      return (
+                        <Card key={group}>
+                          <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+                            <CardTitle className="text-base">{group}</CardTitle>
+                            <span className="text-xs text-slate-500">
+                              {onCount} of {features.length} enabled
+                            </span>
+                          </CardHeader>
+                          <CardContent>
+                            {/* Every feature is an equal tile in one grid, so rows line up
+                                however many features a group has. */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                              {features.map((f) => {
+                                const isEnabled = Boolean(modules[f.key])
+                                const isRecommended = recommended?.[f.key] ?? null
+                                return (
+                                  <div
+                                    key={f.key}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => toggle(f.key)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(f.key) }
+                                    }}
+                                    className={`flex h-full cursor-pointer flex-col rounded-lg border p-4 transition-colors ${
+                                      isEnabled
+                                        ? "border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50"
+                                        : "border-slate-200 bg-white hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <span className="text-sm font-medium text-slate-900">{f.label}</span>
+                                      <Switch
+                                        checked={isEnabled}
+                                        onCheckedChange={() => toggle(f.key)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="shrink-0"
+                                      />
+                                    </div>
+                                    <p className="mt-1 flex-1 text-xs text-slate-500">{f.description}</p>
+                                    <div className="mt-3 flex items-center gap-2">
+                                      <span className={`text-xs font-medium ${isEnabled ? "text-emerald-600" : "text-slate-400"}`}>
+                                        {isEnabled ? "Enabled" : "Disabled"}
                                       </span>
                                       {isRecommended === true && (
                                         <Badge variant="secondary" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
@@ -311,29 +338,16 @@ export default function GenericBusinessFeaturesPage() {
                                         </Badge>
                                       )}
                                     </div>
-                                    <p className="text-xs text-slate-500 mt-0.5">
-                                      {f.description}
-                                    </p>
                                   </div>
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    <span className={`text-xs font-medium ${isEnabled ? "text-emerald-600" : "text-slate-400"}`}>
-                                      {isEnabled ? "Enabled" : "Disabled"}
-                                    </span>
-                                    <Switch
-                                      checked={isEnabled}
-                                      onCheckedChange={() => toggle(f.key)}
-                                    />
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-
+                                )
+                              })}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
                     {/* Info note */}
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 flex gap-3">
+                    <div className="rounded-lg border border-slate-200 bg-white p-4 flex gap-3">
                       <Info className="h-5 w-5 text-slate-400 shrink-0 mt-0.5" />
                       <div className="text-sm text-slate-600">
                         <p className="font-medium">Disabling a feature hides it from menus</p>

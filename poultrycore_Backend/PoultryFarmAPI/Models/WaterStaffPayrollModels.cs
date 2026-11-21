@@ -191,9 +191,15 @@ namespace PoultryFarmAPIWeb.Models
         public decimal DailyWage { get; set; }
         public decimal Commission { get; set; }
         public decimal Bonus { get; set; }
+        /// <summary>Old meaning: the line's TOTAL deductions. Ignored when OtherDeductions is sent.</summary>
         public decimal Deductions { get; set; }
+        /// <summary>460: the "Other deductions" typed on the line, exactly.</summary>
+        public decimal? OtherDeductions { get; set; }
+        /// <summary>460: keep this much of the wage as employee credit (null = leave as is, 0 = none).</summary>
+        public decimal? EmployeeCredit { get; set; }
         [StringLength(20)] public string? PaymentMethod { get; set; }
         [StringLength(500)] public string? Notes { get; set; }
+        public string? SavedBy { get; set; }
     }
 
     public class WaterPayrollRunMarkPaidRequest

@@ -132,6 +132,11 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        // Migration 462 -- a lot created by Receive Purchase is changed only
+        // through its receipt; a reversed one owes nothing and holds no stock.
+        public bool IsReversed { get; set; }
+        public string? ReceiptNumber { get; set; }
+        public int? WaterPurchaseReceiptId { get; set; }
     }
 
     public class WaterRawMaterialUsageModel

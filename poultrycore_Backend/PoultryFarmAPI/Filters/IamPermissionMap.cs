@@ -316,6 +316,9 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/suppliers"] = "water.suppliers",
             ["water/dashboard"] = "water.reports",
             ["water/reports"] = "water.reports",
+            ["water/financial-activity"] = "water.reports",   // 461: read-only timeline
+            ["water/closing-report"] = "water.reports",   // 463: Closing by Category
+            ["water/alerts"] = "water.reports",   // 465: Alerts
             ["water/drivers"] = "water.drivers",
             ["water/vehicles"] = "water.vehicles",
             ["water/routes"] = "water.routes",
@@ -378,6 +381,8 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/raw-material-items"] = "water.raw-materials",
             ["water/raw-material-adjustments"] = "water.raw-materials",
             ["water/raw-material-purchases"] = "water.raw-materials",
+            ["water/purchase-receipts"] = "water.raw-materials",   // 462: Receive Purchase
+            ["water/stock-supply"] = "water.raw-materials",   // 464: Restock Forecast
             ["water/raw-material-usage"] = "water.raw-materials",
             ["water/staff"] = "water.staff",
             ["water/staff-attendance"] = "water.staff",

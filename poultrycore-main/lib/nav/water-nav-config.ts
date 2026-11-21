@@ -130,6 +130,10 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
           { id: "stock",             title: "Stock movement",            icon: Boxes,         href: "/water-stock" },
           { id: "inventory",         title: "Inventory",                 icon: Boxes,         href: "/water-inventory" },
           { id: "raw-materials",     title: "Inventory & supply purchases", icon: Box,        href: "/water-supply-purchases" },
+          // 462: one supplier invoice, several items, payment and reversal in one document.
+          { id: "purchase-receipts", title: "Receive Purchase",             icon: Box,        href: "/water-purchase-receipts" },
+          // 464: how long each raw material will last at the current rate of use.
+          { id: "restock-forecast",  title: "Inventory Restock Forecast",   icon: Box,        href: "/water-restock-forecast" },
           // Internal Use moved to Sales, Expenses & Money > Expenses, matching
           // the poultry rail. Stock the company consumes itself is a COST, not
           // a stock count -- and migration 212 records it exactly that way, as
@@ -199,6 +203,8 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
           // can equally be repaid in cash, and exists whether or not the
           // worker is on any payroll run. Migrations 313/314.
           { id: "employee-loans", title: "Employee Loans & Advances", icon: HandCoins, href: "/water-employee-loans" },
+          // 460: the mirror of advances -- money the business is keeping FOR staff.
+          { id: "employee-credit", title: "Employee Credit", icon: HandCoins, href: "/water-employee-credit" },
           // The payables mirror of the two Sales rows: what we owe, and what
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/water-supplier-payments" },
@@ -231,6 +237,9 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
           // The same STATEMENT as Reports > Profit & Loss, in the Money frame:
           // no back button, because nothing sent you here but this sidebar.
           { id: "profit-loss",   title: "Profit & Loss",   icon: TrendingUp, href: "/water-profit-loss" },
+          // 461. The bridge between the two above: every event with its cash
+          // AND its profit effect, agreeing with both reports.
+          { id: "financial-activity", title: "Financial Activity", icon: Wallet, href: "/water-financial-activity" },
           // Migration 258. Owner funding in and out -- financing, never trading.
           { id: "owner-money", title: "Owner Money", icon: HandCoins, href: "/water-owner-money" },
           // Migration 259. Borrowing and repayments.
@@ -340,7 +349,8 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
           // Hidden for now (2026-08-07) — flip `visible` back to restore it,
           // and put "account" back in the System blurb in top-nav.tsx.
           { id: "profile",    title: "Account",            icon: User,     href: "/profile", visible: false },
-          { id: "alerts",     title: "Alerts",             icon: Bell,     onClick: onOpenAlerts, badge: alertCount },
+          // 465: the Water Alerts page (the drawer this used to open was never filled on Water).
+          { id: "alerts",     title: "Alerts",             icon: Bell,     href: "/water-alerts" },
           // The account's own subscription. It was never in the water nav at
           // all -- only the poultry Money column carried it -- so a water owner
           // had no way to reach their billing from here.

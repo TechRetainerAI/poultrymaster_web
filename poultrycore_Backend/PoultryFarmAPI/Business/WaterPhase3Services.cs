@@ -437,6 +437,10 @@ namespace PoultryFarmAPIWeb.Business
             CreatedBy                  = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
             CreatedAt                  = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt                  = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+            // Migration 462 (HasCol-guarded: absent before it).
+            IsReversed             = WaterRawMaterialItemService.HasCol(r, "IsReversed") && !r.IsDBNull(r.GetOrdinal("IsReversed")) && r.GetBoolean(r.GetOrdinal("IsReversed")),
+            ReceiptNumber          = WaterRawMaterialItemService.HasCol(r, "ReceiptNumber") && !r.IsDBNull(r.GetOrdinal("ReceiptNumber")) ? r.GetString(r.GetOrdinal("ReceiptNumber")) : null,
+            WaterPurchaseReceiptId = WaterRawMaterialItemService.HasCol(r, "WaterPurchaseReceiptId") && !r.IsDBNull(r.GetOrdinal("WaterPurchaseReceiptId")) ? r.GetInt32(r.GetOrdinal("WaterPurchaseReceiptId")) : (int?)null,
         };
     }
 
