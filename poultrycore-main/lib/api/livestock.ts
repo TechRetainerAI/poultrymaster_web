@@ -1163,25 +1163,39 @@ export const getCustomerStatement = (customerId: number) => call<CustomerStateme
 
 export type ExpenseCategory = "Labour" | "Veterinary" | "Transport" | "Fuel" | "Utilities" | "Rent" | "Repairs" | "Equipment" | "Fees" | "Security" | "Other"
 export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["Labour", "Veterinary", "Transport", "Fuel", "Utilities", "Rent", "Repairs", "Equipment", "Fees", "Security", "Other"]
+// 471: the list reads every ledger that costs money, like poultry's Expenses page.
+// Only "Paid" rows (typed in here) can be reversed from the Expenses page.
+export type ExpenseSource =
+  | "Paid" | "Bill" | "Purchase" | "Batch" | "Animal" | "StockUsed" | "StockLost" | "PayRun" | "LoanInterest" | "Depreciation"
+// Spent: money out or owed. Bought: stock/animals bought. Used: stock already bought,
+// now used or lost (no new payment). NonCash: depreciation.
+export type ExpenseCostKind = "Spent" | "Bought" | "Used" | "NonCash"
 export interface Expense {
-  source: "Paid" | "Bill"
+  source: ExpenseSource
+  costKind: ExpenseCostKind
   id: number
+  sourceId: number | null
   date: string
-  category: ExpenseCategory
+  /** An ExpenseCategory for typed-in rows; item category, "Animals", "Staff pay" ... for the rest. */
+  category: string
   description: string | null
   amount: number
   groupId: number | null
   groupName: string | null
   accountName: string | null
   payee: string | null
+  /** Purchase number, batch code, or (StockUsed) the record type: ProductionRecord | TreatmentDay | HealthRecord. */
   reference: string | null
   purchaseId: number | null
+  paid: number | null
+  owed: number | null
+  payStatus: "Paid" | "PartPaid" | "Unpaid" | "Reversed" | "NotRecorded" | null
   createdBy: string | null
   reversedAt: string | null
   reverseReason: string | null
 }
 export interface ExpenseInput { date: string; category: ExpenseCategory; description: string | null; amount: number; groupId: number | null; accountId: number; paidTo: string | null; reference: string | null }
-export const listExpenses = (f: { from?: string; to?: string; category?: ExpenseCategory; groupId?: number } = {}) => {
+export const listExpenses = (f: { from?: string; to?: string; category?: string; costKind?: ExpenseCostKind; groupId?: number } = {}) => {
   const p = new URLSearchParams({ farmId: farmId() })
   for (const [k, v] of Object.entries(f)) if (v != null && v !== "") p.set(k, String(v))
   return call<Expense[]>("GET", `/Livestock/expenses?${p}`)

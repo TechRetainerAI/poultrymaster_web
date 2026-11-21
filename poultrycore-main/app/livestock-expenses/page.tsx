@@ -1,8 +1,14 @@
 "use client"
 
-// Expenses -- running costs: labour, vet, transport, fuel, utilities... Paid
-// expenses come out of a cash account now; bills on credit are entered as a
-// purchase from the supplier (an expense line) and listed here too.
+// Expenses -- every cost of the farm in one list, like the poultry Expenses
+// page (migration 471). Typed-in expenses come out of a cash account; the rest
+// are read from where they were recorded: purchases (stock, animals, bills on
+// credit), animals entered on a batch, stock used on daily records /
+// treatments / health records, stock lost, pay runs, loan interest and
+// depreciation. Only typed-in expenses can be reversed here.
+//
+// Stock used is stock that was already bought -- it is shown (as poultry does)
+// but kept OUT of "Money spent", so feed is not counted twice.
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
@@ -28,28 +34,68 @@ const NONE = "__none"
 const ALL = "__all"
 const firstOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01` }
 
+type Show = "all" | "money" | "used"
+const SHOW_LABEL: Record<Show, string> = { all: "Everything", money: "Money spent & owed", used: "Stock used & depreciation" }
+const isMoney = (r: Expense) => r.costKind === "Spent" || r.costKind === "Bought"
+
+/** Where a row came from, and the page that holds it. */
+function origin(r: Expense): { label: string; href: string | null } {
+  switch (r.source) {
+    case "Paid": return { label: "Typed in", href: null }
+    case "Bill": return { label: `Bill ${r.reference ?? ""}`.trim(), href: `/livestock-purchases/${r.purchaseId}` }
+    case "Purchase": return { label: `Purchase ${r.reference ?? ""}`.trim(), href: `/livestock-purchases/${r.purchaseId}` }
+    case "Batch": return { label: "Batch", href: "/livestock-batches" }
+    case "Animal": return { label: "Tagged animal", href: `/livestock-animals/${r.sourceId}` }
+    case "StockUsed":
+      if (r.reference === "ProductionRecord") return { label: "Daily record", href: `/livestock-production-records/${r.sourceId}` }
+      if (r.reference === "TreatmentDay") return { label: "Treatment", href: "/livestock-treatments" }
+      return { label: "Health record", href: "/livestock-health" }
+    case "StockLost": return { label: "Stock lost", href: "/livestock-losses" }
+    case "PayRun": return { label: "Pay run", href: "/livestock-payroll" }
+    case "LoanInterest": return { label: "Loan", href: "/livestock-loans" }
+    case "Depreciation": return { label: "Asset", href: "/livestock-assets" }
+  }
+}
+
+function PaidCell({ r }: { r: Expense }) {
+  if (r.costKind === "Used") return <span className="text-stone-500">Already bought</span>
+  if (r.costKind === "NonCash") return <span className="text-stone-500">No money moved</span>
+  if (r.payStatus === "NotRecorded") return <span className="text-stone-500">No payment recorded</span>
+  if (r.payStatus === "Reversed") return <span className="text-stone-500">—</span>
+  if (r.payStatus === "Unpaid") return <span className="text-rose-700">Owes {fmtMoney(r.owed ?? r.amount)}{r.payee && <> to {r.payee}</>}</span>
+  if (r.payStatus === "PartPaid") return <span className="text-amber-700">Paid {fmtMoney(r.paid ?? 0)} · owes {fmtMoney(r.owed ?? 0)}</span>
+  return <span>{r.accountName ?? "Paid"}</span>
+}
+
 export default function LivestockExpensesPage() {
   const [rows, setRows] = useState<Expense[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [from, setFrom] = useState(firstOfMonth())
   const [to, setTo] = useState(todayIso())
   const [cat, setCat] = useState(ALL)
+  const [show, setShow] = useState<Show>("all")
   const [adding, setAdding] = useState(false)
   const [reversing, setReversing] = useState<Expense | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
-    try { setRows(await listExpenses({ from, to, category: cat === ALL ? undefined : (cat as ExpenseCategory) })) } catch (e: any) { setError(e?.message ?? String(e)) }
-  }, [from, to, cat])
+    try { setRows(await listExpenses({ from, to })) } catch (e: any) { setError(e?.message ?? String(e)) }
+  }, [from, to])
   useEffect(() => { load() }, [load])
 
-  const live = useMemo(() => (rows ?? []).filter((r) => !r.reversedAt), [rows])
+  // Kinds offered = whatever is in these dates (stock categories, Animals, Staff pay ... as well as typed-in kinds).
+  const kinds = useMemo(() => [...new Set((rows ?? []).map((r) => r.category))].sort(), [rows])
+  const shown = useMemo(() => (rows ?? []).filter((r) =>
+    (cat === ALL || r.category === cat) && (show === "all" || (show === "money") === isMoney(r))), [rows, cat, show])
+  const live = useMemo(() => shown.filter((r) => !r.reversedAt), [shown])
   const byCat = useMemo(() => {
     const m = new Map<string, number>()
-    for (const r of live) m.set(r.category, (m.get(r.category) ?? 0) + r.amount)
+    for (const r of live) if (isMoney(r)) m.set(r.category, (m.get(r.category) ?? 0) + r.amount)
     return [...m.entries()].sort((a, b) => b[1] - a[1])
   }, [live])
-  const total = live.reduce((s, r) => s + r.amount, 0)
+  const spent = live.filter(isMoney).reduce((s, r) => s + r.amount, 0)
+  const owed = live.filter(isMoney).reduce((s, r) => s + (r.owed ?? 0), 0)
+  const used = live.filter((r) => !isMoney(r)).reduce((s, r) => s + r.amount, 0)
 
   return (
     <LivestockPage title="Expenses" description="Running costs of the farm." icon={Receipt}
@@ -65,36 +111,49 @@ export default function LivestockExpensesPage() {
         <Input type="date" className="w-40" value={to} min={from} max={todayIso()} onChange={(e) => setTo(e.target.value)} aria-label="To" />
         <Select value={cat} onValueChange={setCat}>
           <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value={ALL}>Everything</SelectItem>{EXPENSE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+          <SelectContent><SelectItem value={ALL}>Every kind</SelectItem>{kinds.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={show} onValueChange={(v) => setShow(v as Show)}>
+          <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+          <SelectContent>{(Object.keys(SHOW_LABEL) as Show[]).map((s) => <SelectItem key={s} value={s}>{SHOW_LABEL[s]}</SelectItem>)}</SelectContent>
         </Select>
       </div>
       {error ? <LoadError message={error} onRetry={load} /> : !rows ? <Loading /> : (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            <StatCard label="Spent in these dates" value={fmtMoney(total)} tone="amber" />
-            <Card className="lg:col-span-2">
-              <CardHeader className="pb-1"><CardTitle className="text-sm text-stone-600">By kind</CardTitle></CardHeader>
-              <CardContent className="text-sm flex flex-wrap gap-x-4 gap-y-1">
-                {byCat.length === 0 ? <span className="text-stone-500">Nothing yet.</span> : byCat.map(([c, v]) => <span key={c}>{c} <strong>{fmtMoney(v)}</strong></span>)}
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <StatCard label="Money spent in these dates" value={fmtMoney(spent)} tone="amber" hint="Expenses, bills, purchases, pay, interest" />
+            <StatCard label="Still owed" value={fmtMoney(owed)} tone={owed > 0 ? "rose" : "stone"} hint="On purchases and bills" />
+            <StatCard label="Stock used & depreciation" value={fmtMoney(used)} hint="Already bought — not a new payment" />
           </div>
-          {rows.length === 0 ? <EmptyState title="No expenses in these dates" /> : (
+          <Card>
+            <CardHeader className="pb-1"><CardTitle className="text-sm text-stone-600">Money spent by kind</CardTitle></CardHeader>
+            <CardContent className="text-sm flex flex-wrap gap-x-4 gap-y-1">
+              {byCat.length === 0 ? <span className="text-stone-500">Nothing yet.</span> : byCat.map(([c, v]) => <span key={c}>{c} <strong>{fmtMoney(v)}</strong></span>)}
+            </CardContent>
+          </Card>
+          {shown.length === 0 ? <EmptyState title="No expenses in these dates" /> : (
             <div className="rounded-md border bg-white overflow-x-auto">
               <Table>
-                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Kind</TableHead><TableHead>What</TableHead><TableHead>Group</TableHead><TableHead>Paid</TableHead><TableHead className="text-right">Amount</TableHead><TableHead /></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Kind</TableHead><TableHead>What</TableHead><TableHead>From</TableHead><TableHead>Group</TableHead><TableHead>Paid</TableHead><TableHead className="text-right">Amount</TableHead><TableHead /></TableRow></TableHeader>
                 <TableBody>
-                  {rows.map((r) => (
-                    <TableRow key={`${r.source}-${r.id}`} className={r.reversedAt ? "opacity-50" : undefined}>
-                      <TableCell className="whitespace-nowrap">{fmtDate(r.date)}</TableCell>
-                      <TableCell>{r.category}{r.reversedAt && <Badge variant="outline" className="ml-2">Reversed</Badge>}</TableCell>
-                      <TableCell className="text-sm">{r.description ?? "—"}{r.payee && <span className="text-stone-500"> · {r.payee}</span>}</TableCell>
-                      <TableCell>{r.groupName ?? "—"}</TableCell>
-                      <TableCell className="text-sm">{r.source === "Bill" ? <Link className="text-amber-800 hover:underline" href={`/livestock-purchases/${r.purchaseId}`}>On credit</Link> : r.accountName}</TableCell>
-                      <TableCell className="text-right">{fmtMoney(r.amount)}</TableCell>
-                      <TableCell className="text-right">{r.source === "Paid" && !r.reversedAt && <Button variant="ghost" size="sm" onClick={() => setReversing(r)}>Reverse</Button>}</TableCell>
-                    </TableRow>
-                  ))}
+                  {shown.map((r) => {
+                    const o = origin(r)
+                    return (
+                      <TableRow key={`${r.source}-${r.id}`} className={r.reversedAt ? "opacity-50" : undefined}>
+                        <TableCell className="whitespace-nowrap">{fmtDate(r.date)}</TableCell>
+                        <TableCell>{r.category}{r.reversedAt && <Badge variant="outline" className="ml-2">Reversed</Badge>}</TableCell>
+                        <TableCell className="text-sm">
+                          {r.description ?? "—"}{r.source === "Paid" && r.payee && <span className="text-stone-500"> · {r.payee}</span>}
+                          {r.costKind === "Used" && <div className="text-[11px] text-stone-500">Stock already bought — not a second payment</div>}
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">{o.href ? <Link className="text-amber-800 hover:underline" href={o.href}>{o.label}</Link> : o.label}</TableCell>
+                        <TableCell>{r.groupName ?? "—"}</TableCell>
+                        <TableCell className="text-sm"><PaidCell r={r} /></TableCell>
+                        <TableCell className={r.costKind === "Used" || r.costKind === "NonCash" ? "text-right text-stone-500" : "text-right"}>{fmtMoney(r.amount)}</TableCell>
+                        <TableCell className="text-right">{r.source === "Paid" && !r.reversedAt && <Button variant="ghost" size="sm" onClick={() => setReversing(r)}>Reverse</Button>}</TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
