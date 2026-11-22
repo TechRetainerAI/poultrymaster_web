@@ -6,16 +6,17 @@
 // means the create form, the setup wizard and any future onboarding flow all
 // agree on what "Gym" means.
 //
-// Deliberately NOT a sixth Farms.Type. A new type would need its own farm
-// guard, IAM company type, controller tree and setup SP; a template needs none
-// of that, and the LoginAPI's Farm.cs type regex already permits "Generic".
+// Most businesses are Generic templates, not a Farms.Type of their own. A new
+// type needs its own farm guard, IAM company type, controller tree and setup
+// SP; a template needs none of that. Livestock is the exception: it clones the
+// Poultry module tree for other animals, so it is a real sixth type.
 
 import type {
   BusinessTemplate,
   IndustryTemplate,
 } from "@/lib/generic/template-labels"
 
-export type CompanyType = "Poultry" | "Water" | "Generic" | "Hotel" | "Restaurant"
+export type CompanyType = "Poultry" | "Water" | "Generic" | "Hotel" | "Restaurant" | "Livestock"
 
 export type BusinessCategory = "retail" | "service" | "subscription" | "other"
 
@@ -34,7 +35,7 @@ export interface BusinessType {
 }
 
 export const BUSINESS_TYPES: BusinessType[] = [
-  // ---- the four with their own module tree -------------------------------
+  // ---- the five with their own module tree -------------------------------
   {
     id: "water",
     label: "Water production",
@@ -46,6 +47,12 @@ export const BUSINESS_TYPES: BusinessType[] = [
     label: "Poultry farm",
     description: "Flocks, houses, egg production, feed",
     companyType: "Poultry",
+  },
+  {
+    id: "livestock",
+    label: "Livestock farm",
+    description: "Ducks, guinea fowl, rabbits, goats, sheep, pigs, cattle and more",
+    companyType: "Livestock",
   },
   {
     id: "hotel",

@@ -148,6 +148,27 @@ namespace PoultryFarmAPIWeb.Business
             ["GenericDailyClosing.Submit"] = ("CLOSING", "DailyClosingCompleted"),
             ["GenericCash.Reconcile"] = ("OPERATIONS", "CashReconciled"),
             ["GenericCompany.Setup"] = ("SETUP", "CompanySetupCompleted"),
+
+            // Livestock (migrations 458-465). Controller = class name minus "Controller".
+            ["LivestockSale.Create"] = ("SALES", "SaleRecorded"),
+            ["LivestockCustomerPayment.Receive"] = ("PAYMENTS", "CustomerPaymentReceived"),
+            ["LivestockSupplierPayment.Pay"] = ("PAYMENTS", "SupplierPaymentRecorded"),
+            ["LivestockProduction.Create"] = ("PRODUCTION", "ProductionRecorded"),
+            ["LivestockFeedRun.Mix"] = ("PRODUCTION", "FeedProductionPosted"),
+            ["LivestockHealth.Create"] = ("OPERATIONS", "MedicationRecorded"),
+            ["LivestockTreatment.PostDay"] = ("OPERATIONS", "MedicationRecorded"),
+            ["LivestockGroup.Create"] = ("OPERATIONS", "FlockCreated"),
+            ["LivestockBatch.Create"] = ("OPERATIONS", "BatchCreated"),
+            ["LivestockGroup.Close"] = ("OPERATIONS", "FlockClosed"),
+            ["LivestockDailyClosing.Close"] = ("CLOSING", "DailyClosingCompleted"),
+            ["LivestockExpense.Create"] = ("EXPENSES", "ExpenseCreated"),
+            ["LivestockPayroll.Create"] = ("PAYROLL", "PayrollApproved"),
+            ["LivestockPurchase.Create"] = ("INVENTORY", "InventoryReceived"),
+            ["LivestockStock.Adjust"] = ("INVENTORY", "InventoryMovementRecorded"),
+            ["LivestockHeadCount.Post"] = ("INVENTORY", "StockTakeCompleted"),
+            ["LivestockDriverReturn.Return"] = ("DELIVERY", "DriverReturnCompleted"),
+            ["LivestockReconciliation.Create"] = ("OPERATIONS", "CashReconciled"),
+            ["LivestockSpecies.Set"] = ("SETUP", "CompanySetupCompleted"),
         };
 
         // Tier 2: typed but NOT meaningful on their own.
@@ -157,6 +178,7 @@ namespace PoultryFarmAPIWeb.Business
             ["PoultryStaff.Create"] = ("EMPLOYEES", "EmployeeCreated"),
             ["WaterStaff.Create"] = ("EMPLOYEES", "EmployeeCreated"),
             ["GenericStaff.Create"] = ("EMPLOYEES", "EmployeeCreated"),
+            ["LivestockStaff.Create"] = ("EMPLOYEES", "EmployeeCreated"),
             ["RestaurantStaff.Create"] = ("EMPLOYEES", "EmployeeCreated"),
             ["HotelOperations.CreateStaff"] = ("EMPLOYEES", "EmployeeCreated"),
             ["Customer.Create"] = ("CUSTOMERS", "CustomerCreated"),
@@ -218,6 +240,7 @@ namespace PoultryFarmAPIWeb.Business
             if (c.StartsWith("Hotel", StringComparison.OrdinalIgnoreCase)) return "Hotel";
             if (c.StartsWith("Restaurant", StringComparison.OrdinalIgnoreCase)) return "Restaurant";
             if (c.StartsWith("Generic", StringComparison.OrdinalIgnoreCase)) return "Generic";
+            if (c.StartsWith("Livestock", StringComparison.OrdinalIgnoreCase)) return "Livestock";
             if (c.StartsWith("PlatformBilling", StringComparison.OrdinalIgnoreCase)) return "Billing";
             if (c.StartsWith("Poultry", StringComparison.OrdinalIgnoreCase) || PoultryLegacy.Contains(c)) return "Poultry";
             if (Shared.Contains(c)) return "Shared";

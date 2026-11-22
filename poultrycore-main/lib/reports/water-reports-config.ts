@@ -43,6 +43,8 @@ export const WATER_REPORT_GROUPS: WaterReportGroup[] = [
     // "Sales, Money & Profit" column, so the two rails read alike.
     reports: [
       { slug: "closing-report",    title: "Closing Report",         description: "Daily closings (including reopened + superseded).",                               icon: FileText,     status: "ready" },
+      // 463: the whole period totalled by category (Poultry's "Closing by Category").
+      { slug: "closing-by-category", title: "Closing by Category",  description: "Period totals: financial, production, inventory, losses, cash, delivery, staff.",  icon: FileText,     status: "ready" },
       { slug: "profit-loss",       title: "Profit & Loss",          description: "Revenue, costs, expenses, losses, gross & net profit by period.",                 icon: TrendingDown, status: "ready" },
       { slug: "daily-summary",     title: "Daily Business Summary", description: "Full daily snapshot — sales, payments, expenses, production, losses, cash.",       icon: BarChart3,    status: "ready" },
       // Cash Flow retired here — it lived at /water-reports/cash-flow and counted

@@ -101,7 +101,8 @@ BEGIN
     RAISE NOTICE 'ok 6 reversing an advance gives its cash back and re-opens what it paid';
 
     -- 7. cancelling a sale gives its applied credit back
-    PERFORM spwatersale_cancel(v_s2, v_farm);
+    -- (458: Cancel was replaced by Reverse)
+    PERFORM spwatersale_reverse(v_farm, v_s2, 'Wrong price', NULL, '{}'::jsonb, NULL, NULL, '__w1');
     IF fnwatercustomer_credit(v_farm, v_cust) <> 60 THEN RAISE EXCEPTION 'FAIL 7: credit % after cancel', fnwatercustomer_credit(v_farm, v_cust); END IF;
     RAISE NOTICE 'ok 7 cancelled sale releases credit';
 

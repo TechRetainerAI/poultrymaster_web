@@ -39,6 +39,7 @@ const SOURCE_LABEL: Record<string, string> = {
   Counter: "Counter",
   // 363: credit added by hand on Customer Credits.
   OpeningCredit: "Opening credit",
+  SaleReversalCredit: "Kept from reversed sale",   // 458
   Deposit: "Customer advance",
   CreditNote: "Credit note",
 }

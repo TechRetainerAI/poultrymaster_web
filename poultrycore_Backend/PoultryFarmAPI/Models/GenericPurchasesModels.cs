@@ -210,6 +210,14 @@ namespace PoultryFarmAPIWeb.Models
 
         [StringLength(500)]
         public string? Notes { get; set; }
+
+        /// <summary>Unit the line was bought in, e.g. "bag" (migration 472). Null = the product's base unit.</summary>
+        [StringLength(50)]
+        public string? PurchaseUnit { get; set; }
+
+        /// <summary>Base units in one PurchaseUnit (1 bag = 50 kg -> 50). Stock rises by Quantity x UnitFactor.</summary>
+        [Range(0.0001, double.MaxValue)]
+        public decimal UnitFactor { get; set; } = 1;
     }
 
     public class GenericPurchaseModel

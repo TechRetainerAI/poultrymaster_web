@@ -21,10 +21,14 @@ import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { HOTEL_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
+import { buildLivestockNavConfig } from "@/lib/nav/livestock-nav-config"
+import { useLivestockFeatures } from "@/hooks/use-livestock-species"
 import { NAV_SURFACE } from "@/components/dashboard/nav/nav-surface"
 import type { MegaMenuGroup } from "@/lib/nav/nav-model"
 import {
   Home,
+  Layers,
+  Tag,
   Bird,
   FileText,
   ShoppingCart,
@@ -187,6 +191,7 @@ export function MobileBottomNav() {
   const [sheetOpen, setSheetOpen] = useState(false)
   // 318. null = never customised = each config's own defaults.
   const quickLinkHrefs = useQuickLinkHrefs()
+  const livestockFeatures = useLivestockFeatures()
   const showEggFeatures = usePoultryEggFeatures()
   const showBroilerFeatures = usePoultryBroilerFeatures()
   const [customiseOpen, setCustomiseOpen] = useState(false)
@@ -226,7 +231,7 @@ export function MobileBottomNav() {
   })
   // The poultry bar is the FALLBACK branch below, not a named farm type, so it
   // is spelled out here once rather than inferred twice.
-  const isPoultry = !["Water", "Generic", "Hotel", "Restaurant"].includes(activeFarmType ?? "")
+  const isPoultry = !["Water", "Generic", "Hotel", "Restaurant", "Livestock"].includes(activeFarmType ?? "")
   const poultryNavForQuickLinks = buildPoultryNavConfig({
     permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs, showEggFeatures, showBroilerFeatures,
   })
@@ -580,6 +585,35 @@ export function MobileBottomNav() {
           { href: "/restaurant-kds",      label: "Kitchen", icon: Factory },
         ] as NavItem[],
         moreGroups: restaurantMore,
+      }
+    }
+
+    if (activeFarmType === "Livestock") {
+      // Same source as the desktop rail and sidebar (buildLivestockNavConfig),
+      // the poultry sheet's sections, tinted amber.
+      const lnav = buildLivestockNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs, showEggFeatures: livestockFeatures.eggs, showMilkFeatures: livestockFeatures.milk, showBreedingFeatures: livestockFeatures.breeding })
+      const livestockMore = compactSections([
+        { title: "Quick Links", groups: [{ title: "", items: lnav.quickLinks.items }] },
+        { title: "Operations",  groups: fromMegaMenu(lnav.operations) },
+        { title: "Sales, Expenses & Money", groups: fromMegaMenu(lnav.salesMoney) },
+        { title: "Trackers",    groups: fromMegaMenu(lnav.analytics) },
+        { title: "Tools",       groups: fromMegaMenu(lnav.tools) },
+        { title: "Setup",       groups: fromMegaMenu(lnav.setup) },
+        { title: "System",      groups: fromMegaMenu(lnav.system) },
+      ])
+      return {
+        bg: "bg-amber-800",
+        borderTop: "border-amber-900",
+        palette: { inactive: "text-amber-100/90 hover:text-white", activeText: "text-white" },
+        activeBg: "bg-amber-100 text-amber-900",
+        accent: "amber" as const,
+        mainTabs: [
+          { href: "/livestock-dashboard", label: "Home", icon: Home },
+          { href: "/livestock-production-records", label: "Records", icon: FileText },
+          { href: "/livestock-groups",    label: "Groups",  icon: Layers },
+          { href: "/livestock-sales",     label: "Sales",   icon: ShoppingCart },
+        ] as NavItem[],
+        moreGroups: livestockMore,
       }
     }
 

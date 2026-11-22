@@ -176,7 +176,7 @@ export interface RegisterData {
   lastName: string
   roles: string[]
   phoneNumber: string
-  companyType?: "Poultry" | "Water" | "Generic"
+  companyType?: "Poultry" | "Water" | "Generic" | "Hotel" | "Restaurant" | "Livestock"
   // Prompt 2 — owner's Business Office (HQ), persisted on the account.
   businessOfficeName?: string
   businessOfficeCurrency?: string

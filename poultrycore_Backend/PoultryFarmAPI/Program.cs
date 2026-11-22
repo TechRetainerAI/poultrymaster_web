@@ -230,6 +230,7 @@ builder.Services.AddScoped<IPoultryRawMaterialItemService>(sp => new PoultryRawM
 builder.Services.AddScoped<IPoultryRawMaterialPurchaseService>(sp => new PoultryRawMaterialPurchaseService(connectionString));
 // 345. Receive Purchase: supplier invoice -> stock + payable + payment in one call.
 builder.Services.AddScoped<IPoultryPurchaseReceiptService>(sp => new PoultryPurchaseReceiptService(connectionString));
+builder.Services.AddScoped<IWaterPurchaseReceiptService>(sp => new WaterPurchaseReceiptService(connectionString));   // 462
 // 347. Flock Lifecycle Assistant: farm-defined plans and the reminders they raise per flock.
 builder.Services.AddScoped<IPoultryLifecycleService>(sp => new PoultryLifecycleService(connectionString));
 // 348. Recurring Expense Engine -- shared by every company type. One poster per
@@ -309,6 +310,7 @@ builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(con
 builder.Services.AddScoped<IPoultryEmployeeLoanService>(sp => new PoultryEmployeeLoanService(connectionString));
 builder.Services.AddScoped<IPoultryEmployeeCreditService>(sp => new PoultryEmployeeCreditService(connectionString));
 builder.Services.AddScoped<IGenericEmployeeCreditService>(sp => new GenericEmployeeCreditService(connectionString));   // 450
+builder.Services.AddScoped<IWaterEmployeeCreditService>(sp => new WaterEmployeeCreditService(connectionString));   // 460
 builder.Services.AddScoped<IGenericDeferredInventoryCostService>(sp => new GenericDeferredInventoryCostService(connectionString));   // 452
 builder.Services.AddScoped<IGenericCapitalAssetService>(sp => new GenericCapitalAssetService(connectionString));   // 453
 builder.Services.AddScoped<IGenericPayRunService>(sp => new GenericPayRunService(connectionString));                     // 451
@@ -357,12 +359,16 @@ builder.Services.AddScoped<IPoultryFeedDistributionService>(sp => new PoultryFee
 builder.Services.AddScoped<IPoultryFeedUsageEntryService>(sp => new PoultryFeedUsageEntryService(connectionString));
 // Days of supply (337): how long each raw material lasts at its actual usage.
 builder.Services.AddScoped<IPoultryStockSupplyService>(sp => new PoultryStockSupplyService(connectionString));
+builder.Services.AddScoped<IWaterStockSupplyService>(sp => new WaterStockSupplyService(connectionString));   // 464
 // Flock anomaly detection (338): deterministic signals, one alert per flock per
 // day, append-only history. Rules live in SQL; this only maps rows.
 builder.Services.AddScoped<IPoultryFlockAnomalyService>(sp => new PoultryFlockAnomalyService(connectionString));
 // Treatment campaigns (339): medication for many flocks over one or more days,
 // posted as medication lines through spproductionrecord_update.
 builder.Services.AddScoped<IPoultryTreatmentCampaignService>(sp => new PoultryTreatmentCampaignService(connectionString));
+// Livestock (458+): one gateway to the splivestock* functions, which return
+// JSON shaped for the web app. See Business/LivestockDb.cs.
+builder.Services.AddScoped<ILivestockDb>(sp => new LivestockDb(connectionString));
 // 400: flock weigh-ins (broilers phase 2).
 builder.Services.AddScoped<IFlockWeighInService>(sp => new FlockWeighInService(connectionString));
 // Egg Sorting Workspace (341-343): egg classes in the one stock ledger and the
@@ -535,6 +541,9 @@ builder.Services.AddScoped<IHotelBalanceService>(sp => new HotelBalanceService(c
 builder.Services.AddScoped<IHotelSuppliesService>(sp => new HotelSuppliesService(connectionString));
 builder.Services.AddScoped<IHotelFinancialActivityService>(sp => new HotelFinancialActivityService(connectionString));
 builder.Services.AddScoped<IGenericFinancialActivityService>(sp => new GenericFinancialActivityService(connectionString));
+builder.Services.AddScoped<IWaterFinancialActivityService>(sp => new WaterFinancialActivityService(connectionString));   // 461
+builder.Services.AddScoped<IWaterClosingReportService>(sp => new WaterClosingReportService(connectionString));   // 463
+builder.Services.AddScoped<IWaterAlertsService>(sp => new WaterAlertsService(connectionString));   // 465
 // =================================================================
 
 // =================================================================

@@ -191,6 +191,7 @@ export function NavMegaMenu({
                 className={cn(
                   "min-w-0 break-inside-avoid",
                   showGroupLabels && layout !== "grid" && "mb-4",
+                  layout === "grid" && g.rowSpan === 2 && "lg:row-span-2",
                 )}
               >
                 {showGroupLabels && (

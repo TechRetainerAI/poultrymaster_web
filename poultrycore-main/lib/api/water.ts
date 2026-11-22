@@ -153,13 +153,27 @@ export interface WaterSale {
   // Migration 225 — how the sale was paid, derived from its payment rows:
   // null when nothing is paid yet, the single method used, or "Mixed".
   paymentMethod?: string | null
+  // Migration 458 -- a saved sale is reversed, never deleted. A reversed sale
+  // keeps status "Cancelled" (every report already excludes it); these mark it.
+  saleReversalId?: number | null
+  reversalNumber?: string | null
+  reversedAt?: string | null
+  reversedBy?: string | null
+  reversalReason?: string | null
+  correctsSaleId?: number | null
+  correctedBySaleId?: number | null
   items: WaterSaleItem[]
 }
+
+/** 458: reversed (new) -- not the same as a pre-458 cancelled sale. */
+export const isReversedWaterSale = (s: Pick<WaterSale, "saleReversalId">) => s.saleReversalId != null
 
 export interface CreateWaterSaleInput {
   waterCustomerId?: number | null
   saleDate?: string | null
   notes?: string | null
+  /** 458: Edit & repost -- the reversed sale this one replaces. */
+  correctsSaleId?: number | null
   items: WaterSaleItem[]
 }
 
@@ -310,11 +324,8 @@ export const createWaterSale = (input: CreateWaterSaleInput) =>
     createdBy: currentUserId() || null,
   })
 
-export const cancelWaterSale = (id: number) =>
-  jsend<void>(`/Water/sales/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
-// Hard-delete a direct sale. The backend rejects delivery-sourced sales.
-export const deleteWaterSale = (id: number) =>
-  jsend<void>(`/Water/sales/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+// 458: Cancel and Delete are gone -- a saved sale is reversed
+// (lib/api/water-sale-reversal.ts); the API refuses both with the reason.
 
 // ----- Payments -----
 export const listWaterPayments = () =>
@@ -1339,7 +1350,12 @@ export const getWaterPayrollRun = (id: number) =>
 export const createWaterPayrollRun = (input: { periodStart: string; periodEnd: string; payDate?: string | null; waterCashAccountId?: number | null; notes?: string | null }) =>
   jsend<{ waterPayrollRunId: number }>(`/Water/payroll-runs?createdBy=${encodeURIComponent(currentUserId() || "")}`, "POST", { ...input, farmId: activeFarmId() })
 
-export const upsertWaterPayrollItem = (runId: number, input: { waterStaffId: number; basicPay: number; dailyWage: number; commission: number; bonus: number; deductions: number; paymentMethod?: string | null; notes?: string | null }) =>
+/**
+ * 460: `otherDeductions` is the typed "Other deductions" only and `employeeCredit`
+ * the wage kept as employee credit; advance repayments are their own rows. Old
+ * callers that send only `deductions` (the line total) still work.
+ */
+export const upsertWaterPayrollItem = (runId: number, input: { waterStaffId: number; basicPay: number; dailyWage: number; commission: number; bonus: number; deductions: number; otherDeductions?: number | null; employeeCredit?: number | null; paymentMethod?: string | null; notes?: string | null }) =>
   jsend<WaterPayrollItem>(`/Water/payroll-runs/${runId}/items?farmId=${encodeURIComponent(activeFarmId())}`, "POST", input)
 
 export const deleteWaterPayrollItem = (itemId: number) =>
@@ -2343,6 +2359,11 @@ export interface WaterRawMaterialPurchase {
   productionUnitCost?: number | null
   receiptUrl?: string | null
   notes?: string | null
+  /** 462: entered on a Receive Purchase receipt -- changed only through it. */
+  receiptNumber?: string | null
+  waterPurchaseReceiptId?: number | null
+  /** 462: its receipt was reversed -- no stock, nothing owed. */
+  isReversed?: boolean
 }
 
 export interface WaterRawMaterialUsage {
@@ -3385,13 +3406,14 @@ export const reverseWaterEmployeeLoanRepayment = (
 // Structured payroll deductions (306)
 // -----------------------------------------------------------------------------
 export const PAYROLL_DEDUCTION_TYPES = [
-  "EmployeeLoanRepayment", "SalaryAdvanceRepayment", "OtherDeduction",
+  "EmployeeLoanRepayment", "SalaryAdvanceRepayment", "OtherDeduction", "EmployeeCredit",
 ] as const
 
 export const PAYROLL_DEDUCTION_TYPE_LABELS: Record<string, string> = {
   EmployeeLoanRepayment: "Employee loan repayment",
   SalaryAdvanceRepayment: "Salary advance repayment",
   OtherDeduction: "Other deduction",
+  EmployeeCredit: "Kept as employee credit",   // 460
 }
 
 export interface WaterPayrollDeduction {

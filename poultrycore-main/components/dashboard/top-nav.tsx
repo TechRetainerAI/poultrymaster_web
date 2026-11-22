@@ -9,7 +9,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
-import { Droplets, ShoppingBag, PackageMinus,
+import { Droplets, ShoppingBag, PackageMinus, PawPrint,
 } from "lucide-react"
 import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
 import { NAV_SURFACE } from "./nav/nav-surface"
@@ -22,6 +22,8 @@ import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
+import { buildLivestockNavConfig, navSectionHasRows, type LivestockNavDeps } from "@/lib/nav/livestock-nav-config"
+import { useLivestockFeatures } from "@/hooks/use-livestock-species"
 import { useOnlineOrderCounts } from "@/lib/utils/online-order-alerts"
 import { NavMegaMenu } from "./nav/nav-mega-menu"
 import { useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE } from "./nav/use-nav-popover"
@@ -598,6 +600,59 @@ function RestaurantTopNav({ permissions }: { permissions: ReturnType<typeof useP
   )
 }
 
+// Livestock: the poultry bar's layout, built from buildLivestockNavConfig and
+// tinted an earthy amber-800 so it never reads as Poultry's orange-500. A menu
+// appears only once it has a page in it.
+function LivestockTopNav({ permissions, onOpenAlerts, alertCount, quickLinkHrefs, features }: {
+  permissions: ReturnType<typeof usePermissions>
+  onOpenAlerts: () => void
+  alertCount: number
+  quickLinkHrefs: string[] | null | undefined
+  features: Pick<LivestockNavDeps, "showEggFeatures" | "showMilkFeatures" | "showBreedingFeatures">
+}) {
+  const nav = useMemo(
+    () => buildLivestockNavConfig({ permissions, onOpenAlerts, alertCount, quickLinkHrefs, ...features }),
+    [permissions, onOpenAlerts, alertCount, quickLinkHrefs, features],
+  )
+  return (
+    <div className="hidden lg:block bg-amber-800 border-b border-amber-900">
+      <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
+        <NavLink item={{ href: "/livestock-dashboard", label: "Dashboard", icon: PawPrint }} accent="amber" />
+        <div className="h-5 w-px bg-white/30 mx-1" />
+        {navSectionHasRows(nav.setup) && (
+          <NavMegaMenu label="Setup" icon={Settings} title="Setup"
+            blurb="Pens, animal groups, species, products, delivery, customers and your team."
+            groups={nav.setup} columns={2} widthRem={32} layout="grid" accent="amber" />
+        )}
+        {navSectionHasRows(nav.operations) && (
+          <NavMegaMenu label="Operations" icon={Factory} title="Operations"
+            blurb="Production, stock and health, deliveries and purchases."
+            groups={nav.operations} columns={2} widthRem={36} layout="grid" accent="amber" />
+        )}
+        {navSectionHasRows(nav.salesMoney) && (
+          <NavMegaMenu label="Sales, Expenses & Money" icon={Wallet} title="Sales, Expenses & Money"
+            blurb="Orders, collections, expenses, cash flow and payroll."
+            groups={nav.salesMoney} columns={3} widthRem={41} layout="grid" fitColumns accent="amber" />
+        )}
+        {navSectionHasRows(nav.analytics) && (
+          <NavMegaMenu label="Trackers" icon={BarChart3} title="Trackers" blurb="Day-to-day trackers."
+            groups={nav.analytics} columns={1} widthRem={19} layout="grid" accent="amber" />
+        )}
+        {navSectionHasRows(nav.tools) && (
+          <NavMegaMenu label="Tools" icon={Wrench} title="Tools"
+            blurb="Jobs across many groups at once, and the farm's checks."
+            groups={nav.tools} columns={1} widthRem={19} layout="grid" accent="amber" />
+        )}
+        {nav.quickLinks.items.length > 0 && <NavDropdown group={nav.quickLinks} accent="amber" />}
+        <div className="ml-auto flex items-center gap-1">
+          <NavMegaMenu label="System" icon={User} title="System" blurb="Alerts, activity, help, terms."
+            groups={nav.system} columns={1} widthRem={15.5} layout="grid" accent="amber" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TopNavigation() {
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -620,6 +675,7 @@ export function TopNavigation() {
   const showEggFeatures = usePoultryEggFeatures()
   const showBroilerFeatures = usePoultryBroilerFeatures()
   const [customiseOpen, setCustomiseOpen] = useState(false)
+  const livestockFeatures = useLivestockFeatures()
 
   // Water and Generic companies each get their own nav rail — falling through
   // to the Poultry layout below would show "Flocks / Houses / Egg sorting" on
@@ -635,6 +691,10 @@ export function TopNavigation() {
   }
   if (activeFarmType === "Restaurant") {
     return <RestaurantTopNav permissions={permissions} />
+  }
+  if (activeFarmType === "Livestock") {
+    return <LivestockTopNav permissions={permissions} onOpenAlerts={openAlerts} alertCount={alertCount} quickLinkHrefs={quickLinkHrefs}
+      features={{ showEggFeatures: livestockFeatures.eggs, showMilkFeatures: livestockFeatures.milk, showBreedingFeatures: livestockFeatures.breeding }} />
   }
 
   // 2026-08-07: same treatment as the water rail — nine near-identical narrow

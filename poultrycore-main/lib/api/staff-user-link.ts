@@ -19,6 +19,7 @@ export function staffPagePath(farmType: string | null | undefined): string | nul
     case "Generic": return "/generic-staff"
     case "Hotel": return "/hotel-staff"
     case "Restaurant": return "/restaurant-staff"
+    case "Livestock": return "/livestock-staff"
     default: return null
   }
 }

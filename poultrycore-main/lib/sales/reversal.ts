@@ -68,12 +68,16 @@ export function paymentSourceLabel(item: Pick<ReversalPaymentItem, "source" | "s
   return item.source || "Payment"
 }
 
-/** "Restore 300 eggs (Large)" / "Restore 10 birds". */
+/** "Restore 300 eggs (Large)" / "Restore 10 birds" / water: "10 Bag (Pure water)". */
 export function restoreLabel(line: { restoreQuantity: number; restoreUnit: string | null; restoreProductName: string | null }): string | null {
   const qty = Number(line.restoreQuantity) || 0
   if (qty <= 0) return null
-  const unit = line.restoreUnit === "birds" ? "birds" : "eggs"
   const n = Number.isInteger(qty) ? qty.toLocaleString() : qty.toLocaleString(undefined, { maximumFractionDigits: 3 })
+  // 458: water lines carry their own selling unit (Bag, Sachet, ...).
+  if (line.restoreUnit && line.restoreUnit !== "birds" && line.restoreUnit !== "eggs") {
+    return line.restoreProductName ? `${n} ${line.restoreUnit} (${line.restoreProductName})` : `${n} ${line.restoreUnit}`
+  }
+  const unit = line.restoreUnit === "birds" ? "birds" : "eggs"
   return line.restoreUnit === "birds" || !line.restoreProductName
     ? `${n} ${unit}`
     : `${n} ${unit} (${line.restoreProductName})`

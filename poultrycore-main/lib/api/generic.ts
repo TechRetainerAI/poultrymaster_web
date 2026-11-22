@@ -964,6 +964,24 @@ export async function cancelPurchase(id: number, reason?: string): Promise<void>
   await postJson(`${farmBase()}/purchases/${id}/cancel`, { reason })
 }
 
+/** One purchase with its lines and payment header (for editing a Draft). */
+export interface GenericPurchaseDetail extends GenericPurchase {
+  subtotalAmount?: number
+  discountAmount?: number
+  taxAmount?: number
+  genericCashAccountId?: number | null
+  items: (GenericPurchaseItem & { lineTotal?: number })[]
+}
+
+export async function getPurchase(id: number): Promise<GenericPurchaseDetail | null> {
+  return getJson<GenericPurchaseDetail>(`${farmBase()}/purchases/${id}`)
+}
+
+/** Draft only: the server refuses an Approved or Cancelled purchase (migration 472). */
+export async function updatePurchase(id: number, input: GenericPurchaseCreateInput): Promise<GenericPurchaseDetail | null> {
+  return putJson<GenericPurchaseDetail>(`${farmBase()}/purchases/${id}`, withFarmId(input))
+}
+
 // =============================================================================
 // Expenses
 // =============================================================================
@@ -1039,6 +1057,10 @@ export interface GenericPurchaseItem {
   unitCost: number
   discountAmount: number
   notes?: string | null
+  /** Unit the line was bought in, e.g. "bag" (migration 472). Empty = the product's base unit. */
+  purchaseUnit?: string | null
+  /** Base units in one purchaseUnit (1 bag = 50 kg → 50). Stock rises by quantity × unitFactor. */
+  unitFactor?: number
 }
 
 export interface GenericPurchaseCreateInput {

@@ -34,6 +34,8 @@ export const SETUP_ADMIN_ROUTES: readonly string[] = [
   "/hotel-company-setup", "/hotel-setup", "/hotel-customers", "/hotel-suppliers",
   // Restaurant
   "/restaurant-setup", "/restaurant-menu", "/restaurant-suppliers",
+  // Livestock
+  "/livestock-setup", "/livestock-company-settings", "/livestock-animals-kept", "/livestock-pens", "/livestock-suppliers", "/livestock-customers", "/livestock-delivery-setup",
 ]
 
 /** True for a Setup page or anything under it (/water-products/12, /generic-setup/wizard). */
