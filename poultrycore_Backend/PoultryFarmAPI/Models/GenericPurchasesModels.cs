@@ -211,7 +211,7 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(500)]
         public string? Notes { get; set; }
 
-        /// <summary>Unit the line was bought in, e.g. "bag" (migration 458). Null = the product's base unit.</summary>
+        /// <summary>Unit the line was bought in, e.g. "bag" (migration 472). Null = the product's base unit.</summary>
         [StringLength(50)]
         public string? PurchaseUnit { get; set; }
 

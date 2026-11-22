@@ -977,7 +977,7 @@ export async function getPurchase(id: number): Promise<GenericPurchaseDetail | n
   return getJson<GenericPurchaseDetail>(`${farmBase()}/purchases/${id}`)
 }
 
-/** Draft only: the server refuses an Approved or Cancelled purchase (migration 458). */
+/** Draft only: the server refuses an Approved or Cancelled purchase (migration 472). */
 export async function updatePurchase(id: number, input: GenericPurchaseCreateInput): Promise<GenericPurchaseDetail | null> {
   return putJson<GenericPurchaseDetail>(`${farmBase()}/purchases/${id}`, withFarmId(input))
 }
@@ -1057,7 +1057,7 @@ export interface GenericPurchaseItem {
   unitCost: number
   discountAmount: number
   notes?: string | null
-  /** Unit the line was bought in, e.g. "bag" (migration 458). Empty = the product's base unit. */
+  /** Unit the line was bought in, e.g. "bag" (migration 472). Empty = the product's base unit. */
   purchaseUnit?: string | null
   /** Base units in one purchaseUnit (1 bag = 50 kg → 50). Stock rises by quantity × unitFactor. */
   unitFactor?: number

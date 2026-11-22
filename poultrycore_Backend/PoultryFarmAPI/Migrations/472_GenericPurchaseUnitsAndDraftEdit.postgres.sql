@@ -1,4 +1,4 @@
--- 458. Generic purchases: buy in a unit (bag, rubber, kg ...) and edit a Draft.
+-- 472 (first written as 458; renumbered after 458 was also used by Livestock and Water). Generic purchases: buy in a unit (bag, rubber, kg ...) and edit a Draft.
 --
 -- 1. genericpurchaseitems gets purchaseunit (what the line was bought in, e.g. "bag")
 --    and unitfactor (how many of the product's base unit one purchase unit holds,
@@ -276,7 +276,7 @@ BEGIN
            approvedat = (now() at time zone 'utc'), updatedat = (now() at time zone 'utc')
     WHERE  pu.genericpurchaseid = p_genericpurchaseid AND pu.farmid = p_farmid;
 
-    -- Inventory in the product's base unit: quantity x unitfactor (458).
+    -- Inventory in the product's base unit: quantity x unitfactor (472).
     INSERT INTO genericstockmovements (
         farmid, genericproductid, movementdate, movementtype, quantity,
         unitcost, totalcostvalue, referencetype, referenceid,

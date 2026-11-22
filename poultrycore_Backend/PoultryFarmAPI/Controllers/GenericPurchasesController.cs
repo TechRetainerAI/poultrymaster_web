@@ -202,7 +202,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return CreatedAtAction(nameof(GetById), new { farmId, id = newId }, created);
         }
 
-        // Draft only; the database refuses an Approved or Cancelled purchase (migration 458).
+        // Draft only; the database refuses an Approved or Cancelled purchase (migration 472).
         [HttpPut("{id:int}")]
         public async Task<ActionResult<GenericPurchaseModel>> Update(
             string farmId, int id, [FromBody] GenericPurchaseCreateRequest req)

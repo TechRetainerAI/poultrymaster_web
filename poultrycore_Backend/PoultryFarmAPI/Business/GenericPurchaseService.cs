@@ -95,7 +95,7 @@ namespace PoultryFarmAPIWeb.Business
                 unitfactor       = i.UnitFactor > 0 ? i.UnitFactor : 1m,
             }));
 
-        // Draft only (migration 458): rewrites the header and replaces every line.
+        // Draft only (migration 472): rewrites the header and replaces every line.
         public async Task UpdateAsync(int id, string farmId, GenericPurchaseCreateRequest req)
         {
             using var conn = new NpgsqlConnection(_connectionString);
