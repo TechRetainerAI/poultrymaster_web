@@ -9,6 +9,8 @@ import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { savePen, type LivestockPen } from "@/lib/api/livestock"
@@ -29,6 +31,11 @@ export function QuickPensDialog({ speciesCode, speciesName, penTerm, existing, o
   const [prefix, setPrefix] = useState(penTerm)
   const [count, setCount] = useState(2)
   const [capacity, setCapacity] = useState("")
+  // The same entries as a pen on Setup → Pens. "For" is this animal or any
+  // animal -- the only pens Divide into groups can offer for this batch.
+  const [forSpecies, setForSpecies] = useState<"this" | "any">("this")
+  const [location, setLocation] = useState("")
+  const [notes, setNotes] = useState("")
   const [edited, setEdited] = useState<Record<number, string>>({})
   const [saving, setSaving] = useState(false)
 
@@ -49,8 +56,9 @@ export function QuickPensDialog({ speciesCode, speciesName, penTerm, existing, o
     const ids: number[] = []
     try {
       for (const name of names) {
-        const { penId } = await savePen({ name: name.trim(), speciesCode, capacity: capacity ? Number(capacity) : null,
-          location: null, notes: null, isActive: true })
+        const { penId } = await savePen({ name: name.trim(), speciesCode: forSpecies === "this" ? speciesCode : null,
+          capacity: capacity ? Number(capacity) : null,
+          location: location.trim() || null, notes: notes.trim() || null, isActive: true })
         ids.push(penId)
       }
       toast({ title: `${ids.length} ${penTerm.toLowerCase()}(s) added` })
@@ -65,7 +73,7 @@ export function QuickPensDialog({ speciesCode, speciesName, penTerm, existing, o
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>Quickly add {penTerm.toLowerCase()}s</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <p className="text-sm text-stone-600">For {speciesName.toLowerCase()}. You can change any of them later on Setup → Pens.</p>
@@ -80,10 +88,30 @@ export function QuickPensDialog({ speciesCode, speciesName, penTerm, existing, o
                 onChange={(e) => { setCount(Number(e.target.value)); setEdited({}) }} />
             </div>
             <div>
-              <Label htmlFor="qp-cap">Holds (each)</Label>
+              <Label htmlFor="qp-cap">Capacity (animals, each)</Label>
               <Input id="qp-cap" type="number" min={1} inputMode="numeric" placeholder="Optional" value={capacity}
                 onChange={(e) => setCapacity(e.target.value)} />
             </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <Label>For</Label>
+              <Select value={forSpecies} onValueChange={(v) => setForSpecies(v as "this" | "any")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="this">{speciesName}</SelectItem>
+                  <SelectItem value="any">Any animal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="qp-loc">Location</Label>
+              <Input id="qp-loc" placeholder="Optional" value={location} onChange={(e) => setLocation(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="qp-notes">Notes</Label>
+            <Textarea id="qp-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
           {names.length > 0 && (
             <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">

@@ -2,7 +2,7 @@
 
 // Production Records for livestock -- laid out like the poultry Production
 // Records page: Log Production (modal) / View by Day / exports at the top, a
-// filter bar (search, period, dates, batch, group, month, year), stat tiles,
+// filter bar (search, period, dates, animal, batch, group, month, year), stat tiles,
 // a sortable table with a totals row, paging, and a summary footer.
 //
 // Each row is one group's day: produce (eggs / milk, by species), deaths and
@@ -61,6 +61,7 @@ export default function LivestockProductionRecordsPage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [species, setSpecies] = useState(ALL)
   const [batchId, setBatchId] = useState(ALL)
   const [groupId, setGroupId] = useState(ALL)
   const [month, setMonth] = useState(ALL)
@@ -68,7 +69,7 @@ export default function LivestockProductionRecordsPage() {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(null)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(25)
+  const [perPage, setPerPage] = useState(10)
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [presetGroupId, setPresetGroupId] = useState<number | null>(null)
@@ -102,12 +103,19 @@ export default function LivestockProductionRecordsPage() {
   }), [records, groupById])
 
   // ---- Filters ---------------------------------------------------------------
-  const batchOptions = useMemo(() => {
+  // Animals that have groups here; batch and group lists follow the animal chosen.
+  const speciesOptions = useMemo(() => {
     const m = new Map<string, string>()
-    for (const g of groups) if (g.batchId && g.batchCode) m.set(String(g.batchId), g.batchCode)
+    for (const g of groups) m.set(g.speciesCode, g.speciesName)
     return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [groups])
-  const groupsForBatch = useMemo(() => groups.filter((g) => batchId === ALL || String(g.batchId) === batchId), [groups, batchId])
+  const groupsOfSpecies = useMemo(() => groups.filter((g) => species === ALL || g.speciesCode === species), [groups, species])
+  const batchOptions = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const g of groupsOfSpecies) if (g.batchId && g.batchCode) m.set(String(g.batchId), g.batchCode)
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [groupsOfSpecies])
+  const groupsForBatch = useMemo(() => groupsOfSpecies.filter((g) => batchId === ALL || String(g.batchId) === batchId), [groupsOfSpecies, batchId])
   const years = useMemo(() => [...new Set(rows.map((r) => r.date.slice(0, 4)))].sort().reverse(), [rows])
   const months = useMemo(() => [...new Set(rows.map((r) => r.date.slice(5, 7)))].sort(), [rows])
 
@@ -115,17 +123,18 @@ export default function LivestockProductionRecordsPage() {
     const q = search.trim().toLowerCase()
     return rows.filter((r) =>
       (!dateFrom || r.date >= dateFrom) && (!dateTo || r.date <= dateTo)
+      && (species === ALL || r.speciesCode === species)
       && (batchId === ALL || String(groupById.get(r.groupId)?.batchId) === batchId)
       && (groupId === ALL || String(r.groupId) === groupId)
       && (month === ALL || r.date.slice(5, 7) === month)
       && (year === ALL || r.date.slice(0, 4) === year)
       && (!q || [r.groupName, r.speciesName, r.batchCode, r.meds, r.deathCause, r.notes, r.date].some((v) => v?.toLowerCase().includes(q))))
-  }, [rows, search, dateFrom, dateTo, batchId, groupId, month, year, groupById])
+  }, [rows, search, dateFrom, dateTo, species, batchId, groupId, month, year, groupById])
   const sorted = useMemo(() => {
     const base = [...filtered].sort((a, b) => b.date.localeCompare(a.date) || a.groupName.localeCompare(b.groupName))
     return sortData(base, sortKey, sortDirection)
   }, [filtered, sortKey, sortDirection])
-  useEffect(() => { setPage(1) }, [search, dateFrom, dateTo, batchId, groupId, month, year, perPage])
+  useEffect(() => { setPage(1) }, [search, dateFrom, dateTo, species, batchId, groupId, month, year, perPage])
   const totalPages = Math.max(1, Math.ceil(sorted.length / perPage))
   const paged = sorted.slice((page - 1) * perPage, page * perPage)
 
@@ -134,7 +143,7 @@ export default function LivestockProductionRecordsPage() {
   const applyPeriod = (p: PeriodKey, rg: DateRange | null) => {
     if (p === "allTime") { setDateFrom(""); setDateTo("") } else if (rg) { setDateFrom(rg.from); setDateTo(rg.to) }
   }
-  const clearFilters = () => { setSearch(""); setDateFrom(""); setDateTo(""); setBatchId(ALL); setGroupId(ALL); setMonth(ALL); setYear(ALL) }
+  const clearFilters = () => { setSearch(""); setDateFrom(""); setDateTo(""); setSpecies(ALL); setBatchId(ALL); setGroupId(ALL); setMonth(ALL); setYear(ALL) }
 
   // ---- Totals ------------------------------------------------------------------
   const t = useMemo(() => {
@@ -268,6 +277,10 @@ export default function LivestockProductionRecordsPage() {
         <PeriodSelect label={null} className="w-40" value={periodOf(dateFrom, dateTo)} onChange={applyPeriod} />
         <Input type="date" value={dateFrom} max={dateTo || todayIso()} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px]" aria-label="From" />
         <Input type="date" value={dateTo} min={dateFrom} max={todayIso()} onChange={(e) => setDateTo(e.target.value)} className="w-[140px]" aria-label="To" />
+        <Select value={species} onValueChange={(v) => { setSpecies(v); setBatchId(ALL); setGroupId(ALL) }}>
+          <SelectTrigger className="w-36"><SelectValue placeholder="Animal" /></SelectTrigger>
+          <SelectContent><SelectItem value={ALL}>All Animals</SelectItem>{speciesOptions.map(([code, name]) => <SelectItem key={code} value={code}>{name}</SelectItem>)}</SelectContent>
+        </Select>
         <Select value={batchId} onValueChange={(v) => { setBatchId(v); setGroupId(ALL) }}>
           <SelectTrigger className="w-36"><SelectValue placeholder="Batch" /></SelectTrigger>
           <SelectContent><SelectItem value={ALL}>All Batches</SelectItem>{batchOptions.map(([id, code]) => <SelectItem key={id} value={id}>{code}</SelectItem>)}</SelectContent>
@@ -395,7 +408,7 @@ export default function LivestockProductionRecordsPage() {
               <div className="flex items-center gap-4">
                 <span className="text-sm text-slate-600">Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, sorted.length)} of {sorted.length} records</span>
                 <Select value={String(perPage)} onValueChange={(v) => setPerPage(Number(v))}>
-                  <SelectTrigger className="h-8 w-[100px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-auto min-w-[120px] gap-2 whitespace-nowrap"><SelectValue /></SelectTrigger>
                   <SelectContent>{[10, 25, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}</SelectContent>
                 </Select>
               </div>

@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { getOwnerMoney, recordOwnerMoney, reverseOwnerMoney, type OwnerMoney } from "@/lib/api/livestock"
@@ -35,6 +37,7 @@ export default function LivestockOwnerMoneyPage() {
   useEffect(() => { load() }, [load])
   useEffect(() => { if (adding) setF({ direction: "In", amount: "", date: todayIso(), accountId: defaultId, notes: "" }) }, [adding, defaultId])
   const n = Number(f.amount) || 0
+  const pg = usePagination(data?.entries ?? [], 10)
   const save = async () => {
     setSaving(true)
     try { await recordOwnerMoney({ date: f.date, direction: f.direction, amount: n, accountId: f.accountId!, notes: f.notes.trim() || null }); toast({ title: "Saved" }); setAdding(false); load(); reload() }
@@ -56,7 +59,7 @@ export default function LivestockOwnerMoneyPage() {
               <Table>
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>What</TableHead><TableHead>Account</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Notes</TableHead><TableHead /></TableRow></TableHeader>
                 <TableBody>
-                  {data.entries.map((e) => (
+                  {pg.pageItems.map((e) => (
                     <TableRow key={e.entryId} className={e.reversedAt ? "opacity-50" : undefined}>
                       <TableCell>{fmtDate(e.date)}</TableCell>
                       <TableCell>{e.direction === "In" ? "Put in" : "Taken out"}{e.reversedAt && <Badge variant="outline" className="ml-2">Reversed</Badge>}</TableCell>
@@ -68,6 +71,7 @@ export default function LivestockOwnerMoneyPage() {
                   ))}
                 </TableBody>
               </Table>
+              <DataPagination {...pg.paginationProps} variant="records" />
             </div>
           )}
         </>

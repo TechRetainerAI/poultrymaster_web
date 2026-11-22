@@ -96,7 +96,7 @@ export function DataPagination({
             Showing {first} to {Math.min(page * pageSize, total)} of {total} records
           </span>
           <Select value={String(pageSize)} onValueChange={(v) => { onPageSizeChange(Number(v)); onPageChange(1) }}>
-            <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-auto min-w-[120px] gap-2 whitespace-nowrap"><SelectValue /></SelectTrigger>
             <SelectContent>
               {options.map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
             </SelectContent>

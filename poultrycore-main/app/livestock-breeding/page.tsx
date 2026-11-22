@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import {
   deleteBreeding, listBreeding, listBreedingDue,
@@ -26,6 +28,8 @@ export default function LivestockBreedingPage() {
   const [error, setError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<{ event?: BreedingEvent; preset?: Partial<BreedingInput> } | null>(null)
   const [deleting, setDeleting] = useState<BreedingEvent | null>(null)
+  const duePg = usePagination(due ?? [], 10)
+  const eventsPg = usePagination(events ?? [], 10)
 
   const load = useCallback(async () => {
     setError(null)
@@ -63,7 +67,7 @@ export default function LivestockBreedingPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {due.map((d) => (
+                    {duePg.pageItems.map((d) => (
                       <TableRow key={d.eventId}>
                         <TableCell className="font-medium"><Link className="text-amber-800 hover:underline" href={`/livestock-animals/${d.damId}`}>{d.damTag}</Link></TableCell>
                         <TableCell>{d.speciesName}</TableCell>
@@ -88,6 +92,7 @@ export default function LivestockBreedingPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataPagination {...duePg.paginationProps} variant="records" />
               </div>
             )}
           </TabsContent>
@@ -100,7 +105,7 @@ export default function LivestockBreedingPage() {
                     <TableRow><TableHead>Date</TableHead><TableHead>What</TableHead><TableHead>Female</TableHead><TableHead>Details</TableHead><TableHead /></TableRow>
                   </TableHeader>
                   <TableBody>
-                    {events.map((e) => (
+                    {eventsPg.pageItems.map((e) => (
                       <TableRow key={e.eventId}>
                         <TableCell className="whitespace-nowrap">{fmtDate(e.date)}</TableCell>
                         <TableCell>{breedingSummary(e).what}</TableCell>
@@ -114,6 +119,7 @@ export default function LivestockBreedingPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataPagination {...eventsPg.paginationProps} variant="records" />
               </div>
             )}
           </TabsContent>

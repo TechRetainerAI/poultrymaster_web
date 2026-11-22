@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { useToast } from "@/hooks/use-toast"
 import { getCashAccount, listReconciliations, reconcile, type Reconciliation } from "@/lib/api/livestock"
 import { AccountSelect, useCashAccounts } from "@/components/livestock/money-bits"
@@ -28,6 +30,7 @@ export default function LivestockCashReconciliationPage() {
   const [counted, setCounted] = useState("")
   const [notes, setNotes] = useState("")
   const [saving, setSaving] = useState(false)
+  const pg = usePagination(rows ?? [], 10)
 
   useEffect(() => { if (!accountId && defaultId) setAccountId(defaultId) }, [defaultId, accountId])
   const load = useCallback(async () => {
@@ -82,7 +85,7 @@ export default function LivestockCashReconciliationPage() {
           <Table>
             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Account</TableHead><TableHead className="text-right">Books said</TableHead><TableHead className="text-right">Counted</TableHead><TableHead className="text-right">Difference</TableHead><TableHead>Notes</TableHead></TableRow></TableHeader>
             <TableBody>
-              {rows.map((r) => (
+              {pg.pageItems.map((r) => (
                 <TableRow key={r.reconId}>
                   <TableCell>{fmtDate(r.date)}</TableCell><TableCell>{r.accountName}</TableCell>
                   <TableCell className="text-right">{fmtMoney(r.booked)}</TableCell><TableCell className="text-right">{fmtMoney(r.counted)}</TableCell>
@@ -92,6 +95,7 @@ export default function LivestockCashReconciliationPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
     </LivestockPage>

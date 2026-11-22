@@ -16,6 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -58,6 +60,7 @@ export default function LivestockVaccinationsPage() {
     species: s,
     plans: (plans ?? []).filter((p) => p.speciesCode === s.speciesCode),
   })), [kept, plans])
+  const pg = usePagination(due ?? [], 10)
 
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     try { await fn(); toast({ title: ok }); load() }
@@ -87,7 +90,7 @@ export default function LivestockVaccinationsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {due.map((d) => (
+                    {pg.pageItems.map((d) => (
                       <TableRow key={`${d.groupId}-${d.stepId}`}>
                         <TableCell className="whitespace-nowrap">{fmtDate(d.due)}</TableCell>
                         <TableCell><Link className="text-amber-800 hover:underline" href={`/livestock-groups/${d.groupId}`}>{d.groupName}</Link></TableCell>
@@ -100,6 +103,7 @@ export default function LivestockVaccinationsPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataPagination {...pg.paginationProps} variant="records" />
               </div>
             )}
           </TabsContent>

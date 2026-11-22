@@ -16,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { useToast } from "@/hooks/use-toast"
 import { getLosses, listItems, recordLoss, type LivestockItem, type LossReason, type Losses } from "@/lib/api/livestock"
 import { LOSS_REASON_LABEL } from "@/components/livestock/labels"
@@ -39,6 +41,8 @@ export default function LivestockLossesPage() {
   const deaths = (data?.animals ?? []).reduce((s, a) => s + a.deaths, 0)
   const culls = (data?.animals ?? []).reduce((s, a) => s + a.culls, 0)
 
+  const stockPg = usePagination(data?.stock ?? [], 10)
+  const animalsPg = usePagination(data?.animals ?? [], 10)
   return (
     <LivestockPage title="Losses" description="Stock lost or damaged, and animals that died or were culled." icon={PackageMinus}
       actions={<Button className={AMBER_BUTTON} onClick={() => setAdding(true)}><Plus className="h-4 w-4 mr-1" /> Record stock loss</Button>}>
@@ -58,10 +62,11 @@ export default function LivestockLossesPage() {
             <CardHeader className="pb-2"><CardTitle className="text-base">Stock lost</CardTitle></CardHeader>
             <CardContent>
               {data.stock.length === 0 ? <p className="text-sm text-stone-500">No stock lost in these dates.</p> : (
+                <>
                 <Table>
                   <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Why</TableHead><TableHead className="text-right">Quantity</TableHead><TableHead className="text-right">Value</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {data.stock.map((s) => (
+                    {stockPg.pageItems.map((s) => (
                       <TableRow key={s.movementId} className={s.reversedAt ? "opacity-50" : undefined}>
                         <TableCell>{fmtDate(s.date)}</TableCell>
                         <TableCell><Link className="text-amber-800 hover:underline" href={`/livestock-items/${s.itemId}`}>{s.itemName}</Link></TableCell>
@@ -72,6 +77,8 @@ export default function LivestockLossesPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataPagination {...stockPg.paginationProps} variant="records" />
+                </>
               )}
             </CardContent>
           </Card>
@@ -79,10 +86,11 @@ export default function LivestockLossesPage() {
             <CardHeader className="pb-2"><CardTitle className="text-base">Animals lost, by group</CardTitle></CardHeader>
             <CardContent>
               {data.animals.length === 0 ? <EmptyState title="No animals lost in these dates" /> : (
+                <>
                 <Table>
                   <TableHeader><TableRow><TableHead>Group</TableHead><TableHead className="text-right">Died</TableHead><TableHead className="text-right">Culled</TableHead><TableHead className="text-right">Of placed</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {data.animals.map((a) => (
+                    {animalsPg.pageItems.map((a) => (
                       <TableRow key={a.groupId}>
                         <TableCell><Link className="text-amber-800 hover:underline" href={`/livestock-groups/${a.groupId}`}>{a.groupName}</Link> <span className="text-xs text-stone-500">{a.speciesName}</span></TableCell>
                         <TableCell className="text-right">{fmtNum(a.deaths)}</TableCell>
@@ -92,6 +100,8 @@ export default function LivestockLossesPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataPagination {...animalsPg.paginationProps} variant="records" />
+                </>
               )}
             </CardContent>
           </Card>
