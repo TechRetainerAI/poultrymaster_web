@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { deleteWeighIn, getGrowth, saveWeighIn, type Growth } from "@/lib/api/livestock"
@@ -28,6 +30,7 @@ export function GrowthPanel({ groupId, groupStart, canRecord = true }: { groupId
     try { setG(await getGrowth(groupId)) } catch (e: any) { setError(e?.message ?? String(e)) }
   }, [groupId])
   useEffect(() => { load() }, [load])
+  const pg = usePagination(g?.weighIns ?? [], 10)
 
   if (error) return <LoadError message={error} onRetry={load} />
   if (!g) return <Loading />
@@ -70,7 +73,7 @@ export function GrowthPanel({ groupId, groupStart, canRecord = true }: { groupId
               </TableRow>
             </TableHeader>
             <TableBody>
-              {g.weighIns.map((w) => (
+              {pg.pageItems.map((w) => (
                 <TableRow key={w.weighInId}>
                   <TableCell className="whitespace-nowrap">{fmtDate(w.date)}</TableCell>
                   <TableCell className="text-right font-medium">{fmtNum(w.avgWeightKg)} kg</TableCell>
@@ -86,6 +89,7 @@ export function GrowthPanel({ groupId, groupStart, canRecord = true }: { groupId
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
       {g.animalWeighIns.length > 0 && (

@@ -234,7 +234,8 @@ namespace PoultryFarmAPIWeb.Controllers
 
         /// <summary>
         /// Tag several animals into one group at once (468). Body: { farmId, groupId, addsToHead,
-        /// source, acquiredDate, purchaseCost, breed, animals: [{ tagNumber, name, sex, breed, birthDate, notes }] }.
+        /// source, acquiredDate, purchaseCost, breed, animals: [{ tagNumber, name, sex, breed, birthDate, notes,
+        /// damId, sireId, damTag, sireTag }] }. damTag / sireTag name a parent in the same list (472).
         /// All or nothing. Returns { animalIds: [...] }.
         /// </summary>
         [HttpPost("many")]

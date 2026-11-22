@@ -12,6 +12,8 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { useToast } from "@/hooks/use-toast"
 import { listFleet, saveFleet, type FleetItem, type FleetKind } from "@/lib/api/livestock"
 import { AMBER_BUTTON, EmptyState, LivestockPage, LoadError, Loading } from "@/components/livestock/livestock-page"
@@ -33,6 +35,7 @@ export default function LivestockDeliverySetupPage() {
     try { setRows(await listFleet(kind, true)) } catch (e: any) { setError(e?.message ?? String(e)) }
   }, [kind])
   useEffect(() => { load() }, [load])
+  const pg = usePagination(rows ?? [], 10)
 
   return (
     <LivestockPage title="Delivery setup" description="Drivers, vehicles and routes." icon={Truck}
@@ -45,7 +48,7 @@ export default function LivestockDeliverySetupPage() {
           <Table>
             <TableHeader><TableRow>{FIELDS[kind].map((f) => <TableHead key={f.key}>{f.label}</TableHead>)}<TableHead /></TableRow></TableHeader>
             <TableBody>
-              {rows.map((r) => (
+              {pg.pageItems.map((r) => (
                 <TableRow key={r.id} className={r.isActive ? "" : "opacity-60"}>
                   {FIELDS[kind].map((f, i) => (
                     <TableCell key={f.key} className={i === 0 ? "font-medium" : ""}>
@@ -57,6 +60,7 @@ export default function LivestockDeliverySetupPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
       {editing && <FleetDialog kind={kind} item={editing.item} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}

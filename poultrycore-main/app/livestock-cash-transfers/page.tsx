@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { createTransfer, listTransfers, reverseTransfer, type CashTransfer } from "@/lib/api/livestock"
@@ -27,6 +29,7 @@ export default function LivestockCashTransfersPage() {
   const [reversing, setReversing] = useState<CashTransfer | null>(null)
   const [f, setF] = useState({ date: todayIso(), from: null as number | null, to: null as number | null, amount: "", fee: "", notes: "" })
   const [saving, setSaving] = useState(false)
+  const pg = usePagination(rows ?? [], 10)
 
   const load = useCallback(async () => {
     setError(null)
@@ -54,7 +57,7 @@ export default function LivestockCashTransfersPage() {
           <Table>
             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Fee</TableHead><TableHead>Notes</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
-              {rows.map((t) => (
+              {pg.pageItems.map((t) => (
                 <TableRow key={t.transferId} className={t.reversedAt ? "opacity-50" : undefined}>
                   <TableCell>{fmtDate(t.date)}</TableCell>
                   <TableCell>{t.fromName}</TableCell>
@@ -67,6 +70,7 @@ export default function LivestockCashTransfersPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
       <Dialog open={adding} onOpenChange={setAdding}>

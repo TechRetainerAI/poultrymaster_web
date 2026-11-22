@@ -7,6 +7,8 @@
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import type { Purchase, PurchaseLine } from "@/lib/api/livestock"
 import { PURCHASE_STATUS } from "@/components/livestock/labels"
 import { StatCard, fmtDate, fmtMoney, fmtNum } from "@/components/livestock/livestock-page"
@@ -34,6 +36,7 @@ export function PurchaseTotals({ rows, boughtLabel = "Bought" }: { rows: Purchas
 
 export function PurchasesTable({ rows, itemsOnly = false }: { rows: Purchase[]; itemsOnly?: boolean }) {
   const router = useRouter()
+  const pg = usePagination(rows, 10)
   return (
     <div className="rounded-md border bg-white overflow-x-auto">
       <Table>
@@ -50,7 +53,7 @@ export function PurchasesTable({ rows, itemsOnly = false }: { rows: Purchase[]; 
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((p) => {
+          {pg.pageItems.map((p) => {
             const lines = itemsOnly ? p.lines.filter((l) => l.lineType === "Item") : p.lines
             return (
               <TableRow key={p.purchaseId} className={`cursor-pointer hover:bg-amber-50/60 ${p.reversedAt ? "opacity-50" : ""}`}
@@ -71,6 +74,7 @@ export function PurchasesTable({ rows, itemsOnly = false }: { rows: Purchase[]; 
           })}
         </TableBody>
       </Table>
+      <DataPagination {...pg.paginationProps} variant="records" />
     </div>
   )
 }

@@ -10,6 +10,8 @@ import { TrendingUp } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { getProfitByGroup, getProfitLoss, listGroups, type GroupProfit, type LivestockGroup, type ProfitLoss } from "@/lib/api/livestock"
 import { PeriodPicker, firstOfMonth } from "@/components/livestock/money-bits"
 import { LivestockPage, LoadError, Loading, StatCard, fmtMoney, fmtNum, todayIso } from "@/components/livestock/livestock-page"
@@ -43,6 +45,7 @@ export default function LivestockProfitLossPage() {
   }, [from, to, groupId])
   useEffect(() => { load() }, [load])
 
+  const pg = usePagination(byGroup, 10)
   return (
     <LivestockPage title="Profit & loss" description="What the farm earned and spent." icon={TrendingUp}>
       <div className="flex items-center gap-3 flex-wrap">
@@ -97,7 +100,7 @@ export default function LivestockProfitLossPage() {
                 <Table>
                   <TableHeader><TableRow><TableHead>Group</TableHead><TableHead className="text-right">Animals now</TableHead><TableHead className="text-right">Animals sold</TableHead><TableHead className="text-right">Feed</TableHead><TableHead className="text-right">All costs</TableHead><TableHead className="text-right">Profit</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {byGroup.map((g) => (
+                    {pg.pageItems.map((g) => (
                       <TableRow key={g.groupId} className="cursor-pointer hover:bg-amber-50/60" onClick={() => setGroupId(String(g.groupId))}>
                         <TableCell><Link className="text-amber-800 hover:underline" href={`/livestock-groups/${g.groupId}`} onClick={(e) => e.stopPropagation()}>{g.name}</Link> <span className="text-xs text-stone-500">{g.speciesName}</span></TableCell>
                         <TableCell className="text-right">{fmtNum(g.head)}</TableCell>
@@ -109,6 +112,7 @@ export default function LivestockProfitLossPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataPagination {...pg.paginationProps} variant="records" />
                 <p className="text-xs text-stone-500 mt-2">A group's figure counts its animal sales against the costs recorded for it. Farm-wide costs (pay, interest, wear and tear) and produce sales are in the whole-farm statement only.</p>
               </CardContent>
             </Card>

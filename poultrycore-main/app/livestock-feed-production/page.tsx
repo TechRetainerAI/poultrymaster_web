@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { listFeedRuns, listFormulas, mixFeed, reverseFeedRun, type FeedFormula, type FeedRun } from "@/lib/api/livestock"
@@ -31,6 +33,7 @@ export default function LivestockFeedProductionPage() {
     try { setRuns(await listFeedRuns()) } catch (e: any) { setError(e?.message ?? String(e)) }
   }, [])
   useEffect(() => { load() }, [load])
+  const pg = usePagination(runs ?? [], 10)
 
   return (
     <LivestockPage
@@ -57,7 +60,7 @@ export default function LivestockFeedProductionPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {runs.map((r) => (
+              {pg.pageItems.map((r) => (
                 <TableRow key={r.runId} className={r.reversedAt ? "opacity-50" : undefined}>
                   <TableCell className="whitespace-nowrap">{fmtDate(r.date)}</TableCell>
                   <TableCell>{r.formulaName}{r.reversedAt && <Badge variant="outline" className="ml-2">Reversed</Badge>}
@@ -71,6 +74,7 @@ export default function LivestockFeedProductionPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
 
