@@ -15,8 +15,10 @@ import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { Plus, Trash2, Loader2, ShoppingCart, X, Wallet, Ban, CheckCircle2, Receipt, History } from "lucide-react"
+import { Plus, Loader2, ShoppingCart, X, Wallet, CheckCircle2, Receipt, History, Undo2, RotateCcw } from "lucide-react"
+// 458: a saved sale is reversed (never deleted), with the poultry dialog.
+import { ReverseSaleDialog, type ReverseSaleResult } from "@/components/sales/reverse-sale-dialog"
+import { getUserContext } from "@/lib/api/config"
 import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
 // 424: customer credit can pay a water sale too (an allocation, no new cash).
 import { ApplyCreditDialog, type ApplyCreditTarget } from "@/components/sales/apply-credit-dialog"
@@ -27,7 +29,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
-  listWaterSales, getWaterSale, createWaterSale, cancelWaterSale, deleteWaterSale,
+  listWaterSales, getWaterSale, createWaterSale, isReversedWaterSale,
   listWaterProducts, listWaterCustomers, recordWaterPayment,
   type WaterSale, type WaterSaleItem, type WaterProduct, type WaterCustomer,
 } from "@/lib/api/water"
@@ -69,7 +71,12 @@ function WaterSalesPageInner() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
-  const [deleteTarget, setDeleteTarget] = useState<WaterSale | null>(null)
+  // 458: Reverse / Edit & repost. "correct" reverses, then opens New sale filled in from it.
+  const [reverseTarget, setReverseTarget] = useState<{ sale: WaterSale; mode: "reverse" | "correct" } | null>(null)
+  // A reversed sale never LOOKS deleted: the list shows everything by default.
+  const [statusFilter, setStatusFilter] = useState<"All" | "Active" | "Reversed">("All")
+  // Edit & repost: the reversed sale the New sale dialog is correcting.
+  const [draftCorrects, setDraftCorrects] = useState<WaterSale | null>(null)
   // ?saleId= from Customer Balances -> Open sale. Held in state rather than read
   // from the URL on every render so clearing it needs no navigation.
   const [focusSaleId, setFocusSaleId] = useState<number | null>(null)
@@ -89,13 +96,17 @@ function WaterSalesPageInner() {
       // Narrowing to the one sale is the point of the link, so it wins over the
       // other filters. The banner above the table offers the way back out.
       if (focusSaleId !== null) return sales.filter((s) => s.waterSaleId === focusSaleId)
-      return filterByDateAndSearch(sales, {
+      const byStatus = sales.filter((s) =>
+        statusFilter === "All" ? true
+        : statusFilter === "Reversed" ? isReversedWaterSale(s)
+        : s.status !== "Cancelled")
+      return filterByDateAndSearch(byStatus, {
         search, dateFrom, dateTo,
         searchKeys: ["customerName", "status", "notes"],
         dateKey: "saleDate",
       })
     },
-    [sales, search, dateFrom, dateTo, focusSaleId],
+    [sales, search, dateFrom, dateTo, focusSaleId, statusFilter],
   )
 
   // Client-side paging: the whole list is already in memory, so this is a
@@ -198,6 +209,7 @@ function WaterSalesPageInner() {
       const created = await createWaterSale({
         waterCustomerId: draftCustomerId ?? null,
         notes: draftNotes || null,
+        correctsSaleId: draftCorrects?.waterSaleId ?? null,
         items: draftItems.map((i) => ({
           waterProductId: i.waterProductId,
           quantity: i.quantity,
@@ -236,7 +248,7 @@ function WaterSalesPageInner() {
         })
       }
       setNewOpen(false); setDraftItems([]); setDraftCustomerId(null); setDraftNotes("")
-      setDraftPaidNow(false); setDraftPaidMethod("Cash")
+      setDraftPaidNow(false); setDraftPaidMethod("Cash"); setDraftCorrects(null)
       await loadAll()
     } catch (e: any) { toast({ title: "Sale failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -303,13 +315,47 @@ function WaterSalesPageInner() {
   // undone there — never deleted from the Sales page.
   const isFromDelivery = (s: WaterSale) => (s.sourceType ?? "") === "DeliveryRun"
 
-  async function performDelete(sale: WaterSale) {
+  // 458: who may reverse (POST .../reverse resolves to water.sales.approve).
+  const canReverse = can("water.sales.approve")
+  /** A direct, still-active sale: the only kind the Sales page reverses. */
+  const reversible = (s: WaterSale) => !isFromDelivery(s) && s.status !== "Cancelled"
+
+  /** Edit & repost: a NEW sale filled in from the reversed one, linked to it. */
+  async function openCorrection(sale: WaterSale) {
     try {
-      await deleteWaterSale(sale.waterSaleId)
-      toast({ title: `Sale #${sale.waterSaleId} deleted`, description: "Stock was restored." })
-      if (detailSale?.waterSaleId === sale.waterSaleId) setDetailSale(null)
-      await loadAll()
-    } catch (e: any) { toast({ title: "Delete failed", description: e?.message, variant: "destructive" }) }
+      const full = sale.items?.length ? sale : await getWaterSale(sale.waterSaleId)
+      setDraftCorrects(full)
+      setDraftCustomerId(full.waterCustomerId ?? null)
+      setDraftNotes(full.notes ?? "")
+      setDraftItems(full.items.map((i) => ({
+        waterProductId: i.waterProductId,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        productName: i.productName ?? undefined,
+        sellingUnit: i.sellingUnit ?? undefined,
+      })))
+      setDraftPaidNow(false); setDraftPaidMethod("Cash")
+      setNewOpen(true)
+    } catch (e: any) { toast({ title: "Could not load the sale", description: e?.message, variant: "destructive" }) }
+  }
+
+  async function onSaleReversed(result: ReverseSaleResult) {
+    const target = reverseTarget
+    setReverseTarget(null)
+    const r = result.reversal
+    const credit = r?.creditCreated ?? 0
+    const back = r?.cashReversed ?? 0
+    toast({
+      title: `Sale #${target?.sale.waterSaleId ?? ""} reversed${r?.reversalNumber ? ` (${r.reversalNumber})` : ""}`,
+      description: [
+        "Stock put back.",
+        credit > 0 ? `${credit.toFixed(2)} kept as customer credit.` : null,
+        back > 0 ? `${back.toFixed(2)} of payments reversed.` : null,
+      ].filter(Boolean).join(" "),
+    })
+    if (detailSale && target && detailSale.waterSaleId === target.sale.waterSaleId) setDetailSale(null)
+    await loadAll()
+    if (target?.mode === "correct") await openCorrection(target.sale)
   }
 
   return (
@@ -322,7 +368,7 @@ function WaterSalesPageInner() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <ShoppingCart className="h-6 w-6 text-sky-600" /> Water sales
             </h1>
-            <Button onClick={() => { setDraftItems([]); setDraftCustomerId(null); setDraftNotes(""); setDraftPaidNow(false); setDraftPaidMethod("Cash"); setNewOpen(true) }} className="w-full sm:w-auto h-11 sm:h-10">
+            <Button onClick={() => { setDraftItems([]); setDraftCustomerId(null); setDraftNotes(""); setDraftPaidNow(false); setDraftPaidMethod("Cash"); setDraftCorrects(null); setNewOpen(true) }} className="w-full sm:w-auto h-11 sm:h-10">
               <Plus className="h-4 w-4 mr-1" /> New sale
             </Button>
           </div>
@@ -342,6 +388,17 @@ function WaterSalesPageInner() {
             dateTo={dateTo} setDateTo={setDateTo}
             searchPlaceholder="Search customer, status or notes"
           />
+          <div className="mb-3 flex items-center gap-2">
+            <Label className="text-sm text-slate-600">Show</Label>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "All" | "Active" | "Reversed")}>
+              <SelectTrigger className="h-9 w-40 bg-white"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All sales</SelectItem>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Reversed">Reversed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           <Card>
             <CardContent className="p-0">
@@ -361,7 +418,7 @@ function WaterSalesPageInner() {
                     <>
                       <span>{new Date(s.saleDate).toLocaleString()}</span>
                       <span>·</span>
-                      <StatusBadge status={s.status} />
+                      <StatusBadge sale={s} />
                       <span>·</span>
                       <span className="tabular-nums">
                         Paid <strong>{s.amountPaid.toFixed(2)}</strong> / {s.totalAmount.toFixed(2)}
@@ -377,7 +434,7 @@ function WaterSalesPageInner() {
                     { label: "Date", value: new Date(s.saleDate).toLocaleString() },
                     { label: "Customer", value: s.customerName ?? "Walk-in" },
                     { label: "Method", value: <MethodBadge method={s.paymentMethod} /> },
-                    { label: "Status", value: <StatusBadge status={s.status} /> },
+                    { label: "Status", value: <StatusBadge sale={s} /> },
                     { label: "Source", value: isFromDelivery(s) ? `Delivery #${s.sourceId ?? "—"}` : "Direct sale" },
                   ]}
                   actions={(s) => (
@@ -397,11 +454,15 @@ function WaterSalesPageInner() {
                       <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openDetail(s)}>Details</Button>
                       {isFromDelivery(s) ? (
                         <span className="flex-1 h-10 flex items-center justify-center text-xs text-slate-400" title="This sale came from a delivery — undo it from the delivery return.">From delivery</span>
-                      ) : (
-                        <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(s)}>
-                          <Trash2 className="h-4 w-4 mr-1" /> Delete
+                      ) : reversible(s) && canReverse ? (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setReverseTarget({ sale: s, mode: "reverse" })}>
+                          <Undo2 className="h-4 w-4 mr-1" /> Reverse
                         </Button>
-                      )}
+                      ) : isReversedWaterSale(s) && !s.correctedBySaleId && canReverse ? (
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openCorrection(s)}>
+                          <RotateCcw className="h-4 w-4 mr-1" /> Edit &amp; repost
+                        </Button>
+                      ) : null}
                     </>
                   )}
                   desktopTable={
@@ -422,16 +483,16 @@ function WaterSalesPageInner() {
                       </TableHeader>
                       <TableBody>
                         {pg.pageItems.map((s) => (
-                          <TableRow key={s.waterSaleId}>
+                          <TableRow key={s.waterSaleId} className={isReversedWaterSale(s) ? "bg-slate-50/70 text-slate-500" : undefined}>
                             <TableCell>#{s.waterSaleId}</TableCell>
                             <TableCell>{new Date(s.saleDate).toLocaleString()}</TableCell>
                             <TableCell>{s.customerName ?? <span className="text-slate-400">Walk-in</span>}</TableCell>
-                            <TableCell className="text-right tabular-nums">{s.totalAmount.toFixed(2)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{s.amountPaid.toFixed(2)}</TableCell>
+                            <TableCell className={`text-right tabular-nums ${isReversedWaterSale(s) ? "line-through" : ""}`}>{s.totalAmount.toFixed(2)}</TableCell>
+                            <TableCell className={`text-right tabular-nums ${isReversedWaterSale(s) ? "line-through" : ""}`}>{s.amountPaid.toFixed(2)}</TableCell>
                             <TableCell className={`text-right tabular-nums ${s.balance > 0 ? "text-rose-600" : "text-slate-500"}`}>{s.balance.toFixed(2)}</TableCell>
                             <TableCell><MethodBadge method={s.paymentMethod} /></TableCell>
                             <TableCell>
-                              <StatusBadge status={s.status} />
+                              <StatusBadge sale={s} />
                               {/* Issue 6 (sub-fix 3): clickable "Awaiting
                                   payment →" prompt next to the badge so pending
                                   rows have visible urgency without the staff
@@ -479,11 +540,20 @@ function WaterSalesPageInner() {
                               <Button size="sm" variant="ghost" onClick={() => openDetail(s)}>Details</Button>
                               {isFromDelivery(s) ? (
                                 <span className="text-xs text-slate-400 ml-1" title="From a delivery — undo it from the delivery return.">From delivery</span>
-                              ) : (
-                                <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(s)} title="Delete sale">
-                                  <Trash2 className="h-4 w-4 text-red-500" />
+                              ) : reversible(s) && canReverse ? (
+                                <>
+                                  <Button size="sm" variant="ghost" onClick={() => setReverseTarget({ sale: s, mode: "correct" })} title="Correct sale (reverse it and enter it again)">
+                                    <RotateCcw className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setReverseTarget({ sale: s, mode: "reverse" })} title="Reverse sale">
+                                    <Undo2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </>
+                              ) : isReversedWaterSale(s) && !s.correctedBySaleId && canReverse ? (
+                                <Button size="sm" variant="outline" className="h-8" onClick={() => openCorrection(s)} title="Enter this sale again, corrected">
+                                  <RotateCcw className="h-4 w-4 mr-1" /> Edit &amp; repost
                                 </Button>
-                              )}
+                              ) : null}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -501,8 +571,17 @@ function WaterSalesPageInner() {
       {/* New sale dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>New water sale</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{draftCorrects ? `Correct sale #${draftCorrects.waterSaleId}` : "New water sale"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            {draftCorrects && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                <span>
+                  Sale #{draftCorrects.waterSaleId} was reversed. Fix what was wrong and save: the new sale is linked to it.
+                  {(draftCorrects.amountPaid ?? 0) > 0 && " Money kept as credit can be applied once it is saved."}
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => setDraftCorrects(null)}>Save as an unlinked sale</Button>
+              </div>
+            )}
             <div>
               <Label>Customer</Label>
               <Select value={draftCustomerId ? String(draftCustomerId) : "0"} onValueChange={(v) => setDraftCustomerId(v === "0" ? null : parseInt(v, 10))}>
@@ -709,7 +788,7 @@ function WaterSalesPageInner() {
                     <Receipt className="h-4 w-4" />
                   </span>
                   <span>Sale #{detailSale.waterSaleId}</span>
-                  <StatusBadge status={detailSale.status} />
+                  <StatusBadge sale={detailSale} />
                 </DialogTitle>
               </DialogHeader>
 
@@ -729,6 +808,24 @@ function WaterSalesPageInner() {
                     <MethodBadge method={detailSale.paymentMethod} />
                   </div>
                 </div>
+
+                {isReversedWaterSale(detailSale) && (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900 space-y-0.5">
+                    <div className="font-medium">
+                      Reversed{detailSale.reversalNumber ? ` · ${detailSale.reversalNumber}` : ""}
+                      {detailSale.reversedAt ? ` · ${new Date(detailSale.reversedAt).toLocaleString()}` : ""}
+                    </div>
+                    {detailSale.reversalReason && <div>Reason: {detailSale.reversalReason}</div>}
+                    {detailSale.correctedBySaleId
+                      ? <div>Corrected by sale #{detailSale.correctedBySaleId}</div>
+                      : <div className="text-rose-800/80">Its stock was put back. It stays here as history.</div>}
+                  </div>
+                )}
+                {detailSale.correctsSaleId && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                    Corrects reversed sale #{detailSale.correctsSaleId}
+                  </div>
+                )}
 
                 {/* Money tiles */}
                 <div className="grid grid-cols-3 gap-2">
@@ -829,29 +926,35 @@ function WaterSalesPageInner() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete a direct sale (confirm + toast). Delivery-sourced sales never
-          reach here — their button is replaced by a "From delivery" note. */}
-      <ConfirmDeleteDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
-        title={`Delete sale #${deleteTarget?.waterSaleId ?? ""}?`}
-        description="This permanently removes the sale and its payments, and restores the stock it took out. This cannot be undone."
-        confirmLabel="Delete sale"
-        errorTitle="Delete failed"
-        onConfirm={async () => { if (deleteTarget) await performDelete(deleteTarget) }}
+      {/* 458: Reverse / Correct a direct sale. Delivery-sourced sales never reach
+          here -- the driver return owns them. */}
+      <ReverseSaleDialog
+        module="water"
+        open={!!reverseTarget}
+        saleId={reverseTarget?.sale.waterSaleId ?? null}
+        saleLabel={reverseTarget ? `#${reverseTarget.sale.waterSaleId}` : ""}
+        mode={reverseTarget?.mode ?? "reverse"}
+        farmId={getUserContext().farmId}
+        userId={getUserContext().userId}
+        currencyCode={getSelectedCurrency()}
+        onOpenChange={(o) => { if (!o) setReverseTarget(null) }}
+        onReversed={onSaleReversed}
       />
     </div>
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ sale }: { sale: Pick<WaterSale, "status" | "saleReversalId"> }) {
   const map: Record<string, string> = {
     Paid:          "bg-emerald-100 text-emerald-700",
     PartiallyPaid: "bg-amber-100 text-amber-700",
     Pending:       "bg-slate-100 text-slate-700",
     Cancelled:     "bg-rose-100 text-rose-700",
+    Reversed:      "bg-rose-100 text-rose-700",
   }
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${map[status] ?? "bg-slate-100 text-slate-700"}`}>{status}</span>
+  // 458: a reversed sale keeps status Cancelled in the database; say what happened.
+  const label = isReversedWaterSale(sale) ? "Reversed" : sale.status
+  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${map[label] ?? "bg-slate-100 text-slate-700"}`}>{label}</span>
 }
 
 // How the sale was paid — derived server-side from its payment rows (migration

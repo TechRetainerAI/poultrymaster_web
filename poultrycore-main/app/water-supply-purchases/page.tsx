@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -248,6 +249,16 @@ function WaterRawMaterialsPageInner() {
     })
     setPurchaseOpen(true)
   }
+
+  // 462: a purchase entered on a receipt is changed (or paid, or undone) through
+  // the receipt -- editing, deleting or paying it here would take it out of step.
+  const fromReceipt = (p: WaterRawMaterialPurchase) => !!p.receiptNumber
+  const receiptLink = (p: WaterRawMaterialPurchase) => (
+    <Link href="/water-purchase-receipts" className="text-xs font-medium text-blue-700 underline underline-offset-2"
+          title="Entered on Receive Purchase -- change, pay or reverse it there">
+      Receipt {p.receiptNumber}{p.isReversed ? " · Reversed" : ""}
+    </Link>
+  )
 
   function openEditPurchase(p: WaterRawMaterialPurchase) {
     setEditPurchaseId(p.waterRawMaterialPurchaseId)
@@ -695,6 +706,7 @@ function WaterRawMaterialsPageInner() {
                         { label: "Date", value: fmtDateTime(p.purchaseDate, p) },
                         { label: "Item", value: p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—" },
                         { label: "Supplier", value: p.supplierName ?? "—" },
+                        ...(fromReceipt(p) ? [{ label: "Receipt", value: receiptLink(p) }] : []),
                         { label: "Purchase Qty", value: p.quantity },
                         { label: "Production Level Qty", value: p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—" },
                         { label: "Unit Price", value: gh(p.unitCost) },
@@ -704,7 +716,9 @@ function WaterRawMaterialsPageInner() {
                             ? `${(p.productionQuantity ?? 0).toLocaleString()} ${p.productionUnit}${p.productionUnitCost ? ` @ ${gh(p.productionUnitCost)}` : ""}`
                             : "—" },
                       ]}
-                      actions={(p) => (
+                      actions={(p) => fromReceipt(p) ? (
+                        <div className="flex-1 flex h-10 items-center justify-center">{receiptLink(p)}</div>
+                      ) : (
                         <>
                           {(p.balance ?? 0) > 0 && (
                             <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200" onClick={() => openPayBalance(p)}>
@@ -740,7 +754,7 @@ function WaterRawMaterialsPageInner() {
                           </TableHeader>
                           <TableBody>
                             {pgPurchases.pageItems.map((p) => (
-                              <TableRow key={p.waterRawMaterialPurchaseId}>
+                              <TableRow key={p.waterRawMaterialPurchaseId} className={p.isReversed ? "text-slate-400" : undefined}>
                                 <TableCell>{fmtDateTime(p.purchaseDate, p)}</TableCell>
                                 <TableCell>{p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—"}</TableCell>
                                 <TableCell>{p.supplierName ?? "—"}</TableCell>
@@ -751,11 +765,15 @@ function WaterRawMaterialsPageInner() {
                                 <TableCell>{p.paymentMethod ?? "—"}</TableCell>
                                 <TableCell className={`text-right tabular-nums ${(p.balance ?? 0) > 0 ? "text-rose-600" : ""}`}>{gh(p.balance ?? 0)}</TableCell>
                                 <TableCell className="text-right">
-                                  {(p.balance ?? 0) > 0 && (
-                                    <Button size="sm" variant="ghost" className="text-emerald-700" onClick={() => openPayBalance(p)}><Wallet className="h-4 w-4" /></Button>
+                                  {fromReceipt(p) ? receiptLink(p) : (
+                                    <>
+                                      {(p.balance ?? 0) > 0 && (
+                                        <Button size="sm" variant="ghost" className="text-emerald-700" onClick={() => openPayBalance(p)}><Wallet className="h-4 w-4" /></Button>
+                                      )}
+                                      <Button size="sm" variant="ghost" onClick={() => openEditPurchase(p)}><Pencil className="h-4 w-4" /></Button>
+                                      <Button size="sm" variant="ghost" onClick={() => setDeletePurchaseTarget(p)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                                    </>
                                   )}
-                                  <Button size="sm" variant="ghost" onClick={() => openEditPurchase(p)}><Pencil className="h-4 w-4" /></Button>
-                                  <Button size="sm" variant="ghost" onClick={() => setDeletePurchaseTarget(p)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                                 </TableCell>
                               </TableRow>
                             ))}

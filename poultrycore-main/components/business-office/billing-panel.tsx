@@ -196,6 +196,7 @@ function CompanyTypeGroup({ family, rows, open, onToggle, onExplain, currencyCod
 /** One statement row per company. */
 function metricLabel(metricType: string, n: number) {
   if (metricType === "ActiveBirdCount") return n === 1 ? "active bird" : "active birds"
+  if (metricType === "ActiveAnimalCount") return n === 1 ? "active animal" : "active animals"
   if (metricType === "ActiveProductionLines") return n === 1 ? "active production line" : "active production lines"
   return n === 1 ? "unit" : "units"
 }
@@ -460,7 +461,7 @@ export function BillingPanel() {
   // Companies grouped by business type; each type row is a dropdown (plain
   // derivation — this sits after the loading early-returns, so no hook).
   const companyGroups = (() => {
-    const order = ["Poultry", "Water", "Hotel", "Restaurant", "Generic"]
+    const order = ["Poultry", "Livestock", "Water", "Hotel", "Restaurant", "Generic"]
     const map = new Map<string, CompanyBillingRow[]>()
     for (const c of companies) {
       const family = c.companyFamily || c.businessType || "Other"

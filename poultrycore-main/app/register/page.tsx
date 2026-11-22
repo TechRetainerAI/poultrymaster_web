@@ -51,7 +51,7 @@ function flattenErrors(errors: unknown): string[] {
 
 const USERNAME_RE = /^[A-Za-z0-9._-]{3,30}$/
 const PHONE_RE = /^(\+?\d{7,15}|0\d{6,14})$/
-type CType = "" | "Poultry" | "Water" | "Generic" | "Hotel" | "Restaurant"
+type CType = "" | "Poultry" | "Water" | "Generic" | "Hotel" | "Restaurant" | "Livestock"
 
 const inputCls = "h-10 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-orange-500 focus:ring-orange-500"
 
@@ -122,7 +122,7 @@ export default function RegisterPage() {
       firstName: f.firstName.trim(),
       lastName: f.lastName.trim(),
       phoneNumber: f.phoneNumber.replace(/[\s()-]/g, ""),
-      companyType: createCompany ? (f.companyType || undefined) as "Poultry" | "Water" | "Generic" | undefined : undefined,
+      companyType: createCompany ? (f.companyType || undefined) as Exclude<CType, ""> | undefined : undefined,
       roles: ["Admin"], // the registrant is the Business Office owner/admin
       businessOfficeName,
       businessOfficeCurrency: "GHS",
@@ -235,6 +235,7 @@ export default function RegisterPage() {
                       { value: "Generic", emoji: "🏪", title: "Generic" },
                       { value: "Hotel", emoji: "🏨", title: "Hotel" },
                       { value: "Restaurant", emoji: "🍽️", title: "Restaurant" },
+                      { value: "Livestock", emoji: "🐐", title: "Livestock" },
                     ] as const).map((opt) => {
                       const selected = f.companyType === opt.value
                       // Clicking a selected type again clears it.

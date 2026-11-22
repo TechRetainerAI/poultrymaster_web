@@ -421,7 +421,9 @@ export function SidebarFlyoutMenu({
             }}
           >
             {visibleGroups.map((g) => (
-              <div key={g.key} className={cn("min-w-0", cols > 1 && "max-w-[14.5rem]")}>
+              <div key={g.key} className={cn("min-w-0", cols > 1 && "max-w-[14.5rem]")}
+                // A tall group may take two rows (MegaMenuGroup.rowSpan), so two short ones stack beside it.
+                style={cols > 1 && g.rowSpan === 2 ? { gridRow: "span 2" } : undefined}>
                 {showGroupLabels && (
                   <div className={cn("px-2 pb-1 pt-0.5 text-xs font-semibold uppercase tracking-wider", a.groupLabel)}>
                     {g.label}

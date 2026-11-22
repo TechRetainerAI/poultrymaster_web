@@ -893,6 +893,8 @@ export interface SaleReversalPreview {
   lines: ReversalLine[]
   payments: ReversalPaymentItem[]
   customerCreditNow: number
+  /** 458 (water): customer credit applied to the sale -- always given back. */
+  creditApplied?: number
   blockers: { code: string; message: string }[]
   fingerprint: string
   defaultCreditCreated: number

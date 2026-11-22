@@ -32,7 +32,9 @@ export default function SalesReportPage() {
       // listWaterSales returns the full list; filter client-side.
       const inRange = (all ?? []).filter((s: any) => {
         const d = (s.saleDate ?? "").slice(0, 10)
-        return d >= fromDate && d <= toDate
+        // 458: a reversed (or old cancelled) sale is not a sale -- same rule as
+        // every server-side report.
+        return d >= fromDate && d <= toDate && s.status !== "Cancelled"
       })
       setRows(inRange)
     } catch (e: any) {

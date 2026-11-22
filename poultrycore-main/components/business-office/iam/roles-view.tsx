@@ -29,6 +29,7 @@ const COMPANY_TYPES = [
   { value: "Poultry", label: "Poultry only" },
   { value: "Water", label: "Water only" },
   { value: "Generic", label: "Company only" },
+  { value: "Livestock", label: "Livestock only" },
 ]
 
 export function RolesView({

@@ -80,6 +80,7 @@ namespace PoultryFarmAPIWeb.Business
             stateOverride ?? family.Trim().ToLowerInvariant() switch
             {
                 "poultry" => "POULTRY_BIRDS",
+                "livestock" => "LIVESTOCK_ANIMALS",
                 "water" => "WATER_PRODUCTION_LINES",
                 "hotel" => "HOTEL_ROOMS",
                 "restaurant" => "RESTAURANT_LOCATIONS",

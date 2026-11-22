@@ -276,11 +276,11 @@ function SearchPanel({ query, pathname, open, rect, onClose, onDone }: {
 
             {!hasQuery && (
               <div className="px-3 py-3 text-xs text-slate-500">
-                Search pages and {activeFarmType === "Hotel" || activeFarmType === "Restaurant" ? "reports" : "records"}. Try{" "}
+                Search pages and {activeFarmType === "Hotel" || activeFarmType === "Restaurant" || activeFarmType === "Livestock" ? "reports" : "records"}. Try{" "}
                 <span className="font-medium text-slate-700">who owes</span>,{" "}
                 <span className="font-medium text-slate-700">new sale</span>,{" "}
                 <span className="font-medium text-slate-700">p&amp;l</span>
-                {activeFarmType !== "Hotel" && activeFarmType !== "Restaurant" && <>, a customer name or a phone number</>}.
+                {activeFarmType !== "Hotel" && activeFarmType !== "Restaurant" && activeFarmType !== "Livestock" && <>, a customer name or a phone number</>}.
               </div>
             )}
 

@@ -28,17 +28,98 @@ namespace PoultryFarmAPIWeb.Business
                 SellingUnit = i.SellingUnit,
             }));
 
-            using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersale_createv2(p_farmid => @FarmId::text, p_watercustomerid => @WaterCustomerId::int, p_saledate => @SaleDate::timestamp, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_itemsjson => @ItemsJson::text)", conn);
-            cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
-            cmd.Parameters.AddWithValue("@WaterCustomerId", (object?)req.WaterCustomerId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@SaleDate", (object?)req.SaleDate ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@Notes", (object?)req.Notes ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@CreatedBy", (object?)req.CreatedBy ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@ItemsJson", itemsJson);
-
+            await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // 458: one transaction -- the sale, and (Edit & repost) its link to the
+            // reversed sale it replaces. A refused link leaves no new sale behind.
+            await using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                int newId;
+                await using (var cmd = new NpgsqlCommand("SELECT * FROM spwatersale_createv2(p_farmid => @FarmId::text, p_watercustomerid => @WaterCustomerId::int, p_saledate => @SaleDate::timestamp, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_itemsjson => @ItemsJson::text)", conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+                    cmd.Parameters.AddWithValue("@WaterCustomerId", (object?)req.WaterCustomerId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@SaleDate", (object?)req.SaleDate ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Notes", (object?)req.Notes ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@CreatedBy", (object?)req.CreatedBy ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@ItemsJson", itemsJson);
+                    newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                }
+
+                if (req.CorrectsSaleId is int corrects && corrects > 0)
+                {
+                    await using var link = new NpgsqlCommand(
+                        "SELECT spwatersale_linkcorrection(p_farmid => @FarmId::text, p_newsaleid => @New::int, p_correctssaleid => @Old::int, p_by => @By::text)", conn, tx);
+                    link.Parameters.AddWithValue("@FarmId", req.FarmId);
+                    link.Parameters.AddWithValue("@New", newId);
+                    link.Parameters.AddWithValue("@Old", corrects);
+                    link.Parameters.AddWithValue("@By", (object?)req.CreatedBy ?? DBNull.Value);
+                    await link.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+                return newId;
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex);
+            }
+        }
+
+        // ------------------------------------------------------- 458: reversal
+
+        /// <summary>What reversing the sale would do (jsonb, same shape as poultry's).</summary>
+        public Task<string> GetReversalPreview(int saleId, string farmId)
+            => ScalarJsonAsync("SELECT spwatersale_reversalpreview(p_farmid => @FarmId::text, p_saleid => @SaleId::int)::text", farmId, saleId);
+
+        /// <summary>The reversal of a reversed sale, or null.</summary>
+        public async Task<string?> GetReversal(int saleId, string farmId)
+        {
+            var json = await ScalarJsonAsync("SELECT spwatersale_reversalget(p_farmid => @FarmId::text, p_saleid => @SaleId::int)::text", farmId, saleId);
+            return string.IsNullOrEmpty(json) || json == "null" ? null : json;
+        }
+
+        /// <summary>
+        /// Reverses a saved sale in one transaction (spwatersale_reverse). A refusal
+        /// comes back as <see cref="SaleRuleException"/> (Stale = preview out of date).
+        /// </summary>
+        public async Task<int> Reverse(int saleId, SaleReverseRequest req)
+        {
+            try
+            {
+                await using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                await using var cmd = new NpgsqlCommand(
+                    "SELECT spwatersale_reverse(p_farmid => @FarmId::text, p_saleid => @SaleId::int, " +
+                    "p_reasoncode => @Code::text, p_reason => @Reason::text, p_handling => @Handling::jsonb, " +
+                    "p_expectedfingerprint => @Fp::text, p_idempotencykey => @Key::text, p_reversedby => @By::text)", conn);
+                cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+                cmd.Parameters.AddWithValue("@SaleId", saleId);
+                cmd.Parameters.AddWithValue("@Code", (object?)req.ReasonCode ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Reason", req.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@Handling",
+                    JsonSerializer.Serialize(req.PaymentHandling ?? new Dictionary<string, string>()));
+                cmd.Parameters.AddWithValue("@Fp", (object?)req.ExpectedFingerprint ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Key", (object?)req.IdempotencyKey ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@By", (object?)req.UserId ?? DBNull.Value);
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex) { Stale = ex.Hint == "stale-preview" };
+            }
+        }
+
+        private async Task<string> ScalarJsonAsync(string sql, string farmId, int saleId)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@SaleId", saleId);
+            var o = await cmd.ExecuteScalarAsync();
+            return o is null || o is DBNull ? "null" : (string)o;
         }
 
         public async Task<WaterSaleModel?> GetById(int id, string farmId)
@@ -118,6 +199,14 @@ namespace PoultryFarmAPIWeb.Business
             // Migration 225 — derived from the sale's payments ("Mixed" when
             // several methods were used). Absent on a pre-225 database.
             PaymentMethod   = HasCol(r, "PaymentMethod") && !r.IsDBNull(r.GetOrdinal("PaymentMethod")) ? r.GetString(r.GetOrdinal("PaymentMethod")) : null,
+            // Migration 458 -- the reversal, when there is one. Absent before 458.
+            SaleReversalId    = HasCol(r, "SaleReversalId")    && !r.IsDBNull(r.GetOrdinal("SaleReversalId"))    ? r.GetInt32(r.GetOrdinal("SaleReversalId"))     : null,
+            ReversalNumber    = HasCol(r, "ReversalNumber")    && !r.IsDBNull(r.GetOrdinal("ReversalNumber"))    ? r.GetString(r.GetOrdinal("ReversalNumber"))    : null,
+            ReversedAt        = HasCol(r, "ReversedAt")        && !r.IsDBNull(r.GetOrdinal("ReversedAt"))        ? r.GetDateTime(r.GetOrdinal("ReversedAt"))      : null,
+            ReversedBy        = HasCol(r, "ReversedBy")        && !r.IsDBNull(r.GetOrdinal("ReversedBy"))        ? r.GetString(r.GetOrdinal("ReversedBy"))        : null,
+            ReversalReason    = HasCol(r, "ReversalReason")    && !r.IsDBNull(r.GetOrdinal("ReversalReason"))    ? r.GetString(r.GetOrdinal("ReversalReason"))    : null,
+            CorrectsSaleId    = HasCol(r, "CorrectsSaleId")    && !r.IsDBNull(r.GetOrdinal("CorrectsSaleId"))    ? r.GetInt32(r.GetOrdinal("CorrectsSaleId"))     : null,
+            CorrectedBySaleId = HasCol(r, "CorrectedBySaleId") && !r.IsDBNull(r.GetOrdinal("CorrectedBySaleId")) ? r.GetInt32(r.GetOrdinal("CorrectedBySaleId"))  : null,
         };
 
         private static WaterSaleItemModel ReadItem(NpgsqlDataReader r) => new()

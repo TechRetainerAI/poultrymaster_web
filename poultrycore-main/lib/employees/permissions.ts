@@ -295,6 +295,9 @@ function moduleForType(companyType: string | null | undefined): StaffPermissionM
     case "poultry": return "poultry"
     case "hotel": return "hotel"
     case "restaurant": return "restaurant"
+    // Livestock is the poultry module tree for other animals, so the same
+    // page toggles (flocks -> groups, production, feed, health) gate it.
+    case "livestock": return "poultry"
     default: return null
   }
 }

@@ -217,26 +217,74 @@ namespace PoultryFarmAPIWeb.Controllers
             if (string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest("Company ID is required.");
             if (req.Items is null || req.Items.Count == 0) return BadRequest("At least one item is required.");
 
-            var newId = await _svc.Create(req);
+            int newId;
+            try { newId = await _svc.Create(req); }
+            catch (SaleRuleException ex) { return BadRequest(new { message = ex.Message }); }
             var sale = await _svc.GetById(newId, req.FarmId);
             return CreatedAtAction(nameof(GetById), new { id = newId, farmId = req.FarmId }, sale);
         }
 
+        // 458: Cancel and Delete are refused by the database -- a saved sale is
+        // reversed (POST {id}/reverse). Kept so old clients get the reason.
         [HttpPost("{id:int}/cancel")]
         public async Task<IActionResult> Cancel(int id, [FromQuery] string farmId)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
-            await _svc.Cancel(id, farmId);
+            try { await _svc.Cancel(id, farmId); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return Conflict(new { message = ex.MessageText }); }
             return NoContent();
         }
 
-        // Hard-delete a direct sale. The SP rejects delivery-sourced sales.
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
-            await _svc.Delete(id, farmId);
+            try { await _svc.Delete(id, farmId); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return Conflict(new { message = ex.MessageText }); }
             return NoContent();
+        }
+
+        // GET api/Water/sales/5/reversal-preview?farmId=  -- what reversing it would do.
+        [HttpGet("{id:int}/reversal-preview")]
+        public async Task<IActionResult> ReversalPreview(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Content(await _svc.GetReversalPreview(id, farmId), "application/json");
+        }
+
+        // GET api/Water/sales/5/reversal?farmId=  -- the reversal of a reversed sale.
+        [HttpGet("{id:int}/reversal")]
+        public async Task<IActionResult> Reversal(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            var json = await _svc.GetReversal(id, farmId);
+            return json is null ? NotFound(new { message = "This sale has not been reversed." }) : Content(json, "application/json");
+        }
+
+        // POST api/Water/sales/5/reverse  -- resolves to water.sales.approve.
+        [HttpPost("{id:int}/reverse")]
+        public async Task<IActionResult> Reverse(int id, [FromBody] SaleReverseRequest req)
+        {
+            if (req is null || string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(req.ReasonCode) && string.IsNullOrWhiteSpace(req.Reason))
+                return BadRequest(new { message = "Give a reason for reversing this sale." });
+            // The person on the token, not whatever the body claims.
+            req.UserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? req.UserId;
+            try
+            {
+                var reversalId = await _svc.Reverse(id, req);
+                var j = await _svc.GetReversal(id, req.FarmId);
+                return Ok(new { salereversalid = reversalId,
+                                reversal = j is null ? (System.Text.Json.JsonElement?)null : System.Text.Json.JsonDocument.Parse(j).RootElement });
+            }
+            catch (SaleRuleException ex) when (ex.Stale)
+            {
+                return Conflict(new { message = ex.Message, stale = true });
+            }
+            catch (SaleRuleException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 

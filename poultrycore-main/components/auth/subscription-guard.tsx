@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
 const PUBLIC_PATH_PREFIXES = ["/login", "/signup", "/forgot-password", "/reset-password"]
-const ALLOWED_UNSUBSCRIBED_PREFIXES = ["/billing", "/help", "/terms", "/resources", "/profile"]
+const ALLOWED_UNSUBSCRIBED_PREFIXES = ["/billing", "/help", "/poultry-setup-guide", "/terms", "/resources", "/profile"]
 // Temporary business override: keep app open while subscription/trial rollout is finalized.
 const TEMP_ALLOW_ALL_ACCESS = true
 
