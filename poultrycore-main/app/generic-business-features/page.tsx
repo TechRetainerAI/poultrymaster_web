@@ -357,6 +357,24 @@ export default function GenericBusinessFeaturesPage() {
                         </p>
                       </div>
                     </div>
+
+                    {/* Same actions as the header, where the eye ends up after the last group. */}
+                    <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-2">
+                      {dirty && <span className="text-xs text-amber-700 sm:mr-auto">You have unsaved changes.</span>}
+                      {recommended && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowRestore(true)}
+                          disabled={loading || !hasChangesToRestore}
+                        >
+                          <RotateCcw className="h-4 w-4 mr-1" /> Restore Recommended
+                        </Button>
+                      )}
+                      <Button onClick={save} disabled={saving || loading || !modules || !dirty}>
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+                        Save Changes
+                      </Button>
+                    </div>
                   </div>
                 )}
               </>

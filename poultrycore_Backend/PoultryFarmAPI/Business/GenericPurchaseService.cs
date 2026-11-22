@@ -91,7 +91,30 @@ namespace PoultryFarmAPIWeb.Business
                 unitcost         = i.UnitCost,
                 discountamount   = i.DiscountAmount,
                 notes            = i.Notes,
+                purchaseunit     = i.PurchaseUnit,
+                unitfactor       = i.UnitFactor > 0 ? i.UnitFactor : 1m,
             }));
+
+        // Draft only (migration 458): rewrites the header and replaces every line.
+        public async Task UpdateAsync(int id, string farmId, GenericPurchaseCreateRequest req)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT spgenericpurchase_update(p_genericpurchaseid => @Id::int, p_farmid => @FarmId::text, p_purchasedate => @PurchaseDate::timestamp, p_genericsupplierid => @GenericSupplierId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_invoicenumber => @InvoiceNumber::text, p_notes => @Notes::text, p_items => @Items::jsonb)", conn);
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@PurchaseDate", (object?)req.PurchaseDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@GenericSupplierId", (object?)req.GenericSupplierId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@HeaderDiscountAmount", req.HeaderDiscountAmount);
+            cmd.Parameters.AddWithValue("@TaxAmount", req.TaxAmount);
+            cmd.Parameters.AddWithValue("@AmountPaid", req.AmountPaid);
+            cmd.Parameters.AddWithValue("@PaymentMethod", (object?)req.PaymentMethod ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@GenericCashAccountId", (object?)req.GenericCashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@InvoiceNumber", (object?)req.InvoiceNumber ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes", (object?)req.Notes ?? DBNull.Value);
+            cmd.Parameters.Add(new NpgsqlParameter("@Items", NpgsqlTypes.NpgsqlDbType.Jsonb) { Value = BuildItemsJson(req.Items) });
+            await conn.OpenAsync();
+            await cmd.ExecuteScalarAsync();
+        }
 
         // ====================================================================
         // Workflow
@@ -168,6 +191,8 @@ namespace PoultryFarmAPIWeb.Business
             DiscountAmount        = r.GetDecimal(r.GetOrdinal("DiscountAmount")),
             LineTotal             = r.GetDecimal(r.GetOrdinal("LineTotal")),
             Notes                 = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+            PurchaseUnit          = r.IsDBNull(r.GetOrdinal("PurchaseUnit")) ? null : r.GetString(r.GetOrdinal("PurchaseUnit")),
+            UnitFactor            = r.GetDecimal(r.GetOrdinal("UnitFactor")),
         };
     }
 }
