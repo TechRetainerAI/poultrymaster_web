@@ -55,7 +55,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(string farmId, GenericSaleCreateRequest req, string? createdBy)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_insert(p_farmid => @FarmId::text, p_saledate => @SaleDate::timestamp, p_genericcustomerid => @GenericCustomerId::int, p_branchid => @BranchId::int, p_salestype => @SalesType::text, p_saleschannel => @SalesChannel::text, p_salespersonstaffid => @SalespersonStaffId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receiptnumber => @ReceiptNumber::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_items => @Items::jsonb)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_insert(p_farmid => @FarmId::text, p_saledate => @SaleDate::timestamp, p_genericcustomerid => @GenericCustomerId::int, p_branchid => @BranchId::int, p_salestype => @SalesType::text, p_saleschannel => @SalesChannel::text, p_salespersonstaffid => @SalespersonStaffId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receiptnumber => @ReceiptNumber::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_items => @Items::jsonb, p_applycreditamount => @ApplyCreditAmount::numeric)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@SaleDate", (object?)req.SaleDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@GenericCustomerId", (object?)req.GenericCustomerId ?? DBNull.Value);
@@ -71,6 +71,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ReceiptNumber", (object?)req.ReceiptNumber ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)req.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ApplyCreditAmount", req.ApplyCreditAmount);
 
             // Items: the SQL Server TVP (dbo.GenericSaleItemTvp) became a jsonb
             // array read with jsonb_to_recordset, so keys must be lowercase.
@@ -96,6 +97,8 @@ namespace PoultryFarmAPIWeb.Business
                 discountamount   = i.DiscountAmount,
                 costamount       = i.CostAmount,
                 notes            = i.Notes,
+                saleunit         = i.SaleUnit,
+                unitfactor       = i.UnitFactor,
             }));
 
         // ====================================================================
@@ -190,6 +193,8 @@ namespace PoultryFarmAPIWeb.Business
             LineTotal         = r.GetDecimal(r.GetOrdinal("LineTotal")),
             CostAmount        = r.IsDBNull(r.GetOrdinal("CostAmount")) ? null : r.GetDecimal(r.GetOrdinal("CostAmount")),
             Notes             = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+            SaleUnit          = r.IsDBNull(r.GetOrdinal("SaleUnit")) ? null : r.GetString(r.GetOrdinal("SaleUnit")),
+            UnitFactor        = r.GetDecimal(r.GetOrdinal("UnitFactor")),
         };
     }
 }
