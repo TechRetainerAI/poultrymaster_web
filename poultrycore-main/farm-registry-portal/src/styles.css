@@ -811,6 +811,8 @@ button.ghost {
 
 /* ---------------- Page toolbar: search + filters (Users-page style) ---------------- */
 .page-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px; }
+.export-actions { margin-left: auto; display: flex; gap: 8px; }
+@media (max-width: 640px) { .export-actions { margin-left: 0; width: 100%; } }
 .filter-search {
   flex: 1; min-width: 220px; display: flex; align-items: center; gap: 8px;
   border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; background: #fff; color: #94a3b8;
