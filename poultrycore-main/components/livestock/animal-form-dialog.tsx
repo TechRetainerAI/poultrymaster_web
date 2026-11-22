@@ -20,6 +20,8 @@ import {
   type AnimalInput, type AnimalSex, type AnimalSource, type LivestockAnimal, type LivestockBatch, type LivestockGroup,
 } from "@/lib/api/livestock"
 import { useLivestockSpecies } from "@/hooks/use-livestock-species"
+import { ParentPicker } from "@/components/livestock/parent-picker"
+import { parentProblem } from "@/lib/livestock/parents"
 import { BreedSelect } from "@/components/livestock/breed-age-inputs"
 import { AMBER_BUTTON, todayIso } from "./livestock-page"
 import { groupBirthDate } from "./tag-many-dialog"
@@ -87,8 +89,11 @@ export function AnimalFormDialog({ open, onOpenChange, animal, presetGroupId, on
     listAnimals({ speciesCode, status: "All" }).then((a) => setParents(a.filter((x) => x.animalId !== animal?.animalId)))
       .catch(() => setParents([]))
   }, [open, speciesCode, animal?.animalId])
-  const dams = useMemo(() => parents.filter((p) => p.sex !== "Male"), [parents])
-  const sires = useMemo(() => parents.filter((p) => p.sex !== "Female"), [parents])
+  const gestation = species?.gestationDays ?? null
+  const dam = parents.find((p) => p.animalId === form.damId)
+  const sire = parents.find((p) => p.animalId === form.sireId)
+  const badParent = species?.breedsOnFarm !== false &&
+    ((!!dam && !!parentProblem(dam, "mother", form.birthDate, gestation)) || (!!sire && !!parentProblem(sire, "father", form.birthDate, gestation)))
 
   const set = <K extends keyof AnimalInput>(k: K, v: AnimalInput[K]) => setForm((f) => ({ ...f, [k]: v }))
 
@@ -111,7 +116,7 @@ export function AnimalFormDialog({ open, onOpenChange, animal, presetGroupId, on
   }
 
   const activeGroups = groups.filter((g) => g.status === "Active")
-  const canSave = form.tagNumber.trim() && (isEdit || form.groupId)
+  const canSave = form.tagNumber.trim() && (isEdit || form.groupId) && !badParent
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -203,23 +208,13 @@ export function AnimalFormDialog({ open, onOpenChange, animal, presetGroupId, on
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Mother</Label>
-                <Select value={form.damId ? String(form.damId) : NONE} onValueChange={(v) => set("damId", v === NONE ? null : Number(v))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE}>Not known</SelectItem>
-                    {dams.map((p) => <SelectItem key={p.animalId} value={String(p.animalId)}>{p.tagNumber}{p.name ? ` · ${p.name}` : ""}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <ParentPicker role="mother" animals={parents} value={form.damId ?? null} onChange={(v) => set("damId", v)}
+                  childBirthDate={form.birthDate} groupId={animal?.groupId ?? form.groupId} gestationDays={gestation} excludeId={animal?.animalId} />
               </div>
               <div>
                 <Label>Father</Label>
-                <Select value={form.sireId ? String(form.sireId) : NONE} onValueChange={(v) => set("sireId", v === NONE ? null : Number(v))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE}>Not known</SelectItem>
-                    {sires.map((p) => <SelectItem key={p.animalId} value={String(p.animalId)}>{p.tagNumber}{p.name ? ` · ${p.name}` : ""}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <ParentPicker role="father" animals={parents} value={form.sireId ?? null} onChange={(v) => set("sireId", v)}
+                  childBirthDate={form.birthDate} groupId={animal?.groupId ?? form.groupId} gestationDays={gestation} excludeId={animal?.animalId} />
               </div>
             </div>
           )}

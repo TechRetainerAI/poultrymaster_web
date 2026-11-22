@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/api/config"
 import { updateSupplier, type Supplier } from "@/lib/api/supplier"
@@ -26,6 +28,7 @@ export default function LivestockSuppliersPage() {
   const loadBalances = useCallback(() => { listSupplierBalances().then(setBalances).catch(() => setBalances([])) }, [])
   useEffect(() => { loadBalances() }, [loadBalances])
   const owed = useMemo(() => new Map(balances.map((b) => [b.supplierId, b.owed])), [balances])
+  const pg = usePagination(suppliers, 10)
 
   return (
     <LivestockPage
@@ -39,7 +42,7 @@ export default function LivestockSuppliersPage() {
           <Table>
             <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Phone</TableHead><TableHead>Address</TableHead><TableHead className="text-right">You owe</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
-              {suppliers.map((s) => (
+              {pg.pageItems.map((s) => (
                 <TableRow key={s.supplierId}>
                   <TableCell className="font-medium">{s.name}</TableCell>
                   <TableCell>{s.contactPhone || "—"}</TableCell>
@@ -52,6 +55,7 @@ export default function LivestockSuppliersPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
       {adding && <NewSupplierDialog onClose={() => setAdding(false)} onCreated={() => { setAdding(false); reload() }} />}

@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -69,6 +71,10 @@ export default function LivestockGroupPage() {
     try { await reopenGroup(groupId); toast({ title: "Reopened" }); load() }
     catch (e: any) { toast({ title: "Not reopened", description: e?.message, variant: "destructive" }) }
   }
+
+  const movementsPg = usePagination(group?.movements ?? [], 10)
+  const animalsPg = usePagination(animals, 10)
+  const recordsPg = usePagination(records, 10)
 
   if (error) return <LivestockPage title="Group" back={{ href: "/livestock-groups", label: "Animal groups" }}><LoadError message={error} onRetry={load} /></LivestockPage>
   if (!group) return <LivestockPage title="Group" back={{ href: "/livestock-groups", label: "Animal groups" }}><Loading /></LivestockPage>
@@ -159,7 +165,7 @@ export default function LivestockGroupPage() {
                 {group.movements.length === 0 && (
                   <TableRow><TableCell colSpan={6} className="text-center text-stone-500 py-6">Nothing recorded yet.</TableCell></TableRow>
                 )}
-                {group.movements.map((m) => {
+                {movementsPg.pageItems.map((m) => {
                   const manual = !m.sourceType && !m.animalId && m.type !== "Opening" && m.type !== "Intake"
                   return (
                     <TableRow key={m.movementId} className={m.reversedAt ? "opacity-50" : undefined}>
@@ -189,6 +195,7 @@ export default function LivestockGroupPage() {
                 })}
               </TableBody>
             </Table>
+            <DataPagination {...movementsPg.paginationProps} variant="records" />
           </div>
         </TabsContent>
 
@@ -215,7 +222,7 @@ export default function LivestockGroupPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {animals.map((a) => (
+                  {animalsPg.pageItems.map((a) => (
                     <TableRow key={a.animalId} className="cursor-pointer hover:bg-amber-50/60" onClick={() => router.push(`/livestock-animals/${a.animalId}`)}>
                       <TableCell className="font-medium">{a.tagNumber}{a.name ? ` · ${a.name}` : ""}</TableCell>
                       <TableCell>{a.sex === "Unknown" ? "—" : a.sex}</TableCell>
@@ -226,6 +233,7 @@ export default function LivestockGroupPage() {
                   ))}
                 </TableBody>
               </Table>
+              <DataPagination {...animalsPg.paginationProps} variant="records" />
             </div>
           )}
         </TabsContent>
@@ -246,7 +254,7 @@ export default function LivestockGroupPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {records.map((r) => (
+                  {recordsPg.pageItems.map((r) => (
                     <TableRow key={r.recordId} className="cursor-pointer hover:bg-amber-50/60" onClick={() => router.push(`/livestock-production-records/${r.recordId}`)}>
                       <TableCell>{fmtDate(r.date)}</TableCell>
                       <TableCell className="text-right">{fmtNum(r.headEndOfDay)}</TableCell>
@@ -258,6 +266,7 @@ export default function LivestockGroupPage() {
                   ))}
                 </TableBody>
               </Table>
+              <DataPagination {...recordsPg.paginationProps} variant="records" />
             </div>
           )}
         </TabsContent>

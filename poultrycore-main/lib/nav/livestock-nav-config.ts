@@ -128,6 +128,7 @@ export function buildLivestockNavConfig({
         label: "Sales",
         items: [
           { id: "sales",             title: "Sales",             icon: ShoppingBag, href: "/livestock-sales" },
+          { id: "customer-payments", title: "Customer payments", icon: Wallet,      href: "/livestock-customer-payments" },
           { id: "customers",         title: "Customers",         icon: Users,       href: "/livestock-customers" },
           { id: "customer-balances", title: "Customer balances", icon: BalanceIcon, href: "/livestock-customer-balances" },
         ],
@@ -137,6 +138,7 @@ export function buildLivestockNavConfig({
         label: "Expenses & buying",
         items: [
           { id: "expenses",          title: "Expenses",          icon: Receipt,      href: "/livestock-expenses" },
+          { id: "supplier-payments", title: "Supplier payments", icon: CreditCard,   href: "/livestock-supplier-payments" },
           { id: "purchases",         title: "Purchases",         icon: ShoppingCart, href: "/livestock-purchases" },
           { id: "suppliers",         title: "Suppliers",         icon: Truck,        href: "/livestock-suppliers" },
           { id: "supplier-balances", title: "Supplier balances", icon: ScaleIcon,    href: "/livestock-supplier-balances" },

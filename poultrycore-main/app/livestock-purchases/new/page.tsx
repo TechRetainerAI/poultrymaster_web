@@ -80,7 +80,7 @@ export default function NewLivestockPurchasePage() {
 
   return (
     <LivestockPage title="New purchase" icon={ShoppingCart} back={{ href: "/livestock-purchases", label: "Purchases" }}>
-      <div className="space-y-4 max-w-4xl">
+      <div className="space-y-4">
         <Card>
           <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="lg:col-span-2"><Label>Supplier</Label><SupplierSelect value={supplierId} onChange={setSupplierId} allowNone /></div>

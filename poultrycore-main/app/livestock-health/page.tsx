@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { listHealth, type HealthKind, type HealthRecord } from "@/lib/api/livestock"
 import { HealthDialog, HEALTH_KIND_LABEL } from "@/components/livestock/health-dialog"
@@ -34,6 +36,8 @@ export default function LivestockHealthPage() {
   useEffect(() => { load() }, [load])
 
   const open = (rows ?? []).filter((r) => r.status === "Open")
+  const ordered = [...open, ...(rows ?? []).filter((r) => r.status !== "Open")]
+  const pg = usePagination(ordered, 10)
   const cost = (rows ?? []).reduce((s, r) => s + (r.cost ?? 0), 0)
 
   return (
@@ -70,7 +74,7 @@ export default function LivestockHealthPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {[...open, ...rows.filter((r) => r.status !== "Open")].map((r) => (
+              {pg.pageItems.map((r) => (
                 <TableRow key={r.healthId}>
                   <TableCell className="whitespace-nowrap">{fmtDate(r.date)}</TableCell>
                   <TableCell>
@@ -94,6 +98,7 @@ export default function LivestockHealthPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
 

@@ -16,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -33,6 +35,8 @@ export default function LivestockStaffPage() {
   const [editing, setEditing] = useState<{ staff?: Staff } | null>(null)
   const [money, setMoney] = useState<{ staff: Staff; kind: "lend" | "repay" } | null>(null)
   const [reversing, setReversing] = useState<StaffLoanEntry | null>(null)
+  const pg = usePagination(rows ?? [], 10)
+  const entriesPg = usePagination(entries, 10)
 
   const load = useCallback(async () => {
     setError(null)
@@ -52,7 +56,7 @@ export default function LivestockStaffPage() {
           <Table>
             <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Pay</TableHead><TableHead className="text-right">Owes</TableHead><TableHead>Last paid</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
-              {rows.map((s) => (
+              {pg.pageItems.map((s) => (
                 <TableRow key={s.staffId} className={s.isActive ? "" : "opacity-60"}>
                   <TableCell className="font-medium">{s.name}{!s.isActive && <Badge variant="outline" className="ml-2">Left</Badge>}</TableCell>
                   <TableCell>{s.role ?? "—"}</TableCell>
@@ -69,6 +73,7 @@ export default function LivestockStaffPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
       {entries.length > 0 && (
@@ -78,7 +83,7 @@ export default function LivestockStaffPage() {
             <Table>
               <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Person</TableHead><TableHead>What</TableHead><TableHead className="text-right">Amount</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>
-                {entries.map((e) => (
+                {entriesPg.pageItems.map((e) => (
                   <TableRow key={`${e.kind}-${e.id}`} className={e.reversedAt ? "opacity-50" : undefined}>
                     <TableCell>{fmtDate(e.date)}</TableCell><TableCell>{e.name}</TableCell>
                     <TableCell>{e.kind === "Loan" ? `Advance${e.note ? `: ${e.note}` : ""}` : e.note}{e.reversedAt && <Badge variant="outline" className="ml-2">Reversed</Badge>}</TableCell>
@@ -88,6 +93,7 @@ export default function LivestockStaffPage() {
                 ))}
               </TableBody>
             </Table>
+            <DataPagination {...entriesPg.paginationProps} variant="records" />
           </CardContent>
         </Card>
       )}

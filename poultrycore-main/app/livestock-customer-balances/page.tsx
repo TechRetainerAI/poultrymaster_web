@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import {
   getCustomerStatement, listCustomerBalances, listCustomerPayments, reverseCustomerPayment,
@@ -48,6 +50,9 @@ export default function LivestockCustomerBalancesPage() {
   const owes = (rows ?? []).reduce((s, r) => s + r.owes, 0)
   const overdue = (rows ?? []).reduce((s, r) => s + r.overdue, 0)
   const later = payments.filter((p) => !p.isUpfront)
+  const pg = usePagination(rows ?? [], 10)
+  const statementPg = usePagination(statement?.lines ?? [], 10)
+  const laterPg = usePagination(later, 10)
 
   return (
     <LivestockPage title="Customer balances" description="What customers owe you, and receiving it." icon={Scale}>
@@ -67,7 +72,7 @@ export default function LivestockCustomerBalancesPage() {
                 <Table>
                   <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead className="text-right">Bought</TableHead><TableHead className="text-right">Paid</TableHead><TableHead className="text-right">Owes</TableHead><TableHead>Last sale</TableHead><TableHead /></TableRow></TableHeader>
                   <TableBody>
-                    {rows.map((r) => (
+                    {pg.pageItems.map((r) => (
                       <TableRow key={r.customerId} className={`cursor-pointer hover:bg-amber-50/60 ${selected === r.customerId ? "bg-amber-50" : ""}`} onClick={() => setSelected(r.customerId)}>
                         <TableCell className="font-medium">{r.name}{r.phone && <div className="text-xs text-stone-500">{r.phone}</div>}</TableCell>
                         <TableCell className="text-right">{fmtMoney(r.bought)}</TableCell>
@@ -79,6 +84,7 @@ export default function LivestockCustomerBalancesPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataPagination {...pg.paginationProps} variant="records" />
               </div>
             )}
             {statement && (
@@ -88,7 +94,7 @@ export default function LivestockCustomerBalancesPage() {
                   <Table>
                     <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>What</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Paid</TableHead><TableHead className="text-right">Owes after</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {statement.lines.map((l) => (
+                      {statementPg.pageItems.map((l) => (
                         <TableRow key={`${l.kind}-${l.id}`}>
                           <TableCell>{fmtDate(l.date)}</TableCell>
                           <TableCell>{l.kind === "Sale" ? <Link className="text-amber-800 hover:underline" href={`/livestock-sales/${l.id}`}>{l.description}</Link> : l.description}</TableCell>
@@ -99,6 +105,7 @@ export default function LivestockCustomerBalancesPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  <DataPagination {...statementPg.paginationProps} variant="records" />
                 </CardContent>
               </Card>
             )}
@@ -109,7 +116,7 @@ export default function LivestockCustomerBalancesPage() {
                 <Table>
                   <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Customer</TableHead><TableHead>Into</TableHead><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead><TableHead /></TableRow></TableHeader>
                   <TableBody>
-                    {later.map((p) => (
+                    {laterPg.pageItems.map((p) => (
                       <TableRow key={p.paymentId} className={p.reversedAt ? "opacity-50" : undefined}>
                         <TableCell>{fmtDate(p.date)}</TableCell>
                         <TableCell>{p.customerName}{p.reversedAt && <Badge variant="outline" className="ml-2">Reversed</Badge>}</TableCell>
@@ -121,6 +128,7 @@ export default function LivestockCustomerBalancesPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataPagination {...laterPg.paginationProps} variant="records" />
               </div>
             )}
           </TabsContent>

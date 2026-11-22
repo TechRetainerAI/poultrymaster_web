@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { deletePen, listPens, savePen, type LivestockPen, type PenInput } from "@/lib/api/livestock"
@@ -57,6 +59,8 @@ export function PensView() {
   const set = <K extends keyof PenInput>(k: K, v: PenInput[K]) =>
     setEditing((e) => (e ? { ...e, input: { ...e.input, [k]: v } } : e))
 
+  const pg = usePagination(pens ?? [], 10)
+
   if (error) return <LoadError message={error} onRetry={load} />
   if (!pens) return <Loading />
 
@@ -85,7 +89,7 @@ export function PensView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pens.map((p) => {
+              {pg.pageItems.map((p) => {
                 const over = p.capacity != null && p.head > p.capacity
                 return (
                   <TableRow key={p.penId}>
@@ -114,6 +118,7 @@ export function PensView() {
               })}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
 

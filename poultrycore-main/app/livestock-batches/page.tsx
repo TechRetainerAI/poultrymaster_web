@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -27,6 +29,7 @@ import {
 } from "@/components/livestock/livestock-page"
 import { AgeTextInput, BreedSelect } from "@/components/livestock/breed-age-inputs"
 import { QuickPensDialog } from "@/components/livestock/quick-pens-dialog"
+import { AnimalPurchaseDialog } from "@/components/livestock/animal-purchase-dialog"
 import { usePermissions } from "@/hooks/use-permissions"
 
 const NONE = "__none"
@@ -41,6 +44,19 @@ export default function LivestockBatchesPage() {
   const [saving, setSaving] = useState(false)
   const [dividing, setDividing] = useState<LivestockBatch | null>(null)
   const [deleting, setDeleting] = useState<LivestockBatch | null>(null)
+  const [buying, setBuying] = useState(false)
+  const pg = usePagination(batches ?? [], 10)
+
+  // After buying, the new batch opens straight into Divide, like Record intake.
+  const bought = async () => {
+    const before = new Set((batches ?? []).map((b) => b.batchId))
+    try {
+      const all = await listBatches()
+      setBatches(all)
+      const fresh = all.filter((b) => !before.has(b.batchId) && b.unallocated > 0)
+      if (fresh.length === 1) setDividing(fresh[0])
+    } catch (e: any) { setError(e?.message ?? String(e)) }
+  }
 
   const load = useCallback(async () => {
     setError(null)
@@ -82,7 +98,7 @@ export default function LivestockBatchesPage() {
       icon={Package}
       actions={
         <>
-          <Button asChild variant="outline"><Link href="/livestock-purchases/new?animals=1">Buy animals</Link></Button>
+          <Button variant="outline" disabled={loaded && kept.length === 0} onClick={() => setBuying(true)}>Buy animals</Button>
           <Button className={AMBER_BUTTON} disabled={loaded && kept.length === 0} onClick={() => setEditing({ input: blank() })}>
             <Plus className="h-4 w-4 mr-1" /> Record intake
           </Button>
@@ -110,7 +126,7 @@ export default function LivestockBatchesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {batches.map((b) => (
+              {pg.pageItems.map((b) => (
                 <TableRow key={b.batchId}>
                   <TableCell className="font-medium">{b.batchCode}{b.breed && <div className="text-xs text-stone-500">{b.breed}</div>}</TableCell>
                   <TableCell>{b.speciesName}</TableCell>
@@ -141,6 +157,7 @@ export default function LivestockBatchesPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
 
@@ -235,6 +252,8 @@ export default function LivestockBatchesPage() {
           onClose={() => setDividing(null)}
           onDone={(ids) => { setDividing(null); load(); if (ids.length === 1) router.push(`/livestock-groups/${ids[0]}`) }} />
       )}
+
+      <AnimalPurchaseDialog open={buying} onOpenChange={setBuying} onSaved={bought} />
 
       <ConfirmDeleteDialog
         open={!!deleting}

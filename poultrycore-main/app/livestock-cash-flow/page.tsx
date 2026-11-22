@@ -1,13 +1,15 @@
 "use client"
 
 // Cash Flow -- the money the farm had at the start, where money came from
-// and went, and what is left, account by account.
+// and went, and what is left, account by account; then the Transaction
+// History of every movement (components/livestock/cash-history.tsx).
 
 import { useCallback, useEffect, useState } from "react"
 import { Waves } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCashFlow, type CashFlow } from "@/lib/api/livestock"
 import { CASH_CATEGORY_LABEL, PeriodPicker, firstOfMonth } from "@/components/livestock/money-bits"
+import { CashHistory } from "@/components/livestock/cash-history"
 import { LivestockPage, LoadError, Loading, StatCard, fmtMoney, todayIso } from "@/components/livestock/livestock-page"
 
 export default function LivestockCashFlowPage() {
@@ -57,6 +59,7 @@ export default function LivestockCashFlowPage() {
             </Card>
           </div>
           <p className="text-xs text-stone-500">Money moved between your own accounts is left out: it neither comes in nor goes out of the farm.</p>
+          <CashHistory from={from} to={to} />
         </>
       )}
     </LivestockPage>

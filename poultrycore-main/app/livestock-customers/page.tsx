@@ -8,6 +8,8 @@ import { Pencil, Plus, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listCustomerBalances, type CustomerBalance, type LsCustomer } from "@/lib/api/livestock"
 import { CustomerDialog, useCustomers } from "@/components/livestock/customer-select"
 import { AMBER_BUTTON, EmptyState, LivestockPage, fmtMoney } from "@/components/livestock/livestock-page"
@@ -20,6 +22,7 @@ export default function LivestockCustomersPage() {
   useEffect(() => { listCustomerBalances().then(setBalances).catch(() => setBalances([])) }, [customers])
   const owes = useMemo(() => new Map(balances.map((b) => [b.customerId, b.owes])), [balances])
   const shown = customers.filter((c) => !search.trim() || `${c.name} ${c.contactPhone}`.toLowerCase().includes(search.trim().toLowerCase()))
+  const pg = usePagination(shown, 10)
 
   return (
     <LivestockPage title="Customers" description="Who you sell animals, eggs and milk to." icon={Users}
@@ -30,7 +33,7 @@ export default function LivestockCustomersPage() {
           <Table>
             <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Phone</TableHead><TableHead>Address</TableHead><TableHead className="text-right">Owes</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
-              {shown.map((c) => (
+              {pg.pageItems.map((c) => (
                 <TableRow key={c.customerId}>
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>{c.contactPhone || "—"}</TableCell>
@@ -41,6 +44,7 @@ export default function LivestockCustomersPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
       {editing && <CustomerDialog customer={editing.customer} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload() }} />}

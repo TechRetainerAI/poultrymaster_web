@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { createAsset, disposeAsset, listAssets, reverseAsset, type Asset, type AssetCategory } from "@/lib/api/livestock"
@@ -35,6 +37,7 @@ export default function LivestockAssetsPage() {
   }, [])
   useEffect(() => { load() }, [load])
   const live = (rows ?? []).filter((a) => !a.reversedAt && !a.disposedDate)
+  const pg = usePagination(rows ?? [], 10)
 
   return (
     <LivestockPage title="Assets" description="Buildings, equipment and vehicles, and what they are worth now." icon={Building2}
@@ -49,7 +52,7 @@ export default function LivestockAssetsPage() {
           <Table>
             <TableHeader><TableRow><TableHead>Asset</TableHead><TableHead>Kind</TableHead><TableHead>Bought</TableHead><TableHead className="text-right">Cost</TableHead><TableHead className="text-right">Worth now</TableHead><TableHead>Life</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
-              {rows.map((a) => (
+              {pg.pageItems.map((a) => (
                 <TableRow key={a.assetId} className={a.reversedAt || a.disposedDate ? "opacity-60" : undefined}>
                   <TableCell className="font-medium">{a.name}
                     {a.disposedDate && <div className="text-xs text-stone-500">Sold/scrapped {fmtDate(a.disposedDate)} for {fmtMoney(a.disposalAmount)} ({(a.gainOnDisposal ?? 0) >= 0 ? "gain" : "loss"} {fmtMoney(Math.abs(a.gainOnDisposal ?? 0))})</div>}
@@ -68,6 +71,7 @@ export default function LivestockAssetsPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
       {adding && <AssetDialog onClose={() => setAdding(false)} onDone={() => { setAdding(false); load() }} />}
