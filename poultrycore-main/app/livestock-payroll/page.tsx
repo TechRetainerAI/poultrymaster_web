@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { createPayRun, listPayRuns, listStaff, reversePayRun, type PayRun, type Staff } from "@/lib/api/livestock"
@@ -30,6 +32,7 @@ export default function LivestockPayrollPage() {
     try { setRuns(await listPayRuns()) } catch (e: any) { setError(e?.message ?? String(e)) }
   }, [])
   useEffect(() => { load() }, [load])
+  const pg = usePagination(runs ?? [], 10)
 
   return (
     <LivestockPage title="Payroll" description="Paying the people who work on the farm." icon={Banknote}
@@ -44,7 +47,7 @@ export default function LivestockPayrollPage() {
           <Table>
             <TableHeader><TableRow><TableHead>Paid on</TableHead><TableHead>For</TableHead><TableHead>From</TableHead><TableHead className="text-right">People</TableHead><TableHead className="text-right">Gross</TableHead><TableHead className="text-right">Paid out</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
-              {runs.map((r) => (
+              {pg.pageItems.map((r) => (
                 <Fragment key={r.runId}>
                   <TableRow className={`cursor-pointer hover:bg-amber-50/60 ${r.reversedAt ? "opacity-50" : ""}`} onClick={() => setOpen(open === r.runId ? null : r.runId)}>
                     <TableCell>{fmtDate(r.payDate)}{r.reversedAt && <Badge variant="outline" className="ml-2">Reversed</Badge>}</TableCell>
@@ -68,6 +71,7 @@ export default function LivestockPayrollPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
       {paying && <PayDialog onClose={() => setPaying(false)} onDone={() => { setPaying(false); load() }} />}

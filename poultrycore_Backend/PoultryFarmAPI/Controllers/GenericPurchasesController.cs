@@ -148,6 +148,16 @@ namespace PoultryFarmAPIWeb.Controllers
             await _suppliers.CancelPaymentAsync(id, farmId);
             return NoContent();
         }
+
+        // Combined: standalone supplier payments + initial purchase payments (474)
+        [HttpGet("supplier-payments/combined")]
+        public async Task<ActionResult<IEnumerable<GenericSupplierPaymentCombinedModel>>> GetCombinedPayments(
+            string farmId, [FromQuery] string? status)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _suppliers.GetCombinedPaymentsAsync(farmId, status));
+        }
     }
 
     // =========================================================================

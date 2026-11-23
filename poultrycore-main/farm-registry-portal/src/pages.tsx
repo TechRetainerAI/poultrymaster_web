@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { farmApiBase, fetchFarmDetail, setUserTwoFactor, type FarmDetail, type FarmPerson, type FarmSummary } from "./api"
 import { billingConfig, billingGet, billingSend, userIdFromJwt } from "./billing-api"
+import { downloadCsv, printableTable, todayStamp, type Column } from "./export-utils"
 
 const PAGE_SIZE = 10
 
@@ -56,6 +57,22 @@ function joinedLabel(f: FarmSummary): string {
   const ago = days <= 0 ? "today" : days === 1 ? "1 day ago" : days < 30 ? `${days} days ago` : days < 365 ? `${Math.floor(days / 30)} mo ago` : `${Math.floor(days / 365)} yr ago`
   return `${d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} · ${ago}`
 }
+
+/** Columns shared by the Companies CSV and PDF exports (full current view). */
+const FARM_EXPORT_COLUMNS: Column<FarmSummary>[] = [
+  { header: "Farm", value: (f) => f.farmName || "Unnamed farm" },
+  { header: "Owner first name", value: (f) => f.ownerFirstName || "" },
+  { header: "Owner last name", value: (f) => f.ownerLastName || "" },
+  { header: "Company type", value: (f) => f.companyType || "" },
+  { header: "Country", value: (f) => f.country || "" },
+  { header: "Email", value: (f) => f.email || "" },
+  { header: "Phone", value: (f) => f.phoneNumber || "" },
+  { header: "Joined", value: (f) => (f.createdAt ? new Date(f.createdAt).toISOString().slice(0, 10) : "") },
+  { header: "Status", value: (f) => (f.hasPaidSubscription ? "Subscribed" : "Unpaid") },
+  { header: "Users", value: (f) => f.totalUsers },
+  { header: "Staff", value: (f) => f.staffCount },
+  { header: "Farm ID", value: (f) => f.farmId },
+]
 
 export function FarmsPage({ farms, onAudit, token, onDeleted }: {
   farms: FarmSummary[]; onAudit: (farmId: string) => void; token: string; onDeleted: () => void
@@ -173,6 +190,14 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
           <option value="90">Last 90 days</option>
         </select>
         <button type="button" className="link-btn" onClick={showNewest} title="Sort by newest signups">↓ Newest signups</button>
+        <div className="export-actions">
+          <button type="button" className="admin-btn-ghost" disabled={filtered.length === 0}
+            title="Download the companies in this view as a CSV spreadsheet"
+            onClick={() => downloadCsv(`companies-${todayStamp()}`, FARM_EXPORT_COLUMNS, filtered)}>Export CSV</button>
+          <button type="button" className="admin-btn-ghost" disabled={filtered.length === 0}
+            title="Open a print view to save the companies in this view as a PDF"
+            onClick={() => printableTable({ title: "Companies", subtitle: `${filtered.length} compan${filtered.length === 1 ? "y" : "ies"}`, columns: FARM_EXPORT_COLUMNS, rows: filtered })}>Export PDF</button>
+        </div>
       </div>
       {deleteErr && <div className="error">{deleteErr}</div>}
       <div style={{ overflowX: "auto" }}>
@@ -409,6 +434,17 @@ type OrgRow = {
 
 type OrgSortKey = "org" | "code" | "market" | "companies" | "status"
 
+/** Columns shared by the Customers CSV and PDF exports (full current view). */
+const ORG_EXPORT_COLUMNS: Column<OrgRow>[] = [
+  { header: "Organization", value: (o) => o.ownerName || "" },
+  { header: "Owner email", value: (o) => o.ownerEmail || "" },
+  { header: "Org code", value: (o) => o.orgCode || "" },
+  { header: "Market", value: (o) => o.marketCode || "" },
+  { header: "Currency", value: (o) => o.currencyCode || "" },
+  { header: "Companies", value: (o) => o.companyCount },
+  { header: "Status", value: (o) => o.status || "" },
+]
+
 export function CustomersPage({ token, onInspect }: { token: string; onInspect: (ownerUserId: string) => void }) {
   const userId = userIdFromJwt(token) ?? ""
   const [q, setQ] = useState("")
@@ -472,6 +508,14 @@ export function CustomersPage({ token, onInspect }: { token: string; onInspect: 
         <button type="button" className="admin-btn-ghost" onClick={() => void load(q)} disabled={loading}>
           {loading ? "Loading…" : "Search"}
         </button>
+        <div className="export-actions">
+          <button type="button" className="admin-btn-ghost" disabled={sortedRows.length === 0}
+            title="Download the organizations in this view as a CSV spreadsheet"
+            onClick={() => downloadCsv(`customers-${todayStamp()}`, ORG_EXPORT_COLUMNS, sortedRows)}>Export CSV</button>
+          <button type="button" className="admin-btn-ghost" disabled={sortedRows.length === 0}
+            title="Open a print view to save the organizations in this view as a PDF"
+            onClick={() => printableTable({ title: "Customers", subtitle: `${sortedRows.length} organization${sortedRows.length === 1 ? "" : "s"}`, columns: ORG_EXPORT_COLUMNS, rows: sortedRows })}>Export PDF</button>
+        </div>
       </div>
       {err && <div className="error">{err}</div>}
       <div style={{ overflowX: "auto" }}>

@@ -11,6 +11,8 @@ import { Boxes, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { deleteItem, getItem, reverseStockChange, type LivestockItemDetail, type StockMovement, type StockMovementType } from "@/lib/api/livestock"
@@ -40,6 +42,8 @@ export default function LivestockItemPage() {
   useEffect(() => { load() }, [load])
 
   const back = { href: "/livestock-items", label: "Feed & stock" }
+  const pg = usePagination(item?.movements ?? [], 10)
+
   if (error) return <LivestockPage title="Stock item" back={back}><LoadError message={error} onRetry={load} /></LivestockPage>
   if (!item) return <LivestockPage title="Stock item" back={back}><Loading /></LivestockPage>
 
@@ -84,7 +88,7 @@ export default function LivestockItemPage() {
             {item.movements.length === 0 && (
               <TableRow><TableCell colSpan={7} className="text-center text-stone-500 py-6">No stock recorded yet.</TableCell></TableRow>
             )}
-            {item.movements.map((m) => (
+            {pg.pageItems.map((m) => (
               <TableRow key={m.movementId} className={m.reversedAt ? "opacity-50" : undefined}>
                 <TableCell className="whitespace-nowrap">{fmtDate(m.date)}</TableCell>
                 <TableCell>{TYPE_LABEL[m.type]}{m.reversedAt && <Badge variant="outline" className="ml-2">Reversed</Badge>}</TableCell>
@@ -110,6 +114,7 @@ export default function LivestockItemPage() {
             ))}
           </TableBody>
         </Table>
+        <DataPagination {...pg.paginationProps} variant="records" />
       </div>
 
       <ItemFormDialog open={dialog === "edit"} onOpenChange={(o) => !o && setDialog(null)} item={item} onSaved={load} />

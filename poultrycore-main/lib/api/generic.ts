@@ -191,6 +191,8 @@ export interface GenericSaleItem {
   lineTotal?: number
   costAmount?: number | null
   notes?: string | null
+  saleUnit?: string | null
+  unitFactor?: number
 }
 
 export interface GenericSale {
@@ -228,6 +230,7 @@ export interface GenericSaleCreateInput {
   genericCashAccountId?: number | null
   receiptNumber?: string | null
   notes?: string | null
+  applyCreditAmount?: number
   items: GenericSaleItem[]
 }
 

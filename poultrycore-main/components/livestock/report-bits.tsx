@@ -6,6 +6,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { firstOfMonth } from "@/components/livestock/money-bits"
 import { todayIso } from "@/components/livestock/livestock-page"
 
@@ -29,18 +31,20 @@ export interface Col<R> { label: string; cell: (r: R) => ReactNode; right?: bool
 export function ReportTable<R>({ title, rows, cols, rowKey, empty = "Nothing in these dates." }: {
   title?: string; rows: R[]; cols: Col<R>[]; rowKey: (r: R, i: number) => string | number; empty?: string
 }) {
+  const pg = usePagination(rows, 10)
   const body = rows.length === 0 ? <p className="text-sm text-stone-500">{empty}</p> : (
     <div className="overflow-x-auto">
       <Table>
         <TableHeader><TableRow>{cols.map((c) => <TableHead key={c.label} className={c.right ? "text-right" : undefined}>{c.label}</TableHead>)}</TableRow></TableHeader>
         <TableBody>
-          {rows.map((r, i) => (
+          {pg.pageItems.map((r, i) => (
             <TableRow key={rowKey(r, i)}>
               {cols.map((c) => <TableCell key={c.label} className={c.right ? "text-right" : undefined}>{c.cell(r)}</TableCell>)}
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      <DataPagination {...pg.paginationProps} variant="records" />
     </div>
   )
   if (!title) return <div className="rounded-md border bg-white p-3">{body}</div>

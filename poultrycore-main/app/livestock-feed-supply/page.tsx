@@ -8,6 +8,8 @@ import Link from "next/link"
 import { Hourglass } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { getFeedSupply, type FeedSupply } from "@/lib/api/livestock"
 import { CATEGORY_LABEL } from "@/components/livestock/stock-dialogs"
 import { EmptyState, LivestockPage, LoadError, Loading, fmtDate, fmtNum } from "@/components/livestock/livestock-page"
@@ -22,6 +24,7 @@ export default function LivestockFeedSupplyPage() {
     try { setRows(await getFeedSupply(Number(days))) } catch (e: any) { setError(e?.message ?? String(e)) }
   }, [days])
   useEffect(() => { load() }, [load])
+  const pg = usePagination(rows ?? [], 10)
 
   return (
     <LivestockPage title="Days of supply" description="How long your feed lasts at the rate you have been using it." icon={Hourglass}>
@@ -44,7 +47,7 @@ export default function LivestockFeedSupplyPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => {
+              {pg.pageItems.map((r) => {
                 const tone = r.daysLeft == null ? "" : r.daysLeft < 3 ? "text-rose-700 font-medium" : r.daysLeft < 7 ? "text-amber-800 font-medium" : ""
                 return (
                   <TableRow key={r.itemId}>
@@ -59,6 +62,7 @@ export default function LivestockFeedSupplyPage() {
               })}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
     </LivestockPage>

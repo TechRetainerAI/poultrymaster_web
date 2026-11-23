@@ -18,6 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { useToast } from "@/hooks/use-toast"
 import {
   cancelDelivery, getDeliveryOptions, getDriverReport, listDeliveries, listFleet, returnDelivery, sendOutDelivery,
@@ -47,6 +49,7 @@ export default function LivestockDeliveriesPage() {
   }, [from, to])
   useEffect(() => { load() }, [load])
   const out = (rows ?? []).filter((d) => d.status === "Out")
+  const pg = usePagination(rows ?? [], 10)
 
   return (
     <LivestockPage title="Deliveries" description="Sales out with a driver, and what they bring back." icon={Truck}
@@ -66,7 +69,7 @@ export default function LivestockDeliveriesPage() {
                 <Table>
                   <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Vehicle / route</TableHead><TableHead>Customers</TableHead><TableHead className="text-right">To collect</TableHead><TableHead className="text-right">Collected</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
                   <TableBody>
-                    {rows.map((d) => (
+                    {pg.pageItems.map((d) => (
                       <TableRow key={d.deliveryId} className={d.status === "Cancelled" ? "opacity-50" : undefined}>
                         <TableCell>{fmtDate(d.date)}</TableCell>
                         <TableCell className="font-medium">{d.driverName}</TableCell>
@@ -83,6 +86,7 @@ export default function LivestockDeliveriesPage() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataPagination {...pg.paginationProps} variant="records" />
               </div>
             )}
           </TabsContent>

@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listItems, listPurchases, type ItemCategory, type LivestockItem, type Purchase } from "@/lib/api/livestock"
 import { PurchaseTotals, PurchasesTable } from "@/components/livestock/purchases-table"
 import { ItemFormDialog, StockChangeDialog, CATEGORY_LABEL } from "@/components/livestock/stock-dialogs"
@@ -78,6 +80,7 @@ function LivestockItemsView() {
       : tab === "Health" ? i.category === "Medication" || i.category === "Vaccine"
       : tab === "Supply" ? i.category === "Supply" || i.category === "Other"
       : i.category === tab), [items, tab])
+  const pg = usePagination(shown, 10)
   const value = shown.reduce((s, i) => s + i.value, 0)
   const low = shown.filter((i) => i.isActive && i.isLow)
 
@@ -151,7 +154,7 @@ function LivestockItemsView() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {shown.map((i) => (
+                  {pg.pageItems.map((i) => (
                     <TableRow key={i.itemId} className={`cursor-pointer hover:bg-amber-50/60 ${i.isActive ? "" : "opacity-60"}`}
                       onClick={() => router.push(`/livestock-items/${i.itemId}`)}>
                       <TableCell className="font-medium">
@@ -180,6 +183,7 @@ function LivestockItemsView() {
                   ))}
                 </TableBody>
               </Table>
+              <DataPagination {...pg.paginationProps} variant="records" />
             </div>
           )}
         </>
