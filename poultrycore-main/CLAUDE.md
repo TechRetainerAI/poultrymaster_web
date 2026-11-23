@@ -82,7 +82,7 @@ Defaults when env is unset come from `lib/api/default-api-hosts.ts` and point at
 
 `poultrycore/PoultryFarmAPI/Program.cs` registers ~60 scoped services, all constructed with the connection string. Each `XxxService.cs` in `Business/` is a thin wrapper around `SqlConnection` + `EXEC spXxx_*`. There is no repository/EF layer — **every read and write goes through a stored procedure**. To add an endpoint:
 
-1. Write the SP in a new migration file `NNN_Description.sql` (next number in sequence).
+1. Write the SP in a new migration file `NNN_<Branch>_Description.postgres.sql` (next number in sequence, then the git branch name, e.g. `477_Gyimah_LivestockPurchaseBatchCode.postgres.sql`). The branch name stops two branches that pick the same number from producing the same file name. Files from before this rule keep their old names.
 2. Add a service interface + class in `PoultryFarmAPI/Business/` that calls the SP.
 3. Register it in `Program.cs`.
 4. Add a controller in `Controllers/` (the `AuditLogActionFilter` is applied globally, so writes auto-audit).

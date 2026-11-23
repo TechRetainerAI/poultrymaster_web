@@ -28,12 +28,10 @@ import {
 } from "@/lib/api/poultry-inventory"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { PromptDialog } from "@/components/ui/prompt-dialog"
-import { STOCK_REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger, PROMINENT_TABS_LIST, PROMINENT_TABS_TRIGGER, PROMINENT_TABS_COUNT } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -47,10 +45,12 @@ import { cn } from "@/lib/utils"
 import { RAW_MATERIAL_UNITS } from "@/lib/units"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
+import { ReversePurchaseDialog } from "@/components/purchases/reverse-purchase-dialog"
+import { getUserContext } from "@/lib/api/config"
+import { getSelectedCurrency } from "@/lib/utils/currency"
 import {
   listPoultryRawMaterialItems, createPoultryRawMaterialItem, updatePoultryRawMaterialItem, deletePoultryRawMaterialItem,
-  listPoultryRawMaterialPurchases, createPoultryRawMaterialPurchase, updatePoultryRawMaterialPurchase, reversePoultryRawMaterialPurchase,
-  payPoultryRawMaterialPurchaseBalance, listPoultryRawMaterialUsageHistory, listPoultryRawMaterialAdjustments,
+  listPoultryRawMaterialPurchases, createPoultryRawMaterialPurchase, updatePoultryRawMaterialPurchase, payPoultryRawMaterialPurchaseBalance, listPoultryRawMaterialUsageHistory, listPoultryRawMaterialAdjustments,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage, type RawMaterialUsageMethod,
 } from "@/lib/api/poultry-inventory"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
@@ -642,18 +642,9 @@ function PoultryRawMaterialsPageInner() {
   // ---- Purchase CRUD ----
   function openNewPurchase() { setEditingPurchase(null); setPurchaseDefaults(undefined); setPurchaseOpen(true) }
   function openEditPurchase(p: PoultryRawMaterialPurchase) { setEditingPurchase(p); setPurchaseDefaults(undefined); setPurchaseOpen(true) }
-  // 418. Purchases are reversed, never deleted: the row stays, marked Reversed.
-  async function confirmReversePurchase(reason: string) {
-    if (!reversePurchaseTarget) return
-    try {
-      await reversePoultryRawMaterialPurchase(reversePurchaseTarget.poultryRawMaterialPurchaseId, reason)
-      toast({ title: "Purchase reversed", description: "Its stock was taken back out and any money paid on it returned." })
-      setReversePurchaseTarget(null); await load()
-    } catch (e: any) {
-      toast({ title: "Could not reverse the purchase", description: e?.message, variant: "destructive" })
-      throw e
-    }
-  }
+  // 418 / 479. Purchases are reversed, never deleted: the row stays, marked
+  // Reversed. The dialog (shared with Water) previews what reversing does and
+  // asks what happened to each payment -- refunded, or kept as supplier credit.
 
   function openPayBalance(p: PoultryRawMaterialPurchase) {
     setPayTarget(p); setPayForm({ amount: p.balance ?? 0, paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
@@ -723,15 +714,10 @@ function PoultryRawMaterialsPageInner() {
   // Segmented control styling. The shadcn default (muted bar, white active pill)
   // reads as almost-flat on this page's grey background, so the active tab gets
   // a solid blue fill, white text and a lift — the switch is unmissable.
-  const tabTriggerCls =
-    "h-auto flex-none shrink-0 gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 sm:px-4 " +
-    "transition-all hover:bg-slate-100 hover:text-slate-900 " +
-    "data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md " +
-    "data-[state=active]:shadow-blue-600/25 data-[state=active]:hover:bg-blue-600 data-[state=active]:hover:text-white"
-  // Count pill inside each trigger — inverted on the active (blue) tab.
-  const tabCountCls =
-    "ml-0.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-slate-600 " +
-    "group-data-[state=active]:bg-white/20 group-data-[state=active]:text-white"
+  // The tab style now lives in components/ui/tabs.tsx (PROMINENT_TABS_*), shared
+  // with the other inventory pages.
+  const tabTriggerCls = PROMINENT_TABS_TRIGGER
+  const tabCountCls = PROMINENT_TABS_COUNT
 
   return (
     <div className={shellClass(embedded, "flex h-screen bg-gray-50")}>
@@ -821,7 +807,7 @@ function PoultryRawMaterialsPageInner() {
               )}
 
               {/* Tabs sit between the summary and the list they switch. */}
-              <TabsList className="h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-fit">
+              <TabsList className={PROMINENT_TABS_LIST}>
                 <TabsTrigger value="items" className={cn("group", tabTriggerCls)}>
                   <Box className="w-4 h-4" /> Items
                   <span className={tabCountCls}>{items.length.toLocaleString()}</span>
@@ -1349,22 +1335,27 @@ function PoultryRawMaterialsPageInner() {
       </Dialog>
 
       <ConfirmDeleteDialog open={!!deleteItemTarget} onOpenChange={(o) => !o && setDeleteItemTarget(null)} onConfirm={confirmDeleteItem} title="Remove item?" description={`Remove "${deleteItemTarget?.itemName}"? If it has purchase/usage history it will be deactivated instead.`} />
-      <PromptDialog
+      <ReversePurchaseDialog
         open={reversePurchaseTarget != null}
+        module="poultry"
+        purchaseId={reversePurchaseTarget?.poultryRawMaterialPurchaseId ?? null}
+        purchaseLabel={reversePurchaseTarget ? `#${reversePurchaseTarget.poultryRawMaterialPurchaseId}` : ""}
+        farmId={getUserContext().farmId}
+        userId={getUserContext().userId}
+        currencyCode={getSelectedCurrency()}
         onOpenChange={(o) => { if (!o) setReversePurchaseTarget(null) }}
-        title={reversePurchaseTarget ? `Reverse purchase of ${reversePurchaseTarget.itemName ?? "this item"}?` : "Reverse purchase"}
-        options={STOCK_REVERSAL_REASONS}
-        description={
-          <span>
-            The stock it added comes back out, any money paid on it returns to the cash account, and the supplier no
-            longer owes anything for it. Nothing is deleted: the purchase stays in this list marked Reversed.
-          </span>
-        }
-        label="Reason"
-        placeholder="e.g. Entered twice"
-        confirmLabel="Reverse purchase"
-        confirmVariant="destructive"
-        onSubmit={confirmReversePurchase}
+        onReversed={async ({ reversal }) => {
+          setReversePurchaseTarget(null)
+          toast({
+            title: `Purchase reversed${reversal?.reversalNumber ? ` (${reversal.reversalNumber})` : ""}`,
+            description: reversal
+              ? [reversal.refunded > 0 ? `${gh(reversal.refunded)} refunded` : "",
+                 reversal.creditCreated > 0 ? `${gh(reversal.creditCreated)} kept as supplier credit` : ""]
+                  .filter(Boolean).join(" · ") || "Stock taken back out; nothing was paid."
+              : undefined,
+          })
+          await load()
+        }}
       />
     </div>
   )

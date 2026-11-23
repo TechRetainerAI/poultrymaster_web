@@ -24,6 +24,7 @@ import { Loader2, Plus, Users2, Pencil, Trash2, KeyRound, CalendarCheck, UserPlu
 import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
 import { EmployeeBadge } from "@/components/employees/link-badges"
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
+import { createLinkedStaff } from "@/lib/api/create-linked-staff"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -447,9 +448,19 @@ export default function GenericStaffPage() {
       <AddEmployeeDialog
         open={addEmployeeOpen}
         onOpenChange={setAddEmployeeOpen}
-        onCreated={() => {
+        offerPayroll
+        payrollDefaultOn
+        onCreated={async (employee, options) => {
           setAddEmployeeOpen(false)
-          load()
+          if (options?.addToPayroll && employee?.id) {
+            try {
+              await createLinkedStaff("Generic", employee.id, options.person)
+              toast({ title: "Added to Staff", description: "Set their role and pay with the edit button." })
+            } catch (e: any) {
+              toast({ title: "Login created, but not added to Staff", description: e?.message ?? String(e), variant: "destructive" })
+            }
+          }
+          await Promise.all([load(), link.reloadLinks()])
         }}
       />
     </div>
