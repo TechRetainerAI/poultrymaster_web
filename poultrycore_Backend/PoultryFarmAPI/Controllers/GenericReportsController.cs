@@ -141,7 +141,17 @@ namespace PoultryFarmAPIWeb.Controllers
             }
             var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
             if (guard is not null) return guard;
-            return Ok(await _reports.GetProfitLossEntriesAsync(farmId, fromDate, toDate, cancellationToken));
+            try
+            {
+                return Ok(await _reports.GetProfitLossEntriesAsync(farmId, fromDate, toDate, cancellationToken));
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState is "42P01" or "42703" or "42883")
+            {
+                // Missing table (42P01), column (42703) or function (42883): this database
+                // has not had the Generic money migrations applied (405-408, 442, 448-455).
+                return StatusCode(500, $"Profit & Loss needs database migrations that are not applied here " +
+                    $"(Generic 405-408, 442, 448-455). Database said: {ex.MessageText}");
+            }
         }
 
         [HttpGet("period-pnl")]
