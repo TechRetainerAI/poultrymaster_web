@@ -366,6 +366,9 @@ builder.Services.AddScoped<IPoultryFlockAnomalyService>(sp => new PoultryFlockAn
 // Treatment campaigns (339): medication for many flocks over one or more days,
 // posted as medication lines through spproductionrecord_update.
 builder.Services.AddScoped<IPoultryTreatmentCampaignService>(sp => new PoultryTreatmentCampaignService(connectionString));
+// Livestock (458+): one gateway to the splivestock* functions, which return
+// JSON shaped for the web app. See Business/LivestockDb.cs.
+builder.Services.AddScoped<ILivestockDb>(sp => new LivestockDb(connectionString));
 // 400: flock weigh-ins (broilers phase 2).
 builder.Services.AddScoped<IFlockWeighInService>(sp => new FlockWeighInService(connectionString));
 // Egg Sorting Workspace (341-343): egg classes in the one stock ledger and the
@@ -453,6 +456,9 @@ builder.Services.AddScoped<IGenericCustomerCreditService>(sp => new GenericCusto
 builder.Services.AddScoped<IGenericSupplierCreditService>(sp => new GenericSupplierCreditService(connectionString));
 builder.Services.AddScoped<IGenericSupplierCreditsLedgerService>(sp => new GenericSupplierCreditsLedgerService(connectionString));   // 449
 builder.Services.AddScoped<IGenericDeferredCostService>(sp => new GenericDeferredCostService(connectionString));
+builder.Services.AddScoped<IGenericCustomerCreditApplicationService>(sp => new GenericCustomerCreditApplicationService(connectionString));  // 473 Phase A
+builder.Services.AddScoped<IGenericBulkPaymentService>(sp => new GenericBulkPaymentService(connectionString));  // 473 Phase B
+builder.Services.AddScoped<IGenericCustomerCreditRefundService>(sp => new GenericCustomerCreditRefundService(connectionString));  // 473 Phase C
 
 // Phase 3: Customers + Sales + Customer Payments + Cash Transactions.
 // Sale_Approve is the meaty one: writes stock movement SaleOut per product,

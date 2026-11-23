@@ -490,13 +490,18 @@ function GenericInventoryPageInner() {
         <DashboardHeader />
         <main className="flex-1 p-4 sm:p-6 space-y-4">
           <Tabs value={tab} onValueChange={selectTab} className="gap-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <button onClick={() => router.back()} className="rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
-              <div className="min-w-0">
-                <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Inventory &amp; Supply Purchases</h1>
-                <p className="text-sm text-slate-500">Products, purchases, and stock adjustments — what you hold, what you bought, what changed.</p>
+            {/* The title keeps the full width; the five buttons sit beside it only on very
+                wide screens and otherwise wrap onto their own row below, so the title is
+                never squeezed into a narrow column. */}
+            <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-start 2xl:justify-between">
+              <div className="flex min-w-0 items-start gap-2">
+                <button onClick={() => router.back()} className="mt-0.5 shrink-0 rounded-full p-1 hover:bg-slate-200 transition" title="Go back"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
+                <div className="min-w-0">
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Inventory &amp; Supply Purchases</h1>
+                  <p className="text-sm text-slate-500">Products, purchases, and stock adjustments — what you hold, what you bought, what changed.</p>
+                </div>
               </div>
-              <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center 2xl:shrink-0 2xl:justify-end">
                 <Button variant="outline" className="flex-1 sm:flex-none" asChild>
                   <Link href="/generic-products"><Plus className="w-4 h-4 mr-1" /> New Product</Link>
                 </Button>
@@ -700,6 +705,9 @@ function GenericInventoryPageInner() {
                             <TableCell className="whitespace-nowrap text-right">
                               {p.status === "Draft" && (
                                 <>
+                                  <IconAction label="Edit draft purchase" href={`/generic-purchases/new?edit=${p.genericPurchaseId}`}>
+                                    <Pencil className="h-4 w-4" />
+                                  </IconAction>
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <Button size="sm" variant="ghost" className="text-emerald-700">
@@ -746,6 +754,9 @@ function GenericInventoryPageInner() {
                             ]}
                             actions={p.status === "Draft" ? (
                               <>
+                                <Button asChild size="sm" variant="outline">
+                                  <Link href={`/generic-purchases/new?edit=${p.genericPurchaseId}`}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
+                                </Button>
                                 <Button size="sm" variant="outline" className="text-emerald-700" onClick={() => onApprove(p.genericPurchaseId)}>
                                   <Check className="h-4 w-4 mr-1" /> Approve
                                 </Button>

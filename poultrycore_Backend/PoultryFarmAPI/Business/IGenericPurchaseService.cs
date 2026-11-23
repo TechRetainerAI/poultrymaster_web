@@ -8,6 +8,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<GenericPurchaseModel?> GetByIdAsync(int id, string farmId);
         Task<int> InsertAsync(string farmId, GenericPurchaseCreateRequest req, string? createdBy);
 
+        Task UpdateAsync(int id, string farmId, GenericPurchaseCreateRequest req);
         Task ApproveAsync(int id, string farmId, string? approvedBy);
         Task CancelAsync(int id, string farmId, string? cancelledBy, string? reason);
     }

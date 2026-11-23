@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace User.Management.Service.Models.Authentication.SignUp
 {
@@ -32,8 +32,8 @@ namespace User.Management.Service.Models.Authentication.SignUp
         // created Poultry farms regardless of what the user picked.
         // Optional at signup. When present it must be one of the three types;
         // empty/null means "no company yet" (create it later in the Business Office).
-        [RegularExpression("^(Poultry|Water|Generic|Hotel|Restaurant)?$",
-            ErrorMessage = "CompanyType must be Poultry, Water, Generic, Hotel, or Restaurant.")]
+        [RegularExpression("^(Poultry|Water|Generic|Hotel|Restaurant|Livestock)?$",
+            ErrorMessage = "CompanyType must be Poultry, Water, Generic, Hotel, Restaurant, or Livestock.")]
         public string? CompanyType { get; set; }
 
         // Prompt 2 — the owner's Business Office (HQ). Optional so older clients

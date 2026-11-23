@@ -106,6 +106,134 @@ namespace PoultryFarmAPIWeb.Business
     }
 
     // =========================================================================
+    // Credit Applications (Phase A — read-only, written by spgenericsale_approve)
+    // =========================================================================
+    public interface IGenericCustomerCreditApplicationService
+    {
+        Task<List<GenericCustomerCreditApplicationModel>> ListAsync(string farmId);
+    }
+
+    public class GenericCustomerCreditApplicationService : IGenericCustomerCreditApplicationService
+    {
+        private readonly string _cs; public GenericCustomerCreditApplicationService(string cs) => _cs = cs;
+
+        public async Task<List<GenericCustomerCreditApplicationModel>> ListAsync(string farmId)
+        {
+            var list = new List<GenericCustomerCreditApplicationModel>();
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomercreditapplication_list(@FarmId::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new GenericCustomerCreditApplicationModel
+            {
+                GenericCustomerCreditApplicationId = r.Int("GenericCustomerCreditApplicationId"),
+                FarmId = r.Str("FarmId"), GenericCustomerId = r.Int("GenericCustomerId"),
+                CustomerName = r.StrN("CustomerName"), GenericSaleId = r.Int("GenericSaleId"),
+                ReceiptNumber = r.StrN("ReceiptNumber"), AmountApplied = r.Dec("AmountApplied"),
+                ApplicationDate = r.Date("ApplicationDate"), Description = r.StrN("Description"),
+                CreatedBy = r.StrN("CreatedBy"), CreatedAt = r.Date("CreatedAt"),
+            });
+            return list;
+        }
+    }
+
+    // =========================================================================
+    // Bulk Payment (Phase B)
+    // =========================================================================
+    public interface IGenericBulkPaymentService
+    {
+        Task<Guid> BulkInsertAsync(GenericBulkPaymentRequest req);
+    }
+
+    public class GenericBulkPaymentService : IGenericBulkPaymentService
+    {
+        private readonly string _cs; public GenericBulkPaymentService(string cs) => _cs = cs;
+
+        public async Task<Guid> BulkInsertAsync(GenericBulkPaymentRequest req)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericcustomerpayment_bulkinsert(" +
+                "p_farmid=>@FarmId::text, p_genericcustomerid=>@CustomerId::int, " +
+                "p_paymentmethod=>@PaymentMethod::text, p_genericcashaccountid=>@CashAccountId::int, " +
+                "p_receivedbystaffid=>@StaffId::int, p_paymentdate=>@PaymentDate::timestamp, " +
+                "p_notes=>@Notes::text, p_createdby=>@CreatedBy::text, p_allocations=>@Allocations::jsonb)", c);
+            cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+            cmd.Parameters.AddWithValue("@CustomerId", req.GenericCustomerId);
+            cmd.Parameters.AddWithValue("@PaymentMethod", req.PaymentMethod);
+            cmd.Parameters.AddWithValue("@CashAccountId", (object?)req.GenericCashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@StaffId", (object?)req.ReceivedByStaffId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PaymentDate", (object?)req.PaymentDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes", (object?)req.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)req.CreatedBy ?? DBNull.Value);
+
+            var allocJson = System.Text.Json.JsonSerializer.Serialize(
+                req.Allocations.Select(a => new { saleid = a.SaleId, amount = a.Amount }));
+            cmd.Parameters.Add(new NpgsqlParameter("@Allocations", NpgsqlTypes.NpgsqlDbType.Jsonb) { Value = allocJson });
+
+            await c.OpenAsync();
+            var result = await cmd.ExecuteScalarAsync();
+            return result is Guid g ? g : Guid.Parse(result!.ToString()!);
+        }
+    }
+
+    // =========================================================================
+    // Credit Refunds (Phase C)
+    // =========================================================================
+    public interface IGenericCustomerCreditRefundService
+    {
+        Task<List<GenericCustomerCreditRefundModel>> ListAsync(string farmId);
+        Task<int> CreateAsync(GenericCustomerCreditRefundRequest req);
+    }
+
+    public class GenericCustomerCreditRefundService : IGenericCustomerCreditRefundService
+    {
+        private readonly string _cs; public GenericCustomerCreditRefundService(string cs) => _cs = cs;
+
+        public async Task<List<GenericCustomerCreditRefundModel>> ListAsync(string farmId)
+        {
+            var list = new List<GenericCustomerCreditRefundModel>();
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomercreditrefund_list(@FarmId::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new GenericCustomerCreditRefundModel
+            {
+                GenericCustomerCreditRefundId = r.Int("GenericCustomerCreditRefundId"),
+                FarmId = r.Str("FarmId"), GenericCustomerId = r.Int("GenericCustomerId"),
+                CustomerName = r.StrN("CustomerName"), Amount = r.Dec("Amount"),
+                RefundMethod = r.Str("RefundMethod"),
+                GenericCashAccountId = r.IsDBNull(r.GetOrdinal("GenericCashAccountId")) ? null : r.Int("GenericCashAccountId"),
+                AccountName = r.StrN("AccountName"),
+                RefundDate = r.Date("RefundDate"), Reason = r.StrN("Reason"),
+                Status = r.Str("Status"), CreatedBy = r.StrN("CreatedBy"),
+                ApprovedBy = r.StrN("ApprovedBy"), CreatedAt = r.Date("CreatedAt"),
+                ApprovedAt = r.IsDBNull(r.GetOrdinal("ApprovedAt")) ? null : r.Date("ApprovedAt"),
+            });
+            return list;
+        }
+
+        public async Task<int> CreateAsync(GenericCustomerCreditRefundRequest req)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericcustomercreditrefund_create(" +
+                "p_farmid=>@FarmId::text, p_genericcustomerid=>@CustomerId::int, " +
+                "p_amount=>@Amount::numeric, p_refundmethod=>@RefundMethod::text, " +
+                "p_genericcashaccountid=>@CashAccountId::int, p_reason=>@Reason::text, " +
+                "p_createdby=>@CreatedBy::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+            cmd.Parameters.AddWithValue("@CustomerId", req.GenericCustomerId);
+            cmd.Parameters.AddWithValue("@Amount", req.Amount);
+            cmd.Parameters.AddWithValue("@RefundMethod", req.RefundMethod);
+            cmd.Parameters.AddWithValue("@CashAccountId", (object?)req.GenericCashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Reason", (object?)req.Reason ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)req.CreatedBy ?? DBNull.Value);
+            await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+    }
+
+    // =========================================================================
     // Deferred Inventory Cost (read-only report)
     // =========================================================================
     public interface IGenericDeferredCostService

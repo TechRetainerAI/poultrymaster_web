@@ -505,6 +505,11 @@ namespace PoultryFarmAPIWeb.Models
 
         [StringLength(500)]
         public string? Notes { get; set; }
+
+        // Sale unit (476): e.g. "pack", "carton" — stock deducts quantity * unitfactor
+        [StringLength(50)]
+        public string? SaleUnit { get; set; }
+        public decimal UnitFactor { get; set; } = 1;
     }
 
     public class GenericSaleModel
@@ -604,6 +609,9 @@ namespace PoultryFarmAPIWeb.Models
 
         [StringLength(1000)]
         public string? Notes { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal ApplyCreditAmount { get; set; }
 
         [MinLength(1, ErrorMessage = "Sale must have at least one item.")]
         public List<GenericSaleItemModel> Items { get; set; } = new();

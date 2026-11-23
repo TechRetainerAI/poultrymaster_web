@@ -44,7 +44,7 @@ export function DashboardHeader() {
   const searchPlaceholder =
     activeFarmType === "Water"   ? "Search pages, customers, drivers…" :
     activeFarmType === "Generic" ? "Search pages, customers, products…" :
-    activeFarmType === "Hotel" || activeFarmType === "Restaurant" ? "Search pages and reports…" :
+    activeFarmType === "Hotel" || activeFarmType === "Restaurant" || activeFarmType === "Livestock" ? "Search pages and reports…" :
     "Search pages, customers, flocks…"
 
   // Pages are screen-high and only <main> scrolls, so the header stays put.

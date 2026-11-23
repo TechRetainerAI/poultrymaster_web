@@ -148,6 +148,16 @@ namespace PoultryFarmAPIWeb.Controllers
             await _suppliers.CancelPaymentAsync(id, farmId);
             return NoContent();
         }
+
+        // Combined: standalone supplier payments + initial purchase payments (474)
+        [HttpGet("supplier-payments/combined")]
+        public async Task<ActionResult<IEnumerable<GenericSupplierPaymentCombinedModel>>> GetCombinedPayments(
+            string farmId, [FromQuery] string? status)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _suppliers.GetCombinedPaymentsAsync(farmId, status));
+        }
     }
 
     // =========================================================================
@@ -200,6 +210,22 @@ namespace PoultryFarmAPIWeb.Controllers
             var newId = await _purchases.InsertAsync(farmId, req, createdBy);
             var created = await _purchases.GetByIdAsync(newId, farmId);
             return CreatedAtAction(nameof(GetById), new { farmId, id = newId }, created);
+        }
+
+        // Draft only; the database refuses an Approved or Cancelled purchase (migration 472).
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<GenericPurchaseModel>> Update(
+            string farmId, int id, [FromBody] GenericPurchaseCreateRequest req)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            if (req.Items is null || req.Items.Count == 0)
+                return BadRequest("Purchase must have at least one item.");
+
+            await _purchases.UpdateAsync(id, farmId, req);
+            return Ok(await _purchases.GetByIdAsync(id, farmId));
         }
 
         [HttpPost("{id:int}/approve")]

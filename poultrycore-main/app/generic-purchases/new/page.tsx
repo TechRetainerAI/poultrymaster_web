@@ -13,13 +13,13 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Loader2, Package, Plus, X } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Loader2, Package, Plus, X } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
-  createPurchase, getCashAccounts, getProducts, getSuppliers,
-  type GenericCashAccount, type GenericProduct, type GenericSupplier,
+  approvePurchase, createPurchase, getCashAccounts, getProducts, getPurchase, getSuppliers, getUomConversions, updatePurchase,
+  type GenericCashAccount, type GenericProduct, type GenericSupplier, type GenericUomConversion,
 } from "@/lib/api/generic"
 
 const PAY_METHODS = ["Cash", "MoMo", "Bank", "Card", "Credit", "Mixed"]
@@ -34,9 +34,50 @@ type Row = {
   quantity: number
   unitCost: number
   discountAmount: number
+  /** Unit this line is bought in ("" = the product's base unit). */
+  purchaseUnit: string
+  /** Base units in one purchaseUnit; stock rises by quantity x unitFactor. */
+  unitFactor: number
 }
 
-const blankRow = (): Row => ({ genericProductId: undefined, description: "", quantity: 1, unitCost: 0, discountAmount: 0 })
+const blankRow = (): Row => ({ genericProductId: undefined, description: "", quantity: 1, unitCost: 0, discountAmount: 0, purchaseUnit: "", unitFactor: 1 })
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+const fmtQty = (n: number) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(n)
+const same = (a?: string | null, b?: string | null) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase()
+
+/** The product's base stock unit, or "unit" when setup left it blank. */
+function baseUnitOf(p?: GenericProduct | null) {
+  return (p?.unitOfMeasure ?? "").trim() || "unit"
+}
+
+/**
+ * Units a product can be bought in, from its setup: the base unit, its purchase and
+ * sales units, and every conversion to or from the base unit (product-specific first,
+ * then farm-wide). factor = base units in one of that unit; null = not known yet.
+ */
+function unitOptionsFor(p: GenericProduct | undefined, conversions: GenericUomConversion[]) {
+  const base = baseUnitOf(p)
+  const out: { unit: string; factor: number | null }[] = [{ unit: base, factor: 1 }]
+  const add = (unit: string | null | undefined, factor: number | null) => {
+    const u = (unit ?? "").trim()
+    if (!u) return
+    const hit = out.find((o) => same(o.unit, u))
+    if (!hit) out.push({ unit: u, factor })
+    else if (hit.factor == null && factor != null) hit.factor = factor
+  }
+  const convs = [
+    ...conversions.filter((c) => c.isActive !== false && p && c.genericProductId === p.genericProductId),
+    ...conversions.filter((c) => c.isActive !== false && c.genericProductId == null),
+  ]
+  for (const c of convs) {
+    if (same(c.toUnit, base) && c.conversionFactor > 0) add(c.fromUnit, Number(c.conversionFactor))
+    else if (same(c.fromUnit, base) && c.conversionFactor > 0) add(c.toUnit, 1 / Number(c.conversionFactor))
+  }
+  add(p?.purchaseUnit, null)
+  add(p?.salesUnit, null)
+  return out
+}
 
 export default function NewGenericPurchasePage() {
   const router = useRouter()
@@ -49,6 +90,11 @@ export default function NewGenericPurchasePage() {
   const [suppliers, setSuppliers] = useState<GenericSupplier[]>([])
   const [products, setProducts] = useState<GenericProduct[]>([])
   const [cashAccounts, setCashAccounts] = useState<GenericCashAccount[]>([])
+  const [conversions, setConversions] = useState<GenericUomConversion[]>([])
+  /** Set when the page edits an existing Draft (?edit=<id>). */
+  const [editId, setEditId] = useState<number | null>(null)
+  /** Once the user types their own "Amount paid now", it stops following the total. */
+  const [paidTouched, setPaidTouched] = useState(false)
 
   const [header, setHeader] = useState(() => {
     const now = new Date()
@@ -77,11 +123,49 @@ export default function NewGenericPurchasePage() {
     let cancelled = false
     ;(async () => {
       try {
-        const [ss, ps, as] = await Promise.all([getSuppliers(), getProducts(), getCashAccounts()])
+        const editParam = Number(new URLSearchParams(window.location.search).get("edit")) || null
+        const [ss, ps, as, cs, existing] = await Promise.all([
+          getSuppliers(), getProducts(), getCashAccounts(),
+          getUomConversions().catch(() => [] as GenericUomConversion[]),
+          editParam ? getPurchase(editParam) : Promise.resolve(null),
+        ])
         if (cancelled) return
-        setSuppliers(ss); setProducts(ps); setCashAccounts(as)
-        const firstCash = as.find((a) => a.isActive)
-        if (firstCash) setHeader((h) => ({ ...h, genericCashAccountId: String(firstCash.genericCashAccountId) }))
+        setSuppliers(ss); setProducts(ps); setCashAccounts(as); setConversions(cs ?? [])
+        if (editParam) {
+          if (!existing) throw new Error(`Purchase #${editParam} was not found.`)
+          if (existing.status !== "Draft") {
+            toast({ title: `Purchase #${editParam} is ${existing.status}`, description: "Only a Draft purchase can be edited.", variant: "destructive" })
+            router.replace("/generic-inventory?tab=purchases")
+            return
+          }
+          setEditId(editParam)
+          setHeader({
+            purchaseDate: String(existing.purchaseDate ?? "").slice(0, 10),
+            genericSupplierId: existing.genericSupplierId ? String(existing.genericSupplierId) : "",
+            supplierName: "",
+            invoiceNumber: existing.invoiceNumber ?? "",
+            headerDiscountAmount: String(existing.discountAmount ?? 0),
+            taxAmount: String(existing.taxAmount ?? 0),
+            amountPaid: String(existing.amountPaid ?? 0),
+            paymentMethod: existing.paymentMethod || "Cash",
+            genericCashAccountId: existing.genericCashAccountId ? String(existing.genericCashAccountId) : "",
+            notes: existing.notes ?? "",
+          })
+          // A saved part-payment is the user's own figure; a full payment keeps following the total.
+          setPaidTouched(round2(existing.amountPaid ?? 0) !== round2(existing.totalAmount ?? 0))
+          setRows((existing.items ?? []).map((i) => ({
+            genericProductId: i.genericProductId,
+            description: i.description ?? "",
+            quantity: Number(i.quantity) || 0,
+            unitCost: Number(i.unitCost) || 0,
+            discountAmount: Number(i.discountAmount) || 0,
+            purchaseUnit: i.purchaseUnit ?? "",
+            unitFactor: Number(i.unitFactor) || 1,
+          })))
+        } else {
+          const firstCash = as.find((a) => a.isActive)
+          if (firstCash) setHeader((h) => ({ ...h, genericCashAccountId: String(firstCash.genericCashAccountId) }))
+        }
       } catch (e: any) {
         if (!cancelled) toast({ title: "Could not load options", description: e?.message ?? String(e), variant: "destructive" })
       } finally { if (!cancelled) setLoading(false) }
@@ -103,20 +187,99 @@ export default function NewGenericPurchasePage() {
     return { subtotal, headerDisc, tax, total, paid, balance: total - paid }
   }, [rows, header.headerDiscountAmount, header.taxAmount, header.amountPaid])
 
+  // "Amount paid now" follows the total until the user types their own figure.
+  // On credit (no cash account, or the Credit method) it stays 0.
+  const paysNow = !!header.genericCashAccountId && header.paymentMethod !== "Credit"
+  useEffect(() => {
+    if (loading || paidTouched) return
+    const next = String(paysNow ? Math.max(0, round2(totals.total)) : 0)
+    setHeader((h) => (h.amountPaid === next ? h : { ...h, amountPaid: next }))
+  }, [loading, paidTouched, paysNow, totals.total])
+
   const updateRow = (idx: number, patch: Partial<Row>) =>
     setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
 
+  const productOf = (r: Row) => products.find((x) => x.genericProductId === r.genericProductId)
+
   const onPickProduct = (idx: number, productId: string) => {
     const p = products.find((x) => x.genericProductId === Number(productId))
-    if (!p) { updateRow(idx, { genericProductId: undefined, description: "" }); return }
+    if (!p) { updateRow(idx, { genericProductId: undefined, description: "", purchaseUnit: "", unitFactor: 1 }); return }
+    // Start on the product's purchase unit when setup knows how many base units it holds.
+    const opts = unitOptionsFor(p, conversions)
+    const pick = opts.find((o) => p.purchaseUnit && same(o.unit, p.purchaseUnit) && o.factor != null) ?? opts[0]
+    const factor = pick.factor ?? 1
     updateRow(idx, {
       genericProductId: p.genericProductId,
       description: p.productName,
-      unitCost: p.costPrice > 0 ? p.costPrice : rows[idx].unitCost,
+      purchaseUnit: pick.unit === opts[0].unit ? "" : pick.unit,
+      unitFactor: factor,
+      unitCost: p.costPrice > 0 ? round2(p.costPrice * factor) : rows[idx].unitCost,
     })
   }
 
-  const onSave = async () => {
+  /** Switch a line's unit; the cost follows the product's base cost when it has one. */
+  const onPickUnit = (idx: number, unit: string) => {
+    const r = rows[idx]
+    const p = productOf(r)
+    const opts = unitOptionsFor(p, conversions)
+    const o = opts.find((x) => x.unit === unit) ?? opts[0]
+    const isBase = o.unit === opts[0].unit
+    const factor = o.factor ?? (isBase ? 1 : r.unitFactor > 0 && r.unitFactor !== 1 ? r.unitFactor : 1)
+    updateRow(idx, {
+      purchaseUnit: isBase ? "" : o.unit,
+      unitFactor: factor,
+      unitCost: p && p.costPrice > 0 ? round2(p.costPrice * factor) : r.unitCost,
+    })
+  }
+
+  const unitCell = (r: Row, idx: number, h: string) => {
+    const p = productOf(r)
+    const opts = unitOptionsFor(p, conversions)
+    const base = opts[0].unit
+    const current = r.purchaseUnit || base
+    const isBase = !r.purchaseUnit || same(r.purchaseUnit, base)
+    // A saved unit no longer in setup still shows, so the line keeps its meaning.
+    const shown = opts.some((o) => o.unit === current) ? opts : [...opts, { unit: current, factor: r.unitFactor }]
+    return (
+      <div className="space-y-1">
+        <Select value={current} onValueChange={(v) => onPickUnit(idx, v)} disabled={!p}>
+          <SelectTrigger className={h}><SelectValue placeholder="unit" /></SelectTrigger>
+          <SelectContent>
+            {shown.map((o) => (
+              <SelectItem key={o.unit} value={o.unit}>
+                {o.unit}{o.unit !== base && o.factor != null ? ` (= ${fmtQty(o.factor)} ${base})` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {p && !isBase && (
+          <div className="flex items-center gap-1 text-[11px] text-slate-500 whitespace-nowrap">
+            1 {current} =
+            <NumberInput className="h-6 w-16 px-1 text-right text-[11px]" step="0.001" min="0" value={r.unitFactor}
+              onChange={(e) => updateRow(idx, { unitFactor: Number(e.target.value) || 0 })} />
+            {base}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  /** "10 bag x GHS 100 per bag -> 500 kg into stock" under a line. */
+  const lineHint = (r: Row) => {
+    const p = productOf(r)
+    if (!p) return null
+    const base = baseUnitOf(p)
+    const unit = r.purchaseUnit || base
+    const stockQty = r.quantity * (r.unitFactor || 0)
+    return (
+      <div className="text-[11px] text-slate-500 mt-1">
+        {fmtQty(r.quantity)} {unit} × {fmt(r.unitCost)} per {unit}
+        {p.trackInventory !== false && <> → <strong className="text-slate-700">{fmtQty(stockQty)} {base}</strong> into stock</>}
+      </div>
+    )
+  }
+
+  const onSave = async (approve: boolean) => {
     const items = rows
       .filter((r) => r.quantity > 0 && r.genericProductId)
       .map((r) => ({
@@ -125,9 +288,16 @@ export default function NewGenericPurchasePage() {
         quantity: r.quantity,
         unitCost: r.unitCost,
         discountAmount: r.discountAmount,
+        purchaseUnit: r.purchaseUnit || null,
+        unitFactor: r.unitFactor > 0 ? r.unitFactor : 1,
       }))
     if (items.length === 0) {
       toast({ title: "Add at least one product line", variant: "destructive" })
+      return
+    }
+    const badUnit = rows.find((r) => r.genericProductId && r.quantity > 0 && !(r.unitFactor > 0))
+    if (badUnit) {
+      toast({ title: "Say how many base units one purchase unit holds", description: `${badUnit.description}: fill in "1 ${badUnit.purchaseUnit} = ..." under the unit.`, variant: "destructive" })
       return
     }
     if (totals.balance > 0 && !header.genericSupplierId) {
@@ -135,8 +305,9 @@ export default function NewGenericPurchasePage() {
       return
     }
     setSaving(true)
+    let savedId: number | null = editId
     try {
-      const created = await createPurchase({
+      const input = {
         purchaseDate: header.purchaseDate,
         genericSupplierId: header.genericSupplierId ? Number(header.genericSupplierId) : null,
         headerDiscountAmount: Number(header.headerDiscountAmount) || 0,
@@ -149,14 +320,36 @@ export default function NewGenericPurchasePage() {
           ? (header.notes ? `Supplier: ${header.supplierName.trim()} | ${header.notes}` : `Supplier: ${header.supplierName.trim()}`)
           : (header.notes || null),
         items,
-      })
-      if (created) {
-        toast({ title: `Purchase #${created.genericPurchaseId} created as Draft`, description: "Review and approve to bump inventory and cash." })
-        router.push("/generic-inventory?tab=purchases")
+      }
+      if (editId) {
+        await updatePurchase(editId, input)
+      } else {
+        const created = await createPurchase(input)
+        savedId = created?.genericPurchaseId ?? null
       }
     } catch (e: any) {
-      toast({ title: "Could not create purchase", description: e?.message ?? String(e), variant: "destructive" })
-    } finally { setSaving(false) }
+      toast({ title: editId ? "Could not save purchase" : "Could not create purchase", description: e?.message ?? String(e), variant: "destructive" })
+      setSaving(false)
+      return
+    }
+    if (!approve || !savedId) {
+      toast({ title: `Purchase #${savedId ?? ""} saved as Draft`, description: "Review and approve to bump inventory and cash." })
+      router.push("/generic-inventory?tab=purchases")
+      return
+    }
+    try {
+      await approvePurchase(savedId)
+      toast({ title: `Purchase #${savedId} saved and approved`, description: "Stock and cash are updated." })
+      router.push("/generic-inventory?tab=purchases")
+    } catch (e: any) {
+      // The purchase is saved; only the approval failed (e.g. not enough in the cash account).
+      toast({ title: `Saved as Draft #${savedId}, but not approved`, description: e?.message ?? String(e), variant: "destructive" })
+      if (!editId) {
+        setEditId(savedId)
+        window.history.replaceState(null, "", `/generic-purchases/new?edit=${savedId}`)
+      }
+      setSaving(false)
+    }
   }
 
   return (
@@ -169,7 +362,8 @@ export default function NewGenericPurchasePage() {
             <ArrowLeft className="h-3 w-3 mr-1" /> Back to purchases
           </Link>
           <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2 mb-4">
-            <Package className="h-6 w-6 text-orange-600" /> New purchase
+            <Package className="h-6 w-6 text-orange-600" /> {editId ? `Edit purchase #${editId}` : "New purchase"}
+            {editId && <span className="text-xs font-medium rounded bg-slate-100 text-slate-600 px-2 py-0.5">Draft</span>}
           </h1>
 
           {loading ? (
@@ -247,7 +441,8 @@ export default function NewGenericPurchasePage() {
                         <TableRow>
                           <TableHead>Product</TableHead>
                           <TableHead className="w-[110px] text-right">Qty</TableHead>
-                          <TableHead className="w-[130px] text-right">Unit cost</TableHead>
+                          <TableHead className="w-[170px]">Unit</TableHead>
+                          <TableHead className="w-[130px] text-right">Cost per unit</TableHead>
                           <TableHead className="w-[130px] text-right">Discount</TableHead>
                           <TableHead className="w-[130px] text-right">Line total</TableHead>
                           <TableHead className="w-[40px]"></TableHead>
@@ -269,8 +464,10 @@ export default function NewGenericPurchasePage() {
                                     ))}
                                   </SelectContent>
                                 </Select>
+                                {lineHint(r)}
                               </TableCell>
-                              <TableCell><NumberInput className="h-8 text-right"  step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} /></TableCell>
+                              <TableCell className="align-top"><NumberInput className="h-8 text-right"  step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} /></TableCell>
+                              <TableCell className="align-top">{unitCell(r, idx, "h-8")}</TableCell>
                               <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.unitCost} onChange={(e) => updateRow(idx, { unitCost: Number(e.target.value) || 0 })} /></TableCell>
                               <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.discountAmount} onChange={(e) => updateRow(idx, { discountAmount: Number(e.target.value) || 0 })} /></TableCell>
                               <TableCell className="text-right font-semibold">{fmt(line)}</TableCell>
@@ -299,6 +496,7 @@ export default function NewGenericPurchasePage() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {lineHint(r)}
                             </div>
                             <Button size="icon" variant="ghost" className="shrink-0" onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}>
                               <X className="h-4 w-4 text-rose-600" />
@@ -310,7 +508,11 @@ export default function NewGenericPurchasePage() {
                               <NumberInput className="h-9 text-right tabular-nums" step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} />
                             </div>
                             <div>
-                              <label className="text-xs text-slate-500">Unit cost</label>
+                              <label className="text-xs text-slate-500">Unit</label>
+                              {unitCell(r, idx, "h-9")}
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500">Cost per {r.purchaseUnit || baseUnitOf(productOf(r))}</label>
                               <NumberInput className="h-9 text-right tabular-nums" step="0.01" min="0" value={r.unitCost} onChange={(e) => updateRow(idx, { unitCost: Number(e.target.value) || 0 })} />
                             </div>
                             <div>
@@ -335,7 +537,15 @@ export default function NewGenericPurchasePage() {
                   <CardContent className="grid grid-cols-2 gap-3">
                     <div><Label>Discount (header)</Label><NumberInput step="0.01" min="0" value={header.headerDiscountAmount} onChange={(e) => setHeader((h) => ({ ...h, headerDiscountAmount: e.target.value }))} /></div>
                     <div><Label>Tax</Label><NumberInput step="0.01" min="0" value={header.taxAmount} onChange={(e) => setHeader((h) => ({ ...h, taxAmount: e.target.value }))} /></div>
-                    <div><Label>Amount paid now</Label><NumberInput step="0.01" min="0" value={header.amountPaid} onChange={(e) => setHeader((h) => ({ ...h, amountPaid: e.target.value }))} /></div>
+                    <div>
+                      <Label>Amount paid now</Label>
+                      <NumberInput step="0.01" min="0" value={header.amountPaid} onChange={(e) => { setPaidTouched(true); setHeader((h) => ({ ...h, amountPaid: e.target.value })) }} />
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        {paidTouched
+                          ? <>Your own figure. <button type="button" className="underline" onClick={() => setPaidTouched(false)}>Pay the full total</button></>
+                          : paysNow ? "Fills in the full total; change it for a part payment." : "On credit: nothing paid now."}
+                      </p>
+                    </div>
                     <div>
                       <Label>Method</Label>
                       <Select value={header.paymentMethod} onValueChange={(v) => setHeader((h) => ({ ...h, paymentMethod: v }))}>
@@ -375,7 +585,10 @@ export default function NewGenericPurchasePage() {
                     </dl>
                     <div className="flex justify-end gap-2 mt-4">
                       <Button variant="outline" onClick={() => router.push("/generic-purchases")}>Cancel</Button>
-                      <Button onClick={onSave} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Create as Draft</Button>
+                      <Button variant="outline" onClick={() => onSave(false)} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}{editId ? "Save Draft" : "Save as Draft"}</Button>
+                      <Button onClick={() => onSave(true)} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}Save &amp; Approve
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

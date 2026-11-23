@@ -181,6 +181,29 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? UpdatedAt { get; set; }
     }
 
+    // Combined supplier payment: unions standalone payments + purchase initial payments (474)
+    public class GenericSupplierPaymentCombinedModel
+    {
+        public int PaymentId { get; set; }
+        public string Source { get; set; } = string.Empty;  // "SupplierPayment" or "PurchasePayment"
+        public string FarmId { get; set; } = string.Empty;
+        public int GenericSupplierId { get; set; }
+        public string? SupplierName { get; set; }
+        public DateTime PaymentDate { get; set; }
+        public decimal Amount { get; set; }
+        public string? PaymentMethod { get; set; }
+        public int? GenericCashAccountId { get; set; }
+        public int? LinkedPurchaseId { get; set; }
+        public int? LinkedExpenseId { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+        public string? CreatedBy { get; set; }
+        public string? ApprovedBy { get; set; }
+        public DateTime? ApprovedAt { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
     // =========================================================================
     // Purchases
     // =========================================================================
@@ -210,6 +233,14 @@ namespace PoultryFarmAPIWeb.Models
 
         [StringLength(500)]
         public string? Notes { get; set; }
+
+        /// <summary>Unit the line was bought in, e.g. "bag" (migration 472). Null = the product's base unit.</summary>
+        [StringLength(50)]
+        public string? PurchaseUnit { get; set; }
+
+        /// <summary>Base units in one PurchaseUnit (1 bag = 50 kg -> 50). Stock rises by Quantity x UnitFactor.</summary>
+        [Range(0.0001, double.MaxValue)]
+        public decimal UnitFactor { get; set; } = 1;
     }
 
     public class GenericPurchaseModel
