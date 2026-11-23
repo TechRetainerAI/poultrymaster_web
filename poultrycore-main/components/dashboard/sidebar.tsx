@@ -948,7 +948,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                   columns: 2,
                 })}
               {genericNav.admin.length > 0 && renderMenu(
-                "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
+                permissions.isStaff ? "Staff" : "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
                   blurb: "Account settings.",
                   columns: 1,
                 })}

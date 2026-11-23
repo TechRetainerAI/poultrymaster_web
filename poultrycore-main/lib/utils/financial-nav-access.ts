@@ -133,7 +133,11 @@ export function isFinancialNavItemVisible(
   if (href === "/generic-owner-money" || href === "/generic-employee-loans" || href === "/generic-employee-credit") return f.canViewCashLedger
   if (href === "/generic-profit-loss") return isAdmin || f.canViewFinancial || f.canViewReports
   if (href === "/generic-daily-closings") return f.canViewCashLedger
-  if (href === "/generic-customers" || href === "/generic-customer-payments") {
+  // The Customers list follows View Customers (or the Financial umbrella).
+  // Enter Sales alone does not show it: the sale form picks customers itself,
+  // so an admin can hide the list from someone who only records sales.
+  if (href === "/generic-customers") return isAdmin || f.canViewCustomers || f.canViewFinancial
+  if (href === "/generic-customer-payments") {
     return isAdmin || f.canViewCustomers || f.canViewFinancial || f.canEnterSales
   }
   if (href === "/generic-customer-balances") {
