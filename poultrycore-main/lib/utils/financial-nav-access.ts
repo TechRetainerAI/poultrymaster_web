@@ -123,6 +123,9 @@ export function isFinancialNavItemVisible(
   if (href === "/poultry-profit-loss" || href === "/poultry/reports/profit-loss") {
     return isAdmin || f.canViewFinancial || f.canViewReports
   }
+  // 481 Egg Cost & Profit Analyzer: costs, payroll and margins -- the same
+  // readers as Profit & Loss (the API maps it to poultry.reports too).
+  if (href === "/egg-cost-analyzer") return isAdmin || f.canViewFinancial || f.canViewReports
 
   // ---- Generic Company financial routes ----
   // Same deny-by-default pattern: staff only see pages whose flag they hold.
