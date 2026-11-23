@@ -109,6 +109,9 @@ namespace PoultryFarmAPIWeb.Filters
             // ---- Poultry, explicitly prefixed --------------------------------
             ["poultry/reports"] = "poultry.reports",
             ["poultry/closing-report"] = "poultry.reports",
+            // 481. Egg Cost & Profit Analyzer: the same right as Profit & Loss.
+            // Its costing-assumption writes are additionally [SetupAdminOnly].
+            ["poultry/egg-cost"] = "poultry.reports",
             ["poultry/cash-accounts"] = "poultry.cash",
             // 255 gave these three their own resources. They all rode on
             // poultry.cash until then, which meant anyone who could SEE cash

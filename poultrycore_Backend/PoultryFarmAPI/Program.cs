@@ -500,6 +500,8 @@ builder.Services.AddScoped<IGenericReportService>(sp => new GenericReportService
 
 // Advanced Poultry Reports (20 new poultry-only reports under /api/poultry/reports/*).
 builder.Services.AddScoped<IPoultryAdvancedReportService>(sp => new PoultryAdvancedReportService(connectionString));
+// 481: Egg Cost & Profit Analyzer (read model + its own settings/snapshots)
+builder.Services.AddScoped<IPoultryEggCostService>(sp => new PoultryEggCostService(connectionString));
 
 // Phase 6: Staff + Attendance + Payroll (spec §13, §14). Payroll items use a
 // computed NetPay column; spGenericPayrollItem_Upsert rolls run totals

@@ -200,7 +200,9 @@ export default function SupplierCreditsPage() {
           <ArrowDownToLine className="mr-1.5 h-4 w-4" /> Refund
         </Button>
       )}
-      {canManage && e.isManual && e.applied === 0 && e.refunded === 0 && (
+      {/* 478: credit kept from a reversed purchase is money already paid -- it is
+          refunded or used, never erased. */}
+      {canManage && e.isManual && e.applied === 0 && e.refunded === 0 && e.sourceType !== "PurchaseReversalCredit" && (
         <Button size="sm" variant="outline" className={mobile ? "flex-1 h-10" : "h-8"} onClick={() => openReverse({ kind: "credit", event: e })}>
           <Undo2 className="mr-1.5 h-4 w-4" /> Reverse
         </Button>

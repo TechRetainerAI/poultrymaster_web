@@ -116,11 +116,52 @@ namespace PoultryFarmAPIWeb.Controllers
             return NoContent();
         }
 
-        [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
+        // 478: purchases are no longer deleted -- they are reversed (below).
+        [HttpDelete("{id:int}")] public IActionResult Delete(int id, [FromQuery] string farmId)
+            => Conflict(new { message = $"Purchase #{id} can no longer be deleted. Reverse it instead -- the purchase stays in the history and its stock and money are put right." });
+
+        // GET {id}/reversal-preview?farmId=  -- what reversing it would do.
+        [HttpGet("{id:int}/reversal-preview")]
+        public async Task<IActionResult> ReversalPreview(int id, [FromQuery] string farmId)
         {
-            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
-            await _svc.DeleteAsync(id, farmId);
-            return NoContent();
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Content(await _svc.GetReversalPreviewAsync(id, farmId), "application/json");
+        }
+
+        // GET {id}/reversal?farmId=  -- the reversal of a reversed purchase.
+        [HttpGet("{id:int}/reversal")]
+        public async Task<IActionResult> Reversal(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            var json = await _svc.GetReversalAsync(id, farmId);
+            return json is null ? NotFound(new { message = "This purchase has not been reversed." }) : Content(json, "application/json");
+        }
+
+        // POST {id}/reverse  -- water.raw-materials.approve ("reverse" is an approve
+        // segment), the same permission as reversing a Receive Purchase receipt.
+        [HttpPost("{id:int}/reverse")]
+        public async Task<IActionResult> Reverse(int id, [FromBody] WaterPurchaseReverseRequest req)
+        {
+            if (req is null || string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(req.ReasonCode) && string.IsNullOrWhiteSpace(req.Reason))
+                return BadRequest(new { message = "Give a reason for reversing this purchase." });
+            // The person on the token, not whatever the body claims.
+            req.UserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? req.UserId;
+            try
+            {
+                var reversalId = await _svc.ReverseAsync(id, req);
+                return Ok(new { purchaseReversalId = reversalId, reversal = await _svc.GetReversalAsync(id, req.FarmId) is string j
+                                                                    ? System.Text.Json.JsonDocument.Parse(j).RootElement
+                                                                    : (System.Text.Json.JsonElement?)null });
+            }
+            catch (SaleRuleException ex) when (ex.Stale)
+            {
+                return Conflict(new { message = ex.Message, stale = true });
+            }
+            catch (SaleRuleException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // Record a follow-up payment against an outstanding purchase balance.
@@ -132,6 +173,22 @@ namespace PoultryFarmAPIWeb.Controllers
             var balance = await _svc.PayBalanceAsync(id, body.FarmId, body.Amount, body.PaymentMethod, body.PaymentDate, body.CreatedBy);
             return Ok(new { Balance = balance });
         }
+    }
+
+    /// <summary>478: reverse a raw material purchase (same shape as SaleReverseRequest).</summary>
+    public class WaterPurchaseReverseRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string? UserId { get; set; }
+        /// <summary>A reason from the list (lib/reversal-reasons.ts); "Other" needs Reason.</summary>
+        public string? ReasonCode { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        /// <summary>Per money line: key ("entry" or "sp:{paymentId}") -> KeepAsCredit | Refund.</summary>
+        public Dictionary<string, string>? PaymentHandling { get; set; }
+        /// <summary>The preview's fingerprint; refused if the purchase changed since.</summary>
+        public string? ExpectedFingerprint { get; set; }
+        /// <summary>A retried request returns the reversal it already made.</summary>
+        public string? IdempotencyKey { get; set; }
     }
 
     public class PayBalanceRequest

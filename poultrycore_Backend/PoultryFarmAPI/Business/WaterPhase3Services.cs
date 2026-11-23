@@ -28,6 +28,10 @@ namespace PoultryFarmAPIWeb.Business
         Task UpdateAsync(WaterRawMaterialPurchaseModel m);
         Task DeleteAsync(int id, string farmId);
         Task<decimal> PayBalanceAsync(int id, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy);
+        // 478: purchase reversal (the sale reversal model)
+        Task<string> GetReversalPreviewAsync(int id, string farmId);
+        Task<string?> GetReversalAsync(int id, string farmId);
+        Task<int> ReverseAsync(int id, PoultryFarmAPIWeb.Controllers.WaterPurchaseReverseRequest req);
     }
 
     public interface IWaterRawMaterialUsageService
@@ -403,6 +407,61 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             var result = await cmd.ExecuteScalarAsync();
             return result is null || result is DBNull ? 0m : Convert.ToDecimal(result);
+        }
+
+        // ------------------------------------------------------- 478: reversal
+
+        /// <summary>What reversing the purchase would do (jsonb: blockers, money lines, fingerprint).</summary>
+        public Task<string> GetReversalPreviewAsync(int id, string farmId)
+            => ScalarJsonAsync("SELECT spwaterpurchase_reversalpreview(p_farmid => @FarmId::text, p_purchaseid => @Id::int)::text", farmId, id);
+
+        /// <summary>The reversal of a reversed purchase, or null.</summary>
+        public async Task<string?> GetReversalAsync(int id, string farmId)
+        {
+            var json = await ScalarJsonAsync("SELECT spwaterpurchase_reversalget(p_farmid => @FarmId::text, p_purchaseid => @Id::int)::text", farmId, id);
+            return string.IsNullOrEmpty(json) || json == "null" ? null : json;
+        }
+
+        /// <summary>
+        /// Reverses a purchase in one transaction (spwaterpurchase_reverse). A refusal
+        /// comes back as <see cref="SaleRuleException"/> (Stale = preview out of date).
+        /// </summary>
+        public async Task<int> ReverseAsync(int id, PoultryFarmAPIWeb.Controllers.WaterPurchaseReverseRequest req)
+        {
+            try
+            {
+                await using var conn = new NpgsqlConnection(_cs);
+                await conn.OpenAsync();
+                await using var cmd = new NpgsqlCommand(
+                    "SELECT spwaterpurchase_reverse(p_farmid => @FarmId::text, p_purchaseid => @Id::int, " +
+                    "p_reasoncode => @Code::text, p_reason => @Reason::text, p_handling => @Handling::jsonb, " +
+                    "p_expectedfingerprint => @Fp::text, p_idempotencykey => @Key::text, p_reversedby => @By::text)", conn);
+                cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+                cmd.Parameters.AddWithValue("@Id", id);
+                cmd.Parameters.AddWithValue("@Code", (object?)req.ReasonCode ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Reason", req.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@Handling",
+                    System.Text.Json.JsonSerializer.Serialize(req.PaymentHandling ?? new Dictionary<string, string>()));
+                cmd.Parameters.AddWithValue("@Fp", (object?)req.ExpectedFingerprint ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Key", (object?)req.IdempotencyKey ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@By", (object?)req.UserId ?? DBNull.Value);
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex) { Stale = ex.Hint == "stale-preview" };
+            }
+        }
+
+        private async Task<string> ScalarJsonAsync(string sql, string farmId, int id)
+        {
+            await using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Id", id);
+            var o = await cmd.ExecuteScalarAsync();
+            return o is null || o is DBNull ? "null" : (string)o;
         }
 
         private static WaterRawMaterialPurchaseModel Read(NpgsqlDataReader r) => new()

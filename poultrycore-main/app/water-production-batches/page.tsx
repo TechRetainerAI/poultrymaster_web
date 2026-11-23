@@ -35,6 +35,7 @@ import {
 } from "@/lib/api/water"
 import { planDraw, lotsForItem, type DrawPlan } from "@/lib/water-lot-draw"
 import { useFmt } from "@/lib/currency"
+import { packWords, productPackSize } from "@/lib/water/pack-units"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -203,7 +204,8 @@ export default function WaterProductionBatchesPage() {
   async function openNew() {
     setEditingId(null)
     setOverrideMissing(false)
-    const defaultProductId = productPicker.find(p => p.isActive)?.waterProductId ?? 0
+    const defaultProduct = productPicker.find(p => p.isActive)
+    const defaultProductId = defaultProduct?.waterProductId ?? 0
     setForm({
       batchNumber: makeBatchNumber(),
       productionDate: new Date().toISOString().split("T")[0],
@@ -212,7 +214,8 @@ export default function WaterProductionBatchesPage() {
       machineScope: "SingleMachine",
       waterProductId: defaultProductId,
       bagsProduced: 0,
-      sachetsPerBag: 30,
+      // The product's own units-per-package; 30 only when it has none set.
+      sachetsPerBag: productPackSize(defaultProduct) ?? 30,
       rejectedSachets: 0,
       damagedBags: 0,
       electricityCost: 0,
@@ -277,8 +280,8 @@ export default function WaterProductionBatchesPage() {
   async function save(andApprove = false) {
     if (!form.batchNumber.trim()) return toast({ title: "Batch number is required", variant: "destructive" })
     if (!form.waterProductId)     return toast({ title: "Pick a product first", variant: "destructive" })
-    if (form.bagsProduced <= 0)   return toast({ title: "Bags produced must be greater than zero", variant: "destructive" })
-    if (form.sachetsPerBag <= 0)  return toast({ title: "Sachets per bag must be greater than zero", variant: "destructive" })
+    if (form.bagsProduced <= 0)   return toast({ title: "Quantity produced must be greater than zero", variant: "destructive" })
+    if (form.sachetsPerBag <= 0)  return toast({ title: "Units per package must be greater than zero", variant: "destructive" })
 
     // Inline validation on Raw Materials Used.
     for (const row of materialRows) {
@@ -419,7 +422,10 @@ export default function WaterProductionBatchesPage() {
   // slice. Feed the SAME slice to the cards and the desktop table.
   const pg = usePagination(visibleBatches)
 
-  // Live preview values in the dialog.
+  // Live preview values in the dialog. Labels follow the chosen product's
+  // own package/unit words (Pack/Bottle), not the sachet-era Bag/Sachet.
+  const selectedProduct = products.find(p => p.waterProductId === form.waterProductId)
+  const pw = packWords(selectedProduct)
   const totalSachets = form.bagsProduced * form.sachetsPerBag
   const otherProductionCost = form.electricityCost + form.fuelCost + form.laborCost + form.otherProductionCost
   // Migration 063: raw material cost is part of the live total.
@@ -707,7 +713,10 @@ export default function WaterProductionBatchesPage() {
               <FormField label="Product">
                 <Select value={String(form.waterProductId)} onValueChange={(v) => {
                   const id = Number(v)
-                  setForm({ ...form, waterProductId: id })
+                  const picked = products.find(p => p.waterProductId === id)
+                  // Follow the picked product's units-per-package so a 15-per-pack
+                  // bottle product is not saved with the old 30-sachet default.
+                  setForm({ ...form, waterProductId: id, sachetsPerBag: productPackSize(picked) ?? form.sachetsPerBag })
                   if (id) void loadRecipeForProduct(id, form.bagsProduced)
                 }}>
                   <SelectTrigger><SelectValue placeholder="Pick product" /></SelectTrigger>
@@ -724,19 +733,24 @@ export default function WaterProductionBatchesPage() {
               {/* "Produced bags" = total bags before subtracting damaged.
                   Good bags = Produced - Damaged, computed below and rolled into
                   the live summary strip + the list page. */}
-              <FormField label="Produced bags *" hint="Total bags before subtracting damaged">
+              <FormField label={`Produced ${pw.packs.toLowerCase()} *`} hint={`Total ${pw.packs.toLowerCase()} before subtracting damaged`}>
                 <NumberInput min={0} value={form.bagsProduced} onChange={(e) => {
                   const v = Number(e.target.value) || 0
                   setForm({ ...form, bagsProduced: v })
                 }} />
               </FormField>
-              <FormField label="Sachets per bag">
-                <NumberInput min={1} value={form.sachetsPerBag} onChange={(e) => setForm({ ...form, sachetsPerBag: Number(e.target.value) || 30 })} />
+              <FormField
+                label={`${pw.singles} per ${pw.pack.toLowerCase()}`}
+                hint={productPackSize(selectedProduct) && productPackSize(selectedProduct) !== form.sachetsPerBag
+                  ? `Product is set to ${productPackSize(selectedProduct)} per ${pw.pack.toLowerCase()}`
+                  : undefined}
+              >
+                <NumberInput min={1} value={form.sachetsPerBag} onChange={(e) => setForm({ ...form, sachetsPerBag: Number(e.target.value) || (productPackSize(selectedProduct) ?? 30) })} />
               </FormField>
-              <FormField label="Damaged bags" hint="Counted as loss — not added to stock">
+              <FormField label={`Damaged ${pw.packs.toLowerCase()}`} hint="Counted as loss — not added to stock">
                 <NumberInput min={0} value={form.damagedBags} onChange={(e) => setForm({ ...form, damagedBags: Number(e.target.value) || 0 })} />
               </FormField>
-              <FormField label="Rejected sachets" hint="Counted as loss">
+              <FormField label={`Rejected ${pw.singles.toLowerCase()}`} hint="Counted as loss">
                 <NumberInput min={0} value={form.rejectedSachets} onChange={(e) => setForm({ ...form, rejectedSachets: Number(e.target.value) || 0 })} />
               </FormField>
             </FormSection>
@@ -1093,12 +1107,12 @@ export default function WaterProductionBatchesPage() {
             {/* Live summary strip — calmer slate background so it doesn't fight
                 the colored section bands above. */}
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 text-sm">
-              <div><span className="text-slate-500">Good bags:</span> <span className="font-semibold tabular-nums">{goodBags.toLocaleString()}</span></div>
-              <div><span className="text-slate-500">Sachets:</span> <span className="font-semibold tabular-nums">{totalSachets.toLocaleString()}</span></div>
+              <div><span className="text-slate-500">Good {pw.packs.toLowerCase()}:</span> <span className="font-semibold tabular-nums">{goodBags.toLocaleString()}</span></div>
+              <div><span className="text-slate-500">{pw.singles}:</span> <span className="font-semibold tabular-nums">{totalSachets.toLocaleString()}</span></div>
               <div><span className="text-slate-500">Raw materials &amp; supplies:</span> <span className="font-semibold tabular-nums">{fmtGhc(rawMaterialCost)}</span></div>
               <div><span className="text-slate-500">Other costs:</span> <span className="font-semibold tabular-nums">{fmtGhc(otherProductionCost)}</span></div>
               <div><span className="text-slate-500">Total cost:</span> <span className="font-semibold tabular-nums">{fmtGhc(totalProductionCost)}</span></div>
-              <div><span className="text-slate-500">Cost/bag:</span> <span className="font-semibold tabular-nums">{fmtGhc(costPerBag)}</span></div>
+              <div><span className="text-slate-500">Cost/{pw.pack.toLowerCase()}:</span> <span className="font-semibold tabular-nums">{fmtGhc(costPerBag)}</span></div>
               <div><span className="text-slate-500">Efficiency:</span> <span className="font-semibold tabular-nums">{efficiency.toFixed(1)}%</span></div>
             </div>
 
