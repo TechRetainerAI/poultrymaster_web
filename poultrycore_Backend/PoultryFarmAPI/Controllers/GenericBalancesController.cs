@@ -124,10 +124,68 @@ namespace PoultryFarmAPIWeb.Controllers
 
             r.FarmId = farmId;
             if (r.PartyId is null or 0) return BadRequest("A customer is required to receive a payment.");
-            if (r.Allocations.Count == 0) return BadRequest("Select at least one invoice to apply this payment to.");
+            // 488 (Poultry 367): a payment need not be applied in full -- what is
+            // left is kept as the customer's credit, and a payment applied to
+            // nothing is an advance. The database checks the allocations.
+            try
+            {
+                var paymentId = await _svc.RecordCustomerPayment(r);
+                return Ok(new { paymentId });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
 
-            var paymentId = await _svc.RecordCustomerPayment(r);
-            return Ok(new { paymentId });
+        // 488: customer debt -- owed without a sale (Poultry 369). Recording or
+        // reversing one is the owner's / an admin's call, as on Poultry.
+        [HttpGet("customer-debts")]
+        public async Task<ActionResult<IEnumerable<CustomerDebtRow>>> GetCustomerDebts(string farmId, [FromQuery] int? customerId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.GetCustomerDebts(farmId, customerId));
+        }
+
+        [HttpPost("customer-debts")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> CreateCustomerDebt(string farmId, [FromBody] CustomerDebtRequest r)
+        {
+            if (r is null) return BadRequest(new { message = "Nothing was sent." });
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            r.FarmId = farmId;
+            if (string.IsNullOrWhiteSpace(r.Description)) return BadRequest(new { message = "Describe what the debt is for." });
+            r.CreatedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.CreatedBy;
+            try
+            {
+                return Content(await _svc.CreateCustomerDebt(r), "application/json");
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        [HttpPost("customer-debts/{debtId:int}/reverse")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> ReverseCustomerDebt(string farmId, int debtId, [FromBody] CustomerDebtReverseRequest r)
+        {
+            if (r is null) return BadRequest(new { message = "Nothing was sent." });
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            r.FarmId = farmId;
+            if (string.IsNullOrWhiteSpace(r.Reason)) return BadRequest(new { message = "Give a reason for reversing the debt." });
+            r.ReversedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.ReversedBy;
+            try
+            {
+                return Ok(new { debtId = await _svc.ReverseCustomerDebt(debtId, r) });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
         }
 
         /// <summary>
