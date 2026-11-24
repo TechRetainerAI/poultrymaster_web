@@ -22,7 +22,7 @@ import { getSuppliers } from "@/lib/api/supplier"
 import { getUserContext } from "@/lib/api/config"
 import { listPoultryCashAccounts } from "@/lib/api/poultry-finance"
 import type { PartyBalanceRow } from "@/lib/api/balances"
-import { creditModule, listCreditCashAccounts, listCreditCustomers, listCreditSuppliers, supplierCreditModule } from "@/lib/api/credit-module"
+import { creditModule, isGenericCompany, listCreditCashAccounts, listCreditCustomers, listCreditSuppliers, supplierCreditModule } from "@/lib/api/credit-module"
 
 export function RecordCustomerPaymentButton({ onPosted }: { onPosted: () => void }) {
   return <RecordPartyPaymentButton side="customer" onPosted={onPosted} />
@@ -45,8 +45,9 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
     // payment posts no cash (it is counted at the daily closing) -- no accounts.
     const water = creditModule() === "Water"
     // 449: Generic supplier payments -- generic suppliers and cash accounts.
-    const generic = !isCustomer && supplierCreditModule() === "Generic"
-    const people: Promise<{ id: number; name: string }[]> = isCustomer && water
+    // 488: and Generic customer payments -- generic customers and cash accounts.
+    const generic = isGenericCompany()
+    const people: Promise<{ id: number; name: string }[]> = isCustomer && (water || generic)
       ? listCreditCustomers()
       : isCustomer
       ? getCustomers(userId, farmId).then((r: any) => {
@@ -127,13 +128,14 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
       <RecordPaymentDialog
         open={!!party}
         onOpenChange={(o) => { if (!o) setParty(null) }}
-        module={!isCustomer && supplierCreditModule() === "Generic" ? "generic" : creditModule() === "Water" ? "water" : "poultry"}
+        module={isGenericCompany() ? "generic" : creditModule() === "Water" ? "water" : "poultry"}
         side={side}
         party={party}
         cashAccounts={cashAccounts}
         sourceType={isCustomer ? "PaymentsPage" : "SupplierPayments"}
         // 383/384: money not applied can pay an old debt on Profit & Loss (customer: only when ticked, with a sale type).
-        remainderAsOldDebt
+        // 488: not on Generic customers -- there an old debt is recorded as a customer debt and paid like a sale.
+        remainderAsOldDebt={!(isCustomer && isGenericCompany())}
         onPosted={() => { setParty(null); onPosted() }}
       />
     </>

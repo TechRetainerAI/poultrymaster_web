@@ -9,7 +9,7 @@ import { getUserContext } from "@/lib/api/config"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listWaterCashAccounts, listWaterCustomers, listWaterSuppliers } from "@/lib/api/water"
 import { getSuppliers } from "@/lib/api/supplier"
-import { getCashAccounts as listGenericCashAccounts, getSuppliers as listGenericSuppliers } from "@/lib/api/generic"
+import { getCashAccounts as listGenericCashAccounts, getCustomers as listGenericCustomers, getSuppliers as listGenericSuppliers } from "@/lib/api/generic"
 
 export type CreditModule = "Poultry" | "Water"
 
@@ -20,7 +20,8 @@ export type CreditModule = "Poultry" | "Water"
  */
 export type SupplierCreditModule = CreditModule | "Generic"
 
-function isGenericCompany(): boolean {
+/** 488: also used by the customer debt and Record customer payment controls. */
+export function isGenericCompany(): boolean {
   if (typeof window === "undefined") return false
   try { return localStorage.getItem("farmType") === "Generic" } catch { return false }
 }
@@ -76,7 +77,10 @@ export async function listCreditCashAccounts(): Promise<PoultryCashAccount[]> {
 /** The company's customers as { id, name }, sorted by name. */
 export async function listCreditCustomers(): Promise<{ id: number; name: string }[]> {
   let list: any[] = []
-  if (creditModule() === "Water") {
+  if (isGenericCompany()) {
+    // 488: Generic customers (Record customer debt / payment on Generic).
+    list = (await listGenericCustomers()).map((c) => ({ id: c.genericCustomerId, name: c.customerName }))
+  } else if (creditModule() === "Water") {
     list = (await listWaterCustomers()).map((c) => ({ id: c.waterCustomerId, name: c.name }))
   } else {
     const { userId, farmId } = getUserContext()

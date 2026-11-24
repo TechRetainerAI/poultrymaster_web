@@ -48,7 +48,8 @@ const DEPENDENCIES: { feature: ModuleKey; requires: ModuleKey; reason: string }[
   { feature: "enableStockAdjustments", requires: "enableInventory",  reason: "Stock adjustments correct inventory counts." },
   { feature: "enableInternalUse",      requires: "enableInventory",  reason: "Internal use consumes inventory stock." },
   { feature: "enableInvoices",         requires: "enableSubscriptions", reason: "Invoices are raised by billing runs from subscriptions." },
-  { feature: "enableCustomerBalances", requires: "enableInvoices",   reason: "Customer balances are built from invoices." },
+  // Customer balances do not depend on Invoices: credit sales and customer debts
+  // are owed too (as on Poultry, where Customer Balances is always there).
 ]
 
 function getDependencyWarning(

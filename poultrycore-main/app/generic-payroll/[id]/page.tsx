@@ -177,7 +177,7 @@ export default function GenericPayrollDetailPage() {
                         <div className="flex justify-between"><dt className="text-slate-500">Description</dt><dd className="text-right">{exp.description ?? "—"}</dd></div>
                       </dl>
                     ) : (
-                      <p className="text-sm text-slate-500">No separate expense: Profit &amp; Loss counts the run's gross pay once it is paid.</p>
+                      <p className="text-sm text-slate-500">No linked expense (created when the run is approved).</p>
                     )}
                   </CardContent>
                 </Card>

@@ -460,7 +460,7 @@ export default function GenericPayrollPage() {
   }
 
   async function approve(run: GenericPayrollRun) {
-    try { await approveGenericPayrollRun(run.genericPayrollRunId); toast({ title: "Run approved", description: "Advance repayments and kept wages were posted." }); await load() }
+    try { await approveGenericPayrollRun(run.genericPayrollRunId); toast({ title: "Run approved", description: "A linked expense was created, with any advance repayments and kept wages." }); await load() }
     catch (e: any) { toast({ title: "Approve failed", description: e?.message, variant: "destructive" }) }
   }
   async function confirmMarkPaid() {
@@ -982,7 +982,7 @@ export default function GenericPayrollPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{reasonDlg.kind === "unapprove" ? "Reopen run" : "Cancel run"}</DialogTitle>
-            <DialogDescription>{reasonDlg.kind === "unapprove" ? "Reverses the advance repayments, kept wages and any cash-out, and returns the run to Reopened." : "Cancels this run and reverses any advance repayments and kept wages it posted."}</DialogDescription>
+            <DialogDescription>{reasonDlg.kind === "unapprove" ? "Reverses the linked expense, advance repayments, kept wages and any cash-out, and returns the run to Reopened." : "Cancels this run, removes any linked expense and reverses any advance repayments and kept wages it posted."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <FormField label={reasonDlg.kind === "unapprove" ? "Reason *" : "Reason"}><ReasonSelect options={reasonDlg.kind === "unapprove" ? REOPEN_REASONS : CANCEL_REASONS} value={reason} onChange={setReason} /></FormField>
