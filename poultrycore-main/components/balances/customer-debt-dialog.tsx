@@ -7,7 +7,7 @@
 // why; the balance is derived. Not a sale: no revenue, no stock, no cash.
 
 import { useEffect, useState } from "react"
-import { listCreditCustomers } from "@/lib/api/credit-module"
+import { isGenericCompany, listCreditCustomers } from "@/lib/api/credit-module"
 import { FileWarning, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
@@ -63,6 +63,9 @@ export function CustomerDebtDialog({ open, currencyCode, onOpenChange, onCreated
   const value = Math.round((Number(amount) || 0) * 100) / 100
   const valid = !!customerId && value > 0 && !!date && description.trim().length > 0
   const customerName = customers.find((c) => String(c.id) === customerId)?.name ?? ""
+  // 488: the same dialog on Generic, where the business may not sell eggs.
+  const generic = isGenericCompany()
+  const example = generic ? "goods or services supplied before you started using the system" : "eggs supplied before you started using the system"
 
   const save = async () => {
     if (!valid || saving) return
@@ -91,8 +94,8 @@ export function CustomerDebtDialog({ open, currencyCode, onOpenChange, onCreated
         <DialogHeader>
           <FormDialogTitle icon={FileWarning} color="amber">Record customer debt</FormDialogTitle>
           <DialogDescription>
-            Money a customer already owes that is not on any sale here, e.g. eggs supplied before you started using the
-            system. It is added to what they owe and can be paid like a sale. It is not a sale: no revenue, no stock and no cash.
+            Money a customer already owes that is not on any sale here, e.g. {example}. It is added to what they owe and
+            can be paid like a sale. It is not a sale: no revenue, no stock and no cash.
           </DialogDescription>
         </DialogHeader>
 
@@ -129,7 +132,7 @@ export function CustomerDebtDialog({ open, currencyCode, onOpenChange, onCreated
             <div className="col-span-full min-w-0 space-y-1">
               <Label htmlFor="cd-desc">Description *</Label>
               <Input id="cd-desc" className="bg-white" value={description} onChange={(e) => setDescription(e.target.value)}
-                     placeholder="e.g. Eggs supplied before we started using the system" />
+                     placeholder={generic ? "e.g. Goods supplied before we started using the system" : "e.g. Eggs supplied before we started using the system"} />
             </div>
             <div className="col-span-full min-w-0 space-y-1">
               <Label htmlFor="cd-ref">Reference</Label>

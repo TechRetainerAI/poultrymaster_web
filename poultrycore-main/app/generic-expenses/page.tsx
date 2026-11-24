@@ -19,6 +19,7 @@
 export const dynamic = "force-dynamic"
 
 import { Suspense, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -1023,6 +1024,9 @@ function GenericExpensesPageInner() {
                                   <div><span className="text-slate-500">Balance</span> <span className="font-medium">{formatCurrency(expense.balance)}</span></div>
                                 </div>
                                 <div>{renderPaymentStatus(expense)}</div>
+                                {expense.sourceType === "GenericPayrollRun" ? (
+                                  <div className="text-xs text-slate-500">From <Link href="/generic-payroll" className="text-blue-600 hover:underline">Payroll</Link> (change it there)</div>
+                                ) : expense.sourceType && <div className="text-xs text-slate-500">Made by {expense.sourceType}</div>}
                                 <div className="flex flex-wrap gap-2 pt-2">{rowActions(expense, true)}</div>
                               </div>
                             </CollapsibleContent>
@@ -1076,7 +1080,9 @@ function GenericExpensesPageInner() {
                                   )}
                                 </div>
                                 {expense.notes && <div className="text-sm text-slate-500">{expense.notes}</div>}
-                                {expense.sourceType && <div className="text-[10px] text-slate-500 mt-0.5">Made by {expense.sourceType}</div>}
+                                {expense.sourceType === "GenericPayrollRun" ? (
+                                  <div className="text-[10px] text-slate-500 mt-0.5">From <Link href="/generic-payroll" className="text-blue-600 hover:underline">Payroll</Link> (change it there)</div>
+                                ) : expense.sourceType && <div className="text-[10px] text-slate-500 mt-0.5">Made by {expense.sourceType}</div>}
                                 {expense.status === "Rejected" && expense.rejectionReason && (
                                   <div className="text-[10px] text-rose-600 mt-0.5">Rejected: {expense.rejectionReason}</div>
                                 )}
