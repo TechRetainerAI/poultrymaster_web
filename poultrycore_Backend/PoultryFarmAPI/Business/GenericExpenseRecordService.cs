@@ -40,7 +40,11 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(GenericExpenseModel m)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericexpense_insert(p_farmid => @FarmId::text, p_expensedate => @ExpenseDate::timestamp, p_genericexpensecategoryid => @GenericExpenseCategoryId::int, p_genericsupplierid => @GenericSupplierId::int, p_description => @Description::text, p_amount => @Amount::numeric, p_paidto => @PaidTo::text, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receipturl => @ReceiptUrl::text, p_branchid => @BranchId::int, p_staffid => @StaffId::int, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date)", conn);
+            var projectCall = "spgenericexpense_insert(p_farmid => @FarmId::text, p_expensedate => @ExpenseDate::timestamp, p_genericexpensecategoryid => @GenericExpenseCategoryId::int, p_genericsupplierid => @GenericSupplierId::int, p_description => @Description::text, p_amount => @Amount::numeric, p_paidto => @PaidTo::text, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receipturl => @ReceiptUrl::text, p_branchid => @BranchId::int, p_staffid => @StaffId::int, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date)";
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(m.Projects)
+                ? GenericProjectAttach.WrapInsert(projectCall, "Expense")
+                : "SELECT * FROM " + projectCall, conn);
+            if (GenericProjectAttach.Has(m.Projects)) GenericProjectAttach.AddParams(cmd, m.FarmId, m.Projects, m.CreatedBy);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@ExpenseDate",
                 m.ExpenseDate == default ? (object)DBNull.Value : m.ExpenseDate);
@@ -68,7 +72,12 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateAsync(int id, GenericExpenseModel m, string? updatedBy)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT spgenericexpense_update(p_genericexpenseid => @Id::int, p_farmid => @FarmId::text, p_expensedate => @ExpenseDate::timestamp, p_genericexpensecategoryid => @CategoryId::int, p_genericsupplierid => @SupplierId::int, p_description => @Description::text, p_amount => @Amount::numeric, p_paidto => @PaidTo::text, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @CashAccountId::int, p_receipturl => @ReceiptUrl::text, p_notes => @Notes::text, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date, p_updatedby => @UpdatedBy::text)", conn);
+            var projectCall = "spgenericexpense_update(p_genericexpenseid => @Id::int, p_farmid => @FarmId::text, p_expensedate => @ExpenseDate::timestamp, p_genericexpensecategoryid => @CategoryId::int, p_genericsupplierid => @SupplierId::int, p_description => @Description::text, p_amount => @Amount::numeric, p_paidto => @PaidTo::text, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @CashAccountId::int, p_receipturl => @ReceiptUrl::text, p_notes => @Notes::text, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date, p_updatedby => @UpdatedBy::text)";
+            // 483: an edit may also change the expense's project split, in the same statement.
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(m.Projects)
+                ? GenericProjectAttach.WrapUpdate(projectCall, "Expense")
+                : "SELECT " + projectCall, conn);
+            if (GenericProjectAttach.Has(m.Projects)) GenericProjectAttach.AddParams(cmd, m.FarmId, m.Projects, updatedBy, id);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@ExpenseDate", m.ExpenseDate == default ? (object)DBNull.Value : m.ExpenseDate);

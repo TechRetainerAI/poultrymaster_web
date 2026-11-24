@@ -127,7 +127,8 @@ namespace PoultryFarmAPIWeb.Controllers
         [Microsoft.AspNetCore.Authorization.Authorize]
         public async Task<ActionResult<List<GenericProfitLossEntry>>> ProfitLoss(
             string farmId, [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
-            [FromServices] IIamService iam, CancellationToken cancellationToken)
+            [FromServices] IIamService iam, CancellationToken cancellationToken,
+            [FromQuery] string? project = null)
         {
             if (fromDate == default || toDate == default || fromDate > toDate)
                 return BadRequest("Choose a valid start and end date.");
@@ -141,7 +142,12 @@ namespace PoultryFarmAPIWeb.Controllers
             }
             var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
             if (guard is not null) return guard;
-            return Ok(await _reports.GetProfitLossEntriesAsync(farmId, fromDate, toDate, cancellationToken));
+            // 484: optional Projects & Contracts filter. "all" (default) = the
+            // whole company, "general" = not on any project, "12" or "12,15" =
+            // those projects only.
+            var (scope, ids) = GenericProjectScope.Parse(project);
+            if (scope is null) return BadRequest("Unknown project filter.");
+            return Ok(await _reports.GetProfitLossEntriesAsync(farmId, fromDate, toDate, scope, ids, cancellationToken));
         }
 
         [HttpGet("period-pnl")]

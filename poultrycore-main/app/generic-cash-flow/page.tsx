@@ -72,6 +72,9 @@ import {
 } from "@/components/cash/cash-adjustment-dialog"
 import { CashFlowInsightsDialog } from "@/components/cash/cash-flow-insights-dialog"
 import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ScopedCashPanel } from "@/components/generic/projects/project-tabs"
+import { ALL_PROJECTS, filterToParam, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const DEFAULT = defaultReportRange()
 
@@ -97,6 +100,8 @@ export default function GenericCashFlowPage() {
 
   const [dateFrom, setDateFrom] = useState(DEFAULT.from)
   const [dateTo, setDateTo] = useState(DEFAULT.to)
+  // 484: Project / Contract filter. "All projects" = the company statement exactly as before.
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
   const [search, setSearch] = useState("")
   const [flowFilter, setFlowFilter] = useState("ALL")
   const [typeFilter, setTypeFilter] = useState("ALL")
@@ -383,11 +388,16 @@ export default function GenericCashFlowPage() {
             searchPlaceholder="Search description, category…"
             dateFrom={dateFrom} setDateFrom={setDateFrom}
             dateTo={dateTo} setDateTo={setDateTo}
+            extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} />}
           />
+
+          {projectFilter.kind !== "all" && (
+            <ScopedCashPanel project={filterToParam(projectFilter)} fromDate={dateFrom || undefined} toDate={dateTo || undefined} />
+          )}
 
           {error && <Alert variant="destructive" className="mb-3"><AlertDescription>{error}</AlertDescription></Alert>}
 
-          {loading ? (
+          {projectFilter.kind !== "all" ? null : loading ? (
             <Card><CardContent className="py-12 text-center text-slate-600">Loading cash flow…</CardContent></Card>
           ) : (
             <div className="space-y-3">

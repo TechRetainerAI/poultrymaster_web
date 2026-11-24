@@ -21,6 +21,9 @@ import { useFmt } from "@/lib/currency"
 import { approvePurchase, getPurchases, type GenericPurchase } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Cancelled"] as const
 
@@ -62,13 +65,16 @@ function GenericPurchasesPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, router, status])
 
+  // 483: Project / Contract filter (hidden unless the module is on).
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const projectLabels = useProjectLabels("Purchase", rows)
   const visibleRows = useMemo(
     () => filterByDateAndSearch(rows, {
       search, dateFrom, dateTo,
       searchKeys: ["supplierName", "status", "notes"],
       dateKey: "purchaseDate",
-    }),
-    [rows, search, dateFrom, dateTo],
+    }).filter((p) => projectLabels.matches(p.genericPurchaseId, projectFilter)),
+    [rows, search, dateFrom, dateTo, projectLabels, projectFilter],
   )
 
   const onApprove = async (id: number) => {
@@ -111,6 +117,7 @@ function GenericPurchasesPageInner() {
                 dateFrom={dateFrom} setDateFrom={setDateFrom}
                 dateTo={dateTo} setDateTo={setDateTo}
                 searchPlaceholder="Search supplier, status or notes"
+                extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} />}
               />
             </div>
           </div>
@@ -189,7 +196,10 @@ function GenericPurchasesPageInner() {
                       <TableBody>
                         {visibleRows.map((p) => (
                           <TableRow key={p.genericPurchaseId}>
-                            <TableCell>#{p.genericPurchaseId}</TableCell>
+                            <TableCell>
+                              <Link href={`/generic-purchases/${p.genericPurchaseId}`} className="text-emerald-700 underline">#{p.genericPurchaseId}</Link>
+                              {projectLabels.labelOf(p.genericPurchaseId) && <div className="text-[11px] text-indigo-700">{projectLabels.labelOf(p.genericPurchaseId)}</div>}
+                            </TableCell>
                             <TableCell>{fmtDateTime(p.purchaseDate, p)}</TableCell>
                             <TableCell>{p.supplierName ?? "–"}</TableCell>
                             <TableCell>{p.invoiceNumber ?? "–"}</TableCell>

@@ -120,6 +120,14 @@ function GenericSetupWizardContent() {
                 businessTemplate: match.businessTemplate,
                 industryTemplate: match.industryTemplate,
               })
+              // Ticked "Enable Projects & Contracts" on the create form.
+              if (searchParams.get("projects") === "1") {
+                const current = await getModuleSettings()
+                if (current) {
+                  const { farmId: _f, ...rest } = current
+                  await saveModuleSettings({ ...rest, enableProjects: true })
+                }
+              }
               invalidateGenericModules(activeFarmId ?? undefined)
             } catch {}
             router.replace("/generic-dashboard")

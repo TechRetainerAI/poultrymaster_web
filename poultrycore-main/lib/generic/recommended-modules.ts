@@ -13,7 +13,15 @@
 import type { GenericModuleSettings } from "@/lib/api/generic-subscriptions"
 import type { BusinessTemplate } from "./template-labels"
 
-export type ModuleKey = keyof Omit<GenericModuleSettings, "farmId">
+/**
+ * Keys a business template recommends. Projects & Contracts is left out on
+ * purpose: it is the company's own choice, and "Restore recommended" must never
+ * switch it off under a business that runs its contracts in it.
+ */
+export type ModuleKey = keyof Omit<GenericModuleSettings, "farmId" | "enableProjects">
+
+/** Every key the Business Features page can switch. */
+export type FeatureKey = ModuleKey | "enableProjects"
 
 /** The full set of module defaults a template applies. */
 export type RecommendedModules = Record<ModuleKey, boolean>
@@ -86,7 +94,7 @@ export const ALL_MODULE_KEYS: ModuleKey[] = [
 
 /** Human-readable feature metadata for the Business Features page. */
 export interface FeatureInfo {
-  key: ModuleKey
+  key: FeatureKey
   label: string
   description: string
   group: string
@@ -110,9 +118,17 @@ export const FEATURE_CATALOG: FeatureInfo[] = [
   { key: "enableSupplierBalances", label: "Supplier balances",  description: "What you owe vendors — from expenses as well as purchases",group: "Expenses & Finance" },
   { key: "enableCashAccounts",     label: "Cash accounts",      description: "Tills, bank accounts and mobile money",                    group: "Expenses & Finance" },
 
+  // Projects & Contracts (482)
+  { key: "enableProjects",         label: "Projects & Contracts", description: "Manage multiple jobs, projects, and contracts within one company. Track purchases, expenses, inventory, payments, budgets, and profitability separately for each project.", group: "Projects & Contracts" },
+
   // Employees & Payroll
   { key: "enableStaffPayments",    label: "Staff payments",     description: "Pay staff, contractors and commission-based workers",       group: "Employees & Payroll" },
 ]
+
+/** What turning Projects & Contracts off means, shown before it is saved. */
+export const PROJECTS_OFF_WARNING =
+  "Your projects, contracts and everything assigned to them are kept, and reports still show them. " +
+  "New transactions can't be assigned to a project until you turn this back on."
 
 /** Group the feature catalog by group name, preserving order. */
 export function groupedFeatures(): { group: string; features: FeatureInfo[] }[] {

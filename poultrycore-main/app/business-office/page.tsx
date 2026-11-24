@@ -56,6 +56,7 @@ import {
 } from "@/lib/api/business-office"
 import { useFmtShort, orgCurrencySymbol } from "@/lib/currency"
 import { getOrganizationProfile } from "@/lib/api/admin"
+import { SetupProjectsCheckbox } from "@/components/generic/projects/setup-projects-checkbox"
 
 function typeIcon(type: string) {
   if (type === "Water") return Droplets
@@ -145,6 +146,8 @@ export default function BusinessOfficePage() {
   // The business type id is what is held; the CompanyType and the templates are
   // derived from it, so this dialog and /companies cannot drift on what a given
   // business means.
+  // Spec Part 2.1: Projects & Contracts can be switched on while creating a Generic company.
+  const [withProjects, setWithProjects] = useState(false)
   const [form, setForm] = useState<{ name: string; businessTypeId: string; email: string; phoneNumber: string }>({ name: "", businessTypeId: "water", email: "", phoneNumber: "" })
   const chosen = findBusinessType(form.businessTypeId)
   const companyType: CompanyType = chosen?.companyType ?? "Generic"
@@ -264,7 +267,7 @@ export default function BusinessOfficePage() {
         try {
           const res = await switchCompany(created.farmId)
           setActiveCompany(res.farmId, res.farmName, companyType, res.accessToken.token)
-          router.push(`/generic-setup/wizard?industry=${encodeURIComponent(chosen!.industryTemplate!)}`)
+          router.push(`/generic-setup/wizard?industry=${encodeURIComponent(chosen!.industryTemplate!)}${withProjects ? "&projects=1" : ""}`)
         } catch {
           // Switching failed — the company still exists and the owner can open
           // it from this list, so say nothing louder than the create toast.
@@ -477,6 +480,7 @@ export default function BusinessOfficePage() {
                   We&apos;ll set up the right menus and starter categories for this, and you can change any of it later.
                 </p>
               )}
+              {needsTemplate(chosen) && <SetupProjectsCheckbox checked={withProjects} onChange={setWithProjects} />}
             </div>
             <div><Label>Company name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Great Favour Water Co." /></div>
             <div><Label>Contact email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
