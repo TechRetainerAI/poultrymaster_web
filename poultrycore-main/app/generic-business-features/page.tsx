@@ -36,7 +36,7 @@ import { invalidateGenericModules } from "@/hooks/use-generic-modules"
 import { businessTypeForIndustry } from "@/lib/companies/business-types"
 import {
   getRecommendedModules, groupedFeatures,
-  type ModuleKey, type RecommendedModules,
+  type ModuleKey, type FeatureKey, type RecommendedModules, PROJECTS_OFF_WARNING,
 } from "@/lib/generic/recommended-modules"
 
 // ---------------------------------------------------------------------------
@@ -131,14 +131,18 @@ export default function GenericBusinessFeaturesPage() {
     return () => { cancelled = true }
   }, [activeFarmType, router, toast])
 
-  const toggle = (key: ModuleKey) => {
+  const toggle = (key: FeatureKey) => {
     if (!modules) return
     const newValue = !modules[key]
+    // 482: switching Projects off keeps everything but stops new assignment. Say so first.
+    if (key === "enableProjects" && !newValue && !window.confirm(`Turn off Projects & Contracts?
+
+${PROJECTS_OFF_WARNING}`)) return
     let updated = { ...modules, [key]: newValue }
 
     // If disabling, also disable dependents
     if (!newValue) {
-      const deps = getDependents(key, modules)
+      const deps = key === "enableProjects" ? [] : getDependents(key as ModuleKey, modules)
       for (const dep of deps) {
         updated = { ...updated, [dep]: false }
       }
@@ -204,7 +208,7 @@ export default function GenericBusinessFeaturesPage() {
   const hasChangesToRestore = toEnable.length > 0 || toDisable.length > 0
 
   // Feature label from the catalog
-  const featureLabel = (key: ModuleKey) => {
+  const featureLabel = (key: FeatureKey) => {
     for (const g of groups) {
       for (const f of g.features) {
         if (f.key === key) return f.label
@@ -302,7 +306,7 @@ export default function GenericBusinessFeaturesPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                               {features.map((f) => {
                                 const isEnabled = Boolean(modules[f.key])
-                                const isRecommended = recommended?.[f.key] ?? null
+                                const isRecommended = f.key === "enableProjects" ? null : (recommended?.[f.key] ?? null)
                                 return (
                                   <div
                                     key={f.key}

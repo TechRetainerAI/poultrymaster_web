@@ -19,6 +19,9 @@ import { useToast } from "@/hooks/use-toast"
 import { getSales, type GenericSale } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Refunded", "Cancelled"] as const
 
@@ -81,13 +84,16 @@ function GenericSalesPageInner() {
     return () => { cancelled = true }
   }, [activeFarmType, router, status, toast])
 
+  // 483: Project / Contract filter (hidden unless the module is on).
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const projectLabels = useProjectLabels("Sale", rows)
   const visibleRows = useMemo(
     () => filterByDateAndSearch(rows, {
       search, dateFrom, dateTo,
       searchKeys: ["customerName", "status", "notes"],
       dateKey: "saleDate",
-    }),
-    [rows, search, dateFrom, dateTo],
+    }).filter((s) => projectLabels.matches(s.genericSaleId, projectFilter)),
+    [rows, search, dateFrom, dateTo, projectLabels, projectFilter],
   )
 
   // Accounts receivable summary — total outstanding across all approved sales
@@ -156,6 +162,7 @@ function GenericSalesPageInner() {
               dateFrom={dateFrom} setDateFrom={setDateFrom}
               dateTo={dateTo} setDateTo={setDateTo}
               searchPlaceholder="Search customer, status or notes"
+              extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} />}
             />
             <Card>
               <CardContent className="p-0">
@@ -209,7 +216,7 @@ function GenericSalesPageInner() {
                       <TableBody>
                         {visibleRows.map((s) => (
                           <TableRow key={s.genericSaleId}>
-                            <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link></TableCell>
+                            <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link>{projectLabels.labelOf(s.genericSaleId) && <div className="text-[11px] text-indigo-700">{projectLabels.labelOf(s.genericSaleId)}</div>}</TableCell>
                             <TableCell>{fmtDateTime(s.saleDate, s)}</TableCell>
                             <TableCell>{s.customerName ? s.customerName : <span className="text-slate-500">{displayCustomer(s)}</span>}</TableCell>
                             <TableCell className="text-xs text-slate-500">{s.salesType}</TableCell>

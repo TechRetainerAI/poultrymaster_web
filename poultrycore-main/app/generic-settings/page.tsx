@@ -20,6 +20,7 @@
 // opening cash, business type. That page answers "who is this company"; this
 // one answers "how does it work".
 
+import { PROJECTS_OFF_WARNING } from "@/lib/generic/recommended-modules"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -178,6 +179,18 @@ export default function GenericSettingsPage() {
                       <Group title="Money">
                         <Toggle label="Cash accounts" hint="Tills, bank accounts and mobile money"
                                 checked={modules.enableCashAccounts} onChange={(v) => mod("enableCashAccounts", v)} />
+                      </Group>
+
+                      <Group title="Projects &amp; Contracts">
+                        <Toggle label="Projects & Contracts"
+                                hint="Track purchases, expenses, stock, payments, budgets and profit separately for each job or contract"
+                                checked={Boolean(modules.enableProjects)}
+                                onChange={(v) => {
+                                  if (!v && modules.enableProjects && !window.confirm(`Turn off Projects & Contracts?
+
+${PROJECTS_OFF_WARNING}`)) return
+                                  setModules((m) => (m ? { ...m, enableProjects: v } : m))
+                                }} />
                       </Group>
                     </div>
                   )}

@@ -153,6 +153,11 @@ export interface GenericOwnerEntry {
 }
 
 export interface RecordOwnerEntryInput {
+  /**
+   * 483 Projects & Contracts: optional, saved in the same statement as this
+   * transaction. Leave it out to keep the old behaviour exactly.
+   */
+  projects?: import("@/lib/api/generic-projects").ProjectAssignment
   entryType: OwnerEntryType
   amount: number
   /** Required — owner money always moves cash. */

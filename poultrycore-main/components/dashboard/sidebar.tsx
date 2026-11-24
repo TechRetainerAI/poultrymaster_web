@@ -902,8 +902,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             <div className="space-y-1">
               {genericNav.catalog.length > 0 && renderMenu(
                 "Operations", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
-                  blurb: "Products, inventory, stock adjustments, deliveries and internal use.",
-                  columns: 2,
+                  blurb: genericNav.catalog.length > 2
+                    ? "Products, inventory, deliveries, and your projects & contracts."
+                    : "Products, inventory, stock adjustments, deliveries and internal use.",
+                  columns: genericNav.catalog.length > 2 ? 3 : 2,
                 })}
               {genericNav.billing.length > 0 && renderMenu(
                 genericNav.billing[0]?.label ?? "Billing", Receipt, genericNav.billing, "menu:genericBilling", {

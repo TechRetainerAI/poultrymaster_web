@@ -14,6 +14,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ArrowLeft, Loader2, Plus, ShoppingCart, X, AlertTriangle, CreditCard } from "lucide-react"
+import { RelatedProjectField, LineProjectButton } from "@/components/generic/projects/form-project-field"
+import { useProjectsEnabled } from "@/hooks/use-generic-projects"
+import { buildAssignment, projectIdFromQuery } from "@/lib/generic/project-math"
+import type { ProjectSplit } from "@/lib/api/generic-projects"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useLogout } from "@/hooks/use-logout"
@@ -71,6 +75,8 @@ type Row = {
   discountAmount: number
   saleUnit: string
   unitFactor: number
+  /** 483: this line's own project split; null = follows "Related project". */
+  projects?: ProjectSplit[] | null
 }
 
 const blankRow = (): Row => ({
@@ -121,6 +127,10 @@ export default function NewGenericSalePage() {
 
   const [walkInName, setWalkInName] = useState("")
   const [rows, setRows] = useState<Row[]>([blankRow()])
+  // 483: Projects & Contracts. "Record sale" inside a project preselects it.
+  const { enabled: projectsEnabled } = useProjectsEnabled()
+  const [projectId, setProjectId] = useState<number | null>(null)
+  useEffect(() => { setProjectId(projectIdFromQuery(window.location.search)) }, [])
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
@@ -228,8 +238,8 @@ export default function NewGenericSalePage() {
       return
     }
 
-    const items: GenericSaleItem[] = rows
-      .filter((r) => r.quantity > 0 && (r.itemType === "Service" || r.genericProductId))
+    const keptRows = rows.filter((r) => r.quantity > 0 && (r.itemType === "Service" || r.genericProductId))
+    const items: GenericSaleItem[] = keptRows
       .map((r) => ({
         itemType: r.itemType,
         genericProductId: r.itemType === "Product" ? r.genericProductId : null,
@@ -282,6 +292,8 @@ export default function NewGenericSalePage() {
         notes: header.notes || null,
         applyCreditAmount: Number(header.applyCreditAmount) || 0,
         items,
+        // 483: revenue and cost of goods follow each line's project; payments follow the sale.
+        projects: projectsEnabled ? buildAssignment(projectId, keptRows.map((r) => r.projects)) : undefined,
       })
       if (created) {
         toast({ title: `Sale #${created.genericSaleId} created as Draft`, description: "Review and approve to commit it." })
@@ -350,6 +362,8 @@ export default function NewGenericSalePage() {
                     <Label>Receipt no.</Label>
                     <Input value={header.receiptNumber} onChange={(e) => setHeader((h) => ({ ...h, receiptNumber: e.target.value }))} maxLength={60} />
                   </div>
+                  <RelatedProjectField value={projectId} onChange={setProjectId} className="md:col-span-2"
+                    hint="Customer payments on this sale will count for this project automatically." />
                 </CardContent>
               </Card>
 
@@ -408,6 +422,9 @@ export default function NewGenericSalePage() {
                                 ) : (
                                   <Input className="h-8" value={r.description} onChange={(e) => updateRow(idx, { description: e.target.value })} placeholder="Service description" />
                                 )}
+                                <LineProjectButton splits={r.projects} onChange={(p) => updateRow(idx, { projects: p })}
+                                  headerProjectId={projectId} description={r.description || products.find((p) => p.genericProductId === r.genericProductId)?.productName || ""}
+                                  wholeQuantity={r.quantity} wholeAmount={r.quantity * r.unitPrice - r.discountAmount} unit={r.saleUnit} />
                               </TableCell>
                               <TableCell>
                                 {r.itemType === "Product" && unitOpts.length > 0 ? (
@@ -473,6 +490,9 @@ export default function NewGenericSalePage() {
                               ) : (
                                 <Input className="h-9" value={r.description} onChange={(e) => updateRow(idx, { description: e.target.value })} placeholder="Service description" />
                               )}
+                              <LineProjectButton splits={r.projects} onChange={(p) => updateRow(idx, { projects: p })}
+                                headerProjectId={projectId} description={r.description || products.find((p) => p.genericProductId === r.genericProductId)?.productName || ""}
+                                wholeQuantity={r.quantity} wholeAmount={r.quantity * r.unitPrice - r.discountAmount} unit={r.saleUnit} />
                             </div>
                             <Button size="icon" variant="ghost" className="shrink-0" onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}>
                               <X className="h-4 w-4 text-rose-600" />

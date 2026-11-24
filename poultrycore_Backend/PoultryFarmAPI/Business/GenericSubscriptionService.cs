@@ -115,6 +115,7 @@ namespace PoultryFarmAPIWeb.Business
             EnableCashAccounts = Bool(r, "enablecashaccounts"),
             EnableRecurringExpenses = Bool(r, "enablerecurringexpenses"),
             EnableSupplierBalances = Bool(r, "enablesupplierbalances"),
+            EnableProjects = Bool(r, "enableprojects"),
         };
 
         private static GenericBusinessSettings ReadSettings(NpgsqlDataReader r) => new()
@@ -194,7 +195,7 @@ namespace PoultryFarmAPIWeb.Business
         {
             using (var conn = new NpgsqlConnection(ConnectionString))
             using (var cmd = new NpgsqlCommand(
-                "SELECT spgenericmodulesettings_upsert(p_farmid => @FarmId::text, p_enableproducts => @Products::boolean, p_enableinventory => @Inventory::boolean, p_enablestockadjustments => @StockAdj::boolean, p_enableinternaluse => @InternalUse::boolean, p_enablepurchases => @Purchases::boolean, p_enablesubscriptions => @Subscriptions::boolean, p_enableinvoices => @Invoices::boolean, p_enablecustomerbalances => @CustomerBalances::boolean, p_enablestaffpayments => @StaffPayments::boolean, p_enablecashaccounts => @CashAccounts::boolean, p_enablerecurringexpenses => @RecurringExpenses::boolean, p_enablesupplierbalances => @SupplierBalances::boolean)", conn))
+                "SELECT spgenericmodulesettings_upsert(p_farmid => @FarmId::text, p_enableproducts => @Products::boolean, p_enableinventory => @Inventory::boolean, p_enablestockadjustments => @StockAdj::boolean, p_enableinternaluse => @InternalUse::boolean, p_enablepurchases => @Purchases::boolean, p_enablesubscriptions => @Subscriptions::boolean, p_enableinvoices => @Invoices::boolean, p_enablecustomerbalances => @CustomerBalances::boolean, p_enablestaffpayments => @StaffPayments::boolean, p_enablecashaccounts => @CashAccounts::boolean, p_enablerecurringexpenses => @RecurringExpenses::boolean, p_enablesupplierbalances => @SupplierBalances::boolean, p_enableprojects => @Projects::boolean)", conn))
             {
                 cmd.Parameters.AddWithValue("@FarmId", s.FarmId);
                 cmd.Parameters.AddWithValue("@Products", s.EnableProducts);
@@ -209,6 +210,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@CashAccounts", s.EnableCashAccounts);
                 cmd.Parameters.AddWithValue("@RecurringExpenses", s.EnableRecurringExpenses);
                 cmd.Parameters.AddWithValue("@SupplierBalances", s.EnableSupplierBalances);
+                cmd.Parameters.Add(new NpgsqlParameter("@Projects", NpgsqlTypes.NpgsqlDbType.Boolean) { Value = (object?)s.EnableProjects ?? DBNull.Value });
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
             }

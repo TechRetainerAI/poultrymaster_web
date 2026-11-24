@@ -14,6 +14,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ArrowLeft, CheckCircle2, Loader2, Package, Plus, X } from "lucide-react"
+import { RelatedProjectField, LineProjectButton, loadDocumentProjects } from "@/components/generic/projects/form-project-field"
+import { useProjectsEnabled } from "@/hooks/use-generic-projects"
+import { buildAssignment, projectIdFromQuery } from "@/lib/generic/project-math"
+import type { ProjectSplit } from "@/lib/api/generic-projects"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -38,6 +42,8 @@ type Row = {
   purchaseUnit: string
   /** Base units in one purchaseUnit; stock rises by quantity x unitFactor. */
   unitFactor: number
+  /** 483: this line's own project split; null = follows "Related project". */
+  projects?: ProjectSplit[] | null
 }
 
 const blankRow = (): Row => ({ genericProductId: undefined, description: "", quantity: 1, unitCost: 0, discountAmount: 0, purchaseUnit: "", unitFactor: 1 })
@@ -117,6 +123,9 @@ export default function NewGenericPurchasePage() {
   })
 
   const [rows, setRows] = useState<Row[]>([blankRow()])
+  // 483: Projects & Contracts. Opened from a project ("Record purchase") = preselected.
+  const { enabled: projectsEnabled } = useProjectsEnabled()
+  const [projectId, setProjectId] = useState<number | null>(null)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
@@ -124,6 +133,7 @@ export default function NewGenericPurchasePage() {
     ;(async () => {
       try {
         const editParam = Number(new URLSearchParams(window.location.search).get("edit")) || null
+        setProjectId(projectIdFromQuery(window.location.search))
         const [ss, ps, as, cs, existing] = await Promise.all([
           getSuppliers(), getProducts(), getCashAccounts(),
           getUomConversions().catch(() => [] as GenericUomConversion[]),
@@ -162,6 +172,15 @@ export default function NewGenericPurchasePage() {
             purchaseUnit: i.purchaseUnit ?? "",
             unitFactor: Number(i.unitFactor) || 1,
           })))
+          // The saved project split, line by line.
+          const lineIds = (existing.items ?? []).map((i) => i.genericPurchaseItemId).filter((x): x is number => !!x)
+          if (lineIds.length === (existing.items ?? []).length) {
+            const pr = await loadDocumentProjects("Purchase", editParam, lineIds)
+            if (!cancelled) {
+              setProjectId(pr.projectId)
+              setRows((rs) => rs.map((r, k) => ({ ...r, projects: pr.lines[k] ?? null })))
+            }
+          }
         } else {
           const firstCash = as.find((a) => a.isActive)
           if (firstCash) setHeader((h) => ({ ...h, genericCashAccountId: String(firstCash.genericCashAccountId) }))
@@ -279,9 +298,15 @@ export default function NewGenericPurchasePage() {
     )
   }
 
+  // Opened from a project's "Record purchase": go back to that project.
+  const afterSave = () => {
+    const from = typeof window !== "undefined" ? projectIdFromQuery(window.location.search) : null
+    return from ? `/generic-projects/${from}?tab=inventory` : "/generic-inventory?tab=purchases"
+  }
+
   const onSave = async (approve: boolean) => {
-    const items = rows
-      .filter((r) => r.quantity > 0 && r.genericProductId)
+    const keptRows = rows.filter((r) => r.quantity > 0 && r.genericProductId)
+    const items = keptRows
       .map((r) => ({
         genericProductId: r.genericProductId!,
         description: r.description || null,
@@ -320,6 +345,8 @@ export default function NewGenericPurchasePage() {
           ? (header.notes ? `Supplier: ${header.supplierName.trim()} | ${header.notes}` : `Supplier: ${header.supplierName.trim()}`)
           : (header.notes || null),
         items,
+        // 483: saved in the same statement as the purchase (nothing sent when the module is off).
+        projects: projectsEnabled ? buildAssignment(projectId, keptRows.map((r) => r.projects)) : undefined,
       }
       if (editId) {
         await updatePurchase(editId, input)
@@ -334,13 +361,13 @@ export default function NewGenericPurchasePage() {
     }
     if (!approve || !savedId) {
       toast({ title: `Purchase #${savedId ?? ""} saved as Draft`, description: "Review and approve to bump inventory and cash." })
-      router.push("/generic-inventory?tab=purchases")
+      router.push(afterSave())
       return
     }
     try {
       await approvePurchase(savedId)
       toast({ title: `Purchase #${savedId} saved and approved`, description: "Stock and cash are updated." })
-      router.push("/generic-inventory?tab=purchases")
+      router.push(afterSave())
     } catch (e: any) {
       // The purchase is saved; only the approval failed (e.g. not enough in the cash account).
       toast({ title: `Saved as Draft #${savedId}, but not approved`, description: e?.message ?? String(e), variant: "destructive" })
@@ -421,7 +448,8 @@ export default function NewGenericPurchasePage() {
                     <Label>Invoice number</Label>
                     <Input value={header.invoiceNumber} onChange={(e) => setHeader((h) => ({ ...h, invoiceNumber: e.target.value }))} maxLength={60} />
                   </div>
-                  <div className="hidden md:block"></div>
+                  <RelatedProjectField value={projectId} onChange={setProjectId}
+                    hint="Stock still goes into company inventory; it becomes this project's cost when sold or used." />
                 </CardContent>
               </Card>
 
@@ -465,6 +493,10 @@ export default function NewGenericPurchasePage() {
                                   </SelectContent>
                                 </Select>
                                 {lineHint(r)}
+                                <LineProjectButton splits={r.projects} onChange={(p) => updateRow(idx, { projects: p })}
+                                  headerProjectId={projectId} description={r.description || productOf(r)?.productName || ""}
+                                  wholeQuantity={r.quantity} wholeAmount={r.quantity * r.unitCost - r.discountAmount}
+                                  unit={r.purchaseUnit || baseUnitOf(productOf(r))} />
                               </TableCell>
                               <TableCell className="align-top"><NumberInput className="h-8 text-right"  step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} /></TableCell>
                               <TableCell className="align-top">{unitCell(r, idx, "h-8")}</TableCell>
@@ -497,6 +529,10 @@ export default function NewGenericPurchasePage() {
                                 </SelectContent>
                               </Select>
                               {lineHint(r)}
+                              <LineProjectButton splits={r.projects} onChange={(p) => updateRow(idx, { projects: p })}
+                                headerProjectId={projectId} description={r.description || productOf(r)?.productName || ""}
+                                wholeQuantity={r.quantity} wholeAmount={r.quantity * r.unitCost - r.discountAmount}
+                                unit={r.purchaseUnit || baseUnitOf(productOf(r))} />
                             </div>
                             <Button size="icon" variant="ghost" className="shrink-0" onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}>
                               <X className="h-4 w-4 text-rose-600" />

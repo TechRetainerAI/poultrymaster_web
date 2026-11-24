@@ -163,6 +163,13 @@ export function isFinancialNavItemVisible(
   if (href === "/generic-deferred-costs") return isAdmin || f.canViewFinancial
   if (href === "/generic-assets") return isAdmin || f.canViewFinancial
   if (href === "/generic-reports") return isAdmin || f.canViewReports
+  // 482 Projects & Contracts: project money is financial reporting -- the same
+  // readers as Profit & Loss. Creating projects and linking older transactions
+  // change what reports show, so they need the Financial umbrella.
+  if (href === "/generic-projects" || href === "/generic-projects/compare") {
+    return Boolean(isAdmin || f.canViewFinancial || f.canViewReports)
+  }
+  if (href === "/generic-projects/new" || href === "/generic-projects/link") return Boolean(isAdmin || f.canViewFinancial)
   if (href === "/generic-setup" || href === "/generic-settings" || href === "/generic-business-features") return isAdmin
 
   return false

@@ -578,6 +578,9 @@ namespace PoultryFarmAPIWeb.Models
     // Used by POST /sales — bundles header + items.
     public class GenericSaleCreateRequest
     {
+        /// <summary>483: optional project split, saved with the sale. {"projectId": n|null} or {"lines": [[{projectId, quantity|amount|share}], ...]}.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
+
         public DateTime? SaleDate { get; set; }
         public int? GenericCustomerId { get; set; }
         public int? BranchId { get; set; }

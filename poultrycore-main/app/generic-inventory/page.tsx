@@ -50,6 +50,7 @@ import {
   type GenericPurchaseCreateInput, type GenericPurchaseItem,
   type GenericStockAdjustmentCreateInput,
 } from "@/lib/api/generic"
+import { ReservedStockNote, useReservedStock } from "@/components/generic/projects/reserved-stock-note"
 
 // ---- Shared building blocks (mirrors poultry-supply-purchases) ----------------
 
@@ -212,6 +213,8 @@ function GenericInventoryPageInner() {
 
   // ---- Data ----
   const [products, setProducts] = useState<GenericProduct[]>([])
+  // 485: stock reserved for projects (still on the shelf; shown, never subtracted).
+  const reservedStock = useReservedStock()
   const [purchases, setPurchases] = useState<GenericPurchase[]>([])
   const [adjustments, setAdjustments] = useState<GenericStockAdjustment[]>([])
   const [adjustmentsLoaded, setAdjustmentsLoaded] = useState(false)
@@ -619,7 +622,7 @@ function GenericInventoryPageInner() {
                               </div>
                             </TableCell>
                             <TableCell className="text-sm text-slate-600 whitespace-nowrap">{p.unitOfMeasure ?? "—"}</TableCell>
-                            <TableCell><StockLevel product={p} /></TableCell>
+                            <TableCell><StockLevel product={p} /><ReservedStockNote productId={p.genericProductId} reserved={reservedStock} /></TableCell>
                             <TableCell><ItemStatus product={p} /><ExpiryBadge product={p} /></TableCell>
                             <TableCell className="text-right whitespace-nowrap">
                               {p.trackInventory

@@ -79,6 +79,11 @@ import {
   getCashAccounts, getExpenseCategories, getSuppliers,
   type GenericExpense, type GenericCashAccount, type GenericExpenseCategory, type GenericSupplier,
 } from "@/lib/api/generic"
+import { SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, loadSingleProject, type SingleProjectValue } from "@/components/generic/projects/form-project-field"
+import { useProjectsEnabled } from "@/hooks/use-generic-projects"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 type PayStatus = (typeof SELECTABLE_PAYMENT_STATUSES)[number]
 
@@ -214,6 +219,9 @@ function GenericExpensesPageInner() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Row | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
+  // 483: Projects & Contracts on the expense dialog.
+  const { enabled: projectsEnabled } = useProjectsEnabled()
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Row | null>(null)
@@ -251,6 +259,9 @@ function GenericExpensesPageInner() {
   const isOverdue = (e: Row) =>
     e.status === "Approved" && !!e.dueDate && e.balance > 0 && new Date(e.dueDate) < new Date(new Date().toDateString())
 
+  // 483: Project / Contract filter (hidden unless the module is on).
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const projectLabels = useProjectLabels("Expense", rows)
   const filteredExpenses = useMemo(() => expenses.filter((e) => {
     if (focusExpenseId) return String(e.genericExpenseId) === focusExpenseId
     const q = searchQuery.trim().toLowerCase()
@@ -264,8 +275,9 @@ function GenericExpensesPageInner() {
     if (cashAccountFilter === "none" && e.genericCashAccountId != null) return false
     if (cashAccountFilter !== "all" && cashAccountFilter !== "none" && String(e.genericCashAccountId) !== cashAccountFilter) return false
     if (approvalFilter !== "all" && e.status !== approvalFilter) return false
+    if (!projectLabels.matches(e.genericExpenseId, projectFilter)) return false
     return true
-  }), [expenses, focusExpenseId, searchQuery, fromDate, toDate, selectedMonth, selectedCategory, cashAccountFilter, approvalFilter])
+  }), [expenses, focusExpenseId, searchQuery, fromDate, toDate, selectedMonth, selectedCategory, cashAccountFilter, approvalFilter, projectLabels, projectFilter])
 
   const sortedExpenses = useMemo(() => sortData(filteredExpenses as any[], sortKey, sortDir) as Row[], [filteredExpenses, sortKey, sortDir])
   const pg = usePagination(sortedExpenses, 10)
@@ -390,6 +402,7 @@ function GenericExpensesPageInner() {
     setEditing(null); setFormError(null); setPrefill(null); setPrefillConfirmed(false)
     setReceiptFile(null); setReceiptRemoved(false)
     setForm({ ...emptyForm(), genericCashAccountId: defaultAccountId() })
+    setProject(EMPTY_SINGLE_PROJECT)
     setFormOpen(true)
   }
   const openEditDialog = (e: Row) => {
@@ -410,6 +423,8 @@ function GenericExpensesPageInner() {
       description: e.description ?? "",
       notes: e.notes ?? "",
     })
+    setProject(EMPTY_SINGLE_PROJECT)
+    if (projectsEnabled) void loadSingleProject("Expense", e.genericExpenseId).then(setProject)
     setFormOpen(true)
   }
 
@@ -461,6 +476,7 @@ function GenericExpensesPageInner() {
       receiptUrl,
       amountPaid: form.paymentStatus === "Paid" ? null : amountPaidNow,
       dueDate: form.paymentStatus === "Paid" ? null : (form.dueDate || null),
+      projects: projectsEnabled ? singleAssignment(project) : undefined,
     }
     try {
       if (editing) {
@@ -713,6 +729,15 @@ function GenericExpensesPageInner() {
           )}
         </div>
       </div>
+      {projectsEnabled && (
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Project / Contract</div>
+          <div className="p-4 bg-white">
+            <SingleProjectField value={project} onChange={setProject} amount={amountNum} label="Related project / contract"
+              hint="Recorded once, for the company. This only says which project the cost belongs to; share it to split one bill between projects." />
+          </div>
+        </div>
+      )}
       <div className="rounded-xl border border-slate-200 overflow-hidden">
         <div className="bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Description</div>
         <div className="p-4 bg-white space-y-4">
@@ -927,6 +952,7 @@ function GenericExpensesPageInner() {
                   </SelectContent>
                 </Select>
                 {approvalSelect(approvalFilter, setApprovalFilter, "w-[170px]")}
+                <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
                 {activeFilterCount > 0 && (
                   <Button variant="ghost" size="sm" onClick={clearAllFilters}>Clear ({activeFilterCount})</Button>
                 )}

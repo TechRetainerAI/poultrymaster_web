@@ -97,6 +97,12 @@ namespace PoultryFarmAPIWeb.Models
         // that has never opened the settings page loses no menu item.
         public bool EnableRecurringExpenses { get; set; } = true;
         public bool EnableSupplierBalances { get; set; } = true;
+        /// <summary>
+        /// 482: Projects &amp; Contracts. Null on a save means "leave it as it is",
+        /// so an older screen that does not know this switch never turns it off.
+        /// Always true/false when read.
+        /// </summary>
+        public bool? EnableProjects { get; set; }
     }
 
     /// <summary>

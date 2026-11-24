@@ -354,9 +354,11 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
           <NavMegaMenu
             label="Operations" icon={ShoppingBag}
             title="Operations"
-            blurb="Products, inventory, stock adjustments, deliveries and internal use."
+            blurb={nav.catalog.length > 2
+              ? "Products, inventory, deliveries, and your projects & contracts."
+              : "Products, inventory, stock adjustments, deliveries and internal use."}
             groups={nav.catalog}
-            columns={2} widthRem={36} layout="grid" accent="emerald"
+            columns={nav.catalog.length > 2 ? 3 : 2} widthRem={nav.catalog.length > 2 ? 50 : 36} layout="grid" accent="emerald"
           />
         )}
 

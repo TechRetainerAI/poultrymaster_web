@@ -13,6 +13,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, DollarSign, Loader2 } from "lucide-react"
+import { SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, type SingleProjectValue } from "@/components/generic/projects/form-project-field"
+import { useProjectsEnabled } from "@/hooks/use-generic-projects"
+import { projectIdFromQuery } from "@/lib/generic/project-math"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useLogout } from "@/hooks/use-logout"
@@ -46,6 +49,15 @@ export default function NewGenericExpensePage() {
   const [suppliers, setSuppliers] = useState<GenericSupplier[]>([])
   const [cashAccounts, setCashAccounts] = useState<GenericCashAccount[]>([])
 
+  // 483: Projects & Contracts ("Add expense" inside a project preselects it).
+  const { enabled: projectsEnabled } = useProjectsEnabled()
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
+  const [fromProject, setFromProject] = useState<number | null>(null)
+  useEffect(() => {
+    const id = projectIdFromQuery(window.location.search)
+    setFromProject(id)
+    if (id) setProject({ ...EMPTY_SINGLE_PROJECT, projectId: id })
+  }, [])
   const [form, setForm] = useState({
     expenseDate: new Date().toISOString().slice(0, 10),
     genericExpenseCategoryId: "",
@@ -113,10 +125,11 @@ export default function NewGenericExpensePage() {
         paymentMethod: form.paymentMethod,
         genericCashAccountId: isCredit ? null : Number(form.genericCashAccountId),
         notes: form.notes || null,
+        projects: projectsEnabled ? singleAssignment(project) : undefined,
       })
       if (created) {
         toast({ title: `Expense #${created.genericExpenseId} created as Draft`, description: "Approve to charge cash or post to the supplier ledger." })
-        router.push("/generic-expenses?status=Draft")
+        router.push(fromProject ? `/generic-projects/${fromProject}?tab=costs` : "/generic-expenses?status=Draft")
       }
     } catch (e: any) {
       toast({ title: "Could not create expense", description: e?.message ?? String(e), variant: "destructive" })
@@ -202,6 +215,9 @@ export default function NewGenericExpensePage() {
                     </Select>
                   </div>
                 )}
+
+                <SingleProjectField className="md:col-span-2" value={project} onChange={setProject} amount={Number(form.amount) || 0}
+                  hint="The expense is recorded once, for the company. This only says which project it is for." />
 
                 <div className="md:col-span-2">
                   <Label>Notes</Label>

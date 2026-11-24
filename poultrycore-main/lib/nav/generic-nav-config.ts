@@ -14,6 +14,7 @@ import {
   CheckCircle2, ClipboardCheck, CreditCard, DollarSign, Factory, FileText, Gift, GraduationCap, HandCoins, History, Landmark,
   Hourglass, MapPin, PiggyBank, Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
   PieChart, ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
+  Briefcase, Columns3, Link2, FolderPlus,
 } from "lucide-react"
 import type { MegaMenuGroup, MegaMenuItem } from "./nav-model"
 import type { GenericModulesResult } from "@/hooks/use-generic-modules"
@@ -115,6 +116,18 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
   }
   if (catalogLogisticsItems.length > 0) {
     catalog.push({ key: "catalog-logistics", label: "Logistics", items: catalogLogisticsItems })
+  }
+  // 482: Projects & Contracts -- Operations, only when the company turned it on.
+  // A NEW item, so showNew: hidden while settings load and for every company
+  // that has not chosen it.
+  if (showNew("enableProjects")) {
+    const projectItems = gated([
+      item("/generic-projects",         "Projects & Contracts",      Briefcase, canSee("/generic-projects")),
+      item("/generic-projects/new",     "New project / contract",    FolderPlus, canSee("/generic-projects/new")),
+      item("/generic-projects/compare", "Compare projects",          Columns3, canSee("/generic-projects/compare")),
+      item("/generic-projects/link",    "Link older transactions",   Link2, canSee("/generic-projects/link")),
+    ])
+    if (projectItems.length > 0) catalog.push({ key: "catalog-projects", label: "Projects & Contracts", items: projectItems })
   }
 
   // ---- Expenses ----

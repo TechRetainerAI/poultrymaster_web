@@ -192,8 +192,11 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> RecordCustomerPayment(RecordPaymentRequest r)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand(
-                "SELECT spgenericcustomerpayment_record(p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
+            var projectCall = "spgenericcustomerpayment_record(p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)";
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(r.Projects)
+                ? GenericProjectAttach.WrapInsert(projectCall, "CustomerPayment")
+                : "SELECT " + projectCall, conn);
+            if (GenericProjectAttach.Has(r.Projects)) GenericProjectAttach.AddParams(cmd, r.FarmId, r.Projects, r.CreatedBy);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@PartyId", Db(r.PartyId));
             cmd.Parameters.AddWithValue("@Amount", r.Amount);
@@ -390,8 +393,11 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> RecordSupplierPayment(RecordPaymentRequest r)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand(
-                "SELECT spgenericsupplierpayment_record(p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
+            var projectCall = "spgenericsupplierpayment_record(p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)";
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(r.Projects)
+                ? GenericProjectAttach.WrapInsert(projectCall, "SupplierPayment")
+                : "SELECT " + projectCall, conn);
+            if (GenericProjectAttach.Has(r.Projects)) GenericProjectAttach.AddParams(cmd, r.FarmId, r.Projects, r.CreatedBy);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@PartyId", Db(r.PartyId));
             cmd.Parameters.AddWithValue("@Amount", r.Amount);
