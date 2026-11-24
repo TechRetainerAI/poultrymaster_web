@@ -11,5 +11,9 @@ namespace PoultryFarmAPIWeb.Business
         Task ApproveAsync(int id, string farmId, string? approvedBy);
         Task CancelAsync(int id, string farmId, string? cancelledBy, string? reason);
         Task RefundAsync(int id, string farmId, string? refundedBy, string? reason);
+        // 483: the sale reversal model (Poultry 351 / Water 458)
+        Task<string> GetReversalPreviewAsync(int id, string farmId);
+        Task<string?> GetReversalAsync(int id, string farmId);
+        Task<int> ReverseAsync(int id, string farmId, SaleReverseRequest req, string? reversedBy);
     }
 }
