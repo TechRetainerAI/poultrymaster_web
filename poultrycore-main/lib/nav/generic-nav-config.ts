@@ -173,7 +173,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       key: "people-team",
       label: isSchool ? "Staff" : "Team",
       items: gated([
-        item("/generic-staff",      isSchool ? "Staff" : "Employees",  Users2),
+        item("/generic-staff",      "Staff",  Users2),
         item("/generic-attendance", "Attendance", Activity),
       ]),
     },
@@ -293,7 +293,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       key: "setup-people",
       label: "People",
       items: gated([
-        item("/generic-staff",  isSchool ? "Staff" : "Employees", Users2),
+        item("/generic-staff",  "Staff", Users2),
         item("/employees",      "Users & Permissions",            User),
       ]),
     },

@@ -431,8 +431,8 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
         {/* Admin — Account */}
         {nav.admin.length > 0 && (
           <NavMegaMenu
-            label="Admin" icon={Settings}
-            title="Admin"
+            label={permissions.isStaff ? "Staff" : "Admin"} icon={Settings}
+            title={permissions.isStaff ? "Staff" : "Admin"}
             blurb="Account settings."
             groups={nav.admin}
             columns={1} widthRem={18} layout="grid" accent="emerald"

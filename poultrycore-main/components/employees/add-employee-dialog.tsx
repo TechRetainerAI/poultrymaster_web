@@ -63,13 +63,19 @@ export function AddEmployeeDialog({
   onOpenChange,
   boMode = false,
   prefill,
+  offerPayroll = false,
+  payrollDefaultOn = false,
   onCreated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   boMode?: boolean
   prefill?: EmployeePrefill | null
-  onCreated?: (employee: Employee | undefined) => void | Promise<void>
+  /** Show "Also add to payroll". When ticked, the caller creates the linked staff record. */
+  offerPayroll?: boolean
+  /** Start the "Also add to payroll" switch on (the Staff page). */
+  payrollDefaultOn?: boolean
+  onCreated?: (employee: Employee | undefined, options?: { addToPayroll: boolean; person: EmployeePrefill }) => void | Promise<void>
 }) {
   const { toast } = useToast()
   const [createLoading, setCreateLoading] = useState(false)
@@ -78,6 +84,7 @@ export function AddEmployeeDialog({
   const [boCompanies, setBoCompanies] = useState<Company[]>([])
   const [boFarmId, setBoFarmId] = useState("")
   const [createForm, setCreateForm] = useState(blankForm())
+  const [addToPayroll, setAddToPayroll] = useState(false)
   // Only the toggles that apply to the company this employee is being created
   // in. In Business Office mode that's whichever company is picked in the
   // selector above — the same rule Manage access uses, just with the one company
@@ -94,6 +101,7 @@ export function AddEmployeeDialog({
     setCreateForm(blankForm(prefill))
     setCreateError("")
     setShowStaffPermissions(false)
+    setAddToPayroll(payrollDefaultOn)
     setBoFarmId("")
     if (boMode) getMyCompanies().then(setBoCompanies).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps -- prefill is read once per opening
@@ -148,7 +156,10 @@ export function AddEmployeeDialog({
         else toast({ title: "Couldn't email credentials", description: r.message || "Email was not sent.", variant: "destructive" })
       }
       onOpenChange(false)
-      await onCreated?.(result.data)
+      await onCreated?.(result.data, {
+        addToPayroll: offerPayroll && addToPayroll,
+        person: { firstName: createForm.firstName.trim(), lastName: createForm.lastName.trim(), phoneNumber: createForm.phoneNumber.trim(), email: createForm.email.trim() },
+      })
     } else {
       setCreateError(result.message || "Failed to create employee")
     }
@@ -337,6 +348,15 @@ export function AddEmployeeDialog({
               )}
             </div>
           </div>
+          {offerPayroll && !prefill && (
+            <label className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 cursor-pointer">
+              <Switch checked={addToPayroll} onCheckedChange={setAddToPayroll} disabled={createLoading} aria-label="Also add to payroll" />
+              <span>
+                <span className="block text-sm font-medium text-slate-800">Also add to payroll</span>
+                <span className="block text-xs text-slate-500">Also puts them on the Staff page, linked to this login as one person. Set their role and pay there afterwards.</span>
+              </span>
+            </label>
+          )}
           <div className="flex gap-3 justify-end pt-2">
             <Button type="button" onClick={() => onOpenChange(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
             <Button type="submit" disabled={createLoading}>

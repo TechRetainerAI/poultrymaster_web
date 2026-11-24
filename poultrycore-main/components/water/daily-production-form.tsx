@@ -19,6 +19,7 @@ import { FormSection, FormField } from "@/components/ui/form-section"
 import { Loader2, Save, ArrowLeft, Plus, Trash2, Wand2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
+import { packWords, productPackSize } from "@/lib/water/pack-units"
 import {
   listWaterMachines, listWaterProducts, listWaterBoreholes, listWaterRawMaterialItems,
   getWaterProductionRecipe, createWaterDailyProduction, updateWaterDailyProduction,
@@ -81,7 +82,11 @@ export function WaterDailyProductionForm({ existing }: { existing?: WaterDailyPr
           listWaterMachines(), listWaterProducts(), listWaterBoreholes().catch(() => []), listWaterRawMaterialItems(),
         ])
         setMachines(ms); setProducts(ps); setBoreholes(bs); setItems(its)
-        if (!existing && ps.length === 1) setProductId(ps[0].waterProductId)
+        if (!existing && ps.length === 1) {
+          setProductId(ps[0].waterProductId)
+          const size = productPackSize(ps[0])
+          if (size) setSachetsPerBag(String(size))
+        }
       } catch (e: any) {
         toast({ title: "Failed to load form data", description: e?.message ?? String(e), variant: "destructive" })
       } finally {
@@ -112,6 +117,10 @@ export function WaterDailyProductionForm({ existing }: { existing?: WaterDailyPr
   const totalCost = num(elec) + num(fuel) + num(labor) + num(other)
   const materialCost = materials.reduce((s, m) => s + m.quantityUsed * (Number(m.unitCost) || 0), 0)
   const goodBags = Math.max(0, num(bags) - num(damaged))
+  // The chosen product's own package/unit words (Pack/Bottle, Bag/Sachet).
+  const pw = packWords(products.find((p) => p.waterProductId === productId))
+  const packsLc = pw.packs.toLowerCase()
+  const singlesLc = pw.singles.toLowerCase()
 
   function setMaterial(key: string, patch: Partial<MaterialRow>) {
     setMaterials((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)))
@@ -264,7 +273,14 @@ export function WaterDailyProductionForm({ existing }: { existing?: WaterDailyPr
           </Select>
         </FormField>
         <FormField label="Product *">
-          <Select value={productId ? String(productId) : ""} onValueChange={(v) => setProductId(Number(v))}>
+          <Select value={productId ? String(productId) : ""} onValueChange={(v) => {
+            const id = Number(v)
+            setProductId(id)
+            // Follow the picked product's units-per-package (e.g. 15 bottles
+            // per pack) instead of keeping the 30-sachet default.
+            const size = productPackSize(products.find((p) => p.waterProductId === id))
+            if (size) setSachetsPerBag(String(size))
+          }}>
             <SelectTrigger><SelectValue placeholder={products.length ? "Pick product" : "No products"} /></SelectTrigger>
             <SelectContent>
               {products.map((p) => <SelectItem key={p.waterProductId} value={String(p.waterProductId)}>{p.name}</SelectItem>)}
@@ -319,14 +335,14 @@ export function WaterDailyProductionForm({ existing }: { existing?: WaterDailyPr
       </FormSection>
 
       <FormSection title="Batch output" color="emerald">
-        <FormField label="Bags produced *"><NumberInput min={0} value={bags} onChange={(e) => setBags(e.target.value)} /></FormField>
-        <FormField label="Sachets per bag"><NumberInput min={1} value={sachetsPerBag} onChange={(e) => setSachetsPerBag(e.target.value)} /></FormField>
-        <FormField label="Loose sachets"><NumberInput min={0} value={loose} onChange={(e) => setLoose(e.target.value)} /></FormField>
-        <FormField label="Rejected sachets"><NumberInput min={0} value={rejected} onChange={(e) => setRejected(e.target.value)} /></FormField>
-        <FormField label="Damaged bags"><NumberInput min={0} value={damaged} onChange={(e) => setDamaged(e.target.value)} /></FormField>
+        <FormField label={`${pw.packs} produced *`}><NumberInput min={0} value={bags} onChange={(e) => setBags(e.target.value)} /></FormField>
+        <FormField label={`${pw.singles} per ${pw.pack.toLowerCase()}`}><NumberInput min={1} value={sachetsPerBag} onChange={(e) => setSachetsPerBag(e.target.value)} /></FormField>
+        <FormField label={`Loose ${singlesLc}`}><NumberInput min={0} value={loose} onChange={(e) => setLoose(e.target.value)} /></FormField>
+        <FormField label={`Rejected ${singlesLc}`}><NumberInput min={0} value={rejected} onChange={(e) => setRejected(e.target.value)} /></FormField>
+        <FormField label={`Damaged ${packsLc}`}><NumberInput min={0} value={damaged} onChange={(e) => setDamaged(e.target.value)} /></FormField>
         <FormField label="Packaging rolls used"><NumberInput min={0} value={rolls} onChange={(e) => setRolls(e.target.value)} /></FormField>
         <FormField label="Water used (litres)" hint="Optional"><NumberInput min={0} value={litres} onChange={(e) => setLitres(e.target.value)} /></FormField>
-        <FormField label="Good bags" hint="Bags produced less damaged">
+        <FormField label={`Good ${packsLc}`} hint={`${pw.packs} produced less damaged`}>
           <div className="h-9 flex items-center font-semibold tabular-nums text-slate-800">{goodBags.toLocaleString()}</div>
         </FormField>
       </FormSection>

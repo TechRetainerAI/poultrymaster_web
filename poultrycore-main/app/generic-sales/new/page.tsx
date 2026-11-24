@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Loader2, Plus, ShoppingCart, X, AlertTriangle, CreditCard } from "lucide-react"
+import { ArrowLeft, Loader2, Plus, ShoppingCart, X, AlertTriangle, CreditCard, RotateCcw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useLogout } from "@/hooks/use-logout"
@@ -24,9 +24,11 @@ import {
   getCashAccounts,
   getCustomers,
   getProducts,
+  getSale,
   type GenericCashAccount,
   type GenericCustomer,
   type GenericProduct,
+  type GenericSale,
   type GenericSaleItem,
 } from "@/lib/api/generic"
 
@@ -121,6 +123,9 @@ export default function NewGenericSalePage() {
 
   const [walkInName, setWalkInName] = useState("")
   const [rows, setRows] = useState<Row[]>([blankRow()])
+  // 485: Correct sale / Edit & repost -- /generic-sales/new?corrects=<reversed sale>
+  // opens this form filled in from that sale; saving links the two.
+  const [corrects, setCorrects] = useState<GenericSale | null>(null)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
@@ -136,6 +141,44 @@ export default function NewGenericSalePage() {
         const defaultAccount = defaultId ? as_.find((a) => a.genericCashAccountId === defaultId && a.isActive) : null
         const firstCash = defaultAccount ?? as_.find((a) => a.isActive)
         if (firstCash) setHeader((h) => ({ ...h, genericCashAccountId: String(firstCash.genericCashAccountId) }))
+
+        const correctsId = Number(new URLSearchParams(window.location.search).get("corrects"))
+        if (Number.isFinite(correctsId) && correctsId > 0) {
+          const old = await getSale(correctsId)
+          if (cancelled) return
+          if (old) {
+            setCorrects(old)
+            const lineDiscounts = (old.items ?? []).reduce((n, i) => n + (Number(i.discountAmount) || 0), 0)
+            setHeader((h) => ({
+              ...h,
+              saleDate: (old.saleDate || h.saleDate).slice(0, 10),
+              genericCustomerId: old.genericCustomerId ? String(old.genericCustomerId) : "",
+              salesType: old.salesType || h.salesType,
+              headerDiscountAmount: String(Math.max(0, (Number(old.discountAmount) || 0) - lineDiscounts)),
+              taxAmount: String(Number(old.taxAmount) || 0),
+              paymentMethod: old.paymentMethod || h.paymentMethod,
+              notes: old.notes ?? "",
+              // Nothing is taken as paid: money from the reversed sale was paid
+              // back or kept as the customer's credit, which is applied below.
+              amountPaid: "0",
+            }))
+            setAmountPaidTouched(true)
+            if (old.items?.length) {
+              setRows(old.items.map((i) => ({
+                itemType: i.itemType === "Service" ? "Service" : "Product",
+                genericProductId: i.genericProductId ?? undefined,
+                description: i.description ?? "",
+                quantity: Number(i.quantity) || 0,
+                unitPrice: Number(i.unitPrice) || 0,
+                discountAmount: Number(i.discountAmount) || 0,
+                saleUnit: i.saleUnit ?? "",
+                unitFactor: Number(i.unitFactor) || 1,
+              })))
+            }
+          } else {
+            toast({ title: `Sale #${correctsId} was not found`, description: "Enter the sale from scratch.", variant: "destructive" })
+          }
+        }
       } catch (e: any) {
         if (!cancelled) toast({ title: "Could not load options", description: e?.message ?? String(e), variant: "destructive" })
       } finally { if (!cancelled) setLoading(false) }
@@ -282,9 +325,15 @@ export default function NewGenericSalePage() {
         notes: header.notes || null,
         applyCreditAmount: Number(header.applyCreditAmount) || 0,
         items,
+        correctsSaleId: corrects?.genericSaleId ?? null,
       })
       if (created) {
-        toast({ title: `Sale #${created.genericSaleId} created as Draft`, description: "Review and approve to commit it." })
+        toast({
+          title: `Sale #${created.genericSaleId} created as Draft`,
+          description: corrects
+            ? `It replaces reversed sale #${corrects.genericSaleId}. Review and approve to commit it.`
+            : "Review and approve to commit it.",
+        })
         router.push(`/generic-sales/${created.genericSaleId}`)
       }
     } catch (e: any) {
@@ -304,8 +353,17 @@ export default function NewGenericSalePage() {
             <ArrowLeft className="h-3 w-3 mr-1" /> Back to sales
           </Link>
           <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2 mb-4">
-            <ShoppingCart className="h-6 w-6 text-emerald-600" /> New sale
+            {corrects
+              ? <><RotateCcw className="h-6 w-6 text-blue-600" /> Correct sale #{corrects.genericSaleId}</>
+              : <><ShoppingCart className="h-6 w-6 text-emerald-600" /> New sale</>}
           </h1>
+          {corrects && (
+            <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+              Sale #{corrects.genericSaleId} was reversed. It is filled in below: fix what was wrong and save.
+              The new sale is linked to it.
+              {(Number(corrects.amountPaid) || 0) > 0 && " Money the customer paid and kept as credit can be applied with \"Apply credit\"."}
+            </div>
+          )}
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>

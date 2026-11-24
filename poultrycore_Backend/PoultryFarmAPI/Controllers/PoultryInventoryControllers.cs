@@ -117,9 +117,52 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpDelete("{id:int}")] public IActionResult Delete(int id, [FromQuery] string farmId)
             => BadRequest("Purchases can't be deleted. Reverse the purchase instead -- it stays in the list marked Reversed.");
 
+        // GET {id}/reversal-preview?farmId=  -- 479: what reversing it would do.
+        [HttpGet("{id:int}/reversal-preview")]
+        public async Task<IActionResult> ReversalPreview(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Content(await _svc.GetReversalPreviewAsync(id, farmId), "application/json");
+        }
+
+        // GET {id}/reversal?farmId=  -- 479: the reversal of a reversed purchase.
+        [HttpGet("{id:int}/reversal")]
+        public async Task<IActionResult> Reversal(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            var json = await _svc.GetReversalAsync(id, farmId);
+            return json is null ? NotFound(new { message = "This purchase has not been reversed." }) : Content(json, "application/json");
+        }
+
         [HttpPost("{id:int}/reverse")] public async Task<IActionResult> Reverse(int id, [FromBody] PoultryRawMaterialPurchaseReverseRequest body)
         {
             if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");
+
+            // 479: the sale reversal model -- reason code, money choices, stale check.
+            if (body.ReasonCode is not null || body.PaymentHandling is not null)
+            {
+                if (string.IsNullOrWhiteSpace(body.ReasonCode) && string.IsNullOrWhiteSpace(body.Reason))
+                    return BadRequest(new { message = "Give a reason for reversing this purchase." });
+                // The person on the token, not whatever the body claims.
+                body.UserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? body.UserId;
+                try
+                {
+                    var reversalId = await _svc.ReverseWithPreviewAsync(id, body);
+                    return Ok(new { purchaseReversalId = reversalId, reversal = await _svc.GetReversalAsync(id, body.FarmId) is string j
+                                                                        ? System.Text.Json.JsonDocument.Parse(j).RootElement
+                                                                        : (System.Text.Json.JsonElement?)null });
+                }
+                catch (SaleRuleException ex) when (ex.Stale)
+                {
+                    return Conflict(new { message = ex.Message, stale = true });
+                }
+                catch (SaleRuleException ex)
+                {
+                    return BadRequest(new { message = ex.Message });
+                }
+            }
+
+            // 418: an old client (free-text reason only) -- refunds where it can.
             if (string.IsNullOrWhiteSpace(body.Reason)) return BadRequest("Give a reason for reversing this purchase.");
             await _svc.ReverseAsync(id, body.FarmId, body.Reason.Trim(), body.ReversedBy);
             return NoContent();

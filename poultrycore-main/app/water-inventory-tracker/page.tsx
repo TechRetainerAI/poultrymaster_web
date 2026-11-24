@@ -37,10 +37,12 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import {
   getWaterInventoryTracker,
   getWaterInventoryTrackerMovements,
+  listWaterProducts,
   type WaterInventoryTrackerRow,
   type WaterInventoryTrackerMovement,
 } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
+import { packWords } from "@/lib/water/pack-units"
 import { PeriodSelect } from "@/components/ui/period-select"
 import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { defaultReportRange, rangeToPeriod } from "@/lib/date-ranges"
@@ -60,6 +62,14 @@ function WaterInventoryTrackerPageInner() {
   const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
 
   const [rows, setRows] = useState<WaterInventoryTrackerRow[]>([])
+  // Package word per product (Pack, Bag, Carton…). The tracker row only carries
+  // the base unit, so the package line used to say "bags" for every product.
+  const [packUnitById, setPackUnitById] = useState<Record<number, string | null | undefined>>({})
+  useEffect(() => {
+    listWaterProducts()
+      .then((ps) => setPackUnitById(Object.fromEntries((ps ?? []).map((p) => [p.waterProductId, p.packagingUnit]))))
+      .catch(() => { /* fall back to "bags" */ })
+  }, [])
   const [productId, setProductId] = useState<number | null>(null)
   const [moves, setMoves] = useState<WaterInventoryTrackerMovement[]>([])
   const [loading, setLoading] = useState(true)
@@ -305,7 +315,10 @@ function WaterInventoryTrackerPageInner() {
                           {selected ? qty(selected.closingBase) : "—"}
                         </div>
                         {selected?.isSachetProduct && selected.sachetsPerBag > 1 ? (
-                          <div className="text-[11px] text-slate-500">{qty(selected.closingBags)} bags</div>
+                          <div className="text-[11px] text-slate-500">
+                            {qty(selected.closingBags)} {packWords({ packagingUnit: packUnitById[selected.waterProductId] }).packs.toLowerCase()}
+                            {" "}of {qty(selected.sachetsPerBag)}
+                          </div>
                         ) : null}
                       </div>
                       <div>

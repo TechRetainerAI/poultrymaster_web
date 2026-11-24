@@ -948,7 +948,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                   columns: 2,
                 })}
               {genericNav.admin.length > 0 && renderMenu(
-                "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
+                permissions.isStaff ? "Staff" : "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
                   blurb: "Account settings.",
                   columns: 1,
                 })}
@@ -1067,16 +1067,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             })
           : renderGroup("System", systemItems, "system")}
 
-        {/* Videos -- its own row right below System so the how-to videos are
-            one click away (they are also inside the System menu). Poultry
-            only, since the videos teach the poultry screens. */}
-        {poultryNav && renderNavItem({ href: "/poultry-videos", label: "Support Videos", icon: PlayCircle })}
-        {/* Setup Guide -- its own page; its words and pictures are read from the
-            Help Center's "set up my farm" answer, not copied. */}
+        {/* Setup Guide, Help Center, Support Videos -- their own rows right
+            below System so help is one click away, in the SAME order as inside
+            the System menu (lib/nav/poultry-nav-config.ts). Poultry only, since
+            they teach the poultry screens. */}
         {poultryNav && renderNavItem({ href: "/poultry-setup-guide", label: "Setup Guide", icon: Compass })}
-        {/* Help Center -- its own row under the videos, for the same reason
-            (it is also inside the System menu). */}
         {poultryNav && renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
+        {poultryNav && renderNavItem({ href: "/poultry-videos", label: "Support Videos", icon: PlayCircle })}
       </nav>
 
       {/* Logout */}

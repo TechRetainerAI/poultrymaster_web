@@ -943,7 +943,7 @@ export interface Purchase {
 export type PurchaseLineInput =
   | { lineType: "Item"; itemId: number; quantity: number; unitCost: number }
   | { lineType: "Expense"; expenseCategory: string; description: string | null; groupId: number | null; quantity: number; unitCost: number }
-  | { lineType: "Animals"; speciesCode: string; quantity: number; unitCost: number; breed: string | null; ageAtIntake: string | null }
+  | { lineType: "Animals"; batchCode?: string | null; speciesCode: string; quantity: number; unitCost: number; breed: string | null; ageAtIntake: string | null }
 export interface PurchaseInput {
   supplierId: number | null
   date: string
