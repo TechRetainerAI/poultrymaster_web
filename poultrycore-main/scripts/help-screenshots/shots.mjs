@@ -143,6 +143,22 @@ export const SHOTS = {
     { area: "dialog", scrollTo: { within: "dialog", button: "Create Flock" }, highlight: { within: "dialog", button: "Create Flock" }, optional: true, caption: "Turn on \"Flock Has Arrived\" once the birds are in the house, add any notes, then click \"Create Flock\"." },
   ],
 
+  "close-flock": [
+    menu(BARS.tools, "Flock Closeout", "/flock-closeout"),
+    { highlight: [{ tab: "Ready to close" }, { tab: "Closed" }, { tab: "Compare" }], optional: true, caption: "Flock Closeout lists the flocks still running under \"Ready to close\" (1) and the ones already ended under \"Closed\" (2). \"Compare\" (3) puts finished flocks side by side." },
+    { highlight: { button: "Close" }, then: { button: "Close" }, caption: "When a flock's birds are sold, culled or moved off the farm, click \"Close\" on its row." },
+    { area: "dialog", highlight: { within: "dialog", text: "Reconcile", exact: true }, optional: true, then: { within: "dialog", button: "Next" }, caption: "Step 1, Reconcile: check the birds the farm still has in this flock. If the count is wrong, correct it first. Then click \"Next\"." },
+    { area: "dialog", highlight: { within: "dialog", text: "Where the birds went" }, optional: true, caption: "Step 2, Dispose: say where every bird went: Sold (with the buyer and price), Culled, or Transferred off the farm. Step 3 shows the totals, and \"Close flock & record sales\" ends the flock and records the sales for you." },
+    { press: "Escape", click: { tab: "Closed" }, highlight: { tab: "Closed" }, optional: true, caption: "A closed flock moves to \"Closed\" with its lifetime results. Closed one by mistake? Open its lifetime summary and reopen it." },
+  ],
+  "correct-bird-count": [
+    menu(BARS.ops, "Stock movements", "/poultry-stock"),
+    { highlight: { button: "New movement" }, optional: true, then: { button: "New movement" }, caption: "Stock movements lists every stock change, with the batch and flock it belongs to. To correct a bird count, click \"New movement\"." },
+    { area: "dialog", pick: [{ within: "dialog", css: 'button[role="combobox"]', nth: 0, option: "Birds" }], caption: "Under Item, choose \"Birds\". Then choose whether birds are added or taken away, and the reason." },
+    { area: "dialog", pick: [{ within: "dialog", css: 'button[role="combobox"]', nth: 3 }, { within: "dialog", css: 'button[role="combobox"]', nth: 4 }], fill: [{ within: "dialog", css: 'input[type="number"]', nth: 0, value: "3" }],
+      caption: "Pick the batch, then the flock (or \"Not placed in a flock\" for birds still in the batch). Enter the change in whole birds and the date it applies from. The count now and after the change is shown before you save." },
+  ],
+
   // ---------------------------------------------------------- Production & Eggs
   "log-production": [
     menu(BARS.ops, "Production Records", "/production-records"),
@@ -153,9 +169,15 @@ export const SHOTS = {
         { within: "dialog", css: 'input[type="number"]', nth: 1, value: "2" },
         { within: "dialog", css: 'input[type="number"]', nth: 2, value: "5" },
       ],
-      caption: "Pick the flock and the date. For each pick, enter the crates and loose pieces collected; the total eggs are worked out for you." },
+      caption: "Pick the flock and the date. The list shows how many birds are alive in each batch and flock right now. For each pick, enter the crates and loose pieces collected; the total eggs are worked out for you." },
     { area: "dialog", scrollTo: { within: "dialog", text: "Egg Losses / Quality" }, caption: "Further down, enter broken eggs, birds that died and the feed used." },
     { area: "dialog", highlight: { within: "dialog", button: "Save Production Record" }, optional: true, caption: "The bar at the bottom sums it up: total eggs, crates, net sellable eggs, deaths and feed cost. Check it, then click \"Save Production Record\"." },
+  ],
+  "eggs-per-crate": [
+    menu(BARS.setup, "Egg Settings", "/business-office/egg-pick-settings"),
+    { highlight: [{ tab: "Pick times" }, { tab: "Egg sorting" }, { tab: "Packaging & units" }, { tab: "Egg sizes" }], optional: true, caption: "Egg Settings has four tabs: when you pick eggs (1), egg sorting and eggs per crate (2), boxes and crates (3), and your egg sizes (4). Only an owner or admin can change them." },
+    { click: { tab: "Egg sorting" }, highlight: { tab: "Egg sorting" }, optional: true, caption: "\"Egg sorting\" holds eggs per crate (30 unless you change it). Total eggs = crates x eggs per crate + loose eggs." },
+    { click: { tab: "Pick times" }, highlight: { tab: "Pick times" }, optional: true, caption: "\"Pick times\" sets the picks you record each day. A 4th pick shows on the production form only when it is turned on here." },
   ],
   "sort-eggs": [
     menu(BARS.ops, "Egg Sorting", "/poultry-egg-sorting"),
@@ -184,6 +206,12 @@ export const SHOTS = {
     { area: "dialog", scrollTo: { within: "dialog", text: "Payment status" }, highlight: [{ within: "dialog", text: "Paid now", exact: true }, { within: "dialog", text: "Part payment", exact: true }, { within: "dialog", text: "Pay later", exact: true }], optional: true, caption: "How did they pay? Paid now (1) puts the money in a cash account. Part payment (2) records what they paid; the rest is owed. Pay later (3) adds it all to their balance. Then click \"Record sale\"." },
     menu(BARS.money, "Customer Balances", "/customer-balances"),
     { highlight: [{ card: "Total customer balance" }, { card: "Overdue balance" }], optional: true, caption: "Unpaid sales show up in Customer Balances: what all customers owe (1) and how much of it is overdue (2)." },
+  ],
+  "reverse-sale": [
+    menu(BARS.money, "Sales", "/sales"),
+    { highlight: [{ css: 'button[aria-label="View sale"]' }, { css: 'button[aria-label="Reverse sale"]' }], optional: true, caption: "A saved sale can't be edited or deleted. On its row, open it (1) to correct or reverse it, or reverse it straight away (2)." },
+    { click: { css: 'button[aria-label="View sale"]' }, area: "dialog", highlight: [{ within: "dialog", button: "Correct sale" }, { within: "dialog", button: "Reverse sale" }], optional: true, then: { within: "dialog", button: "Reverse sale" }, caption: "\"Correct sale\" (1) reverses it and opens a new sale already filled in, for you to fix and save. \"Reverse sale\" (2) undoes it completely." },
+    { area: "dialog", caption: "Pick the reason (Other needs a note). The dialog shows what will be undone: the eggs go back into stock, the debt is cleared, and money already paid is paid back from cash or kept as the customer's credit. The sale stays in the list, struck through." },
   ],
   "customer-payment": [
     menu(BARS.money, "Customer Payments", "/poultry-payments"),
@@ -222,6 +250,7 @@ export const SHOTS = {
   "which-purchase": [
     menu(BARS.ops, "Inventory & Supply Purchases", "/poultry-supply-purchases"),
     { highlight: [{ card: "Stock value" }, { card: "Low stock" }, { card: "Outstanding" }], optional: true, caption: "Supply Purchases: what you hold in stock (1), what is running low (2) and what you still owe suppliers (3)." },
+    { highlight: { css: 'button[aria-label="Reverse purchase"]' }, optional: true, caption: "Entered a purchase wrongly? It is reversed, not deleted: click the reverse arrow on its row, pick a reason and check what will be undone. A purchase whose stock is already used can't be reversed." },
     { highlight: { button: "Record Purchase" }, then: { button: "Record Purchase" }, caption: "For one item from one supplier, click \"Record Purchase\"." },
     { area: "dialog", caption: "Pick the item and supplier, enter the quantity and price, and how much you paid now." },
     menu(BARS.tools, "Receive Purchase", "/poultry-purchase-receipts"),
@@ -241,6 +270,13 @@ export const SHOTS = {
   ],
 
   // ---------------------------------------------------------- Money & Reports
+  "egg-cost": [
+    menu(BARS.tools, "Egg Cost & Profit Analyzer", "/egg-cost-analyzer"),
+    { highlight: [{ text: "Period", exact: true }, { text: "Analyse", exact: true }, { text: "Cost definition", exact: true }], optional: true, caption: "Choose the period (1), what to analyse: the whole farm, one batch or one flock (2), and full or direct cost (3)." },
+    { highlight: [{ card: "Cost per saleable egg" }, { card: "Avg selling price / crate" }, { card: "Estimated margin / crate" }], optional: true, caption: "The top cards show what one saleable egg cost you (1), what you sold a crate for (2) and the margin left on each crate (3)." },
+    { scrollTo: { text: "Data completeness" }, highlight: { card: "Data completeness" }, optional: true, caption: "\"Data completeness\" says what was missing for the period, such as days with no feed recorded. A missing cost makes eggs look cheaper than they are." },
+    { click: { tab: "What-If scenario" }, highlight: { tab: "What-If scenario" }, optional: true, caption: "\"What-If scenario\" lets you change feed price, laying rate or selling price and see the new cost and margin per crate. Nothing on the farm changes." },
+  ],
   "daily-closing": [
     menu(BARS.tools, "Daily Closing", "/poultry-daily-closing"),
     { highlight: [{ css: 'input[type="date"]' }, { card: "Production" }, { card: "Sales" }], optional: true, caption: "Daily Closing checks one business day (1). It adds up production (2), and sales and money (3), for that day." },
@@ -254,5 +290,23 @@ export const SHOTS = {
     menu(BARS.money, "Profit & Loss", "/poultry-profit-loss"),
     { highlight: [{ text: "Period", exact: true }, { button: "CSV" }, { button: "Email" }, { button: "PDF" }], optional: true, caption: "Profit & Loss: choose the period (1). Export to CSV for Excel (2), email it (3) or download a PDF (4)." },
     { scrollTo: { text: "Revenue" }, highlight: { card: "Revenue" }, optional: true, caption: "Below the totals, each part is broken down: revenue, production costs, operating expenses and depreciation. Click a line to see the records behind it." },
+  ],
+  // ---------------------------------------------------------- Account & Access
+  "switch-company": [
+    { path: "/sales", highlight: { css: 'button[aria-label="Switch company"]' }, then: { css: 'button[aria-label="Switch company"]' }, caption: "The company you are working in is shown at the top of every page. Click it to switch." },
+    { caption: "Pick the company you want; you land on its dashboard. Only the account owner can create a new company." },
+  ],
+  "add-user": [
+    menu(BARS.setup, "Users & Permissions", "/employees"),
+    { highlight: { button: "Add Employee" }, then: { button: "Add Employee" }, mask: [LIST_ROWS], caption: "Users & Permissions lists everyone who can log in. To give a worker their own login, click \"Add Employee\"." },
+    { area: "dialog", mask: [{ css: 'input[name="password"]' }, { css: 'input[name="confirmPassword"]' }],
+      fill: [
+        { within: "dialog", css: 'input[name="firstName"]', value: "Ama" },
+        { within: "dialog", css: 'input[name="lastName"]', value: "Mensah" },
+        { within: "dialog", css: 'input[name="userName"]', value: "ama_mensah" },
+      ],
+      caption: "Pick the company, then fill in their name, phone, username and email. A password is made for you; give it to them." },
+    { area: "dialog", scrollTo: { within: "dialog", text: "Create as administrator" }, highlight: { within: "dialog", text: "Create as administrator" }, optional: true, caption: "Switch on \"Create as administrator\" only for someone who should manage setup and money. Admins can do everything." },
+    { area: "dialog", scrollTo: { within: "dialog", text: "Staff Page Access" }, highlight: { within: "dialog", text: "Staff Page Access" }, optional: true, caption: "Everyone else is staff and starts with access to nothing. Under \"Staff Page Access\", switch on only the pages they need, then save." },
   ],
 }

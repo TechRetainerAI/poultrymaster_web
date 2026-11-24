@@ -243,7 +243,7 @@ Expenses can be edited or deleted; deleting is permanent.`,
     id: "which-purchase", category: "Expenses & Purchases",
     title: "Supply Purchase, Receive Purchase or Supplier Payment: which do I use?",
     keywords: ["buy feed", "invoice", "supplier", "goods received", "restock"],
-    body: `- Supply Purchases ("Record purchase"): buying one item.
+    body: `- Supply Purchases ("Record purchase"): buying one item. A purchase entered wrongly is reversed, not deleted, as long as its stock has not been used.
 - Receive Purchase: one supplier invoice with several items and extra costs (transport, offloading), paid in full, in part or later. A receipt can be reversed but not edited.
 - Supplier Payments ("Record supplier payment"): paying a supplier money you already owe them. Supplier Balances shows what is still owed.`,
     links: [
@@ -282,6 +282,15 @@ Someone with the approve right closes it ("Close Business Day"). Anyone else use
       { label: "Reports", href: "/reports" },
       { label: "Profit & Loss", href: "/poultry-profit-loss" },
     ],
+  }),
+  faq({
+    id: "egg-cost", category: "Money & Reports",
+    title: "What does one egg or crate cost me, and what is my margin?",
+    keywords: ["egg cost", "cost per crate", "cost per egg", "margin", "break-even", "what if", "profit per crate"],
+    body: `Open the Egg Cost & Profit Analyzer (under Tools). Choose the period, the whole farm or one batch or flock, and full or direct cost. It shows the cost of one saleable egg and one crate, your average selling price and the margin per crate.
+
+"Data completeness" lists what was missing, such as days with no feed recorded; a missing cost makes eggs look cheaper than they are. "What-If scenario" tries other feed prices, laying rates or selling prices without changing anything on the farm.`,
+    links: [{ label: "Egg Cost & Profit Analyzer", href: "/egg-cost-analyzer" }],
   }),
   faq({
     id: "switch-company", category: "Account & Access",

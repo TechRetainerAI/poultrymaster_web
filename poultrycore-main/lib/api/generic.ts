@@ -215,6 +215,12 @@ export interface GenericSale {
   status: "Draft" | "Approved" | "Cancelled" | "Refunded" | string
   notes?: string | null
   createdAt: string
+  /** 484: set when the sale was reversed (its status is then "Cancelled"). List only. */
+  saleReversalId?: number | null
+  /** 485: on a correcting sale, the reversed sale it replaces. List only. */
+  correctsSaleId?: number | null
+  /** 485: on a reversed sale, the live sale that corrects it; null = it can still be reposted. List only. */
+  correctedBySaleId?: number | null
   items: GenericSaleItem[]
 }
 
@@ -224,6 +230,8 @@ export interface GenericSaleCreateInput {
    * transaction. Leave it out to keep the old behaviour exactly.
    */
   projects?: import("@/lib/api/generic-projects").ProjectAssignment
+  /** 485: Correct sale / Edit & repost -- the reversed sale this one replaces. */
+  correctsSaleId?: number | null
   saleDate?: string | null
   genericCustomerId?: number | null
   salesType: string
