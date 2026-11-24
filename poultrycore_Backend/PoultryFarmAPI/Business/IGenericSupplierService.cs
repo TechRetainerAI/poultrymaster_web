@@ -21,5 +21,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<int>  InsertPaymentAsync(GenericSupplierPaymentModel m);
         Task ApprovePaymentAsync(int id, string farmId, string? approvedBy);
         Task CancelPaymentAsync(int id, string farmId);
+
+        // Combined payments (standalone + purchase initial payments)
+        Task<List<GenericSupplierPaymentCombinedModel>> GetCombinedPaymentsAsync(string farmId, string? status);
     }
 }

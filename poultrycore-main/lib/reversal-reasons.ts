@@ -36,6 +36,19 @@ export const STOCK_REVERSAL_REASONS: readonly ReasonOption[] = [
   opt("Other"),
 ]
 
+/** Inventory purchases (478): what was wrong with the purchase. */
+export const PURCHASE_REVERSAL_REASONS: readonly ReasonOption[] = [
+  opt("Duplicate entry"),
+  opt("Wrong quantity"),
+  opt("Wrong amount"),
+  opt("Wrong item"),
+  opt("Wrong supplier"),
+  opt("Returned to supplier"),
+  opt("Posted by mistake"),
+  opt("Test or training entry"),
+  opt("Other"),
+]
+
 /** Capital assets: capitalised costs, depreciation, in-service changes. */
 export const ASSET_REVERSAL_REASONS: readonly ReasonOption[] = [
   opt("Duplicate entry"),

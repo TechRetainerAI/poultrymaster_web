@@ -318,6 +318,8 @@ export const saveAnimal = (input: AnimalInput, animalId?: number) =>
 export interface TagManyRow {
   tagNumber: string; name: string | null; sex: AnimalSex; breed: string | null; birthDate: string | null
   damId: number | null; sireId: number | null; notes: string | null
+  /** A parent being tagged in the same list, by its tag (472). Wins over damId / sireId. */
+  damTag?: string | null; sireTag?: string | null
 }
 export interface TagManyInput {
   groupId: number
@@ -328,7 +330,7 @@ export interface TagManyInput {
   purchaseCost: number | null
   animals: TagManyRow[]
 }
-/** All or nothing (468). */
+/** All or nothing (468); parents may be other rows of the list by tag (472). */
 export const saveAnimals = (input: TagManyInput) =>
   call<{ animalIds: number[] }>("POST", "/Livestock/animals/many", withFarm(input))
 export const deleteAnimal = (animalId: number) => call<void>("DELETE", `/Livestock/animals/${animalId}?${q()}`)
@@ -941,7 +943,7 @@ export interface Purchase {
 export type PurchaseLineInput =
   | { lineType: "Item"; itemId: number; quantity: number; unitCost: number }
   | { lineType: "Expense"; expenseCategory: string; description: string | null; groupId: number | null; quantity: number; unitCost: number }
-  | { lineType: "Animals"; speciesCode: string; quantity: number; unitCost: number; breed: string | null; ageAtIntake: string | null }
+  | { lineType: "Animals"; batchCode?: string | null; speciesCode: string; quantity: number; unitCost: number; breed: string | null; ageAtIntake: string | null }
 export interface PurchaseInput {
   supplierId: number | null
   date: string

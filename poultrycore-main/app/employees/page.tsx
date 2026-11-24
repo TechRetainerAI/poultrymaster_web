@@ -28,6 +28,7 @@ import { EditEmployeeDialog } from "@/components/employees/edit-employee-dialog"
 import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 import { StaffBadge } from "@/components/employees/link-badges"
 import { FROM_EMPLOYEE_PARAM, getStaffUserLinks, staffPagePath } from "@/lib/api/staff-user-link"
+import { canCreateLinkedStaff, createLinkedStaff } from "@/lib/api/create-linked-staff"
 import { useAuthStore } from "@/lib/store/auth-store"
 
 export default function EmployeesPage() {
@@ -456,7 +457,18 @@ export default function EmployeesPage() {
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
         boMode={boMode}
-        onCreated={loadEmployees}
+        offerPayroll={!boMode && canCreateLinkedStaff(activeFarmType)}
+        onCreated={async (employee, options) => {
+          if (options?.addToPayroll && employee?.id && activeFarmType) {
+            try {
+              await createLinkedStaff(activeFarmType, employee.id, options.person)
+              toast({ title: "Added to Staff", description: "Set their role and pay on the Staff page." })
+            } catch (e: any) {
+              toast({ title: "Login created, but not added to Staff", description: e?.message ?? String(e), variant: "destructive" })
+            }
+          }
+          await loadEmployees()
+        }}
       />
 
       {/* Edit Employee Dialog — shared with Business Office → Users & Permissions. */}

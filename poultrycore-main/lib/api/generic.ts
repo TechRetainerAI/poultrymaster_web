@@ -191,6 +191,8 @@ export interface GenericSaleItem {
   lineTotal?: number
   costAmount?: number | null
   notes?: string | null
+  saleUnit?: string | null
+  unitFactor?: number
 }
 
 export interface GenericSale {
@@ -213,10 +215,18 @@ export interface GenericSale {
   status: "Draft" | "Approved" | "Cancelled" | "Refunded" | string
   notes?: string | null
   createdAt: string
+  /** 484: set when the sale was reversed (its status is then "Cancelled"). List only. */
+  saleReversalId?: number | null
+  /** 485: on a correcting sale, the reversed sale it replaces. List only. */
+  correctsSaleId?: number | null
+  /** 485: on a reversed sale, the live sale that corrects it; null = it can still be reposted. List only. */
+  correctedBySaleId?: number | null
   items: GenericSaleItem[]
 }
 
 export interface GenericSaleCreateInput {
+  /** 485: Correct sale / Edit & repost -- the reversed sale this one replaces. */
+  correctsSaleId?: number | null
   saleDate?: string | null
   genericCustomerId?: number | null
   salesType: string
@@ -228,6 +238,7 @@ export interface GenericSaleCreateInput {
   genericCashAccountId?: number | null
   receiptNumber?: string | null
   notes?: string | null
+  applyCreditAmount?: number
   items: GenericSaleItem[]
 }
 

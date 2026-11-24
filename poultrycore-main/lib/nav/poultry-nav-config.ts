@@ -14,6 +14,7 @@
  */
 
 import {
+  Calculator,
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
@@ -59,6 +60,7 @@ export const POULTRY_EGG_ONLY_HREFS: ReadonlySet<string> = new Set([
   "/egg-tracker",
   "/broken-eggs-tracker",
   "/business-office/egg-pick-settings",
+  "/egg-cost-analyzer",
 ])
 
 export interface PoultryNavConfig {
@@ -519,6 +521,10 @@ export function buildPoultryNavConfig(
           // Recurring Expenses (348): rent, security, internet ... raised as drafts
           // when due. Moved here from Finance > Expenses; same gate as Expenses.
           { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/recurring-expenses", visible: money("/expenses") },
+          // Egg Cost & Profit Analyzer (481): what a crate of eggs costs to
+          // produce, why, and the margin at a given price. A read model over
+          // existing records; same readers as Profit & Loss.
+          { id: "egg-cost-analyzer", title: "Egg Cost & Profit Analyzer", icon: Calculator, href: "/egg-cost-analyzer", visible: money("/egg-cost-analyzer") },
         ],
       },
     ],

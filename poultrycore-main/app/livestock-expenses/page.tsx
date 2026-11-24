@@ -22,6 +22,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -88,6 +90,7 @@ export default function LivestockExpensesPage() {
   const shown = useMemo(() => (rows ?? []).filter((r) =>
     (cat === ALL || r.category === cat) && (show === "all" || (show === "money") === isMoney(r))), [rows, cat, show])
   const live = useMemo(() => shown.filter((r) => !r.reversedAt), [shown])
+  const pg = usePagination(shown, 10)
   const byCat = useMemo(() => {
     const m = new Map<string, number>()
     for (const r of live) if (isMoney(r)) m.set(r.category, (m.get(r.category) ?? 0) + r.amount)
@@ -136,7 +139,7 @@ export default function LivestockExpensesPage() {
               <Table>
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Kind</TableHead><TableHead>What</TableHead><TableHead>From</TableHead><TableHead>Group</TableHead><TableHead>Paid</TableHead><TableHead className="text-right">Amount</TableHead><TableHead /></TableRow></TableHeader>
                 <TableBody>
-                  {shown.map((r) => {
+                  {pg.pageItems.map((r) => {
                     const o = origin(r)
                     return (
                       <TableRow key={`${r.source}-${r.id}`} className={r.reversedAt ? "opacity-50" : undefined}>
@@ -156,6 +159,7 @@ export default function LivestockExpensesPage() {
                   })}
                 </TableBody>
               </Table>
+              <DataPagination {...pg.paginationProps} variant="records" />
             </div>
           )}
         </>

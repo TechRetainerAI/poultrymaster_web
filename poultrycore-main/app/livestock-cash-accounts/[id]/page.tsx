@@ -2,13 +2,15 @@
 
 // One cash account: what it holds and every movement of money through it.
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { Wallet } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { getCashAccount, type CashAccountDetail, type CashTransaction } from "@/lib/api/livestock"
 import { ACCOUNT_TYPE_LABEL } from "@/components/livestock/labels"
 import { LivestockPage, LoadError, Loading, StatCard, fmtDate, fmtMoney, todayIso } from "@/components/livestock/livestock-page"
@@ -34,6 +36,13 @@ export default function LivestockCashAccountPage() {
     try { setA(await getCashAccount(accountId, from, to)) } catch (e: any) { setError(e?.message ?? String(e)) }
   }, [accountId, from, to])
   useEffect(() => { load() }, [load])
+  // Running balance, oldest first, then shown newest first.
+  const withBalance = useMemo(() => {
+    if (!a) return []
+    let run = a.balanceBefore
+    return [...a.transactions].reverse().map((t) => { if (!t.reversedAt) run += t.amount; return { ...t, after: run } }).reverse()
+  }, [a])
+  const pg = usePagination(withBalance, 10)
 
   const back = { href: "/livestock-cash-accounts", label: "Cash accounts" }
   if (error) return <LivestockPage title="Account" back={back}><LoadError message={error} onRetry={load} /></LivestockPage>
@@ -42,9 +51,6 @@ export default function LivestockCashAccountPage() {
   const live = a.transactions.filter((t) => !t.reversedAt)
   const moneyIn = live.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const moneyOut = -live.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0)
-  // Running balance, oldest first, then shown newest first.
-  let run = a.balanceBefore
-  const withBalance = [...a.transactions].reverse().map((t) => { if (!t.reversedAt) run += t.amount; return { ...t, after: run } }).reverse()
 
   return (
     <LivestockPage title={a.name} description={`${ACCOUNT_TYPE_LABEL[a.accountType]} · opened ${fmtDate(a.openingDate)} with ${fmtMoney(a.openingBalance)}`} icon={Wallet} back={back}>
@@ -66,7 +72,7 @@ export default function LivestockCashAccountPage() {
           </TableHeader>
           <TableBody>
             {withBalance.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-stone-500 py-6">No money moved in these dates.</TableCell></TableRow>}
-            {withBalance.map((t) => {
+            {pg.pageItems.map((t) => {
               const href = sourceLink(t)
               return (
                 <TableRow key={t.txId} className={t.reversedAt ? "opacity-50" : undefined}>
@@ -83,6 +89,7 @@ export default function LivestockCashAccountPage() {
             })}
           </TableBody>
         </Table>
+        <DataPagination {...pg.paginationProps} variant="records" />
       </div>
     </LivestockPage>
   )

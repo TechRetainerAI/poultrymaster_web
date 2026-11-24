@@ -20,16 +20,19 @@ import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/comp
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger, PROMINENT_TABS_LIST, PROMINENT_TABS_TRIGGER, PROMINENT_TABS_COUNT } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, Ban } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Wallet, Ban, Undo2, History } from "lucide-react"
+import { ReversePurchaseDialog } from "@/components/purchases/reverse-purchase-dialog"
+import { getUserContext } from "@/lib/api/config"
+import { getSelectedCurrency } from "@/lib/utils/currency"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
   listWaterRawMaterialItems, createWaterRawMaterialItem, updateWaterRawMaterialItem, deleteWaterRawMaterialItem,
-  listWaterRawMaterialPurchases, createWaterRawMaterialPurchase, updateWaterRawMaterialPurchase, deleteWaterRawMaterialPurchase,
+  listWaterRawMaterialPurchases, createWaterRawMaterialPurchase, updateWaterRawMaterialPurchase,
   payWaterRawMaterialPurchaseBalance,
   listWaterRawMaterialUsageHistory, listWaterRawMaterialAdjustments,
   listWaterCashAccounts,
@@ -123,7 +126,8 @@ function WaterRawMaterialsPageInner() {
     // #12: purchase vs production costing. quantity = Purchase Quantity.
     totalPurchaseCost: 0, purchaseUnit: "", productionUnit: "", productionUnitsPerPurchaseUnit: 1,
   })
-  const [deletePurchaseTarget, setDeletePurchaseTarget] = useState<WaterRawMaterialPurchase | null>(null)
+  // 478: purchases are reversed, never deleted (the sale reversal model).
+  const [reversePurchaseTarget, setReversePurchaseTarget] = useState<WaterRawMaterialPurchase | null>(null)
 
   // Pay-balance dialog (records a follow-up payment against an outstanding purchase).
   const [payTarget, setPayTarget] = useState<WaterRawMaterialPurchase | null>(null)
@@ -253,6 +257,11 @@ function WaterRawMaterialsPageInner() {
   // 462: a purchase entered on a receipt is changed (or paid, or undone) through
   // the receipt -- editing, deleting or paying it here would take it out of step.
   const fromReceipt = (p: WaterRawMaterialPurchase) => !!p.receiptNumber
+  // 478: reversed on this page -- history only, nothing left to do with it.
+  const reversedHere = (p: WaterRawMaterialPurchase) => !!p.isReversed && !fromReceipt(p)
+  const reversedBadge = (
+    <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-600">Reversed</Badge>
+  )
   const receiptLink = (p: WaterRawMaterialPurchase) => (
     <Link href="/water-purchase-receipts" className="text-xs font-medium text-blue-700 underline underline-offset-2"
           title="Entered on Receive Purchase -- change, pay or reverse it there">
@@ -439,10 +448,18 @@ function WaterRawMaterialsPageInner() {
           {/* Controlled by the URL so ?tab=purchases can be linked to -- which
               is how Supplier Balances lands on the right tab. */}
           <Tabs value={tab} onValueChange={selectTab}>
-            <TabsList>
-              <TabsTrigger value="items">Items ({items.length})</TabsTrigger>
-              <TabsTrigger value="purchases">Purchases ({purchases.length})</TabsTrigger>
-              <TabsTrigger value="usage">Usage history</TabsTrigger>
+            <TabsList className={PROMINENT_TABS_LIST}>
+              <TabsTrigger value="items" className={PROMINENT_TABS_TRIGGER}>
+                <Box className="h-4 w-4" /> Items
+                <span className={PROMINENT_TABS_COUNT}>{items.length.toLocaleString()}</span>
+              </TabsTrigger>
+              <TabsTrigger value="purchases" className={PROMINENT_TABS_TRIGGER}>
+                <ShoppingCart className="h-4 w-4" /> Purchases
+                <span className={PROMINENT_TABS_COUNT}>{purchases.length.toLocaleString()}</span>
+              </TabsTrigger>
+              <TabsTrigger value="usage" className={PROMINENT_TABS_TRIGGER}>
+                <History className="h-4 w-4" /> Usage history
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="items">
@@ -707,6 +724,7 @@ function WaterRawMaterialsPageInner() {
                         { label: "Item", value: p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—" },
                         { label: "Supplier", value: p.supplierName ?? "—" },
                         ...(fromReceipt(p) ? [{ label: "Receipt", value: receiptLink(p) }] : []),
+                        ...(reversedHere(p) ? [{ label: "Status", value: reversedBadge }] : []),
                         { label: "Purchase Qty", value: p.quantity },
                         { label: "Production Level Qty", value: p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—" },
                         { label: "Unit Price", value: gh(p.unitCost) },
@@ -718,6 +736,8 @@ function WaterRawMaterialsPageInner() {
                       ]}
                       actions={(p) => fromReceipt(p) ? (
                         <div className="flex-1 flex h-10 items-center justify-center">{receiptLink(p)}</div>
+                      ) : reversedHere(p) ? (
+                        <div className="flex-1 flex h-10 items-center justify-center">{reversedBadge}</div>
                       ) : (
                         <>
                           {(p.balance ?? 0) > 0 && (
@@ -728,8 +748,8 @@ function WaterRawMaterialsPageInner() {
                           <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEditPurchase(p)}>
                             <Pencil className="h-4 w-4 mr-1" /> Edit
                           </Button>
-                          <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeletePurchaseTarget(p)}>
-                            <Trash2 className="h-4 w-4 mr-1" /> Delete
+                          <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setReversePurchaseTarget(p)}>
+                            <Undo2 className="h-4 w-4 mr-1" /> Reverse
                           </Button>
                         </>
                       )}
@@ -765,13 +785,13 @@ function WaterRawMaterialsPageInner() {
                                 <TableCell>{p.paymentMethod ?? "—"}</TableCell>
                                 <TableCell className={`text-right tabular-nums ${(p.balance ?? 0) > 0 ? "text-rose-600" : ""}`}>{gh(p.balance ?? 0)}</TableCell>
                                 <TableCell className="text-right">
-                                  {fromReceipt(p) ? receiptLink(p) : (
+                                  {fromReceipt(p) ? receiptLink(p) : reversedHere(p) ? reversedBadge : (
                                     <>
                                       {(p.balance ?? 0) > 0 && (
                                         <Button size="sm" variant="ghost" className="text-emerald-700" onClick={() => openPayBalance(p)}><Wallet className="h-4 w-4" /></Button>
                                       )}
                                       <Button size="sm" variant="ghost" onClick={() => openEditPurchase(p)}><Pencil className="h-4 w-4" /></Button>
-                                      <Button size="sm" variant="ghost" onClick={() => setDeletePurchaseTarget(p)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                                      <Button size="sm" variant="ghost" title="Reverse purchase" onClick={() => setReversePurchaseTarget(p)}><Undo2 className="h-4 w-4 text-red-500" /></Button>
                                     </>
                                   )}
                                 </TableCell>
@@ -1079,20 +1099,26 @@ function WaterRawMaterialsPageInner() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmDeleteDialog
-        open={!!deletePurchaseTarget}
-        onOpenChange={(o) => { if (!o) setDeletePurchaseTarget(null) }}
-        title="Delete purchase?"
-        description={deletePurchaseTarget
-          ? `This will subtract ${deletePurchaseTarget.quantity} ${items.find(i => i.waterRawMaterialItemId === deletePurchaseTarget.waterRawMaterialItemId)?.unitOfMeasure ?? "units"} of "${deletePurchaseTarget.itemName ?? items.find(i => i.waterRawMaterialItemId === deletePurchaseTarget.waterRawMaterialItemId)?.itemName ?? "this item"}" from current stock. If some has already been used in production, the delete will fail — reverse those usages first.`
-          : undefined}
-        successTitle="Purchase deleted"
-        errorTitle="Delete failed"
-        onConfirm={async () => {
-          if (deletePurchaseTarget) {
-            await deleteWaterRawMaterialPurchase(deletePurchaseTarget.waterRawMaterialPurchaseId)
-            await load()
-          }
+      <ReversePurchaseDialog
+        open={!!reversePurchaseTarget}
+        module="water"
+        purchaseId={reversePurchaseTarget?.waterRawMaterialPurchaseId ?? null}
+        purchaseLabel={reversePurchaseTarget ? `#${reversePurchaseTarget.waterRawMaterialPurchaseId}` : ""}
+        farmId={getUserContext().farmId}
+        userId={getUserContext().userId}
+        currencyCode={getSelectedCurrency()}
+        onOpenChange={(o) => { if (!o) setReversePurchaseTarget(null) }}
+        onReversed={async ({ reversal }) => {
+          setReversePurchaseTarget(null)
+          toast({
+            title: `Purchase reversed${reversal?.reversalNumber ? ` (${reversal.reversalNumber})` : ""}`,
+            description: reversal
+              ? [reversal.refunded > 0 ? `${gh(reversal.refunded)} refunded` : "",
+                 reversal.creditCreated > 0 ? `${gh(reversal.creditCreated)} kept as supplier credit` : ""]
+                  .filter(Boolean).join(" · ") || "Stock taken back out; nothing was paid."
+              : undefined,
+          })
+          await load()
         }}
       />
 

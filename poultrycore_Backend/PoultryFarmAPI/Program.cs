@@ -456,6 +456,9 @@ builder.Services.AddScoped<IGenericCustomerCreditService>(sp => new GenericCusto
 builder.Services.AddScoped<IGenericSupplierCreditService>(sp => new GenericSupplierCreditService(connectionString));
 builder.Services.AddScoped<IGenericSupplierCreditsLedgerService>(sp => new GenericSupplierCreditsLedgerService(connectionString));   // 449
 builder.Services.AddScoped<IGenericDeferredCostService>(sp => new GenericDeferredCostService(connectionString));
+builder.Services.AddScoped<IGenericCustomerCreditApplicationService>(sp => new GenericCustomerCreditApplicationService(connectionString));  // 473 Phase A
+builder.Services.AddScoped<IGenericBulkPaymentService>(sp => new GenericBulkPaymentService(connectionString));  // 473 Phase B
+builder.Services.AddScoped<IGenericCustomerCreditRefundService>(sp => new GenericCustomerCreditRefundService(connectionString));  // 473 Phase C
 
 // Phase 3: Customers + Sales + Customer Payments + Cash Transactions.
 // Sale_Approve is the meaty one: writes stock movement SaleOut per product,
@@ -497,6 +500,8 @@ builder.Services.AddScoped<IGenericReportService>(sp => new GenericReportService
 
 // Advanced Poultry Reports (20 new poultry-only reports under /api/poultry/reports/*).
 builder.Services.AddScoped<IPoultryAdvancedReportService>(sp => new PoultryAdvancedReportService(connectionString));
+// 481: Egg Cost & Profit Analyzer (read model + its own settings/snapshots)
+builder.Services.AddScoped<IPoultryEggCostService>(sp => new PoultryEggCostService(connectionString));
 
 // Phase 6: Staff + Attendance + Payroll (spec §13, §14). Payroll items use a
 // computed NetPay column; spGenericPayrollItem_Upsert rolls run totals

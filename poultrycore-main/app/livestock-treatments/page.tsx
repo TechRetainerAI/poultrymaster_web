@@ -16,6 +16,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { useToast } from "@/hooks/use-toast"
 import {
   createTreatment, listGroups, listItems, listTreatments, listWithdrawals,
@@ -42,6 +44,7 @@ export default function LivestockTreatmentsPage() {
     } catch (e: any) { setError(e?.message ?? String(e)) }
   }, [])
   useEffect(() => { load() }, [load])
+  const pg = usePagination(rows ?? [], 10)
 
   return (
     <LivestockPage
@@ -77,7 +80,7 @@ export default function LivestockTreatmentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((t) => (
+              {pg.pageItems.map((t) => (
                 <TableRow key={t.treatmentId} className="cursor-pointer hover:bg-amber-50/60" onClick={() => router.push(`/livestock-treatments/${t.treatmentId}`)}>
                   <TableCell className="font-medium"><Link href={`/livestock-treatments/${t.treatmentId}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{t.name}</Link></TableCell>
                   <TableCell>{t.itemName}</TableCell>
@@ -90,6 +93,7 @@ export default function LivestockTreatmentsPage() {
               ))}
             </TableBody>
           </Table>
+          <DataPagination {...pg.paginationProps} variant="records" />
         </div>
       )}
 

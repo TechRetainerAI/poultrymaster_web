@@ -224,6 +224,46 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         // ====================================================================
+        // Combined payments: standalone + purchase initial payments (474)
+        // ====================================================================
+        public async Task<List<GenericSupplierPaymentCombinedModel>> GetCombinedPaymentsAsync(string farmId, string? status)
+        {
+            var list = new List<GenericSupplierPaymentCombinedModel>();
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsupplierpayment_combined(p_farmid => @FarmId::text, p_status => @Status::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Status", (object?)status ?? DBNull.Value);
+
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                list.Add(new GenericSupplierPaymentCombinedModel
+                {
+                    PaymentId            = reader.GetInt32(reader.GetOrdinal("paymentid")),
+                    Source               = reader.GetString(reader.GetOrdinal("source")),
+                    FarmId               = reader.GetString(reader.GetOrdinal("farmid")),
+                    GenericSupplierId    = reader.GetInt32(reader.GetOrdinal("genericsupplierid")),
+                    SupplierName         = reader.IsDBNull(reader.GetOrdinal("suppliername")) ? null : reader.GetString(reader.GetOrdinal("suppliername")),
+                    PaymentDate          = reader.GetDateTime(reader.GetOrdinal("paymentdate")),
+                    Amount               = reader.GetDecimal(reader.GetOrdinal("amount")),
+                    PaymentMethod        = reader.IsDBNull(reader.GetOrdinal("paymentmethod")) ? null : reader.GetString(reader.GetOrdinal("paymentmethod")),
+                    GenericCashAccountId = reader.IsDBNull(reader.GetOrdinal("genericcashaccountid")) ? null : reader.GetInt32(reader.GetOrdinal("genericcashaccountid")),
+                    LinkedPurchaseId     = reader.IsDBNull(reader.GetOrdinal("linkedpurchaseid")) ? null : reader.GetInt32(reader.GetOrdinal("linkedpurchaseid")),
+                    LinkedExpenseId      = reader.IsDBNull(reader.GetOrdinal("linkedexpenseid")) ? null : reader.GetInt32(reader.GetOrdinal("linkedexpenseid")),
+                    InvoiceNumber        = reader.IsDBNull(reader.GetOrdinal("invoicenumber")) ? null : reader.GetString(reader.GetOrdinal("invoicenumber")),
+                    Status               = reader.GetString(reader.GetOrdinal("status")),
+                    Notes                = reader.IsDBNull(reader.GetOrdinal("notes")) ? null : reader.GetString(reader.GetOrdinal("notes")),
+                    CreatedBy            = reader.IsDBNull(reader.GetOrdinal("createdby")) ? null : reader.GetString(reader.GetOrdinal("createdby")),
+                    ApprovedBy           = reader.IsDBNull(reader.GetOrdinal("approvedby")) ? null : reader.GetString(reader.GetOrdinal("approvedby")),
+                    ApprovedAt           = reader.IsDBNull(reader.GetOrdinal("approvedat")) ? null : reader.GetDateTime(reader.GetOrdinal("approvedat")),
+                    CreatedAt            = reader.GetDateTime(reader.GetOrdinal("createdat")),
+                });
+            }
+            return list;
+        }
+
+        // ====================================================================
         // Helpers
         // ====================================================================
         private static GenericSupplierModel ReadSupplier(NpgsqlDataReader r) => new()

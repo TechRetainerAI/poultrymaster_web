@@ -37,7 +37,7 @@ export default function LivestockSalePage() {
   return (
     <LivestockPage
       title={<>{s.customerName ?? "Walk-in sale"} · {fmtDate(s.date)} <Badge className={`ml-2 align-middle ${STATUS[s.status].cls}`}>{STATUS[s.status].label}</Badge></>}
-      description={[s.reference && `Receipt ${s.reference}`, s.dueDate && `to be paid by ${fmtDate(s.dueDate)}`, s.customerPhone, s.createdBy && `recorded by ${s.createdBy}`].filter(Boolean).join(" · ")}
+      description={[s.reference && `Sale no. ${s.reference}`, s.dueDate && `to be paid by ${fmtDate(s.dueDate)}`, s.customerPhone, s.createdBy && `recorded by ${s.createdBy}`].filter(Boolean).join(" · ")}
       icon={ShoppingBag}
       back={back}
       actions={!s.reversedAt ? (

@@ -220,6 +220,18 @@ namespace PoultryFarmAPIWeb.Models
         public string FarmId { get; set; } = string.Empty;
         public string Reason { get; set; } = string.Empty;
         public string? ReversedBy { get; set; }
+        // 479: the sale reversal model. A request carrying ReasonCode or
+        // PaymentHandling goes through sppoultrypurchase_reverse; one without
+        // (an old client) keeps 418's behaviour.
+        /// <summary>A reason from the list (lib/reversal-reasons.ts); "Other" needs Reason.</summary>
+        public string? ReasonCode { get; set; }
+        /// <summary>Per money line: key ("sp:{paymentId}" or "cash:{accountId}") -> KeepAsCredit | Refund.</summary>
+        public Dictionary<string, string>? PaymentHandling { get; set; }
+        /// <summary>The preview's fingerprint; refused if the purchase changed since.</summary>
+        public string? ExpectedFingerprint { get; set; }
+        /// <summary>A retried request returns the reversal it already made.</summary>
+        public string? IdempotencyKey { get; set; }
+        public string? UserId { get; set; }
     }
 
     // A manual stock adjustment on a raw material / supply. Signed Quantity:
