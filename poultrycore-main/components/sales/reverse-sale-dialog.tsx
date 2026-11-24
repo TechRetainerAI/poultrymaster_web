@@ -301,7 +301,7 @@ export function ReverseSaleDialog({
                   onChange={(e) => setReason(e.target.value)}
                   placeholder={noteRequired
                     ? "Say what happened (needed for Other)"
-                    : mode === "correct" ? `Note (optional), e.g. price should have been 25 per ${water ? "bag" : "crate"}` : "Note (optional)"}
+                    : mode === "correct" ? `Note (optional), e.g. price should have been 25 per ${water ? "bag" : module === "generic" ? "item" : "crate"}` : "Note (optional)"}
                   rows={2}
                   className="bg-white"
                 />

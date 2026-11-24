@@ -3,8 +3,8 @@
 # sale no longer violates fk_genericcustomerpayments_customer (customer 0).
 # Nullable payment customer + 4 functions; no data change.
 #
-#   .pply-generic-walkin-sale-payment.ps1 -Database VisibilityCoreDB          # measure + trial
-#   .pply-generic-walkin-sale-payment.ps1 -Database VisibilityCoreDB -Apply   # ... then apply
+#   .\apply-generic-walkin-sale-payment.ps1 -Database VisibilityCoreDB          # measure + trial
+#   .\apply-generic-walkin-sale-payment.ps1 -Database VisibilityCoreDB -Apply   # ... then apply
 # =============================================================================
 
 [CmdletBinding()]

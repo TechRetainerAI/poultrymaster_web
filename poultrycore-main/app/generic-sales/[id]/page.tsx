@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { ArrowLeft, Check, Loader2, Trash2, Printer, Mail, Undo2 } from "lucide-react"
+import { ArrowLeft, Check, Loader2, Trash2, Printer, Mail, Undo2, RotateCcw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -57,6 +57,8 @@ export default function GenericSaleDetailPage() {
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
   const [reverseOpen, setReverseOpen] = useState(false)
+  // 485: Correct = reverse, then New sale filled in from it (Edit & repost).
+  const [reverseMode, setReverseMode] = useState<"reverse" | "correct">("reverse")
   const [reversal, setReversal] = useState<SaleReversalRecord | null>(null)
 
   const load = async () => {
@@ -125,6 +127,9 @@ export default function GenericSaleDetailPage() {
                   {reversal.cashReversed > 0 && ` ${fmt(reversal.cashReversed)} paid back.`}
                   {reversal.creditCreated > 0 && ` ${fmt(reversal.creditCreated)} kept as customer credit.`}
                   {" "}Stock was put back and the sale no longer counts in sales or Profit &amp; Loss.
+                  {reversal.correctionSaleId
+                    ? <> Corrected by <Link href={`/generic-sales/${reversal.correctionSaleId}`} className="font-medium text-blue-700 underline">sale #{reversal.correctionSaleId}</Link>.</>
+                    : " Was it entered wrongly? Use \"Edit & repost\" to enter it again, corrected."}
                 </div>
               )}
               <div className="mb-4 flex items-start justify-between flex-wrap gap-2">
@@ -160,8 +165,18 @@ export default function GenericSaleDetailPage() {
                     </>
                   )}
                   {sale.status === "Approved" && (
-                    <Button variant="outline" disabled={acting} onClick={() => setReverseOpen(true)}>
-                      <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                    <>
+                      <Button variant="outline" disabled={acting} onClick={() => { setReverseMode("correct"); setReverseOpen(true) }}>
+                        <RotateCcw className="h-4 w-4 mr-1" /> Correct sale
+                      </Button>
+                      <Button variant="outline" disabled={acting} onClick={() => { setReverseMode("reverse"); setReverseOpen(true) }}>
+                        <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                      </Button>
+                    </>
+                  )}
+                  {reversal && !reversal.correctionSaleId && (
+                    <Button variant="outline" onClick={() => router.push(`/generic-sales/new?corrects=${sale.genericSaleId}`)}>
+                      <RotateCcw className="h-4 w-4 mr-1" /> Edit &amp; repost
                     </Button>
                   )}
                   {/* Print & Email — always visible */}
@@ -254,7 +269,7 @@ export default function GenericSaleDetailPage() {
           <ReverseSaleDialog
             open={reverseOpen}
             module="generic"
-            mode="reverse"
+            mode={reverseMode}
             saleId={sale ? sale.genericSaleId : null}
             saleLabel={sale ? `#${sale.genericSaleId}` : ""}
             farmId={getUserContext().farmId}
@@ -263,6 +278,8 @@ export default function GenericSaleDetailPage() {
             onOpenChange={setReverseOpen}
             onReversed={async ({ reversal: r }) => {
               setReverseOpen(false)
+              // Correct: reversed; now enter it again, filled in from it.
+              if (reverseMode === "correct") { router.push(`/generic-sales/new?corrects=${id}`); return }
               toast({
                 title: `Sale #${id} reversed${r?.reversalNumber ? ` (${r.reversalNumber})` : ""}`,
                 description: r
