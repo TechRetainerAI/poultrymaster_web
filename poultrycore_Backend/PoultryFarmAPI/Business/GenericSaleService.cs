@@ -81,7 +81,30 @@ namespace PoultryFarmAPIWeb.Business
             });
 
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // 485: a correcting sale is saved and linked to the reversed sale in
+            // ONE transaction -- a refused link leaves no orphan draft behind.
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            if (req.CorrectsSaleId is int corrects && corrects > 0)
+            {
+                try
+                {
+                    await using var link = new NpgsqlCommand(
+                        "SELECT spgenericsale_linkcorrection(p_farmid => @FarmId::text, p_newsaleid => @New::int, p_correctssaleid => @Old::int, p_by => @By::text)", conn, tx);
+                    link.Parameters.AddWithValue("@FarmId", farmId);
+                    link.Parameters.AddWithValue("@New", newId);
+                    link.Parameters.AddWithValue("@Old", corrects);
+                    link.Parameters.AddWithValue("@By", (object?)createdBy ?? DBNull.Value);
+                    await link.ExecuteNonQueryAsync();
+                }
+                catch (PostgresException ex) when (ex.SqlState == "P0001")
+                {
+                    throw new SaleRuleException(ex.MessageText, ex);
+                }
+            }
+            await tx.CommitAsync();
+            return newId;
         }
 
         // Keys must match the jsonb_to_recordset column list in spgenericsale_insert.
@@ -227,7 +250,20 @@ namespace PoultryFarmAPIWeb.Business
             CancellationReason    = r.IsDBNull(r.GetOrdinal("CancellationReason")) ? null : r.GetString(r.GetOrdinal("CancellationReason")),
             CreatedAt             = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt             = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+            // 484: only the list returns it, so read it only when the column is there.
+            SaleReversalId        = OptionalInt(r, "SaleReversalId"),
+            // 485: list only, read when present.
+            CorrectsSaleId        = OptionalInt(r, "CorrectsSaleId"),
+            CorrectedBySaleId     = OptionalInt(r, "CorrectedBySaleId"),
         };
+
+        private static int? OptionalInt(NpgsqlDataReader r, string name)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
+                    return r.IsDBNull(i) ? null : r.GetInt32(i);
+            return null;
+        }
 
         private static GenericSaleItemModel ReadSaleItem(NpgsqlDataReader r) => new()
         {

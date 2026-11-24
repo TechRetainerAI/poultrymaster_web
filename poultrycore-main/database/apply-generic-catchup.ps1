@@ -67,11 +67,15 @@ $files  = @(
     # 482: MUST follow 475/476, whose sale approval writes customer 0 for walk-ins
     '482_Enock_GenericWalkInSalePayment.postgres.sql',
     # 483: sale reversal (needs 473-476 + 482)
-    '483_Enock_GenericSaleReversal.postgres.sql'
+    '483_Enock_GenericSaleReversal.postgres.sql',
+    # 484: the Sales list shows reversed sales as Reversed (needs 483)
+    '484_Enock_GenericSalesListReversed.postgres.sql',
+    # 485: Correct sale / Edit & repost (needs 483 + 484)
+    '485_Enock_GenericSaleCorrection.postgres.sql'
 )
 if ($Only) { $files = @($files | Where-Object { $Only -contains $_ }); if (-not $files) { throw 'Nothing matches -Only.' } }
-$checks = @('generic-catchup-smoke.test.sql', 'generic-482-walkin-sale-payment.test.sql', 'generic-483-sale-reversal.test.sql')
-$passMarkers = @('generic catch-up: all checks passed', 'generic 482: all checks passed', 'generic 483: all checks passed')
+$checks = @('generic-catchup-smoke.test.sql', 'generic-482-walkin-sale-payment.test.sql', 'generic-483-sale-reversal.test.sql', 'generic-484-sales-list-reversed.test.sql', 'generic-485-sale-correction.test.sql')
+$passMarkers = @('generic catch-up: all checks passed', 'generic 482: all checks passed', 'generic 483: all checks passed', 'generic 484: all checks passed', 'generic 485: all checks passed')
 foreach ($f in $files)  { if (-not (Test-Path (Join-Path $MigrationsDir $f))) { throw "Missing migration: $f" } }
 foreach ($c in $checks) { if (-not (Test-Path (Join-Path $ChecksDir $c)))     { throw "Missing check: $c" } }
 

@@ -237,7 +237,16 @@ namespace PoultryFarmAPIWeb.Controllers
                     return BadRequest($"The following item(s) are not marked as sellable: {string.Join(", ", blocked)}. Enable 'Sell to Customers' on each item first.");
             }
 
-            var newId = await _sales.InsertAsync(farmId, req, createdBy);
+            int newId;
+            try
+            {
+                newId = await _sales.InsertAsync(farmId, req, createdBy);
+            }
+            catch (SaleRuleException ex)
+            {
+                // 485: the correction link was refused (already corrected, not reversed ...).
+                return BadRequest(new { message = ex.Message });
+            }
             var created = await _sales.GetByIdAsync(newId, farmId);
             return CreatedAtAction(nameof(GetById), new { farmId, id = newId }, created);
         }
