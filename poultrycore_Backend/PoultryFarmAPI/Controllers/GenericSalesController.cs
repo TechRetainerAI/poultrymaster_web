@@ -277,6 +277,58 @@ namespace PoultryFarmAPIWeb.Controllers
             await _sales.RefundAsync(id, farmId, refundedBy, body?.Reason);
             return NoContent();
         }
+
+        // ---------------------------------------------------------- 483: reversal
+        // GET {id}/reversal-preview -- what reversing the sale would do.
+        [HttpGet("{id:int}/reversal-preview")]
+        public async Task<IActionResult> ReversalPreview(string farmId, int id)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Content(await _sales.GetReversalPreviewAsync(id, farmId), "application/json");
+        }
+
+        // GET {id}/reversal -- the reversal of a reversed sale.
+        [HttpGet("{id:int}/reversal")]
+        public async Task<IActionResult> Reversal(string farmId, int id)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            var json = await _sales.GetReversalAsync(id, farmId);
+            return json is null ? NotFound(new { message = "This sale has not been reversed." }) : Content(json, "application/json");
+        }
+
+        // POST {id}/reverse -- reason, what happens to each payment, the preview's
+        // fingerprint (409 + stale when the sale changed), an idempotency key.
+        [HttpPost("{id:int}/reverse")]
+        public async Task<IActionResult> Reverse(string farmId, int id, [FromBody] SaleReverseRequest body)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            if (body is null) return BadRequest(new { message = "Nothing to reverse." });
+            if (string.IsNullOrWhiteSpace(body.ReasonCode) && string.IsNullOrWhiteSpace(body.Reason))
+                return BadRequest(new { message = "Give a reason for reversing this sale." });
+            // The person on the token, not whatever the body claims.
+            var by = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? body.UserId;
+            try
+            {
+                var reversalId = await _sales.ReverseAsync(id, farmId, body, by);
+                var json = await _sales.GetReversalAsync(id, farmId);
+                return Ok(new
+                {
+                    salereversalid = reversalId,
+                    reversal = json is null ? (System.Text.Json.JsonElement?)null : System.Text.Json.JsonDocument.Parse(json).RootElement,
+                });
+            }
+            catch (SaleRuleException ex) when (ex.Stale)
+            {
+                return Conflict(new { message = ex.Message, stale = true });
+            }
+            catch (SaleRuleException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 
     // =========================================================================

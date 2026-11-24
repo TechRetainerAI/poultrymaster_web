@@ -33,6 +33,8 @@ import {
 } from "@/lib/sales/reversal"
 // 458: the same dialog reverses a Water sale.
 import { getWaterSaleReversalPreview, reverseWaterSale } from "@/lib/api/water-sale-reversal"
+// 483: and a Generic sale (Generic payments move cash, like Poultry).
+import { getGenericSaleReversalPreview, reverseGenericSale } from "@/lib/api/generic-sale-reversal"
 
 export interface ReverseSaleResult {
   preview: SaleReversalPreview
@@ -52,7 +54,7 @@ interface Props {
   onOpenChange: (open: boolean) => void
   onReversed: (result: ReverseSaleResult) => void
   /** 458: which module's sale. Water customer payments post no cash, so the wording differs. */
-  module?: "poultry" | "water"
+  module?: "poultry" | "water" | "generic"
 }
 
 function Figure({ label, value, tone }: { label: string; value: string; tone?: "warn" | "good" }) {
@@ -75,7 +77,9 @@ export function ReverseSaleDialog({
   const water = module === "water"
   const api = water
     ? { preview: getWaterSaleReversalPreview, reverse: reverseWaterSale }
-    : { preview: getSaleReversalPreview, reverse: reverseSale }
+    : module === "generic"
+      ? { preview: getGenericSaleReversalPreview, reverse: reverseGenericSale }
+      : { preview: getSaleReversalPreview, reverse: reverseSale }
   const [preview, setPreview] = useState<SaleReversalPreview | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -260,7 +264,7 @@ export function ReverseSaleDialog({
                       ) : (
                         <p className="rounded-md bg-slate-50 p-2.5 text-xs text-slate-700">
                           {p.reverseUnavailableReason || "This payment stays Posted."} Cash does not change; {money(p.allocated)} becomes customer credit.
-                          {" "}To give the money back, refund it from {water ? "Customer Credits" : "Customer Balances"} afterwards.
+                          {" "}To give the money back, refund it from {water || module === "generic" ? "Customer Credits" : "Customer Balances"} afterwards.
                         </p>
                       )}
                     </div>
