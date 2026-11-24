@@ -7,6 +7,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<GenericDashboardModel> GetDashboardAsync(string farmId, DateTime? asOf);
         Task<GenericPeriodPnLModel> GetPeriodPnLAsync(string farmId, DateTime fromDate, DateTime toDate);
         Task<List<GenericProfitLossEntry>> GetProfitLossEntriesAsync(string farmId, DateOnly from, DateOnly to, CancellationToken cancellationToken);
+        /// <summary>484: scope "all" | "general" | "projects" (with projectIds).</summary>
+        Task<List<GenericProfitLossEntry>> GetProfitLossEntriesAsync(string farmId, DateOnly from, DateOnly to, string scope, int[]? projectIds, CancellationToken cancellationToken);
 
         Task<List<GenericSalesByProductRow>>  GetSalesByProductAsync(string farmId, DateTime fromDate, DateTime toDate);
         Task<List<GenericSalesByCustomerRow>> GetSalesByCustomerAsync(string farmId, DateTime fromDate, DateTime toDate);

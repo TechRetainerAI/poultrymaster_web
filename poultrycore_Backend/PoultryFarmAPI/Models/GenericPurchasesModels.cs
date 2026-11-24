@@ -301,6 +301,15 @@ namespace PoultryFarmAPIWeb.Models
 
     public class GenericPurchaseCreateRequest
     {
+        /// <summary>
+        /// 483: optional project split, saved in the same statement as the purchase.
+        /// {"projectId": n|null} for the whole purchase, or {"lines": [[{projectId, quantity|amount|share}], ...]} per line.
+        /// </summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
+        /// <summary>Set by the controller; who changed the project split on an edit.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string? UpdatedByForProjects { get; set; }
+
         public DateTime? PurchaseDate { get; set; }
         public int? GenericSupplierId { get; set; }
         public int? BranchId { get; set; }
@@ -345,6 +354,9 @@ namespace PoultryFarmAPIWeb.Models
     // =========================================================================
     public class GenericExpenseModel
     {
+        /// <summary>483: optional project split, saved with the expense. {"projectId": n|null, "costClass"?} or {"splits": [{projectId, amount|share, costClass}]}.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
+
         [Key]
         public int GenericExpenseId { get; set; }
 

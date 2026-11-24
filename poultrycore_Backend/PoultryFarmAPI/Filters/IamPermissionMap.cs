@@ -418,6 +418,17 @@ namespace PoultryFarmAPIWeb.Filters
             ["generic-company/recurring-expenses"] = "generic.recurring-expenses",
             ["generic-company/staff-payments"] = "generic.staff-payments",
             ["generic-company/owner-entries"] = "generic.owner-entries",
+            // 482: Projects & Contracts. Longest prefix wins, so the sub-routes
+            // below beat the bare register entry.
+            ["generic-company/projects"] = "generic.projects",
+            ["generic-company/projects/options"] = "generic.project-allocations",
+            ["generic-company/projects/financials"] = "generic.project-financials",
+            ["generic-company/projects/budget"] = "generic.project-budgets",
+            ["generic-company/projects/budget-categories"] = "generic.project-budgets",
+            ["generic-company/projects/milestones"] = "generic.project-milestones",
+            ["generic-company/projects/reservations"] = "generic.project-reservations",
+            ["generic-company/project-reservations"] = "generic.project-reservations",
+            ["generic-company/project-allocations"] = "generic.project-allocations",
             ["generic-company/module-settings"] = "office.organization",
             ["generic-company/business-settings"] = "office.organization",
             ["generic-company/business-template"] = "office.organization",

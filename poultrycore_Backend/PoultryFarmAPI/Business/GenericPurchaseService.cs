@@ -54,7 +54,11 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(string farmId, GenericPurchaseCreateRequest req, string? createdBy)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericpurchase_insert(p_farmid => @FarmId::text, p_purchasedate => @PurchaseDate::timestamp, p_genericsupplierid => @GenericSupplierId::int, p_branchid => @BranchId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_invoicenumber => @InvoiceNumber::text, p_receipturl => @ReceiptUrl::text, p_receivedbystaffid => @ReceivedByStaffId::int, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_items => @Items::jsonb)", conn);
+            var insertCall = "spgenericpurchase_insert(p_farmid => @FarmId::text, p_purchasedate => @PurchaseDate::timestamp, p_genericsupplierid => @GenericSupplierId::int, p_branchid => @BranchId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_invoicenumber => @InvoiceNumber::text, p_receipturl => @ReceiptUrl::text, p_receivedbystaffid => @ReceivedByStaffId::int, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_items => @Items::jsonb)";
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(req.Projects)
+                ? GenericProjectAttach.WrapInsert(insertCall, "Purchase")
+                : "SELECT * FROM " + insertCall, conn);
+            if (GenericProjectAttach.Has(req.Projects)) GenericProjectAttach.AddParams(cmd, farmId, req.Projects, createdBy);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PurchaseDate", (object?)req.PurchaseDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@GenericSupplierId", (object?)req.GenericSupplierId ?? DBNull.Value);
@@ -99,7 +103,10 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateAsync(int id, string farmId, GenericPurchaseCreateRequest req)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT spgenericpurchase_update(p_genericpurchaseid => @Id::int, p_farmid => @FarmId::text, p_purchasedate => @PurchaseDate::timestamp, p_genericsupplierid => @GenericSupplierId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_invoicenumber => @InvoiceNumber::text, p_notes => @Notes::text, p_items => @Items::jsonb)", conn);
+            var updateCall = "spgenericpurchase_update(p_genericpurchaseid => @Id::int, p_farmid => @FarmId::text, p_purchasedate => @PurchaseDate::timestamp, p_genericsupplierid => @GenericSupplierId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_invoicenumber => @InvoiceNumber::text, p_notes => @Notes::text, p_items => @Items::jsonb)";
+            // 483: the update re-creates every line; attach carries their projects over.
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.WrapUpdate(updateCall, "Purchase"), conn);
+            GenericProjectAttach.AddParams(cmd, farmId, req.Projects, req.UpdatedByForProjects, id);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PurchaseDate", (object?)req.PurchaseDate ?? DBNull.Value);

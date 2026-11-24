@@ -54,6 +54,8 @@ function everyModule(resource: string, actions: string[]): PermissionKey[] {
  */
 export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, PermissionKey[]> = {
   canEnterSales: [
+    // 482: Projects & Contracts -- picking the project on a sale is part of recording it.
+    "generic.project-allocations.view", "generic.project-allocations.create",
     ...everyModule("sales", ["view", "create", "edit", "export"]),
     // Receiving a customer payment is the same act as recording one on the sale
     // itself — same endpoint, same records — so the flag that allows the second
@@ -64,6 +66,8 @@ export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, Permission
   ],
 
   canEnterExpenses: [
+    // 482: picking the project on a purchase / expense is part of recording it.
+    "generic.project-allocations.view", "generic.project-allocations.create",
     ...everyModule("expenses", ["view", "create", "edit", "export"]),
     // Likewise for money going out: paying a supplier balance is the pay-balance
     // button on the purchase, taken from a different screen.
@@ -84,11 +88,18 @@ export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, Permission
 
   canSeeEmployees: [...everyModule("staff", ["view"]), "office.employees.view"],
 
-  canViewReports: everyModule("reports", ["view", "export"]),
+  canViewReports: [
+    ...everyModule("reports", ["view", "export"]),
+    // 482: project P&L, cash flow and comparison are reports.
+    "generic.projects.view", "generic.project-financials.view", "generic.project-financials.export",
+  ],
 
   // The old umbrella flag. It gated cash, payments, closing and customers as one
   // switch, so it has to grant all four.
   canViewFinancial: [
+    // 482: reading projects and their numbers.
+    "generic.projects.view", "generic.project-financials.view", "generic.project-budgets.view",
+    "generic.project-milestones.view", "generic.project-reservations.view", "generic.project-allocations.view",
     ...everyModule("cash", ["view", "export"]),
     ...everyModule("payments", ["view"]),
     ...everyModule("daily-closing", ["view"]),

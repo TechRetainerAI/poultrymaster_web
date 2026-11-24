@@ -28,6 +28,9 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSection, FormField } from "@/components/ui/form-section"
+import { SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, type SingleProjectValue } from "@/components/generic/projects/form-project-field"
+import { useProjectsEnabled } from "@/hooks/use-generic-projects"
+import { projectIdFromQuery } from "@/lib/generic/project-math"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import {
   Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Undo2,
@@ -42,6 +45,9 @@ import {
 } from "@/lib/api/generic-money-out"
 import { getCashAccounts } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const PAYMENT_METHODS = ["Cash", "BankTransfer", "MoMo", "Cheque", "Card", "Other"]
 const TYPE_FILTERS = ["All", "Contribution", "Draw"] as const
@@ -75,6 +81,12 @@ export default function GenericOwnerMoneyPage() {
     paymentMethod: "Cash", ownerName: "", reference: "", notes: "",
   })
 
+  // 483: owner money can be marked as funding for a project. Financing only:
+  // it never touches the project's profit.
+  const { enabled: projectsEnabled } = useProjectsEnabled()
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
+  const [fromProject, setFromProject] = useState<number | null>(null)
+
   const [reversing, setReversing] = useState<GenericOwnerEntry | null>(null)
   const [reason, setReason] = useState("")
 
@@ -105,11 +117,19 @@ export default function GenericOwnerMoneyPage() {
       return
     }
     load()
+    const qs = new URLSearchParams(window.location.search)
+    const pid = projectIdFromQuery(qs)
+    const kind = qs.get("new")
+    if (pid) setFromProject(pid)
+    if (kind === "Contribution" || kind === "Draw") openRecord(kind, pid)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, router])
 
+  // 483: Project / Contract filter (hidden unless the module is on).
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const projectLabels = useProjectLabels("OwnerEntry", rows)
   const visible = useMemo(() => {
-    let list = rows
+    let list = rows.filter((r) => projectLabels.matches(r.genericOwnerEntryId, projectFilter))
     if (typeFilter !== "All") list = list.filter((r) => r.entryType === typeFilter)
     if (statusFilter !== "All") list = list.filter((r) => r.status === statusFilter)
     return filterByDateAndSearch(list, {
@@ -117,7 +137,7 @@ export default function GenericOwnerMoneyPage() {
       search,
       searchKeys: ["ownerName", "referenceNo", "notes", "cashAccountName"],
     })
-  }, [rows, typeFilter, statusFilter, search, dateFrom, dateTo])
+  }, [rows, typeFilter, statusFilter, search, dateFrom, dateTo, projectLabels, projectFilter])
   const pg = usePagination(visible)
 
   // Summary stats computed client-side from all rows
@@ -145,8 +165,9 @@ export default function GenericOwnerMoneyPage() {
     isDraw && !!form.cashAccountId && amountNum > 0 &&
     after < 0 && !allowsNegative(form.cashAccountId)
 
-  const openRecord = (t: OwnerEntryType) => {
+  const openRecord = (t: OwnerEntryType, projectId: number | null = null) => {
     setRecording(t)
+    setProject({ ...EMPTY_SINGLE_PROJECT, projectId, costClass: "Financing" })
     setForm({
       amount: "0", cashAccountId: "", entryDate: today(),
       paymentMethod: "Cash", ownerName: "", reference: "", notes: "",
@@ -178,6 +199,7 @@ export default function GenericOwnerMoneyPage() {
         ownerName: form.ownerName.trim() || null,
         reference: form.reference.trim() || null,
         notes: form.notes.trim() || null,
+        projects: projectsEnabled ? singleAssignment(project) : undefined,
       })
       toast({
         title: recording === "Contribution" ? "Contribution recorded" : "Draw recorded",
@@ -186,6 +208,7 @@ export default function GenericOwnerMoneyPage() {
           : "Cash is down. It is the owner taking funding back, not a business expense.",
       })
       setRecording(null)
+      if (fromProject) { router.push(`/generic-projects/${fromProject}?tab=cash`); return }
       await load()
     } catch (e: any) {
       toast({ title: "Could not record", description: e?.message ?? String(e), variant: "destructive" })
@@ -271,6 +294,7 @@ export default function GenericOwnerMoneyPage() {
                 searchPlaceholder="Search owner, reference, account or notes"
                 dateFrom={dateFrom} setDateFrom={setDateFrom}
                 dateTo={dateTo} setDateTo={setDateTo}
+                extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} />}
               />
               <div className="flex flex-wrap gap-2 mt-3">
                 {TYPE_FILTERS.map((t) => (
@@ -487,6 +511,12 @@ export default function GenericOwnerMoneyPage() {
                 <Input value={form.reference} placeholder="Bank or MoMo reference"
                        onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))} />
               </FormField>
+              {projectsEnabled && (
+                <FormField label="Project / contract" full>
+                  <SingleProjectField value={project} onChange={setProject} amount={amountNum} showCostClass={false} label=""
+                    hint="Shows as owner funding on the project. It is financing, never revenue or profit." />
+                </FormField>
+              )}
               <FormField label="Notes" full>
                 <Textarea rows={2} value={form.notes}
                           onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />

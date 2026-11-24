@@ -1,5 +1,6 @@
 "use client"
 
+import { ProjectAssignmentCard } from "@/components/generic/projects/project-assignment-card"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
@@ -262,6 +263,14 @@ export default function GenericSaleDetailPage() {
                       {sale.notes && <><hr className="my-2" /><div>{sale.notes}</div></>}
                     </CardContent>
                   </Card>
+
+                  {/* 483: which project / contract each line belongs to; change or split it here. */}
+                  <ProjectAssignmentCard documentType="Sale" documentId={sale.genericSaleId}
+                    note="Payments on this sale follow its project automatically."
+                    lines={sale.items.filter((i) => i.genericSaleItemId).map((i) => ({
+                      lineId: i.genericSaleItemId!, description: i.description ?? `Line ${i.genericSaleItemId}`,
+                      quantity: i.quantity, amount: i.lineTotal ?? i.quantity * i.unitPrice, unit: i.saleUnit,
+                    }))} />
                 </div>
               </div>
             </>

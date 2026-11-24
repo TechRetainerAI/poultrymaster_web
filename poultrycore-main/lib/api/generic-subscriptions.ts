@@ -39,6 +39,12 @@ export interface GenericModuleSettings {
    */
   enableRecurringExpenses: boolean
   enableSupplierBalances: boolean
+  /**
+   * 482: Projects & Contracts. Off by default. Turning it off hides the module
+   * and stops NEW project assignment; projects and their history are kept.
+   * Optional on save: leaving it out keeps what is stored.
+   */
+  enableProjects?: boolean
 }
 
 /**
