@@ -359,6 +359,8 @@ export interface LivestockItem {
   speciesName: string | null
   notes: string | null
   isActive: boolean
+  /** 494: feed collected from the forest / bush, not bought (Collect feed). Feed items only. */
+  isForage: boolean
   stock: number
   value: number
   avgCost: number | null
@@ -366,7 +368,7 @@ export interface LivestockItem {
   hasMovements: boolean
 }
 
-export type StockMovementType = "Opening" | "StockIn" | "Purchase" | "Usage" | "Adjustment" | "Produced" | "Loss"
+export type StockMovementType = "Opening" | "StockIn" | "Purchase" | "Usage" | "Adjustment" | "Produced" | "Loss" | "Collected"
 
 export interface StockMovement {
   movementId: number
@@ -395,6 +397,8 @@ export interface ItemInput {
   speciesCode: string | null
   notes: string | null
   isActive?: boolean
+  /** 494: Feed only. */
+  isForage?: boolean
 }
 
 export const listItems = (category?: ItemCategory | "Health", includeInactive = false) =>
@@ -409,6 +413,51 @@ export const changeStock = (input: { itemId: number; date: string; type: "Adjust
   call<LivestockItem & { movementId: number }>("POST", "/Livestock/stock", withFarm(input))
 export const reverseStockChange = (movementId: number, reason: string) =>
   call<void>("POST", `/Livestock/stock/${movementId}/reversal`, withFarm({ reason }))
+
+// 494: feed collected from the forest / bush (forage). Goes into stock at what
+// collecting it cost (0 if nothing); that cost is paid from a cash account.
+export interface ForageCollection {
+  collectionId: number
+  itemId: number
+  itemName: string
+  unit: string
+  date: string
+  quantity: number
+  kg: number | null
+  place: string | null
+  collectedBy: string | null
+  cost: number
+  costPerUnit: number
+  accountId: number | null
+  accountName: string | null
+  notes: string | null
+  createdBy: string | null
+  createdAt: string
+  reversedAt: string | null
+  reversedBy: string | null
+  reverseReason: string | null
+}
+export interface ForageCollectionInput {
+  itemId: number
+  date: string
+  quantity: number
+  place: string | null
+  collectedBy: string | null
+  cost: number
+  accountId: number | null
+  notes: string | null
+}
+export const listForageCollections = (f: { from?: string; to?: string; itemId?: number } = {}) => {
+  const p = new URLSearchParams({ farmId: farmId() })
+  if (f.from) p.set("from", f.from)
+  if (f.to) p.set("to", f.to)
+  if (f.itemId) p.set("itemId", String(f.itemId))
+  return call<ForageCollection[]>("GET", `/Livestock/stock/collections?${p}`)
+}
+export const collectForage = (input: ForageCollectionInput) =>
+  call<ForageCollection>("POST", "/Livestock/stock/collections", withFarm(input))
+export const reverseForageCollection = (collectionId: number, reason: string) =>
+  call<void>("POST", `/Livestock/stock/collections/${collectionId}/reversal`, withFarm({ reason }))
 
 export interface ProductionLine {
   lineId: number
@@ -437,6 +486,10 @@ export interface ProductionRecord {
   milkLitres: number | null
   waterLitres: number | null
   notes: string | null
+  /** 494: the animals went out to graze (nothing goes into stock). */
+  grazed: boolean
+  grazingHours: number | null
+  grazingPlace: string | null
   headEndOfDay: number
   feedQuantity: number
   feedKg: number | null
@@ -477,6 +530,9 @@ export interface ProductionInput {
   milkLitres: number | null
   waterLitres: number | null
   notes: string | null
+  grazed: boolean
+  grazingHours: number | null
+  grazingPlace: string | null
   feedLines: ProductionLineInput[]
   medicationLines: ProductionLineInput[]
 }
@@ -1169,6 +1225,7 @@ export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["Labour", "Veterinary", "T
 // Only "Paid" rows (typed in here) can be reversed from the Expenses page.
 export type ExpenseSource =
   | "Paid" | "Bill" | "Purchase" | "Batch" | "Animal" | "StockUsed" | "StockLost" | "PayRun" | "LoanInterest" | "Depreciation"
+  | "ForageCollection"
 // Spent: money out or owed. Bought: stock/animals bought. Used: stock already bought,
 // now used or lost (no new payment). NonCash: depreciation.
 export type ExpenseCostKind = "Spent" | "Bought" | "Used" | "NonCash"

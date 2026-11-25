@@ -56,6 +56,7 @@ function origin(r: Expense): { label: string; href: string | null } {
     case "PayRun": return { label: "Pay run", href: "/livestock-payroll" }
     case "LoanInterest": return { label: "Loan", href: "/livestock-loans" }
     case "Depreciation": return { label: "Asset", href: "/livestock-assets" }
+    case "ForageCollection": return { label: "Feed collected", href: "/livestock-items?tab=collected" }
   }
 }
 

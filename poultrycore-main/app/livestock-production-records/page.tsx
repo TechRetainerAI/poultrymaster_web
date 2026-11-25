@@ -128,7 +128,7 @@ export default function LivestockProductionRecordsPage() {
       && (groupId === ALL || String(r.groupId) === groupId)
       && (month === ALL || r.date.slice(5, 7) === month)
       && (year === ALL || r.date.slice(0, 4) === year)
-      && (!q || [r.groupName, r.speciesName, r.batchCode, r.meds, r.deathCause, r.notes, r.date].some((v) => v?.toLowerCase().includes(q))))
+      && (!q || [r.groupName, r.speciesName, r.batchCode, r.meds, r.deathCause, r.notes, r.grazingPlace, r.date].some((v) => v?.toLowerCase().includes(q))))
   }, [rows, search, dateFrom, dateTo, species, batchId, groupId, month, year, groupById])
   const sorted = useMemo(() => {
     const base = [...filtered].sort((a, b) => b.date.localeCompare(a.date) || a.groupName.localeCompare(b.groupName))
@@ -364,7 +364,11 @@ export default function LivestockProductionRecordsPage() {
                       <TableCell className="px-2 py-1.5 text-right">{r.layRate != null ? `${r.layRate.toFixed(1)}%` : "—"}</TableCell>
                     </>}
                     {features.milk && <TableCell className="px-2 py-1.5 text-right bg-sky-50/40 text-sky-800">{r.milkLitres ?? "—"}</TableCell>}
-                    <TableCell className="px-2 py-1.5 text-right">{r.feedTotal ? `${fmtNum(r.feedTotal)}${r.feedKg != null ? " kg" : ""}` : "—"}</TableCell>
+                    <TableCell className="px-2 py-1.5 text-right">
+                      {r.feedTotal ? `${fmtNum(r.feedTotal)}${r.feedKg != null ? " kg" : ""}` : "—"}
+                      {/* 494: grazing is not weighed -- shown next to the feed. */}
+                      {r.grazed && <div className="text-xs text-emerald-700" title={r.grazingPlace ?? undefined}>+ grazed{r.grazingHours ? ` ${r.grazingHours} h` : ""}</div>}
+                    </TableCell>
                     <TableCell className="px-2 py-1.5 text-right">{fmtNum(r.headStart)}</TableCell>
                     <TableCell className="px-2 py-1.5 text-right">
                       <span className={cn("rounded px-2 py-0.5", r.deaths > 0 ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-600")}>{r.deaths}</span>

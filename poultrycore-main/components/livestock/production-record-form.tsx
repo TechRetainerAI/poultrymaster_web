@@ -7,7 +7,8 @@
 //
 // The data is livestock's own: deaths and culls, eggs (laying birds), milk
 // (milked animals), water, and feed and medicine lines taken out of stock at
-// average cost. One record per group per day.
+// average cost. One record per group per day. 494: grazing (went out to graze,
+// hours, where) -- a note only, nothing goes into stock.
 //
 // Used by the full page (/livestock-production-records/new and /[id]/edit) and
 // by the modal on the list. onSaved decides where to go next; without it the
@@ -16,11 +17,12 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, CalendarDays, Copy, Droplets, Egg, FileText, Loader2, Milk, PawPrint, Pill, Plus, Scale, Wheat, X } from "lucide-react"
+import { AlertTriangle, CalendarDays, Copy, Droplets, Egg, FileText, Loader2, Milk, PawPrint, Pill, Plus, Scale, Trees, Wheat, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSectionCard, CalcField, NumField } from "@/components/production/production-record-fields"
@@ -71,6 +73,9 @@ export function ProductionRecordForm({ record, presetGroupId, presetDate, onSave
   const [milk, setMilk] = useState(record?.milkLitres?.toString() ?? "")
   const [water, setWater] = useState(record?.waterLitres?.toString() ?? "")
   const [notes, setNotes] = useState(record?.notes ?? "")
+  const [grazed, setGrazed] = useState(record?.grazed ?? false)
+  const [grazingHours, setGrazingHours] = useState(record?.grazingHours?.toString() ?? "")
+  const [grazingPlace, setGrazingPlace] = useState(record?.grazingPlace ?? "")
   const toLines = (t: "Feed" | "Medication", r?: ProductionRecord | null): Line[] =>
     r?.lines.filter((l) => l.lineType === t).map((l) => ({ itemId: l.itemId, quantity: String(l.quantity), notes: l.notes ?? "" })) ?? []
   const [feed, setFeed] = useState<Line[]>(() => (record ? toLines("Feed", record) : [emptyLine()]))
@@ -152,6 +157,9 @@ export function ProductionRecordForm({ record, presetGroupId, presetDate, onSave
     setFeed(f.length ? f : [emptyLine()]); setMeds(m)
     if (form?.producesMilk && last.milkLitres != null) setMilk(String(last.milkLitres))
     if (last.waterLitres != null) setWater(String(last.waterLitres))
+    if (last.grazed) {
+      setGrazed(true); setGrazingHours(last.grazingHours?.toString() ?? ""); setGrazingPlace(last.grazingPlace ?? "")
+    }
   }
 
   const problem =
@@ -173,6 +181,8 @@ export function ProductionRecordForm({ record, presetGroupId, presetDate, onSave
       milkLitres: form?.producesMilk && milk !== "" ? Number(milk) : null,
       waterLitres: water !== "" ? Number(water) : null,
       notes: notes.trim() || null, feedLines: lines(feed), medicationLines: lines(meds),
+      grazed, grazingHours: grazed && grazingHours !== "" ? Number(grazingHours) : null,
+      grazingPlace: grazed ? grazingPlace.trim() || null : null,
     }
     try {
       const res = await saveProductionRecord(input, record?.recordId)
@@ -264,7 +274,7 @@ export function ProductionRecordForm({ record, presetGroupId, presetDate, onSave
           <div className="space-y-1.5">
             <Label>Same as last record</Label>
             <Button variant="outline" className="w-full justify-start" disabled={!form?.lastRecord} onClick={copyLast}
-              title={form?.lastRecord ? "Copies the feed, medicine, milk and water of the last record" : "No earlier record for this group"}>
+              title={form?.lastRecord ? "Copies the feed, medicine, milk, water and grazing of the last record" : "No earlier record for this group"}>
               <Copy className="h-4 w-4 mr-2" />
               {form?.lastRecord ? `Copy feed from ${new Date(form.lastRecord.date + "T00:00:00").toLocaleDateString()}` : "No earlier record"}
             </Button>
@@ -349,6 +359,27 @@ export function ProductionRecordForm({ record, presetGroupId, presetDate, onSave
               <CalcField label="Feed per animal (kg)" value={headStart && feedKg ? (feedKg / headStart).toFixed(3) : "—"} />
               <CalcField label="Total feed cost" value={fmtMoney(feedCost)} />
             </div>
+          </FormSectionCard>
+
+          {/* --------------------------------------------------- Grazing */}
+          <FormSectionCard title="Grazing" description="Did the animals go out to graze? Grazing is not weighed, so nothing comes out of stock."
+            badge={grazed ? (grazingHours ? `${grazingHours} h` : "Grazed") : undefined} accent="emerald" icon={Trees}>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Switch checked={grazed} onCheckedChange={setGrazed} /> Went out to graze today
+            </label>
+            {grazed && (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                <div className="space-y-1">
+                  <Label htmlFor="pr-ghours" className="text-xs text-slate-600">Hours out (optional)</Label>
+                  <Input id="pr-ghours" type="number" min={0} max={24} step="0.5" className="h-9 tabular-nums" value={grazingHours}
+                    onChange={(e) => setGrazingHours(e.target.value)} />
+                </div>
+                <div className="sm:col-span-3 space-y-1">
+                  <Label htmlFor="pr-gplace" className="text-xs text-slate-600">Where (optional)</Label>
+                  <Input id="pr-gplace" placeholder="e.g. Riverside bush" value={grazingPlace} onChange={(e) => setGrazingPlace(e.target.value)} />
+                </div>
+              </div>
+            )}
           </FormSectionCard>
 
           {/* ------------------------------------------------ Medication */}
