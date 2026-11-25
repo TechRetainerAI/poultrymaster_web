@@ -11,7 +11,11 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { ArrowLeft, Check, Loader2, Trash2, Printer, Mail, Undo2, RotateCcw } from "lucide-react"
+import { ArrowLeft, Check, Loader2, Trash2, Printer, Mail, Undo2, RotateCcw, FileText, ExternalLink } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -22,6 +26,12 @@ import { getGenericSaleReversal } from "@/lib/api/generic-sale-reversal"
 import type { SaleReversalRecord } from "@/lib/api/sale"
 import { getUserContext } from "@/lib/api/config"
 import { getSelectedCurrency } from "@/lib/utils/currency"
+import { useGenericModules } from "@/hooks/use-generic-modules"
+import {
+  generateInvoice, getInvoiceForSale, getInvoiceSettings,
+  PAYMENT_TERMS_OPTIONS,
+  type InvoiceSaleLookup, type InvoiceDocumentDetail,
+} from "@/lib/api/generic-invoice-documents"
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -61,6 +71,15 @@ export default function GenericSaleDetailPage() {
   // 485: Correct = reverse, then New sale filled in from it (Edit & repost).
   const [reverseMode, setReverseMode] = useState<"reverse" | "correct">("reverse")
   const [reversal, setReversal] = useState<SaleReversalRecord | null>(null)
+  // Invoice document state
+  const { showNew } = useGenericModules()
+  const invoicingEnabled = showNew("enableInvoices")
+  const [invoiceLookup, setInvoiceLookup] = useState<InvoiceSaleLookup | null>(null)
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false)
+  const [invoiceTerms, setInvoiceTerms] = useState("DueImmediately")
+  const [invoiceDueDate, setInvoiceDueDate] = useState("")
+  const [invoicePO, setInvoicePO] = useState("")
+  const [generating, setGenerating] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -68,8 +87,12 @@ export default function GenericSaleDetailPage() {
       const s = await getSale(id)
       setSale(s)
       // A reversed sale is 'Cancelled' + a reversal record (483); a cancelled draft has none.
-      const r = s?.status === "Cancelled" ? await getGenericSaleReversal(id) : null
+      const [r, inv] = await Promise.all([
+        s?.status === "Cancelled" ? getGenericSaleReversal(id) : Promise.resolve(null),
+        s?.status === "Approved" ? getInvoiceForSale(id) : Promise.resolve(null),
+      ])
       setReversal(r?.success && r.data ? r.data : null)
+      setInvoiceLookup(inv)
     } catch (e: any) {
       toast({ title: "Could not load sale", description: e?.message ?? String(e), variant: "destructive" })
     } finally {
@@ -87,11 +110,73 @@ export default function GenericSaleDetailPage() {
     setActing(true)
     try {
       await approveSale(id)
-      toast({ title: `Sale #${id} approved`, description: "Inventory, cash and customer ledger updated." })
+
+      // Auto-generate invoice document if the setting is on
+      let autoDoc: InvoiceDocumentDetail | null = null
+      if (invoicingEnabled) {
+        try {
+          const invSettings = await getInvoiceSettings()
+          if (invSettings.autoGenerateInvoiceAfterSale) {
+            autoDoc = await generateInvoice({ saleId: id })
+          }
+        } catch {
+          // Non-fatal — the sale is approved regardless
+        }
+      }
+
+      if (autoDoc) {
+        toast({
+          title: `Sale #${id} approved · Invoice ${autoDoc.invoiceNumber} generated`,
+          description: "Inventory, cash and customer ledger updated.",
+        })
+        setInvoiceLookup({
+          genericInvoiceDocumentId: autoDoc.genericInvoiceDocumentId,
+          invoiceNumber: autoDoc.invoiceNumber,
+          documentStatus: autoDoc.documentStatus,
+          issueDate: autoDoc.issueDate,
+          dueDate: autoDoc.dueDate,
+        })
+      } else {
+        toast({
+          title: `Sale #${id} approved`,
+          description: invoicingEnabled
+            ? "Inventory, cash and customer ledger updated. You can now generate an invoice."
+            : "Inventory, cash and customer ledger updated.",
+        })
+      }
       await load()
     } catch (e: any) {
       toast({ title: "Approve failed", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setActing(false) }
+  }
+
+  const onGenerateInvoice = async () => {
+    setGenerating(true)
+    try {
+      const doc = await generateInvoice({
+        saleId: id,
+        paymentTerms: invoiceTerms !== "Custom" ? invoiceTerms : undefined,
+        dueDate: invoiceTerms === "Custom" && invoiceDueDate ? invoiceDueDate : undefined,
+        purchaseOrderReference: invoicePO || undefined,
+      })
+      setShowInvoiceDialog(false)
+      if (doc) {
+        setInvoiceLookup({
+          genericInvoiceDocumentId: doc.genericInvoiceDocumentId,
+          invoiceNumber: doc.invoiceNumber,
+          documentStatus: doc.documentStatus,
+          issueDate: doc.issueDate,
+          dueDate: doc.dueDate,
+        })
+        toast({
+          title: `Invoice ${doc.invoiceNumber} generated`,
+          description: `Due ${doc.dueDate ?? "immediately"}.`,
+        })
+        router.push(`/generic-invoice-documents/${doc.genericInvoiceDocumentId}`)
+      }
+    } catch (e: any) {
+      toast({ title: "Could not generate invoice", description: e?.message ?? String(e), variant: "destructive" })
+    } finally { setGenerating(false) }
   }
 
   const onCancel = async () => {
@@ -179,6 +264,21 @@ export default function GenericSaleDetailPage() {
                     <Button variant="outline" onClick={() => router.push(`/generic-sales/new?corrects=${sale.genericSaleId}`)}>
                       <RotateCcw className="h-4 w-4 mr-1" /> Edit &amp; repost
                     </Button>
+                  )}
+                  {/* Invoice actions — only when invoicing is enabled and sale is approved */}
+                  {invoicingEnabled && sale.status === "Approved" && !reversal && (
+                    invoiceLookup ? (
+                      <Button variant="outline" asChild>
+                        <Link href={`/generic-invoice-documents/${invoiceLookup.genericInvoiceDocumentId}`}>
+                          <FileText className="h-4 w-4 mr-1" /> {invoiceLookup.invoiceNumber}
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" onClick={() => setShowInvoiceDialog(true)} disabled={generating}>
+                        {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}
+                        Generate Invoice
+                      </Button>
+                    )
                   )}
                   {/* Print & Email — always visible */}
                   <Button variant="outline" onClick={() => window.print()}>
@@ -275,6 +375,54 @@ export default function GenericSaleDetailPage() {
               </div>
             </>
           )}
+          {/* Generate Invoice dialog */}
+          <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Generate Invoice</DialogTitle>
+                <DialogDescription>
+                  Create a formal invoice document for Sale #{id}.
+                  This does not create any additional financial transactions.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Payment terms</Label>
+                  <Select value={invoiceTerms} onValueChange={(v) => { setInvoiceTerms(v); if (v !== "Custom") setInvoiceDueDate("") }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_TERMS_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {invoiceTerms === "Custom" && (
+                  <div>
+                    <Label>Due date</Label>
+                    <Input type="date" value={invoiceDueDate} onChange={(e) => setInvoiceDueDate(e.target.value)} />
+                  </div>
+                )}
+
+                <div>
+                  <Label>Purchase order reference <span className="text-xs text-slate-400">(optional)</span></Label>
+                  <Input value={invoicePO} onChange={(e) => setInvoicePO(e.target.value)} placeholder="PO-12345" />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="ghost" onClick={() => setShowInvoiceDialog(false)} disabled={generating}>
+                    Cancel
+                  </Button>
+                  <Button onClick={onGenerateInvoice} disabled={generating || (invoiceTerms === "Custom" && !invoiceDueDate)}>
+                    {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}
+                    Generate Invoice
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <ReverseSaleDialog
             open={reverseOpen}
             module="generic"

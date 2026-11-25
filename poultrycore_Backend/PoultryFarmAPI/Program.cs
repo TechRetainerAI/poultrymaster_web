@@ -474,6 +474,7 @@ builder.Services.AddScoped<IGenericCashTransactionService>(sp => new GenericCash
 builder.Services.AddScoped<IGenericBusinessTemplateService>(sp => new GenericBusinessTemplateService(connectionString));
 builder.Services.AddScoped<IGenericSubscriptionService>(sp => new GenericSubscriptionService(connectionString));
 builder.Services.AddScoped<IGenericBillingService>(sp => new GenericBillingService(connectionString));
+builder.Services.AddScoped<IGenericInvoiceDocumentService>(sp => new GenericInvoiceDocumentService(connectionString));
 builder.Services.AddScoped<IGenericBalanceService>(sp => new GenericBalanceService(connectionString));
 // Phase 6: the money-out side (migration 249) -- recurring expenses, staff
 // and contractor payments, and owner contributions and draws.
