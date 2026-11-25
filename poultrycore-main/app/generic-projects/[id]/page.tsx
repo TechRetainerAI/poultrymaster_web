@@ -164,7 +164,7 @@ function Workspace() {
         </TabsContent>
         <TabsContent value="transactions"><TransactionsTab tx={tx} /></TabsContent>
         <TabsContent value="inventory">{tab === "inventory" && <InventoryTab projectId={projectId} tx={tx} />}</TabsContent>
-        <TabsContent value="sales"><SalesTab tx={tx} /></TabsContent>
+        <TabsContent value="sales"><SalesTab tx={tx} projectId={projectId} /></TabsContent>
         <TabsContent value="costs"><ExpensesTab tx={tx} /></TabsContent>
         <TabsContent value="cash"><CashTab cash={tx.cash} /></TabsContent>
         <TabsContent value="pnl"><PnlStatement rows={tx.pnl} projectId={projectId} /></TabsContent>

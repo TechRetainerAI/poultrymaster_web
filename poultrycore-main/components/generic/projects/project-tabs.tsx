@@ -27,6 +27,8 @@ import {
   type BudgetCategory, type MilestoneStatus, type ProjectBudget, type ProjectCashFlow, type ProjectInventory,
   type ProjectMilestone, type ProjectPnlRow, type ProjectTransactions,
 } from "@/lib/api/generic-projects"
+import { getInvoiceDocuments, type InvoiceDocumentRow } from "@/lib/api/generic-invoice-documents"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { ProjectPicker } from "./project-picker"
 
 const SECTION_LABEL: Record<string, string> = {
@@ -154,13 +156,30 @@ export function PnlStatement({ rows, projectId }: { rows: ProjectPnlRow[]; proje
 
 // ---------------------------------------------------------------- Sales & receivables
 
-export function SalesTab({ tx }: { tx: ProjectTransactions }) {
+export function SalesTab({ tx, projectId }: { tx: ProjectTransactions; projectId?: number }) {
   const fmt = useFmt()
+  const { showNew } = useGenericModules()
+  const invoicingEnabled = showNew("enableInvoices")
   const sales = tx.pnl.filter((r) => r.section === "revenue")
   const owed = tx.balances.filter((b) => b.kind === "Receivable")
   const adv = tx.balances.filter((b) => b.kind === "CustomerAdvance")
   const received = tx.cash.byCategory.filter((c) => c.category === "Customer payments" || c.category === "Sales paid at the counter")
     .reduce((a, c) => a + c.net, 0)
+
+  // Invoice documents for this project (fetched lazily)
+  const [invoiceDocs, setInvoiceDocs] = useState<InvoiceDocumentRow[]>([])
+  useEffect(() => {
+    if (!invoicingEnabled || !projectId) return
+    getInvoiceDocuments({ projectId }).then(setInvoiceDocs).catch(() => {})
+  }, [invoicingEnabled, projectId])
+
+  // Map saleId → invoice doc for quick lookup
+  const invoiceBySale = useMemo(() => {
+    const map = new Map<number, InvoiceDocumentRow>()
+    for (const d of invoiceDocs) map.set(d.genericSaleId, d)
+    return map
+  }, [invoiceDocs])
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -173,12 +192,31 @@ export function SalesTab({ tx }: { tx: ProjectTransactions }) {
         <CardHeader><CardTitle className="text-base">Sales</CardTitle></CardHeader>
         <CardContent className="p-0">
           {sales.length === 0 ? <Empty>No sales for this project yet.</Empty> : (
-            <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Sale</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Revenue</TableHead></TableRow></TableHeader>
-              <TableBody>{sales.map((r, i) => (
-                <TableRow key={i}><TableCell>{r.date}</TableCell>
-                  <TableCell><Link className="text-indigo-700 hover:underline" href={`/generic-sales/${r.sourceId}`}>{r.ref}</Link><Share share={r.share} /></TableCell>
-                  <TableCell>{r.description}</TableCell><TableCell className="text-right tabular-nums">{fmt(r.amount)}</TableCell></TableRow>
-              ))}</TableBody></Table>
+            <Table><TableHeader><TableRow>
+              <TableHead>Date</TableHead><TableHead>Sale</TableHead><TableHead>Customer</TableHead>
+              {invoicingEnabled && <TableHead>Invoice</TableHead>}
+              <TableHead className="text-right">Revenue</TableHead>
+            </TableRow></TableHeader>
+              <TableBody>{sales.map((r, i) => {
+                const inv = invoiceBySale.get(r.sourceId)
+                return (
+                  <TableRow key={i}><TableCell>{r.date}</TableCell>
+                    <TableCell><Link className="text-indigo-700 hover:underline" href={`/generic-sales/${r.sourceId}`}>{r.ref}</Link><Share share={r.share} /></TableCell>
+                    <TableCell>{r.description}</TableCell>
+                    {invoicingEnabled && (
+                      <TableCell>
+                        {inv ? (
+                          <Link className="text-indigo-700 hover:underline font-mono text-xs" href={`/generic-invoice-documents/${inv.genericInvoiceDocumentId}`}>
+                            {inv.invoiceNumber}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    <TableCell className="text-right tabular-nums">{fmt(r.amount)}</TableCell></TableRow>
+                )
+              })}</TableBody></Table>
           )}
         </CardContent>
       </Card>

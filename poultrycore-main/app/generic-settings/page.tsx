@@ -32,6 +32,8 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Loader2, Settings, Save, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -40,6 +42,11 @@ import {
   getModuleSettings, saveModuleSettings, getBusinessSettings, saveBusinessSettings,
   type GenericModuleSettings, type GenericBusinessSettings,
 } from "@/lib/api/generic-subscriptions"
+import {
+  getInvoiceSettings, saveInvoiceSettings,
+  PAYMENT_TERMS_OPTIONS,
+  type InvoiceSettingsDto,
+} from "@/lib/api/generic-invoice-documents"
 import { invalidateGenericModules, useGenericModules } from "@/hooks/use-generic-modules"
 import { BILLING_FREQUENCIES, FREQUENCY_LABELS } from "@/lib/generic/billing-schedule"
 
@@ -57,6 +64,7 @@ export default function GenericSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [modules, setModules] = useState<GenericModuleSettings | null>(null)
   const [settings, setSettings] = useState<GenericBusinessSettings | null>(null)
+  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettingsDto | null>(null)
 
   useEffect(() => {
     if (!activeFarmType) return
@@ -68,12 +76,13 @@ export default function GenericSettingsPage() {
     ;(async () => {
       // allSettled: one failing must not leave the other section blank with no
       // explanation of which half went wrong.
-      const [m, s] = await Promise.allSettled([getModuleSettings(), getBusinessSettings()])
+      const [m, s, inv] = await Promise.allSettled([getModuleSettings(), getBusinessSettings(), getInvoiceSettings().catch(() => null)])
       if (cancelled) return
       if (m.status === "fulfilled") setModules(m.value)
       else toast({ title: "Could not load modules", description: String(m.reason?.message ?? m.reason), variant: "destructive" })
       if (s.status === "fulfilled") setSettings(s.value)
       else toast({ title: "Could not load settings", description: String(s.reason?.message ?? s.reason), variant: "destructive" })
+      if (inv.status === "fulfilled" && inv.value) setInvoiceSettings(inv.value)
       setLoading(false)
     })()
     return () => { cancelled = true }
@@ -83,12 +92,14 @@ export default function GenericSettingsPage() {
     if (!modules || !settings) return
     setSaving(true)
     try {
-      const [m, s] = await Promise.all([
+      const [m, s, inv] = await Promise.all([
         saveModuleSettings(modules),
         saveBusinessSettings(settings),
+        invoiceSettings ? saveInvoiceSettings(invoiceSettings).catch(() => null) : Promise.resolve(null),
       ])
       if (m) setModules(m)
       if (s) setSettings(s)
+      if (inv) setInvoiceSettings(inv)
       // The sidebar, top nav, mobile bar and dashboard all read the cached
       // copy. Without this the menu keeps the old toggles until a reload.
       invalidateGenericModules(activeFarmId ?? undefined)
@@ -104,6 +115,8 @@ export default function GenericSettingsPage() {
     setModules((m) => (m ? { ...m, [key]: value } : m))
   const set = <K extends keyof GenericBusinessSettings>(key: K, value: GenericBusinessSettings[K]) =>
     setSettings((s) => (s ? { ...s, [key]: value } : s))
+  const setInv = <K extends keyof InvoiceSettingsDto>(key: K, value: InvoiceSettingsDto[K]) =>
+    setInvoiceSettings((s) => (s ? { ...s, [key]: value } : s))
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -148,7 +161,7 @@ export default function GenericSettingsPage() {
                       <Group title="Selling">
                         <Toggle label={labels.subscriptionPlural} hint="Plans, subscriptions and billing runs"
                                 checked={modules.enableSubscriptions} onChange={(v) => mod("enableSubscriptions", v)} />
-                        <Toggle label={labels.invoicePlural} hint="The invoices a billing run raises"
+                        <Toggle label={labels.invoicePlural} hint="Generate professional invoices from posted sales"
                                 checked={modules.enableInvoices} onChange={(v) => mod("enableInvoices", v)} />
                         <Toggle label={labels.customerBalance} hint="Who owes you, aged, with statements"
                                 checked={modules.enableCustomerBalances} onChange={(v) => mod("enableCustomerBalances", v)} />
@@ -258,6 +271,88 @@ ${PROJECTS_OFF_WARNING}`)) return
                   )}
                 </CardContent>
               </Card>
+
+              {/* ---- invoice settings -------------------------------------- */}
+              {modules?.enableInvoices && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Invoice settings</CardTitle>
+                    <CardDescription>
+                      How invoices are numbered, what they say, and what happens when one is generated.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {!invoiceSettings ? (
+                      <p className="text-sm text-slate-500">Invoice settings could not be loaded.</p>
+                    ) : (
+                      <>
+                        <div>
+                          <Label>Invoice number prefix</Label>
+                          <Input
+                            value={invoiceSettings.invoicePrefix}
+                            onChange={(e) => setInv("invoicePrefix", e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 10))}
+                            placeholder="INV"
+                            maxLength={10}
+                          />
+                          <p className="text-xs text-slate-500 mt-1">
+                            Preview: {invoiceSettings.invoicePrefix || "INV"}-{new Date().getFullYear()}-{String(invoiceSettings.nextNumber).padStart(6, "0")}
+                          </p>
+                        </div>
+
+                        <div>
+                          <Label>Default payment terms</Label>
+                          <Select value={invoiceSettings.defaultPaymentTerms}
+                                  onValueChange={(v) => setInv("defaultPaymentTerms", v)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {PAYMENT_TERMS_OPTIONS.filter((o) => o.value !== "Custom").map((o) => (
+                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label>Payment instructions</Label>
+                          <Textarea
+                            value={invoiceSettings.paymentInstructions ?? ""}
+                            onChange={(e) => setInv("paymentInstructions", e.target.value || null)}
+                            placeholder="Bank account, mobile money number, or how to pay..."
+                            rows={3}
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Invoice footer notes</Label>
+                          <Textarea
+                            value={invoiceSettings.footerNotes ?? ""}
+                            onChange={(e) => setInv("footerNotes", e.target.value || null)}
+                            placeholder="Thank you for your business!"
+                            rows={2}
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Terms &amp; conditions</Label>
+                          <Textarea
+                            value={invoiceSettings.termsAndConditions ?? ""}
+                            onChange={(e) => setInv("termsAndConditions", e.target.value || null)}
+                            placeholder="Goods remain the property of the seller until full payment..."
+                            rows={2}
+                          />
+                        </div>
+
+                        <Toggle
+                          label="Auto-generate invoice after sale"
+                          hint="When a sale is approved, automatically create a draft invoice document for it."
+                          checked={invoiceSettings.autoGenerateInvoiceAfterSale}
+                          onChange={(v) => setInv("autoGenerateInvoiceAfterSale", v)}
+                        />
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* ---- dashboard cards --------------------------------------- */}
               <Card>

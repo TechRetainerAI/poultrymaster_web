@@ -47,7 +47,8 @@ const DEPENDENCIES: { feature: ModuleKey; requires: ModuleKey; reason: string }[
   { feature: "enableInventory",        requires: "enableProducts",   reason: "Inventory tracks stock for your products." },
   { feature: "enableStockAdjustments", requires: "enableInventory",  reason: "Stock adjustments correct inventory counts." },
   { feature: "enableInternalUse",      requires: "enableInventory",  reason: "Internal use consumes inventory stock." },
-  { feature: "enableInvoices",         requires: "enableSubscriptions", reason: "Invoices are raised by billing runs from subscriptions." },
+  // enableInvoices is independent — invoices can be generated from any posted
+  // sale, not just subscription billing runs.
   // Customer balances do not depend on Invoices: credit sales and customer debts
   // are owed too (as on Poultry, where Customer Balances is always there).
 ]

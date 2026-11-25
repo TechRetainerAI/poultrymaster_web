@@ -136,7 +136,7 @@ export default function GenericBillingRunsPage() {
             : `${n} ${n === 1 ? labels.invoice.toLowerCase() : labels.invoicePlural.toLowerCase()} raised as drafts.`,
         description:
           n > 0
-            ? `Approve them on ${labels.invoicePlural} to make them owed.`
+            ? `Approve them on the ${labels.invoicePlural} page to make them owed.`
             : undefined,
       })
       await load()
@@ -169,6 +169,11 @@ export default function GenericBillingRunsPage() {
               </p>
             </div>
             <div className="flex gap-2">
+              <Link href="/generic-invoices">
+                <Button variant="outline" className="h-11 sm:h-10">
+                  <Receipt className="h-4 w-4 mr-1" /> {labels.invoicePlural}
+                </Button>
+              </Link>
               <Link href="/generic-subscriptions">
                 <Button variant="outline" className="h-11 sm:h-10">
                   {labels.subscriptionPlural}

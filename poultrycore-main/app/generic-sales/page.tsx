@@ -12,8 +12,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
-import { Loader2, Plus, ShoppingCart, AlertCircle, ArrowLeft, Eye, Undo2, RotateCcw } from "lucide-react"
+import { Loader2, Plus, ShoppingCart, AlertCircle, ArrowLeft, Eye, Undo2, RotateCcw, FileText } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 // 483: a sale is reversed from the list too, with the same dialog as Poultry / Water.
 import { ReverseSaleDialog } from "@/components/sales/reverse-sale-dialog"
 import { getUserContext } from "@/lib/api/config"
@@ -87,6 +88,8 @@ function GenericSalesPageInner() {
   const canRepost = (s: GenericSale) => !!s.saleReversalId && !s.correctedBySaleId
   // Bumped after a reversal so the list reloads with the sale's new status.
   const [reloadKey, setReloadKey] = useState(0)
+  const { showNew } = useGenericModules()
+  const invoicingEnabled = showNew("enableInvoices")
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
@@ -277,6 +280,16 @@ function GenericSalesPageInner() {
                                 </TooltipTrigger>
                                 <TooltipContent side="top">View sale</TooltipContent>
                               </Tooltip>
+                              {invoicingEnabled && s.status === "Approved" && !s.saleReversalId && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button asChild variant="ghost" size="sm" className="text-indigo-700 hover:text-indigo-800 hover:bg-indigo-50" aria-label="Invoice">
+                                      <Link href={`/generic-sales/${s.genericSaleId}`}><FileText className="h-4 w-4" /></Link>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">Generate or view invoice</TooltipContent>
+                                </Tooltip>
+                              )}
                               {s.status === "Approved" && (
                                 <>
                                   <Tooltip>

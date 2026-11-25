@@ -71,8 +71,10 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
     label: isSub ? `${labels.customerPlural} & Payments` : "Sales",
     items: gated([
       ...(!isSub ? [item("/generic-sales", "Sales", ShoppingCart, canSee("/generic-sales"))] : []),
+      // Invoices appear here for all company types when enabled (independent of subscriptions).
+      // Subscription businesses also see it under the Billing group for convenience.
       ...(showNew("enableInvoices") && !isSub
-        ? [item("/generic-invoices", labels.invoicePlural, FileText)]
+        ? [item("/generic-invoices", labels.invoicePlural, FileText, canSee("/generic-invoices"))]
         : []),
       item("/generic-customers",         labels.customerPlural, Users, canSee("/generic-customers")),
       item("/generic-customer-payments", labels.paymentPlural,  CreditCard, canSee("/generic-customer-payments")),
@@ -89,7 +91,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
   const catalog: MegaMenuGroup[] = []
   const catalogStockItems: MegaMenuItem[] = [
     ...(showExisting("enableProducts")
-      ? [item("/generic-products", "Products", ShoppingBag)] : []),
+      ? [item("/generic-products", "Products & Services", ShoppingBag)] : []),
     ...(showExisting("enableInventory")
       ? [item("/generic-inventory", "Inventory & Purchases", Boxes)] : []),
     ...(showExisting("enableStockAdjustments")
@@ -234,6 +236,14 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
         item("/generic-reports/staff-cost",               "Staff & Contractor Cost", Users2, canSee("/generic-reports")),
       ]),
     },
+    ...(showNew("enableInvoices") ? [{
+      key: "reports-invoicing",
+      label: "Invoicing",
+      items: gated([
+        item("/generic-reports/invoice-aging", "Invoice Aging",   FileText, canSee("/generic-reports")),
+        item("/generic-reports/collections",   "Collections",     HandCoins, canSee("/generic-reports")),
+      ]),
+    }] : []),
     {
       key: "reports-sales",
       label: "Sales & Stock",

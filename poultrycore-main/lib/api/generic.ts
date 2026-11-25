@@ -2386,3 +2386,111 @@ export async function getRestockForecast(lookbackDays?: number): Promise<Generic
   const qs = lookbackDays ? `?lookbackDays=${lookbackDays}` : ""
   return getJson<GenericRestockForecastRow[]>(`${farmBase()}/reports/restock-forecast${qs}`)
 }
+
+// =============================================================================
+// Service Catalog (migration 493)
+// =============================================================================
+
+export interface GenericServiceCategory {
+  genericServiceCategoryId: number
+  farmId: string
+  name: string
+  description?: string | null
+  isActive: boolean
+  isDeleted: boolean
+  createdAt: string
+  updatedAt?: string | null
+}
+
+export interface GenericService {
+  genericServiceId: number
+  farmId: string
+  genericServiceCategoryId?: number | null
+  categoryName?: string | null
+  serviceName: string
+  serviceCode?: string | null
+  description?: string | null
+  pricingUnit: string
+  defaultPrice: number
+  estimatedCost?: number | null
+  durationMinutes?: number | null
+  assignedStaffId?: number | null
+  isActive: boolean
+  isDeleted: boolean
+  notes?: string | null
+  archivedAt?: string | null
+  createdBy?: string | null
+  updatedBy?: string | null
+  createdAt: string
+  updatedAt?: string | null
+}
+
+export interface GenericServiceInput {
+  serviceName: string
+  serviceCode?: string | null
+  description?: string | null
+  pricingUnit?: string
+  defaultPrice?: number
+  estimatedCost?: number | null
+  durationMinutes?: number | null
+  assignedStaffId?: number | null
+  genericServiceCategoryId?: number | null
+  isActive?: boolean
+  notes?: string | null
+}
+
+// --- Service categories ---
+
+export async function getServiceCategories(): Promise<GenericServiceCategory[]> {
+  return getJson<GenericServiceCategory[]>(`${farmBase()}/service-categories`)
+}
+
+export async function createServiceCategory(input: { name: string; description?: string | null }): Promise<GenericServiceCategory | null> {
+  return postJson<GenericServiceCategory>(`${farmBase()}/service-categories`, { ...input, farmId: getUserContext().farmId })
+}
+
+export async function updateServiceCategory(id: number, input: { name: string; description?: string | null; isActive?: boolean }): Promise<void> {
+  await putJson(`${farmBase()}/service-categories/${id}`, { ...input, farmId: getUserContext().farmId })
+}
+
+export async function deleteServiceCategory(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/service-categories/${id}`)
+}
+
+// --- Services ---
+
+export async function getServices(): Promise<GenericService[]> {
+  return getJson<GenericService[]>(`${farmBase()}/services`)
+}
+
+export async function getServiceById(id: number): Promise<GenericService | null> {
+  return getJson<GenericService>(`${farmBase()}/services/${id}`)
+}
+
+export async function createService(input: GenericServiceInput): Promise<GenericService | null> {
+  return postJson<GenericService>(`${farmBase()}/services`, withFarmId(input))
+}
+
+export async function updateService(id: number, input: GenericServiceInput): Promise<void> {
+  await putJson(`${farmBase()}/services/${id}`, input)
+}
+
+export async function deleteService(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/services/${id}`)
+}
+
+export async function archiveService(id: number): Promise<void> {
+  await postJson(`${farmBase()}/services/${id}/archive`, {})
+}
+
+export async function activateService(id: number): Promise<void> {
+  await postJson(`${farmBase()}/services/${id}/activate`, {})
+}
+
+export async function deactivateService(id: number): Promise<void> {
+  await postJson(`${farmBase()}/services/${id}/deactivate`, {})
+}
+
+export async function serviceHasPostedSales(id: number): Promise<boolean> {
+  return getJson<boolean>(`${farmBase()}/services/${id}/has-posted-sales`)
+}
