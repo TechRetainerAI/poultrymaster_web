@@ -44,6 +44,8 @@ import {
   formatActivityMoment, positionLabel,
   type FinancialActivityResponse, type FinancialActivityRow,
 } from "@/lib/api/generic-financial-activity"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const TIP = {
   moneyIn: "Actual money entering the company. Not the same as revenue \u2014 a loan, an owner contribution and a customer paying an old bill are all money in and none of them is income.",
@@ -104,6 +106,7 @@ function FinancialActivityPageInner() {
   const [profitFilter, setProfitFilter] = useState<string>("ALL")
   const [typeFilter, setTypeFilter] = useState("ALL")
   const [categoryFilter, setCategoryFilter] = useState("ALL")
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const toggle = (key: string) =>
@@ -399,6 +402,7 @@ function FinancialActivityPageInner() {
                   {categories.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
             </div>
             {filtersActive && (
               <div className="pt-2">

@@ -51,6 +51,8 @@ import {
   type GenericStockAdjustmentCreateInput,
 } from "@/lib/api/generic"
 import { ReservedStockNote, useReservedStock } from "@/components/generic/projects/reserved-stock-note"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 // ---- Shared building blocks (mirrors poultry-supply-purchases) ----------------
 
@@ -232,6 +234,7 @@ function GenericInventoryPageInner() {
   const [itemTypeFilter, setItemTypeFilter] = useState<"all" | "Product" | "SupplyItem">("all")
   const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all")
   const [purchaseStatusFilter, setPurchaseStatusFilter] = useState<"all" | "Draft" | "Approved" | "Cancelled">("all")
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
 
   // ---- Sort ----
   const [itemsSort, setItemsSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
@@ -588,6 +591,7 @@ function GenericInventoryPageInner() {
                           {unitOptions.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                         </SelectContent>
                       </Select>
+                      <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
                     </>} />
 
                     {/* Desktop table */}

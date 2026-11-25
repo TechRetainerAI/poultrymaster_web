@@ -46,6 +46,8 @@ import {
   type GenericPayrollRun, type GenericPayrollItem, type GenericCashAccount, type GenericStaff,
 } from "@/lib/api/generic-payroll"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const today = () => new Date().toISOString().split("T")[0]
 const STATUS_STYLE: Record<string, string> = {
@@ -87,6 +89,7 @@ export default function GenericPayrollPage() {
   const [staff, setStaff] = useState<GenericStaff[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
   // 419. Payroll templates.
   const { canEdit } = usePermissions()
   const [tab, setTab] = useState<"runs" | "templates">("runs")
@@ -539,6 +542,7 @@ export default function GenericPayrollPage() {
                 {["Draft", "Approved", "Paid", "Reopened", "Cancelled"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
+            <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
           </div>
 
           <Card>

@@ -50,6 +50,8 @@ import {
   type GenericCashAccount, type GenericCashTransfer,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const STATUS_FILTERS = ["All", "Approved", "Draft", "Reversed", "Cancelled"] as const
 
@@ -92,6 +94,7 @@ export default function GenericCashTransfersPage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
 
   const [newOpen, setNewOpen] = useState(false)
   const [form, setForm] = useState({ ...EMPTY_FORM })
@@ -278,6 +281,7 @@ export default function GenericCashTransfersPage() {
                   <Button key={s} size="sm" variant={status === s ? "default" : "outline"}
                           onClick={() => setStatus(s)}>{s}</Button>
                 ))}
+                <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
               </div>
             </CardContent>
           </Card>
