@@ -109,6 +109,8 @@ export interface GenericProduct {
   createdBy?: string | null
   createdAt?: string | null
   updatedAt?: string | null
+  /** Product image URL or base64 data URL (migration 492). */
+  imageUrl?: string | null
 }
 
 export interface GenericCustomer {
@@ -741,6 +743,8 @@ export interface GenericProductInput {
   canSell?: boolean
   canUseInProduction?: boolean
   canUseInternally?: boolean
+  /** Product image URL or base64 data URL (migration 492). */
+  imageUrl?: string | null
 }
 
 export async function createGenericProduct(input: GenericProductInput): Promise<GenericProduct | null> {
@@ -785,6 +789,31 @@ export async function upsertUomConversion(input: {
 
 export async function deleteUomConversion(id: number): Promise<void> {
   await deleteResource(`${farmBase()}/uom-conversions/${id}`)
+}
+
+// =============================================================================
+// Units of Measure (migration 492)
+// =============================================================================
+
+export interface GenericUnitOfMeasure {
+  genericUnitOfMeasureId: number
+  farmId: string
+  unitName: string
+  unitAbbreviation?: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+export async function getUnitsOfMeasure(): Promise<GenericUnitOfMeasure[]> {
+  return getJson<GenericUnitOfMeasure[]>(`${farmBase()}/units`)
+}
+
+export async function upsertUnitOfMeasure(input: { unitName: string; unitAbbreviation?: string | null }): Promise<{ genericUnitOfMeasureId: number } | null> {
+  return postJson(`${farmBase()}/units`, input)
+}
+
+export async function deleteUnitOfMeasure(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/units/${id}`)
 }
 
 // =============================================================================

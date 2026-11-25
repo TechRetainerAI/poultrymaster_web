@@ -4,14 +4,16 @@
 //
 // Deep copy of the poultry version: uses the shared <BalancesPage> with
 // sale lines dialog, customer credit panel, and clickable document rows.
-// The only poultry feature NOT replicated is customer debts (no backend
-// support yet on the generic side).
+// 488: customer debts too (Poultry 369) -- "Record customer debt" in the header,
+// Reverse on a debt's row; an open debt is listed among the customer's open
+// items and is paid like a sale.
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { BalancesPage } from "@/components/balances/balances-page"
 import { GenericSaleLinesDialog } from "@/components/generic/generic-sale-lines-dialog"
 import { GenericCustomerCreditPanel } from "@/components/generic/generic-customer-credit-panel"
+import { RecordCustomerDebtButton, ReverseCustomerDebtButton } from "@/components/balances/customer-debts-panel"
 import { getCashAccounts } from "@/lib/api/generic"
 import { useProjectBalanceScope } from "@/components/generic/projects/use-project-balance-scope"
 import { useGenericModules } from "@/hooks/use-generic-modules"
@@ -32,6 +34,12 @@ export default function GenericCustomerBalancesPage() {
       side="customer"
       companyType="Generic"
       scope={projectScope}
+      // 488 (Poultry 369): debts recorded by hand (owed without a sale). Recording
+      // is a header button, reversing is on the debt's row. Both reload the balances.
+      headerActions={(reload) => <RecordCustomerDebtButton onChanged={reload} />}
+      documentActions={(doc, party, compact, reload) => (
+        <ReverseCustomerDebtButton doc={doc} partyName={party.partyName} compact={compact} onChanged={reload} />
+      )}
       loadCashAccounts={async () => {
         const accounts = await getCashAccounts()
         return accounts
@@ -44,8 +52,9 @@ export default function GenericCustomerBalancesPage() {
           }))
       }}
       partyHref={(customerId) => `/generic-customers/${customerId}/ledger`}
-      documentHref={(doc) => `/generic-sales?saleId=${doc.documentId}`}
-      onDocumentDetails={(doc) => setDetailSaleId(doc.documentId)}
+      // 488: a customer debt is not a sale -- no sale page and no sale lines.
+      documentHref={(doc) => doc.documentType === "CustomerDebt" ? null : `/generic-sales?saleId=${doc.documentId}`}
+      onDocumentDetails={(doc) => { if (doc.documentType !== "CustomerDebt") setDetailSaleId(doc.documentId) }}
       afterTable={(_reload, paymentsVersion) => <GenericCustomerCreditPanel refreshKey={paymentsVersion} />}
       permissions={{
         view: "generic.customer-balances.view",

@@ -142,12 +142,23 @@ namespace PoultryFarmAPIWeb.Controllers
             }
             var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
             if (guard is not null) return guard;
-            // 484: optional Projects & Contracts filter. "all" (default) = the
+            // 484 (Gyimah): optional Projects & Contracts filter. "all" (default) = the
             // whole company, "general" = not on any project, "12" or "12,15" =
             // those projects only.
             var (scope, ids) = GenericProjectScope.Parse(project);
             if (scope is null) return BadRequest("Unknown project filter.");
-            return Ok(await _reports.GetProfitLossEntriesAsync(farmId, fromDate, toDate, scope, ids, cancellationToken));
+            try
+            {
+                return Ok(await _reports.GetProfitLossEntriesAsync(farmId, fromDate, toDate, scope, ids, cancellationToken));
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState is "42P01" or "42703" or "42883")
+            {
+                // Report 44: missing table (42P01), column (42703) or function (42883): this
+                // database has not had the Generic money migrations applied (405-408, 442,
+                // 448-455, and 482-486 for the project filter).
+                return StatusCode(500, $"Profit & Loss needs database migrations that are not applied here " +
+                    $"(Generic 405-408, 442, 448-455, 482-486). Database said: {ex.MessageText}");
+            }
         }
 
         [HttpGet("period-pnl")]

@@ -27,6 +27,17 @@ const TYPE_COLORS: Record<string, string> = {
   AdjustmentDebit:  "bg-amber-100 text-amber-800",
   AdjustmentCredit: "bg-sky-100 text-sky-800",
   BadDebtWriteOff:  "bg-slate-200 text-slate-700",
+  // 488: customer debt (owed without a sale) and its reversal.
+  DebtDebit:        "bg-rose-100 text-rose-800",
+  DebtReversal:     "bg-sky-100 text-sky-800",
+  CreditApplied:    "bg-sky-100 text-sky-800",
+  CreditRefund:     "bg-amber-100 text-amber-800",
+}
+
+// 488: what a person reads; anything unlisted shows its code.
+const TYPE_LABELS: Record<string, string> = {
+  DebtDebit:    "Customer debt",
+  DebtReversal: "Debt reversed",
 }
 
 export default function CustomerLedgerPage() {
@@ -109,7 +120,7 @@ export default function CustomerLedgerPage() {
                         {entries.map((e) => (
                           <TableRow key={e.genericCustomerLedgerId}>
                             <TableCell>{fmtDateTime(e.transactionDate, e)}</TableCell>
-                            <TableCell><Badge className={`${TYPE_COLORS[e.transactionType] ?? "bg-slate-100 text-slate-800"} hover:opacity-90`}>{e.transactionType}</Badge></TableCell>
+                            <TableCell><Badge className={`${TYPE_COLORS[e.transactionType] ?? "bg-slate-100 text-slate-800"} hover:opacity-90`}>{TYPE_LABELS[e.transactionType] ?? e.transactionType}</Badge></TableCell>
                             <TableCell className="max-w-md truncate" title={e.description ?? ""}>{e.description ?? "—"}</TableCell>
                             <TableCell className="text-xs text-slate-500">{e.saleId ? `Sale #${e.saleId}` : e.paymentId ? `Pay #${e.paymentId}` : "—"}</TableCell>
                             <TableCell className="text-right">{e.debitAmount > 0 ? fmt(e.debitAmount) : ""}</TableCell>

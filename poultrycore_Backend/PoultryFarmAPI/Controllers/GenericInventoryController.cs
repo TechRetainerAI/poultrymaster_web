@@ -498,4 +498,52 @@ namespace PoultryFarmAPIWeb.Controllers
             return NoContent();
         }
     }
+
+    // =========================================================================
+    // Units of Measure (migration 492)
+    // =========================================================================
+    [ApiController]
+    [Route("api/generic-company/{farmId}/units")]
+    [RequireCompanyType("Generic")]
+    public class GenericUnitsController : ControllerBase
+    {
+        private readonly IGenericProductService _products;
+        private readonly IGenericCompanyService _companies;
+
+        public GenericUnitsController(IGenericProductService products, IGenericCompanyService companies)
+        {
+            _products = products;
+            _companies = companies;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<GenericUnitOfMeasureModel>>> GetAll(string farmId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _products.GetUnitsAsync(farmId));
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> Upsert(
+            string farmId, [FromBody] GenericUnitOfMeasureUpsertRequest req)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            var id = await _products.UpsertUnitAsync(farmId, req.UnitName, req.UnitAbbreviation);
+            return Ok(new { genericUnitOfMeasureId = id });
+        }
+
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(string farmId, int id)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            await _products.DeleteUnitAsync(id, farmId);
+            return NoContent();
+        }
+    }
 }

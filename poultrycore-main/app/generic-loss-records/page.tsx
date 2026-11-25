@@ -34,6 +34,8 @@ import {
   submitStockAdjustment, approveStockAdjustment,
   type GenericProduct, type GenericStockAdjustment,
 } from "@/lib/api/generic"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const LOSS_TYPES = [
   { value: "Damage", label: "Damage" },
@@ -57,6 +59,7 @@ export default function GenericLossRecordsPage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
 
   // Dialog
   const [open, setOpen] = useState(false)
@@ -189,7 +192,8 @@ export default function GenericLossRecordsPage() {
           <ListFilters search={search} setSearch={setSearch}
             dateFrom={dateFrom} setDateFrom={setDateFrom}
             dateTo={dateTo} setDateTo={setDateTo}
-            searchPlaceholder="Search product or reason" />
+            searchPlaceholder="Search product or reason"
+            extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} />} />
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500 py-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>

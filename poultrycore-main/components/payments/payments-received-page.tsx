@@ -481,11 +481,13 @@ export function PaymentsReceivedPage({
       </TableHeader>
       <TableBody>
         {list.map((a) => {
-          const href = saleHref(a.documentId)
+          // 488: a customer debt is not a sale -- show its number (CD-00001), no sale link.
+          const isDebt = a.documentType === "CustomerDebt"
+          const href = isDebt ? null : saleHref(a.documentId)
           return (
             <TableRow key={a.allocationId}>
               <TableCell className="font-medium">
-                {href ? <Link href={href} className="text-sky-700 hover:underline">#{a.documentId}</Link> : `#${a.documentId}`}
+                {href ? <Link href={href} className="text-sky-700 hover:underline">#{a.documentId}</Link> : isDebt ? (a.reference ?? `#${a.documentId}`) : `#${a.documentId}`}
               </TableCell>
               <TableCell className="text-slate-600">{a.label ?? a.reference ?? "—"}</TableCell>
               <TableCell className="whitespace-nowrap!">{dateOf(a.documentDate ?? "", a)}</TableCell>
