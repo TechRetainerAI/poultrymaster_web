@@ -491,6 +491,8 @@ builder.Services.AddScoped<IGenericSchoolService>(sp => new GenericSchoolService
 builder.Services.AddScoped<IGenericSupplierService>(sp => new GenericSupplierService(connectionString));
 builder.Services.AddScoped<IGenericPurchaseService>(sp => new GenericPurchaseService(connectionString));
 builder.Services.AddScoped<IGenericExpenseRecordService>(sp => new GenericExpenseRecordService(connectionString));
+// 482-486: Projects & Contracts (Generic).
+builder.Services.AddScoped<IGenericProjectDb>(sp => new GenericProjectDb(connectionString));
 builder.Services.AddScoped<IGenericCashTransferService>(sp => new GenericCashTransferService(connectionString));
 
 // Phase 5: Daily Closing + Reports + Dashboard. The Submit SP auto-aggregates
@@ -623,9 +625,12 @@ builder.Services.AddControllers(options =>
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.CompanyTypeFilter>();
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.GenericModuleFilter>();
+    // 483: a save carrying a project split also needs generic.project-allocations.create.
+    options.Filters.AddService<PoultryFarmAPIWeb.Filters.ProjectAssignmentPermissionFilter>();
     options.Filters.AddService<AuditLogActionFilter>();
 });
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
+builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.ProjectAssignmentPermissionFilter>();
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.CompanyTypeFilter>();
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.GenericModuleFilter>();
 builder.Services.AddScoped<AuditLogActionFilter>();

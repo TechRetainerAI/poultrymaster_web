@@ -48,6 +48,7 @@ import { entryTimestamp } from "@/lib/utils/date-key"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { SALE_PRODUCT_OPTIONS } from "@/components/sales/sale-item-row"
 import { listWaterProducts } from "@/lib/api/water"
+import { RelatedProjectField } from "@/components/generic/projects/form-project-field"
 
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank Transfer", "Cheque", "Card", "Other"] as const
 
@@ -111,6 +112,8 @@ export function RecordPaymentDialog({
   const [cashAccountId, setCashAccountId] = useState<number | null>(null)
   const [reference, setReference] = useState("")
   const [notes, setNotes] = useState("")
+  // 483 (Generic): which project an unapplied advance is for. Applied money follows its documents.
+  const [advanceProjectId, setAdvanceProjectId] = useState<number | null>(null)
   const [allocation, setAllocation] = useState<AllocationMap>({})
   const [touched, setTouched] = useState(false)
   // Once a line is typed into, the grid is the user's: the amount stops re-spreading it.
@@ -318,6 +321,8 @@ export function RecordPaymentDialog({
         excludeFromPL: (debtAllocated > 0 && !countOnPL) || (isCustomer && oldDebt > 0 && !earlierSaleOnPL),
         remainderAsOldDebt: oldDebt > 0,
         oldDebtSaleType: isCustomer && oldDebt > 0 ? oldDebtSaleType : null,
+        ...(module === "generic" && advanceProjectId && validation.unallocated > 0
+          ? { projects: { projectId: advanceProjectId } } : {}),
       })
       toast({
         title: isCustomer ? "Payment received" : "Payment recorded",
@@ -445,6 +450,11 @@ export function RecordPaymentDialog({
             <Label htmlFor="pay-notes">Notes <span className="font-normal text-slate-400">(optional)</span></Label>
             <Input id="pay-notes" className="bg-white" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything to remember" />
           </div>
+          {module === "generic" && validation.unallocated > 0 && (
+            <RelatedProjectField value={advanceProjectId} onChange={setAdvanceProjectId}
+              label={isCustomer ? "Advance received for project (optional)" : "Advance paid for project (optional)"}
+              hint="Only the part applied to nothing. It shows as project cash and an advance, never as revenue or expense." />
+          )}
         </FormSection>
 
         {single ? (

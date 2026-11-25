@@ -225,6 +225,11 @@ export interface GenericSale {
 }
 
 export interface GenericSaleCreateInput {
+  /**
+   * 483 Projects & Contracts: optional, saved in the same statement as this
+   * transaction. Leave it out to keep the old behaviour exactly.
+   */
+  projects?: import("@/lib/api/generic-projects").ProjectAssignment
   /** 485: Correct sale / Edit & repost -- the reversed sale this one replaces. */
   correctsSaleId?: number | null
   saleDate?: string | null
@@ -1062,6 +1067,8 @@ export interface GenericExpenseCategory {
 }
 
 export interface GenericPurchaseItem {
+  /** Present on a saved line (read back from the server). */
+  genericPurchaseItemId?: number
   genericProductId: number
   description?: string | null
   quantity: number
@@ -1075,6 +1082,11 @@ export interface GenericPurchaseItem {
 }
 
 export interface GenericPurchaseCreateInput {
+  /**
+   * 483 Projects & Contracts: optional, saved in the same statement as this
+   * transaction. Leave it out to keep the old behaviour exactly.
+   */
+  projects?: import("@/lib/api/generic-projects").ProjectAssignment
   purchaseDate?: string | null
   genericSupplierId?: number | null
   headerDiscountAmount: number
@@ -1088,6 +1100,11 @@ export interface GenericPurchaseCreateInput {
 }
 
 export interface GenericExpenseCreateInput {
+  /**
+   * 483 Projects & Contracts: optional, saved in the same statement as this
+   * transaction. Leave it out to keep the old behaviour exactly.
+   */
+  projects?: import("@/lib/api/generic-projects").ProjectAssignment
   expenseDate?: string | null
   genericExpenseCategoryId: number
   genericSupplierId?: number | null
@@ -1877,8 +1894,13 @@ export interface GenericProfitLossEntry {
   amount: number
 }
 
-export async function getProfitLossEntries(farmId: string, fromDate: string, toDate: string): Promise<GenericProfitLossEntry[]> {
+/**
+ * project (484): "all" / undefined = the whole company (unchanged), "general" =
+ * only what is on no project, "12" or "12,15" = those projects' share.
+ */
+export async function getProfitLossEntries(farmId: string, fromDate: string, toDate: string, project?: string): Promise<GenericProfitLossEntry[]> {
   const params = new URLSearchParams({ fromDate, toDate })
+  if (project && project !== "all") params.append("project", project)
   return getJson<GenericProfitLossEntry[]>(`/generic-company/${encodeURIComponent(farmId)}/reports/profit-loss?${params}`)
 }
 

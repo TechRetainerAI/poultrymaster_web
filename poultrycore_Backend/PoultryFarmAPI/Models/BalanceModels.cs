@@ -114,6 +114,9 @@ namespace PoultryFarmAPIWeb.Models
     /// </summary>
     public class RecordPaymentRequest
     {
+        /// <summary>483 (Generic only): the unapplied part of this payment is an advance for this project. {"projectId": n}. Ignored by other company types.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
+
         public string FarmId { get; set; } = string.Empty;
         /// <summary>Customer id, or supplier id. Null suppliers are allowed (see migration 224).</summary>
         public int? PartyId { get; set; }

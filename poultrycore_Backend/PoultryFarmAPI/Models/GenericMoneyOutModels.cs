@@ -200,6 +200,9 @@ namespace PoultryFarmAPIWeb.Models
 
     public class RecordOwnerEntryRequest
     {
+        /// <summary>483: this owner contribution or draw funds a project. {"projectId": n} or {"splits": [...]}.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
+
         public string FarmId { get; set; } = string.Empty;
         [Required] public string EntryType { get; set; } = OwnerEntryTypes.Contribution;
         [Range(0.01, double.MaxValue, ErrorMessage = "The amount must be greater than 0.")]

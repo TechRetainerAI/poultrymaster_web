@@ -22,6 +22,7 @@ import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useRouter } from "next/navigation"
 import { useCanCreateCompany } from "@/hooks/use-setup-access"
 import { fmtInstant } from "@/lib/utils/company-datetime"
+import { SetupProjectsCheckbox } from "@/components/generic/projects/setup-projects-checkbox"
 
 /** The business's own mark — same icon and colour wherever a company is named. */
 function CompanyIcon({ type }: { type: CompanyType }) {
@@ -71,6 +72,8 @@ export default function CompaniesPage() {
   // The dropdown offers BUSINESSES, not company types. Several of them map to
   // the same CompanyType ("Generic") and differ only by template, so the form
   // holds the business-type id and derives the rest from it.
+  // Spec Part 2.1: Projects & Contracts can be switched on while creating a Generic company.
+  const [withProjects, setWithProjects] = useState(false)
   const [form, setForm] = useState<{ name: string; businessTypeId: string; email: string; phoneNumber: string }>({
     name: "", businessTypeId: "water", email: "", phoneNumber: "",
   })
@@ -112,7 +115,7 @@ export default function CompaniesPage() {
         try {
           const res = await switchCompany(created.farmId)
           setActiveCompany(res.farmId, res.farmName, companyType, res.accessToken.token)
-          router.push(`/generic-setup/wizard?industry=${encodeURIComponent(chosen!.industryTemplate!)}`)
+          router.push(`/generic-setup/wizard?industry=${encodeURIComponent(chosen!.industryTemplate!)}${withProjects ? "&projects=1" : ""}`)
         } catch {
           // Switching failed — the company still exists and the owner can pick
           // it from this list, so say nothing louder than the create toast.
@@ -266,6 +269,7 @@ export default function CompaniesPage() {
                   We&apos;ll set up the right menus and starter categories for this, and you can change any of it later.
                 </p>
               )}
+              {needsTemplate(chosen) && <SetupProjectsCheckbox checked={withProjects} onChange={setWithProjects} />}
             </div>
             <div><Label>Company name *</Label>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Cool Spring Water Co." /></div>

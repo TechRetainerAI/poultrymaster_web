@@ -55,6 +55,8 @@ import { RichCard } from "@/components/reports/report-header"
 import { exportTableToPdf, emailTableAsPdf } from "@/lib/utils/pdf-export"
 import { downloadCsv } from "@/lib/utils/download-csv"
 import { getProfitLossEntries, type GenericProfitLossEntry as Entry } from "@/lib/api/generic"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ALL_PROJECTS, filterToParam, paramToFilter, type ProjectFilterValue } from "@/lib/generic/project-math"
 import {
   PROFIT_VS_CASH_TITLE, PROFIT_VS_CASH_BODY,
   CASH_NOT_PROFIT_EXAMPLES, PROFIT_NOT_CASH_EXAMPLES,
@@ -159,6 +161,11 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
 
   const initial = useMemo(() => defaultReportRange(), [])
   const [filter, setFilter] = useState<PoultryReportFilterValue>({ fromDate: initial.from, toDate: initial.to })
+  // 484: Projects & Contracts filter. "All projects" is the company P&L exactly as before.
+  const [project, setProject] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  useEffect(() => {
+    if (typeof window !== "undefined") setProject(paramToFilter(new URLSearchParams(window.location.search).get("project")))
+  }, [])
 
   const [entries, setEntries] = useState<Entry[] | null>(null)
   const [busy, setBusy] = useState(true)
@@ -179,12 +186,12 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
     if (!validRange) { setBusy(false); setEntries(null); setError("Choose a valid start and end date."); return }
     setBusy(true); setError(null)
     try {
-      setEntries(await getProfitLossEntries(farmId, filter.fromDate, filter.toDate))
+      setEntries(await getProfitLossEntries(farmId, filter.fromDate, filter.toDate, filterToParam(project)))
       setGeneratedAt(new Date().toLocaleString())
     } catch (e: any) {
       setError(e?.message ?? String(e))
     } finally { setBusy(false) }
-  }, [farmId, activeFarmType, validRange, filter.fromDate, filter.toDate])
+  }, [farmId, activeFarmType, validRange, filter.fromDate, filter.toDate, project])
 
   useEffect(() => { void load() }, [load])
 
@@ -398,6 +405,15 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
                 flocks={[]}
                 customers={[]}
               />
+              <div className="flex flex-wrap items-center gap-2">
+                <ProjectFilter value={project} onChange={setProject} />
+                {project.kind !== "all" && (
+                  <span className="text-xs text-slate-500">
+                    Showing only {project.kind === "general" ? "what is not assigned to any project" : "the selected projects' share"} —
+                    the same figures as on each project&apos;s own page. Switch back to All projects for the whole company.
+                  </span>
+                )}
+              </div>
 
               {busy && (
                 <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">

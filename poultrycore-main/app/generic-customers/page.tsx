@@ -26,7 +26,7 @@ import { createCustomer, updateCustomer, deleteCustomer, getCustomers, getClasse
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 
-const CUSTOMER_TYPES = ["Individual", "Business", "Walk-in", "Retail Customer", "Wholesale Customer", "Other"]
+const CUSTOMER_TYPES = ["Individual", "Business", "Government", "Walk-in", "Retail Customer", "Wholesale Customer", "Other"]
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)

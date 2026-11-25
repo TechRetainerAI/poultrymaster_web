@@ -55,7 +55,11 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(string farmId, GenericSaleCreateRequest req, string? createdBy)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_insert(p_farmid => @FarmId::text, p_saledate => @SaleDate::timestamp, p_genericcustomerid => @GenericCustomerId::int, p_branchid => @BranchId::int, p_salestype => @SalesType::text, p_saleschannel => @SalesChannel::text, p_salespersonstaffid => @SalespersonStaffId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receiptnumber => @ReceiptNumber::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_items => @Items::jsonb, p_applycreditamount => @ApplyCreditAmount::numeric)", conn);
+            var projectCall = "spgenericsale_insert(p_farmid => @FarmId::text, p_saledate => @SaleDate::timestamp, p_genericcustomerid => @GenericCustomerId::int, p_branchid => @BranchId::int, p_salestype => @SalesType::text, p_saleschannel => @SalesChannel::text, p_salespersonstaffid => @SalespersonStaffId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receiptnumber => @ReceiptNumber::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_items => @Items::jsonb, p_applycreditamount => @ApplyCreditAmount::numeric)";
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(req.Projects)
+                ? GenericProjectAttach.WrapInsert(projectCall, "Sale")
+                : "SELECT * FROM " + projectCall, conn);
+            if (GenericProjectAttach.Has(req.Projects)) GenericProjectAttach.AddParams(cmd, farmId, req.Projects, createdBy);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@SaleDate", (object?)req.SaleDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@GenericCustomerId", (object?)req.GenericCustomerId ?? DBNull.Value);
