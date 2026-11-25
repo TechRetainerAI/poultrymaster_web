@@ -2,38 +2,45 @@
 -- 487_Winchester_GenericCustomerBalancesOnByDefault.postgres.sql
 --
 -- Problem: on a Generic business, "Customer balances" was not ticked by default
--- on Business Features, so Customer Balances and Customer Payments were hidden
--- and the server refused to record customer payments (RequireGenericModule ->
--- 403) until someone found the switch. On Poultry the page is always there.
+-- on Business Features, so Customer Balances was hidden from the menu. On
+-- Poultry the page is always there.
 --
 -- Change (new businesses and businesses that never saved their features):
 --   * genericmodulesettings.enablecustomerbalances defaults to TRUE.
---   * spgenericmodulesettings_get: the defaults it synthesises for a business
---     with no saved row now have Customer balances ON.
--- Businesses that already saved their features keep what they saved.
+--   * spgenericmodulesettings_get: the defaults it makes up for a business with
+--     no saved row have Customer balances ON.
 -- The web's recommended defaults (lib/generic/recommended-modules.ts) match.
+-- The setup wizard's template is fixed in 490.
 --
--- Can run twice. No BEGIN/COMMIT (RunMigration wraps the file).
+-- 24 Nov (rewritten): spgenericmodulesettings_get is also redefined by
+-- 486_Gyimah_GenericProjectBudgetsMilestones (adds enableprojects). The first
+-- version of this file replaced the whole function with the 13-column shape,
+-- which (a) undid nothing on dev only because Gyimah's ran later and put
+-- Customer balances back to FALSE, and (b) on a database that runs Gyimah's 486
+-- first would FAIL ("cannot change return type"). So this file now patches the
+-- LIVE body instead: only the made-up enablecustomerbalances value changes,
+-- whatever columns the function has. Can run twice. No BEGIN/COMMIT.
 -- =============================================================================
 
 ALTER TABLE genericmodulesettings ALTER COLUMN enablecustomerbalances SET DEFAULT TRUE;
 
--- Same columns and order as before; only the synthesised enablecustomerbalances
--- (9th column) changes from FALSE to TRUE.
-CREATE OR REPLACE FUNCTION public.spgenericmodulesettings_get(p_farmid text)
- RETURNS TABLE(farmid text, enableproducts boolean, enableinventory boolean, enablestockadjustments boolean, enableinternaluse boolean, enablepurchases boolean, enablesubscriptions boolean, enableinvoices boolean, enablecustomerbalances boolean, enablestaffpayments boolean, enablecashaccounts boolean, enablerecurringexpenses boolean, enablesupplierbalances boolean)
- LANGUAGE sql
- STABLE
-AS $function$
-    SELECT s.farmid::text, s.enableproducts, s.enableinventory, s.enablestockadjustments,
-           s.enableinternaluse, s.enablepurchases, s.enablesubscriptions, s.enableinvoices,
-           s.enablecustomerbalances, s.enablestaffpayments, s.enablecashaccounts,
-           s.enablerecurringexpenses, s.enablesupplierbalances
-    FROM   genericmodulesettings s
-    WHERE  s.farmid = p_farmid
-    UNION ALL
-    SELECT p_farmid, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, TRUE, TRUE, TRUE,
-           TRUE, TRUE
-    WHERE  NOT EXISTS (SELECT 1 FROM genericmodulesettings s2 WHERE s2.farmid = p_farmid)
-    LIMIT  1;
-$function$;
+DO $patch$
+DECLARE
+    v_def text;
+    -- The made-up row: products, inventory, stock adj., internal use, purchases,
+    -- subscriptions, invoices, CUSTOMER BALANCES, ... (same order in both shapes).
+    v_old text := 'SELECT p_farmid, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE,';
+    v_new text := 'SELECT p_farmid, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, TRUE /* 487: customer balances */,';
+BEGIN
+    v_def := pg_get_functiondef('public.spgenericmodulesettings_get(text)'::regprocedure);
+    IF position('487:' IN v_def) = 0 THEN
+        IF position(v_old IN v_def) = 0 THEN
+            IF position('SELECT p_farmid, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, TRUE,' IN v_def) > 0 THEN
+                RETURN;   -- already on (an earlier version of this file)
+            END IF;
+            RAISE EXCEPTION '487: spgenericmodulesettings_get is not the expected shape (made-up defaults row).';
+        END IF;
+        EXECUTE replace(v_def, v_old, v_new);
+    END IF;
+END
+$patch$;
