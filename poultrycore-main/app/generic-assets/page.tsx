@@ -72,6 +72,7 @@ import {
 } from "@/lib/poultry/financial-classification"
 import { DateTimeCell } from "@/components/ui/date-time-cell"
 import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
+import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
 
 const STATUSES = ["Draft", "Active", "FullyDepreciated", "Disposed", "Reversed"] as const
 
@@ -229,16 +230,20 @@ export default function GenericAssetsPage() {
     await Promise.all([...expanded].map((id) => loadDetail(id)))
   }, [load, expanded, loadDetail])
 
+  // 493: Project / Contract filter -- assets given to a project (costs + depreciation follow it).
+  const { extraFilter: projectFilter } = useProjectListFilter<GenericCapitalAsset>("CapitalAsset", (a) => a.genericCapitalAssetId)
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return assets.filter((a) => {
+      if (projectFilter && !projectFilter.matches(a)) return false
       if (statusFilter !== "all" && a.status !== statusFilter) return false
       if (categoryFilter !== "all" && String(a.genericAssetCategoryId ?? "") !== categoryFilter) return false
       if (!q) return true
       return [a.assetName, a.assetNumber, a.categoryName, a.location, a.serialNumber, a.supplierName]
         .some((v) => (v ?? "").toLowerCase().includes(q))
     })
-  }, [assets, search, statusFilter, categoryFilter])
+  }, [assets, search, statusFilter, categoryFilter, projectFilter])
 
   const sorted = useMemo(
     () => sortData(filtered, sort.key, sort.direction, (a: GenericCapitalAsset, k: string) =>
@@ -317,6 +322,7 @@ export default function GenericAssetsPage() {
             search={search} setSearch={setSearch} searchOnly
             searchPlaceholder="Search investment, number, location or supplier"
             extras={<>
+              {projectFilter?.control}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full sm:w-[170px]"><SelectValue placeholder="All statuses" /></SelectTrigger>
                 <SelectContent>

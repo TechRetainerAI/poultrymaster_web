@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
-  buildAssignment, checkSplit, filterToParam, paramToFilter, projectIdFromQuery, reconciles, toSplits,
+  buildAssignment, checkSplit, filterToParam, paramToFilter, projectIdFromQuery, projectPart, reconciles, toSplits,
 } from "./project-math"
 
 describe("project filter value", () => {
@@ -65,5 +65,27 @@ describe("helpers", () => {
   it("reconciles to the cent", () => {
     expect(reconciles([{ company: 100, projects: 60.004, general: 39.996 }])).toBe(true)
     expect(reconciles([{ company: 100, projects: 60, general: 39 }])).toBe(false)
+  })
+})
+
+describe("projectPart (493)", () => {
+  const shares = [{ projectId: 1, share: 1 / 3 }, { projectId: 2, share: 1 / 3 }]
+  it("gives the whole amount for All", () => {
+    expect(projectPart(100, shares, { kind: "all" })).toBe(100)
+  })
+  it("rounds each project to the cent and lets General take the remainder", () => {
+    expect(projectPart(100, shares, { kind: "projects", ids: [1] })).toBe(33.33)
+    expect(projectPart(100, shares, { kind: "projects", ids: [1, 2] })).toBe(66.66)
+    expect(projectPart(100, shares, { kind: "general" })).toBe(33.34)
+  })
+  it("projects + General add back to the whole", () => {
+    const whole = 1234.57
+    const p = projectPart(whole, shares, { kind: "projects", ids: [1, 2] })
+    const g = projectPart(whole, shares, { kind: "general" })
+    expect(reconciles([{ company: whole, projects: p, general: g }])).toBe(true)
+  })
+  it("a record with no projects is all General", () => {
+    expect(projectPart(50, [], { kind: "general" })).toBe(50)
+    expect(projectPart(50, undefined, { kind: "projects", ids: [1] })).toBe(0)
   })
 })

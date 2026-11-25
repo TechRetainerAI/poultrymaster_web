@@ -10,13 +10,17 @@ import { BalancesPage } from "@/components/balances/balances-page"
 import { RecordSupplierDebtButton, ReverseSupplierDebtButton } from "@/components/balances/supplier-debts-panel"
 import { SupplierCreditPanel } from "@/components/suppliers/supplier-credit-panel"
 import { getCashAccounts } from "@/lib/api/generic"
+import { useProjectBalanceScope } from "@/components/generic/projects/use-project-balance-scope"
 
 export default function GenericSupplierBalancesPage() {
+  // 493: Project / Contract filter -- what is owed to each supplier on that project.
+  const projectScope = useProjectBalanceScope("supplier")
   return (
     <BalancesPage
       module="generic"
       side="supplier"
       companyType="Generic"
+      scope={projectScope}
       loadCashAccounts={async () => {
         const accounts = await getCashAccounts()
         return accounts

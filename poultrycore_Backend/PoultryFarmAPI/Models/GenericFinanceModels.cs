@@ -55,6 +55,8 @@ namespace PoultryFarmAPIWeb.Models
         public int? GenericCashAccountId { get; set; }
         public string? Notes { get; set; }
         public string? CreatedBy { get; set; }
+        /// <summary>Projects & Contracts: { projectId, costClass } or { splits: [...] }. Saved with the loan in one statement.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
     }
 
     /// <summary>Terms only; the money on a loan is never edited (as on Poultry).</summary>
@@ -72,6 +74,8 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? NextPaymentDate { get; set; }
         public string? Notes { get; set; }
         public string? UpdatedBy { get; set; }
+        /// <summary>Projects & Contracts: sent only when the project was changed; null leaves it as it is.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
     }
 
     public class GenericLoanReasonRequest

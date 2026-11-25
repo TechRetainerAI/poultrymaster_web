@@ -27,6 +27,9 @@ const OTHER_UNIT = "__other"
 export const ITEM_UNITS: { value: string; label: string }[] = [
   { value: "kg", label: "kg (kilogram)" }, { value: "g", label: "g (gram)" }, { value: "tonne", label: "Tonne" },
   { value: "bag", label: "Bag" }, { value: "sack", label: "Sack" }, { value: "bale", label: "Bale" },
+  // 494: how collected feed (forage) is usually counted.
+  { value: "bundle", label: "Bundle" }, { value: "head-load", label: "Head-load" }, { value: "basket", label: "Basket" },
+  { value: "wheelbarrow", label: "Wheelbarrow" },
   { value: "litre", label: "Litre" }, { value: "ml", label: "ml (millilitre)" }, { value: "bottle", label: "Bottle" },
   { value: "sachet", label: "Sachet" }, { value: "dose", label: "Dose" }, { value: "vial", label: "Vial" },
   { value: "tablet", label: "Tablet" }, { value: "piece", label: "Piece" }, { value: "pack", label: "Pack" },
@@ -56,7 +59,7 @@ export function ItemFormDialog({ open, onOpenChange, item, defaultCategory = "Fe
     if (!open) return
     setF(item ? {
       name: item.name, category: item.category, unit: item.unit, kgPerUnit: item.kgPerUnit, minimumStock: item.minimumStock,
-      speciesCode: item.speciesCode, notes: item.notes, isActive: item.isActive,
+      speciesCode: item.speciesCode, notes: item.notes, isActive: item.isActive, isForage: item.isForage,
     } : blank(defaultCategory))
     // A unit typed before the list existed opens as "Other" with its text kept.
     setOtherUnit(!!item && !!item.unit && !isListedUnit(item.unit))
@@ -136,13 +139,27 @@ export function ItemFormDialog({ open, onOpenChange, item, defaultCategory = "Fe
               </div>
             )}
           </div>
+          {f.category === "Feed" && (
+            <div className="rounded-md border p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <Switch checked={!!f.isForage} onCheckedChange={(v) => set("isForage", v)} /> Collected from the forest / bush (not bought)
+              </label>
+              <p className="text-xs text-stone-500 mt-1">
+                Grass, leaves, cassava tops and other feed you cut and bring back. It comes into stock with Collect feed instead of a purchase.
+              </p>
+            </div>
+          )}
           <div>
             <Label htmlFor="i-min">Warn me when stock falls to</Label>
             <Input id="i-min" type="number" min={0} value={f.minimumStock ?? ""} placeholder="No warning"
               onChange={(e) => set("minimumStock", e.target.value === "" ? null : Number(e.target.value))} />
           </div>
           {!isEdit && (
-            <p className="text-xs text-stone-500">The item starts with no stock. Use Record purchase to bring it in and pay for it.</p>
+            <p className="text-xs text-stone-500">
+              {f.category === "Feed" && f.isForage
+                ? "The item starts with no stock. Use Collect feed each time some is brought back."
+                : "The item starts with no stock. Use Record purchase to bring it in and pay for it."}
+            </p>
           )}
           <div>
             <Label htmlFor="i-notes">Notes</Label>
@@ -163,7 +180,7 @@ export function ItemFormDialog({ open, onOpenChange, item, defaultCategory = "Fe
 
 function blank(category: ItemCategory): ItemInput {
   return { name: "", category, unit: category === "Feed" || category === "Ingredient" ? "kg" : "", kgPerUnit: null, minimumStock: null, speciesCode: null,
-    notes: null }
+    notes: null, isForage: false }
 }
 
 /**
