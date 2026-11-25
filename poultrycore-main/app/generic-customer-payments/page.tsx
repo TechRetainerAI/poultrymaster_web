@@ -10,10 +10,15 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { PaymentsReceivedPage } from "@/components/payments/payments-received-page"
 import { GenericSaleLinesDialog } from "@/components/generic/generic-sale-lines-dialog"
+import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
+import type { PaymentHistoryRow } from "@/lib/api/balances"
 
 export default function GenericCustomerPaymentsPage() {
   const router = useRouter()
   const [details, setDetails] = useState<{ saleIds: number[]; title: string } | null>(null)
+  // 493: a payment belongs to the projects of the sales it paid (and of its
+  // designated advance). paymentId is the Generic customer payment id.
+  const { extraFilter } = useProjectListFilter<PaymentHistoryRow>("CustomerPayment", (r) => Number(r.paymentId) || null)
 
   return (
     <>
@@ -21,6 +26,7 @@ export default function GenericCustomerPaymentsPage() {
         module="generic"
         companyType="Generic"
         title="Customer Payments"
+        extraFilter={extraFilter}
         saleHref={(saleId) => `/generic-sales?saleId=${saleId}`}
         onSaleDetails={(saleIds, title) => setDetails({ saleIds, title })}
         manualCreditHref={(row) =>

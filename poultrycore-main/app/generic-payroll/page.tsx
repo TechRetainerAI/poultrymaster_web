@@ -30,6 +30,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
+import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
 import {
   listGenericPayrollRuns, createGenericPayrollRun, getGenericPayrollRun,
   listGenericPayrollDeductionsForRun, type GenericPayrollDeductionRunRow,
@@ -93,7 +94,12 @@ export default function GenericPayrollPage() {
   const [templates, setTemplates] = useState<GenericPayrollTemplate[]>([])
   const [templatesRefresh, setTemplatesRefresh] = useState(0)
 
-  const visible = useMemo(() => statusFilter === "all" ? runs : runs.filter(r => r.status === statusFilter), [runs, statusFilter])
+  // 493: Project / Contract filter -- payroll runs given to a project (Link older transactions).
+  const { extraFilter: projectFilter } = useProjectListFilter<GenericPayrollRun>("PayrollRun", (r) => r.genericPayrollRunId)
+  const visible = useMemo(
+    () => runs.filter(r => (statusFilter === "all" || r.status === statusFilter) && (!projectFilter || projectFilter.matches(r))),
+    [runs, statusFilter, projectFilter],
+  )
 
   // Client-side paging: the whole list is already in memory, so this is a
   // slice. Feed the SAME slice to the cards and the desktop table.
@@ -539,6 +545,7 @@ export default function GenericPayrollPage() {
                 {["Draft", "Approved", "Paid", "Reopened", "Cancelled"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
+            {projectFilter && <div className="ml-2">{projectFilter.control}</div>}
           </div>
 
           <Card>

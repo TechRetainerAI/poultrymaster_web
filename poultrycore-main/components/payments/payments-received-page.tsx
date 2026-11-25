@@ -119,11 +119,16 @@ export interface PaymentsReceivedPageProps {
   manualCreditHref?: (row: PaymentHistoryRow) => string | null
   /** Page heading. Defaults to "Payments received". */
   title?: string
+  /**
+   * 493 (Generic): one more filter in the strip (the Project / Contract filter)
+   * and the test it applies to each payment. Absent = unchanged.
+   */
+  extraFilter?: { control: React.ReactNode; matches: (row: PaymentHistoryRow) => boolean }
 }
 
 export function PaymentsReceivedPage({
   module, companyType, saleHref, permissions, iconClassName, pagerVariant, onSaleDetails, headerActions,
-  manualCreditHref, title = "Payments received",
+  manualCreditHref, title = "Payments received", extraFilter,
 }: PaymentsReceivedPageProps) {
   const fmt = useFmt()
 
@@ -229,6 +234,7 @@ export function PaymentsReceivedPage({
       if (source !== "all" && (r.sourceType ?? "") !== source) return false
       if (appliedTo === "single" && r.allocationCount !== 1) return false
       if (appliedTo === "multiple" && r.allocationCount <= 1) return false
+      if (extraFilter && !extraFilter.matches(r)) return false
       if (q) {
         const hay = [r.partyName, r.paymentMethod, r.reference, r.notes, paymentRef(r), r.createdBy]
           .filter(Boolean).join(" ").toLowerCase()
@@ -236,7 +242,7 @@ export function PaymentsReceivedPage({
       }
       return true
     })
-  }, [rows, search, status, method, source, appliedTo, customer])
+  }, [rows, search, status, method, source, appliedTo, customer, extraFilter])
 
   // How many payments each sale has taken. Counted over every loaded row and
   // not the filtered ones, so a sale still says it was paid three times while a
@@ -637,6 +643,7 @@ export function PaymentsReceivedPage({
             searchWidthClassName="sm:w-[160px]"
             extras={
               <>
+                {extraFilter?.control}
                 <div className="w-full sm:w-[180px]">
                   <Label className="text-xs text-slate-500">Customer</Label>
                   <Select value={customer} onValueChange={setCustomer}>

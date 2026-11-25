@@ -44,6 +44,10 @@ import {
   formatActivityMoment, positionLabel,
   type FinancialActivityResponse, type FinancialActivityRow,
 } from "@/lib/api/generic-financial-activity"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { useProjectsEnabled } from "@/hooks/use-generic-projects"
+import { getActivityShares } from "@/lib/api/generic-projects"
+import { ALL_PROJECTS, projectPart, type ProjectFilterValue, type ProjectShare } from "@/lib/generic/project-math"
 
 const TIP = {
   moneyIn: "Actual money entering the company. Not the same as revenue \u2014 a loan, an owner contribution and a customer paying an old bill are all money in and none of them is income.",
@@ -105,6 +109,13 @@ function FinancialActivityPageInner() {
   const [typeFilter, setTypeFilter] = useState("ALL")
   const [categoryFilter, setCategoryFilter] = useState("ALL")
 
+  // 493: Project / Contract filter. Each event's project shares come from the
+  // same engine as the project P&L and cash flow; an event with none is General.
+  const { enabled: projectsEnabled } = useProjectsEnabled()
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const projectActive = projectsEnabled && projectFilter.kind !== "all"
+  const [shares, setShares] = useState<Map<string, ProjectShare[]> | null>(null)
+
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const toggle = (key: string) =>
     setExpanded((prev) => {
@@ -133,8 +144,59 @@ function FinancialActivityPageInner() {
     setRefreshing(false)
   }
 
-  const rows = data?.rows ?? []
-  const summary = data?.summary
+  // Read the shares for the period whenever a project is picked or the data reloads.
+  useEffect(() => {
+    if (!projectActive) { setShares(null); return }
+    let cancelled = false
+    getActivityShares(fromDate, toDate)
+      .then((list) => { if (!cancelled) setShares(new Map(list.map((x) => [x.eventKey, x.projects]))) })
+      .catch((e: any) => { if (!cancelled) { setShares(new Map()); setError(e?.message ?? String(e)) } })
+    return () => { cancelled = true }
+  }, [projectActive, fromDate, toDate, data])
+
+  // While a project is picked: only the events that belong to it, each at its
+  // project part (rounded per project, General takes the remainder -- the same
+  // split the project P&L uses, so the parts add back to the company figure).
+  const rows = useMemo(() => {
+    const all = data?.rows ?? []
+    if (!projectActive) return all
+    if (!shares) return []
+    return all
+      .filter((r) => {
+        const ps = shares.get(r.eventKey) ?? []
+        if (projectFilter.kind === "general") return ps.reduce((t, p) => t + p.share, 0) < 0.999999
+        return projectFilter.kind === "projects" && ps.some((p) => projectFilter.ids.includes(p.projectId))
+      })
+      .map((r) => {
+        const ps = shares.get(r.eventKey)
+        const part = (n: number) => projectPart(n, ps, projectFilter)
+        return {
+          ...r,
+          moneyIn: part(r.moneyIn), moneyOut: part(r.moneyOut),
+          revenue: part(r.revenue), expense: part(r.expense), profitImpact: part(r.profitImpact),
+          positionChanges: r.positionChanges.map((c) => ({
+            ...c, increaseAmount: part(c.increaseAmount), decreaseAmount: part(c.decreaseAmount),
+          })),
+        }
+      })
+  }, [data, projectActive, shares, projectFilter])
+
+  // The cards follow the project too; opening and closing cash stay the
+  // company's (a bank balance is not split by project) and say so.
+  const summary = useMemo(() => {
+    const s = data?.summary
+    if (!s || !projectActive) return s
+    let moneyIn = 0, moneyOut = 0, revenue = 0, expense = 0, cashEvents = 0, nonCashEvents = 0
+    for (const r of rows) {
+      moneyIn += r.moneyIn; moneyOut += r.moneyOut; revenue += r.revenue; expense += r.expense
+      if (r.isCashActivity) cashEvents++
+      if (r.isNonCashActivity) nonCashEvents++
+    }
+    return {
+      ...s, moneyIn, moneyOut, netCashFlow: moneyIn - moneyOut, revenue, expense,
+      netProfit: revenue - expense, eventCount: rows.length, cashEvents, nonCashEvents,
+    }
+  }, [data, projectActive, rows])
 
   const types = useMemo(
     () => Array.from(new Set(rows.map((r) => r.type).filter(Boolean))).sort(),
@@ -338,8 +400,8 @@ function FinancialActivityPageInner() {
                 <Stat label="Money In"  value={gh(summary.moneyIn)}  tip={TIP.moneyIn}  tone="emerald" />
                 <Stat label="Money Out" value={gh(summary.moneyOut)} tip={TIP.moneyOut} tone="rose" />
                 <Stat label="Net Cash Flow" value={gh(summary.netCashFlow)} tone={summary.netCashFlow < 0 ? "rose" : "emerald"}
-                      hint={`Opening ${gh(summary.openingCash)}`} />
-                <Stat label="Closing Cash" value={gh(summary.closingCash)} tip={TIP.runningCash} />
+                      hint={`Opening ${gh(summary.openingCash)}${projectActive ? " (whole company)" : ""}`} />
+                <Stat label={projectActive ? "Closing Cash (whole company)" : "Closing Cash"} value={gh(summary.closingCash)} tip={TIP.runningCash} />
                 <Stat label="Revenue"  value={gh(summary.revenue)} tip={TIP.revenue} tone="emerald" />
                 <Stat label="Expenses" value={gh(summary.expense)} tip={TIP.expense} tone="rose" />
                 <Stat label="Net Profit" value={gh(summary.netProfit)} tip={TIP.profit}
@@ -367,6 +429,10 @@ function FinancialActivityPageInner() {
               <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} aria-label="To date" />
               <Input placeholder="Search\u2026" value={search} onChange={(e) => setSearch(e.target.value)}
                      className={cn(isMobile && "col-span-2")} />
+              {projectsEnabled && (
+                <ProjectFilter value={projectFilter} onChange={setProjectFilter}
+                               className={cn("w-full min-w-0", isMobile && "col-span-2")} />
+              )}
               <Select value={activityFilter} onValueChange={setActivityFilter}>
                 <SelectTrigger><SelectValue placeholder="Activity" /></SelectTrigger>
                 <SelectContent>

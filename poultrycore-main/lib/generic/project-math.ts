@@ -118,6 +118,22 @@ export function round(n: number, dp = 2): number {
   return Math.round((n + Number.EPSILON) * f) / f
 }
 
+/** One project's share of a record (0 < share <= 1), as the 493 endpoints return it. */
+export type ProjectShare = { projectId: number; share: number }
+
+/**
+ * The part of `amount` the filter covers, split the way the database engine
+ * splits it (484): each project's part rounded to the cent, General takes the
+ * remainder, so projects + General always add back to the whole exactly.
+ * "all" = the whole amount.
+ */
+export function projectPart(amount: number, shares: ProjectShare[] | undefined, f: ProjectFilterValue): number {
+  if (f.kind === "all") return amount
+  const parts = (shares ?? []).map((s) => ({ id: s.projectId, amount: round(amount * s.share) }))
+  if (f.kind === "general") return round(amount - parts.reduce((t, p) => t + p.amount, 0))
+  return round(parts.filter((p) => f.ids.includes(p.id)).reduce((t, p) => t + p.amount, 0))
+}
+
 // ---------------------------------------------------------------- reconciliation
 
 /** True when every company figure equals projects + General (to the cent). */

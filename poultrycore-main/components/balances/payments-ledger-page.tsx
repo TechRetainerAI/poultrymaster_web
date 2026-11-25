@@ -128,10 +128,16 @@ export interface PaymentsLedgerPageProps {
   pagerVariant?: "compact" | "records"
   /** 370: extra header actions (Poultry: Record supplier payment); reload refreshes the list. */
   headerActions?: (reload: () => void) => React.ReactNode
+  /**
+   * 493 (Generic): one more filter (the Project / Contract filter), shown above
+   * the everyday filters, and the test it applies to each payment. Absent = unchanged.
+   */
+  extraFilter?: { control: React.ReactNode; matches: (row: PaymentHistoryRow) => boolean }
 }
 
 export function PaymentsLedgerPage({
   module, companyType, partyHref, documentHref, loadCashAccounts, permissions, iconClassName, pagerVariant, headerActions,
+  extraFilter,
 }: PaymentsLedgerPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -247,6 +253,7 @@ export function PaymentsLedgerPage({
       if (appliedToFilter === "multiple" && r.allocationCount <= 1) return false
       if (min !== null && !Number.isNaN(min) && r.totalAmount < min) return false
       if (max !== null && !Number.isNaN(max) && r.totalAmount > max) return false
+      if (extraFilter && !extraFilter.matches(r)) return false
 
       // Payable type can only be judged once the allocation is known. A row whose
       // allocation has not been fetched is KEPT rather than hidden — filtering a
@@ -272,7 +279,7 @@ export function PaymentsLedgerPage({
     })
   }, [
     rows, search, supplierFilter, methodFilter, accountFilter, sourceFilter,
-    statusFilter, appliedToFilter, payableTypeFilter, minAmount, maxAmount, allocations,
+    statusFilter, appliedToFilter, payableTypeFilter, minAmount, maxAmount, allocations, extraFilter,
   ])
 
   const pg = usePagination(filtered, 10)
@@ -668,6 +675,7 @@ export function PaymentsLedgerPage({
               silent reason a payment is missing. */}
           <Card className="mb-4">
             <CardContent className="space-y-3 p-3">
+              {extraFilter && <div className="flex flex-wrap items-end gap-2">{extraFilter.control}</div>}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-12">
                 <div className="space-y-1 lg:col-span-4">
                   <Label htmlFor="sp-search" className="text-xs text-slate-500">Search</Label>

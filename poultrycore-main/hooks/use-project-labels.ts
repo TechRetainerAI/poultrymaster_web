@@ -9,7 +9,10 @@ import { getProjectLabels } from "@/lib/api/generic-projects"
 import { useProjectsEnabled } from "@/hooks/use-generic-projects"
 import type { ProjectFilterValue } from "@/lib/generic/project-math"
 
-export type LabelSourceType = "Sale" | "Purchase" | "Expense" | "OwnerEntry" | "CustomerPayment" | "SupplierPayment"
+export type LabelSourceType =
+  | "Sale" | "Purchase" | "Expense" | "OwnerEntry" | "CustomerPayment" | "SupplierPayment"
+  // 493: tagged from Link older transactions; the payroll, loans and assets pages filter by them.
+  | "PayrollRun" | "Loan" | "CapitalAsset"
 
 export function useProjectLabels(sourceType: LabelSourceType, reloadKey?: unknown) {
   const { enabled } = useProjectsEnabled()

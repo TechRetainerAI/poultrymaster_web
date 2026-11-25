@@ -51,6 +51,7 @@ import {
   type GenericCashAccount, type GenericLoan, type GenericLoanPayment,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
 
 const LENDER_TYPES = ["Bank", "FinancialInstitution", "Individual", "Owner", "FamilyFriend", "Supplier", "Other"]
 const INTEREST_TYPES = ["Simple", "ReducingBalance", "Flat", "Unknown"]
@@ -288,8 +289,17 @@ export default function GenericLoansPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, activeFarmId, router])
 
+  // 493: Project / Contract filter -- loans given to a project (Link older
+  // transactions). The cards and the list both follow it.
+  const { extraFilter: projectFilter } = useProjectListFilter<GenericLoan>("Loan", (l) => l.genericLoanId)
+  const projectLoans = useMemo(
+    () => (projectFilter ? loans.filter((l) => projectFilter.matches(l)) : loans),
+    [loans, projectFilter],
+  )
+
   // Poultry reads these from sppoultryloan_summary; the same sums, over the list.
   const summary = useMemo(() => {
+    const loans = projectLoans
     const live = loans.filter((l) => l.status !== "Cancelled")
     const due = loans
       .filter((l) => l.status === "Active" && l.outstandingBalance > 0 && l.nextPaymentDate)
@@ -306,11 +316,11 @@ export default function GenericLoansPage() {
       overdueLoans: loans.filter((l) => l.isOverdue).length,
       nextPaymentDate: due[0] ?? null,
     }
-  }, [loans])
+  }, [projectLoans])
 
   const visible = useMemo(
-    () => (status === "All" ? loans : loans.filter((l) => l.status === status)),
-    [loans, status],
+    () => (status === "All" ? projectLoans : projectLoans.filter((l) => l.status === status)),
+    [projectLoans, status],
   )
   const pg = usePagination(visible)
 
@@ -474,7 +484,8 @@ export default function GenericLoansPage() {
                   accent={summary.overdueLoans > 0 ? "rose" : "slate"} />
           </div>
 
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap items-end gap-2 mb-4">
+            {projectFilter && <div className="mr-2">{projectFilter.control}</div>}
             {STATUS_FILTERS.map((s) => (
               <Button key={s} size="sm" variant={status === s ? "default" : "outline"}
                       onClick={() => setStatus(s)}>{s}</Button>
