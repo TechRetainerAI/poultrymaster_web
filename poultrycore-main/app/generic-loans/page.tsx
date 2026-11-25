@@ -52,6 +52,10 @@ import {
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
+import {
+  SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, loadSingleProject, type SingleProjectValue,
+} from "@/components/generic/projects/form-project-field"
+import { useProjectsEnabled } from "@/hooks/use-generic-projects"
 
 const LENDER_TYPES = ["Bank", "FinancialInstitution", "Individual", "Owner", "FamilyFriend", "Supplier", "Other"]
 const INTEREST_TYPES = ["Simple", "ReducingBalance", "Flat", "Unknown"]
@@ -291,7 +295,15 @@ export default function GenericLoansPage() {
 
   // 493: Project / Contract filter -- loans given to a project (Link older
   // transactions). The cards and the list both follow it.
-  const { extraFilter: projectFilter } = useProjectListFilter<GenericLoan>("Loan", (l) => l.genericLoanId)
+  const { extraFilter: projectFilter, labels: projectLabels } = useProjectListFilter<GenericLoan>("Loan", (l) => l.genericLoanId, loans)
+
+  // 496: the loan's project / contract, chosen on the form. Its repayments,
+  // interest and fees follow it (P&L, Cash Flow, Financial Activity). It is
+  // financing: the loan itself is never revenue or profit.
+  const { enabled: projectsEnabled } = useProjectsEnabled()
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
+  const [projectChanged, setProjectChanged] = useState(false)
+  const changeProject = (v: SingleProjectValue) => { setProject(v); setProjectChanged(true) }
   const projectLoans = useMemo(
     () => (projectFilter ? loans.filter((l) => projectFilter.matches(l)) : loans),
     [loans, projectFilter],
@@ -335,9 +347,16 @@ export default function GenericLoansPage() {
     [accounts],
   )
 
-  const openNew = () => { setEditing(null); setForm(blankForm()); setNewOpen(true) }
+  const openNew = () => {
+    setEditing(null); setForm(blankForm()); setNewOpen(true)
+    setProject({ ...EMPTY_SINGLE_PROJECT, costClass: "Financing" }); setProjectChanged(false)
+  }
   const openEdit = (l: GenericLoan) => {
     setEditing(l)
+    setProject({ ...EMPTY_SINGLE_PROJECT, costClass: "Financing" }); setProjectChanged(false)
+    if (projectsEnabled) {
+      void loadSingleProject("Loan", l.genericLoanId).then((v) => setProject({ ...v, costClass: "Financing" }))
+    }
     setForm({
       lenderName: l.lenderName ?? "", lenderType: l.lenderType || "Other", accountNumber: l.accountNumber ?? "",
       originalPrincipal: String(l.originalPrincipal), amountReceived: String(l.amountReceived),
@@ -365,6 +384,7 @@ export default function GenericLoansPage() {
           paymentFrequency: form.paymentFrequency || null,
           nextPaymentDate: form.nextPaymentDate || null,
           notes: form.notes.trim() || null,
+          projects: projectsEnabled && projectChanged ? singleAssignment({ ...project, costClass: "Financing" }) : undefined,
         })
         toast({ title: "Loan updated" })
       } else {
@@ -390,6 +410,8 @@ export default function GenericLoansPage() {
           paymentFrequency: form.paymentFrequency || null,
           nextPaymentDate: form.nextPaymentDate || null,
           notes: form.notes.trim() || null,
+          projects: projectsEnabled && (project.projectId != null || project.splits?.length)
+            ? singleAssignment({ ...project, costClass: "Financing" }) : undefined,
         })
         toast({
           title: "Loan recorded",
@@ -598,7 +620,12 @@ export default function GenericLoansPage() {
                                 : `${loanPayments.length} repayment${loanPayments.length === 1 ? "" : "s"}`}
                             </div>
                           </TableCell>
-                          <TableCell>{lenderCell(l)}<div className="text-xs text-slate-500">{l.lenderType}</div></TableCell>
+                          <TableCell>
+                            {lenderCell(l)}<div className="text-xs text-slate-500">{l.lenderType}</div>
+                            {projectLabels.labelOf(l.genericLoanId) && (
+                              <div className="text-xs text-violet-700">{projectLabels.labelOf(l.genericLoanId)}</div>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.originalPrincipal)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.amountReceived)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.totalPrincipalPaid)}</TableCell>
@@ -752,6 +779,16 @@ export default function GenericLoansPage() {
                 </Select>
               </FormField>
             </FormSection>
+
+            {projectsEnabled && (
+              <FormSection title="Project / contract" color="slate" columns={1}>
+                <FormField label="Project / contract">
+                  <SingleProjectField value={project} onChange={changeProject} amount={Number(form.amountReceived) || 0}
+                    showCostClass={false} label=""
+                    hint="Borrowed for this project. Its repayments, interest and fees follow it on the project's P&L, cash flow and Financial Activity. A loan is financing, never revenue or profit." />
+                </FormField>
+              </FormSection>
+            )}
 
             <FormSection title="Notes" color="slate" columns={1}>
               <FormField label="Notes">
