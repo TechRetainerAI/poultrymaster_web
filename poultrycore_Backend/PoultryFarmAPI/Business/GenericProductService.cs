@@ -108,7 +108,7 @@ namespace PoultryFarmAPIWeb.Business
                 "p_canuseinproduction => @CanUseInProduction::boolean, p_canuseinternally => @CanUseInternally::boolean, " +
                 "p_isactive => @IsActive::boolean, p_notes => @Notes::text, " +
                 "p_expirydate => @ExpiryDate::date, p_trackexpiry => @TrackExpiry::boolean, " +
-                "p_createdby => @CreatedBy::text)", conn);
+                "p_createdby => @CreatedBy::text, p_imageurl => @ImageUrl::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@GenericProductCategoryId", (object?)m.GenericProductCategoryId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ProductName", m.ProductName);
@@ -135,6 +135,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ExpiryDate", (object?)m.ExpiryDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@TrackExpiry", m.TrackExpiry);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ImageUrl", (object?)m.ImageUrl ?? DBNull.Value);
 
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
@@ -158,7 +159,7 @@ namespace PoultryFarmAPIWeb.Business
                 "p_canuseinproduction => @CanUseInProduction::boolean, p_canuseinternally => @CanUseInternally::boolean, " +
                 "p_isactive => @IsActive::boolean, p_notes => @Notes::text, " +
                 "p_expirydate => @ExpiryDate::date, p_trackexpiry => @TrackExpiry::boolean, " +
-                "p_updatedby => @UpdatedBy::text)", conn);
+                "p_updatedby => @UpdatedBy::text, p_imageurl => @ImageUrl::text)", conn);
             cmd.Parameters.AddWithValue("@GenericProductId", m.GenericProductId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@GenericProductCategoryId", (object?)m.GenericProductCategoryId ?? DBNull.Value);
@@ -185,6 +186,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ExpiryDate", (object?)m.ExpiryDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@TrackExpiry", m.TrackExpiry);
             cmd.Parameters.AddWithValue("@UpdatedBy", (object?)m.UpdatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ImageUrl", (object?)m.ImageUrl ?? DBNull.Value);
 
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
@@ -299,6 +301,7 @@ namespace PoultryFarmAPIWeb.Business
             CreatedAt                = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt                = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
             UpdatedBy                = r.IsDBNull(r.GetOrdinal("UpdatedBy")) ? null : r.GetString(r.GetOrdinal("UpdatedBy")),
+            ImageUrl                 = r.IsDBNull(r.GetOrdinal("ImageUrl")) ? null : r.GetString(r.GetOrdinal("ImageUrl")),
         };
 
         // ====================================================================
@@ -351,6 +354,58 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT spgenericuomconversion_delete(@p_id, @p_farmid)";
+            cmd.Parameters.AddWithValue("p_id", id);
+            cmd.Parameters.AddWithValue("p_farmid", farmId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // ====================================================================
+        // Units of Measure (migration 492)
+        // ====================================================================
+
+        public async Task<List<GenericUnitOfMeasureModel>> GetUnitsAsync(string farmId)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT * FROM spgenericuom_getall(@p_farmid)";
+            cmd.Parameters.AddWithValue("p_farmid", farmId);
+
+            var list = new List<GenericUnitOfMeasureModel>();
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new GenericUnitOfMeasureModel
+                {
+                    GenericUnitOfMeasureId = r.GetInt32(r.GetOrdinal("genericunitofmeasureid")),
+                    FarmId = r.GetString(r.GetOrdinal("farmid")),
+                    UnitName = r.GetString(r.GetOrdinal("unitname")),
+                    UnitAbbreviation = r.IsDBNull(r.GetOrdinal("unitabbreviation")) ? null : r.GetString(r.GetOrdinal("unitabbreviation")),
+                    IsActive = r.GetBoolean(r.GetOrdinal("isactive")),
+                    CreatedAt = r.GetDateTime(r.GetOrdinal("createdat")),
+                });
+            }
+            return list;
+        }
+
+        public async Task<int> UpsertUnitAsync(string farmId, string unitName, string? abbreviation)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT spgenericuom_upsert(@p_farmid, @p_unitname, @p_unitabbreviation)";
+            cmd.Parameters.AddWithValue("p_farmid", farmId);
+            cmd.Parameters.AddWithValue("p_unitname", unitName);
+            cmd.Parameters.AddWithValue("p_unitabbreviation", (object?)abbreviation ?? DBNull.Value);
+            return (int)(await cmd.ExecuteScalarAsync())!;
+        }
+
+        public async Task DeleteUnitAsync(int id, string farmId)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT spgenericuom_delete(@p_id, @p_farmid)";
             cmd.Parameters.AddWithValue("p_id", id);
             cmd.Parameters.AddWithValue("p_farmid", farmId);
             await cmd.ExecuteNonQueryAsync();

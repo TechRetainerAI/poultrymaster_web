@@ -563,18 +563,15 @@ function GenericInventoryPageInner() {
                 {/* ===== ITEMS TAB ===== */}
                 <TabsContent value="items">
                   <Card><CardContent className="space-y-3 p-3 sm:p-4">
-                    {/* Item type: Products vs Supply Items */}
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      <Chip active={itemTypeFilter === "all"} onClick={() => setItemTypeFilter("all")} count={products.length}>All Items</Chip>
-                      <Chip active={itemTypeFilter === "Product"} onClick={() => setItemTypeFilter("Product")} count={productCount}>Products (for sale)</Chip>
-                      <Chip active={itemTypeFilter === "SupplyItem"} onClick={() => setItemTypeFilter("SupplyItem")} count={supplyCount}>Supply Items (internal use)</Chip>
-                    </div>
-                    {/* Stock status */}
+                    {/* All filters in one row */}
                     <div className="flex flex-wrap gap-1.5">
-                      <Chip active={stockFilter === "all"} onClick={() => setStockFilter("all")} count={filteredItems.length}>All</Chip>
-                      <Chip active={stockFilter === "low"} onClick={() => setStockFilter("low")} count={stats.low} tone="warn">Low stock</Chip>
-                      <Chip active={stockFilter === "out"} onClick={() => setStockFilter("out")} count={stats.out} tone="bad">Out of stock</Chip>
-                      <Chip active={stockFilter === "inactive"} onClick={() => setStockFilter("inactive")} count={stats.inactive}>Inactive</Chip>
+                      <Chip active={itemTypeFilter === "all" && stockFilter === "all"} onClick={() => { setItemTypeFilter("all"); setStockFilter("all") }} count={products.length}>All Items</Chip>
+                      <Chip active={itemTypeFilter === "Product"} onClick={() => { setItemTypeFilter("Product"); setStockFilter("all") }} count={productCount}>Products (for sale)</Chip>
+                      <Chip active={itemTypeFilter === "SupplyItem"} onClick={() => { setItemTypeFilter("SupplyItem"); setStockFilter("all") }} count={supplyCount}>Supply Items (internal use)</Chip>
+                      <span className="w-px bg-slate-200 mx-0.5 self-stretch" />
+                      <Chip active={stockFilter === "low"} onClick={() => { setStockFilter("low"); setItemTypeFilter("all") }} count={stats.low} tone="warn">Low stock</Chip>
+                      <Chip active={stockFilter === "out"} onClick={() => { setStockFilter("out"); setItemTypeFilter("all") }} count={stats.out} tone="bad">Out of stock</Chip>
+                      <Chip active={stockFilter === "inactive"} onClick={() => { setStockFilter("inactive"); setItemTypeFilter("all") }} count={stats.inactive}>Inactive</Chip>
                     </div>
                     <ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search product, SKU, or category" extras={<>
                       <Select value={categoryFilter} onValueChange={setCategoryFilter}>

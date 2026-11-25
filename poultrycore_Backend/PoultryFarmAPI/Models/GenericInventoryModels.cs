@@ -153,6 +153,9 @@ namespace PoultryFarmAPIWeb.Models
 
         /// <summary>User who last updated this item (migration 441).</summary>
         public string? UpdatedBy { get; set; }
+
+        /// <summary>Product image URL or base64 data URL (migration 492).</summary>
+        public string? ImageUrl { get; set; }
     }
 
     public class GenericProductLowStockRowModel
@@ -354,5 +357,28 @@ namespace PoultryFarmAPIWeb.Models
         public string ToUnit { get; set; } = string.Empty;
         [Range(0.0001, double.MaxValue)]
         public decimal ConversionFactor { get; set; }
+    }
+
+    // =========================================================================
+    // Units of Measure (migration 492)
+    // =========================================================================
+    public class GenericUnitOfMeasureModel
+    {
+        public int GenericUnitOfMeasureId { get; set; }
+        public string FarmId { get; set; } = string.Empty;
+        [Required] [StringLength(60)]
+        public string UnitName { get; set; } = string.Empty;
+        [StringLength(20)]
+        public string? UnitAbbreviation { get; set; }
+        public bool IsActive { get; set; } = true;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class GenericUnitOfMeasureUpsertRequest
+    {
+        [Required] [StringLength(60)]
+        public string UnitName { get; set; } = string.Empty;
+        [StringLength(20)]
+        public string? UnitAbbreviation { get; set; }
     }
 }

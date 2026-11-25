@@ -30,5 +30,10 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<GenericUomConversionModel>> GetUomConversionsAsync(string farmId, int? productId);
         Task<int> UpsertUomConversionAsync(string farmId, int? productId, string fromUnit, string toUnit, decimal factor);
         Task DeleteUomConversionAsync(int id, string farmId);
+
+        // Units of Measure (migration 492)
+        Task<List<GenericUnitOfMeasureModel>> GetUnitsAsync(string farmId);
+        Task<int> UpsertUnitAsync(string farmId, string unitName, string? abbreviation);
+        Task DeleteUnitAsync(int id, string farmId);
     }
 }
