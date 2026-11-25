@@ -1,5 +1,6 @@
 "use client"
 
+import { ProjectAssignmentCard } from "@/components/generic/projects/project-assignment-card"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
@@ -10,11 +11,17 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { ArrowLeft, Check, Loader2, Trash2, Printer, Mail } from "lucide-react"
+import { ArrowLeft, Check, Loader2, Trash2, Printer, Mail, Undo2, RotateCcw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
-import { approveSale, cancelSale, getSale, refundSale, type GenericSale } from "@/lib/api/generic"
+import { approveSale, cancelSale, getSale, type GenericSale } from "@/lib/api/generic"
+// 483: a sale is reversed (Poultry / Water model), no longer refunded in one click.
+import { ReverseSaleDialog } from "@/components/sales/reverse-sale-dialog"
+import { getGenericSaleReversal } from "@/lib/api/generic-sale-reversal"
+import type { SaleReversalRecord } from "@/lib/api/sale"
+import { getUserContext } from "@/lib/api/config"
+import { getSelectedCurrency } from "@/lib/utils/currency"
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -35,6 +42,7 @@ function statusBadgeClass(s: string) {
     case "Approved":  return "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
     case "Cancelled": return "bg-rose-100 text-rose-800 hover:bg-rose-100"
     case "Refunded":  return "bg-amber-100 text-amber-800 hover:bg-amber-100"
+    case "Reversed":  return "bg-slate-200 text-slate-800 hover:bg-slate-200"
     default:          return "bg-slate-100 text-slate-800 hover:bg-slate-100"
   }
 }
@@ -49,11 +57,19 @@ export default function GenericSaleDetailPage() {
   const [sale, setSale] = useState<GenericSale | null>(null)
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
+  const [reverseOpen, setReverseOpen] = useState(false)
+  // 485: Correct = reverse, then New sale filled in from it (Edit & repost).
+  const [reverseMode, setReverseMode] = useState<"reverse" | "correct">("reverse")
+  const [reversal, setReversal] = useState<SaleReversalRecord | null>(null)
 
   const load = async () => {
     setLoading(true)
     try {
-      setSale(await getSale(id))
+      const s = await getSale(id)
+      setSale(s)
+      // A reversed sale is 'Cancelled' + a reversal record (483); a cancelled draft has none.
+      const r = s?.status === "Cancelled" ? await getGenericSaleReversal(id) : null
+      setReversal(r?.success && r.data ? r.data : null)
     } catch (e: any) {
       toast({ title: "Could not load sale", description: e?.message ?? String(e), variant: "destructive" })
     } finally {
@@ -89,17 +105,6 @@ export default function GenericSaleDetailPage() {
     } finally { setActing(false) }
   }
 
-  const onRefund = async () => {
-    setActing(true)
-    try {
-      await refundSale(id)
-      toast({ title: `Sale #${id} refunded`, description: "Stock + cash + customer ledger reversed." })
-      await load()
-    } catch (e: any) {
-      toast({ title: "Refund failed", description: e?.message ?? String(e), variant: "destructive" })
-    } finally { setActing(false) }
-  }
-
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
@@ -116,11 +121,23 @@ export default function GenericSaleDetailPage() {
             <Card><CardContent className="py-8 text-center text-slate-500">Sale not found.</CardContent></Card>
           ) : (
             <>
+              {reversal && (
+                <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  <strong>Reversed</strong> ({reversal.reversalNumber}) on {new Date(reversal.occurredAt).toLocaleString()}
+                  {reversal.reversedBy ? ` by ${reversal.reversedBy}` : ""}: {reversal.reason}.
+                  {reversal.cashReversed > 0 && ` ${fmt(reversal.cashReversed)} paid back.`}
+                  {reversal.creditCreated > 0 && ` ${fmt(reversal.creditCreated)} kept as customer credit.`}
+                  {" "}Stock was put back and the sale no longer counts in sales or Profit &amp; Loss.
+                  {reversal.correctionSaleId
+                    ? <> Corrected by <Link href={`/generic-sales/${reversal.correctionSaleId}`} className="font-medium text-blue-700 underline">sale #{reversal.correctionSaleId}</Link>.</>
+                    : " Was it entered wrongly? Use \"Edit & repost\" to enter it again, corrected."}
+                </div>
+              )}
               <div className="mb-4 flex items-start justify-between flex-wrap gap-2">
                 <div>
                   <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                     Sale #{sale.genericSaleId}
-                    <Badge className={statusBadgeClass(sale.status)}>{sale.status}</Badge>
+                    <Badge className={statusBadgeClass(reversal ? "Reversed" : sale.status)}>{reversal ? "Reversed" : sale.status}</Badge>
                   </h1>
                   <p className="text-sm text-slate-500">{new Date(sale.saleDate).toLocaleString()}</p>
                 </div>
@@ -149,23 +166,19 @@ export default function GenericSaleDetailPage() {
                     </>
                   )}
                   {sale.status === "Approved" && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" disabled={acting}>Refund</Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Refund this sale?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will return inventory to stock, refund the cash from the receiving account, and reverse any credit on the customer ledger. All three are atomic.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={onRefund}>Yes, refund</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <>
+                      <Button variant="outline" disabled={acting} onClick={() => { setReverseMode("correct"); setReverseOpen(true) }}>
+                        <RotateCcw className="h-4 w-4 mr-1" /> Correct sale
+                      </Button>
+                      <Button variant="outline" disabled={acting} onClick={() => { setReverseMode("reverse"); setReverseOpen(true) }}>
+                        <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                      </Button>
+                    </>
+                  )}
+                  {reversal && !reversal.correctionSaleId && (
+                    <Button variant="outline" onClick={() => router.push(`/generic-sales/new?corrects=${sale.genericSaleId}`)}>
+                      <RotateCcw className="h-4 w-4 mr-1" /> Edit &amp; repost
+                    </Button>
                   )}
                   {/* Print & Email — always visible */}
                   <Button variant="outline" onClick={() => window.print()}>
@@ -250,10 +263,42 @@ export default function GenericSaleDetailPage() {
                       {sale.notes && <><hr className="my-2" /><div>{sale.notes}</div></>}
                     </CardContent>
                   </Card>
+
+                  {/* 483: which project / contract each line belongs to; change or split it here. */}
+                  <ProjectAssignmentCard documentType="Sale" documentId={sale.genericSaleId}
+                    note="Payments on this sale follow its project automatically."
+                    lines={sale.items.filter((i) => i.genericSaleItemId).map((i) => ({
+                      lineId: i.genericSaleItemId!, description: i.description ?? `Line ${i.genericSaleItemId}`,
+                      quantity: i.quantity, amount: i.lineTotal ?? i.quantity * i.unitPrice, unit: i.saleUnit,
+                    }))} />
                 </div>
               </div>
             </>
           )}
+          <ReverseSaleDialog
+            open={reverseOpen}
+            module="generic"
+            mode={reverseMode}
+            saleId={sale ? sale.genericSaleId : null}
+            saleLabel={sale ? `#${sale.genericSaleId}` : ""}
+            farmId={getUserContext().farmId}
+            userId={getUserContext().userId}
+            currencyCode={getSelectedCurrency()}
+            onOpenChange={setReverseOpen}
+            onReversed={async ({ reversal: r }) => {
+              setReverseOpen(false)
+              // Correct: reversed; now enter it again, filled in from it.
+              if (reverseMode === "correct") { router.push(`/generic-sales/new?corrects=${id}`); return }
+              toast({
+                title: `Sale #${id} reversed${r?.reversalNumber ? ` (${r.reversalNumber})` : ""}`,
+                description: r
+                  ? [r.cashReversed > 0 ? `${fmt(r.cashReversed)} paid back` : "", r.creditCreated > 0 ? `${fmt(r.creditCreated)} kept as credit` : ""]
+                      .filter(Boolean).join(" · ") || "Stock put back; nothing had been paid."
+                  : undefined,
+              })
+              await load()
+            }}
+          />
         </main>
       </div>
     </div>

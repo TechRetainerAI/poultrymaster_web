@@ -14,7 +14,7 @@ import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger, TabsContent, PROMINENT_TABS_LIST, PROMINENT_TABS_TRIGGER, PROMINENT_TABS_COUNT } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
@@ -174,14 +174,14 @@ export default function WaterInventoryPage() {
 
 
           <Tabs defaultValue="products" className="w-full">
-            <TabsList className="flex flex-wrap h-auto gap-1 bg-slate-100 p-1">
-              <TabsTrigger value="products" className="data-[state=active]:bg-white">
-                <ShoppingBag className="h-4 w-4 mr-1.5" /> Finished products
-                <Badge variant="secondary" className="ml-2">{filteredProducts.length}</Badge>
+            <TabsList className={PROMINENT_TABS_LIST}>
+              <TabsTrigger value="products" className={PROMINENT_TABS_TRIGGER}>
+                <ShoppingBag className="h-4 w-4" /> Finished products
+                <span className={PROMINENT_TABS_COUNT}>{filteredProducts.length.toLocaleString()}</span>
               </TabsTrigger>
-              <TabsTrigger value="raw" className="data-[state=active]:bg-white">
-                <Box className="h-4 w-4 mr-1.5" /> Raw materials
-                <Badge variant="secondary" className="ml-2">{filteredRaw.length}</Badge>
+              <TabsTrigger value="raw" className={PROMINENT_TABS_TRIGGER}>
+                <Box className="h-4 w-4" /> Raw materials
+                <span className={PROMINENT_TABS_COUNT}>{filteredRaw.length.toLocaleString()}</span>
               </TabsTrigger>
             </TabsList>
 

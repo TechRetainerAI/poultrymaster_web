@@ -46,6 +46,8 @@ import {
   type GenericPayrollRun, type GenericPayrollItem, type GenericCashAccount, type GenericStaff,
 } from "@/lib/api/generic-payroll"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const today = () => new Date().toISOString().split("T")[0]
 const STATUS_STYLE: Record<string, string> = {
@@ -87,6 +89,7 @@ export default function GenericPayrollPage() {
   const [staff, setStaff] = useState<GenericStaff[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
   // 419. Payroll templates.
   const { canEdit } = usePermissions()
   const [tab, setTab] = useState<"runs" | "templates">("runs")
@@ -460,7 +463,7 @@ export default function GenericPayrollPage() {
   }
 
   async function approve(run: GenericPayrollRun) {
-    try { await approveGenericPayrollRun(run.genericPayrollRunId); toast({ title: "Run approved", description: "Advance repayments and kept wages were posted." }); await load() }
+    try { await approveGenericPayrollRun(run.genericPayrollRunId); toast({ title: "Run approved", description: "A linked expense was created, with any advance repayments and kept wages." }); await load() }
     catch (e: any) { toast({ title: "Approve failed", description: e?.message, variant: "destructive" }) }
   }
   async function confirmMarkPaid() {
@@ -539,6 +542,7 @@ export default function GenericPayrollPage() {
                 {["Draft", "Approved", "Paid", "Reopened", "Cancelled"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
+            <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
           </div>
 
           <Card>
@@ -982,7 +986,7 @@ export default function GenericPayrollPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{reasonDlg.kind === "unapprove" ? "Reopen run" : "Cancel run"}</DialogTitle>
-            <DialogDescription>{reasonDlg.kind === "unapprove" ? "Reverses the advance repayments, kept wages and any cash-out, and returns the run to Reopened." : "Cancels this run and reverses any advance repayments and kept wages it posted."}</DialogDescription>
+            <DialogDescription>{reasonDlg.kind === "unapprove" ? "Reverses the linked expense, advance repayments, kept wages and any cash-out, and returns the run to Reopened." : "Cancels this run, removes any linked expense and reverses any advance repayments and kept wages it posted."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <FormField label={reasonDlg.kind === "unapprove" ? "Reason *" : "Reason"}><ReasonSelect options={reasonDlg.kind === "unapprove" ? REOPEN_REASONS : CANCEL_REASONS} value={reason} onChange={setReason} /></FormField>

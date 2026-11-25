@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
+import { useBirdCounts, birdsText } from "@/hooks/use-bird-counts"
 import { usePickSettings } from "@/hooks/use-pick-settings"
 import {
   createProductionRecord, updateProductionRecord, getProductionRecord, getProductionRecords, getBirdsOnDate,
@@ -162,6 +163,8 @@ export function ProductionRecordForm({
     allFlocks, flockOptions: flocksForSelect,
     loading: batchFlockLoading, error: batchFlockError,
   } = useBatchFlockSelect({ excludeClosed: true, keepFlockId })
+  // Live birds beside each batch and flock in the pickers (bird ledger, "now").
+  const birdCounts = useBirdCounts()
 
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(isEdit && !recordProp)
@@ -343,6 +346,8 @@ export function ProductionRecordForm({
 
   // Birds left must always equal numBirds - mortality to keep data consistent.
   const numBirdsNum = parseInt(form.numBirds) || 0
+  const selectedBatchBirds = selectedBatchId === BATCH_ALL ? undefined : birdCounts.byBatch.get(Number(selectedBatchId))
+  const selectedFlockBirds = form.flockId ? birdCounts.byFlock.get(Number(form.flockId)) : undefined
   const mortalityNum = parseInt(form.mortality) || 0
   const birdsLeft = calcBirdsLeft(numBirdsNum, mortalityNum)
 
@@ -881,11 +886,23 @@ export function ProductionRecordForm({
             <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
               <SelectTrigger className="w-full"><SelectValue placeholder="All batches" /></SelectTrigger>
               <SelectContent>
-                {batchOptions.map((b) => (
-                  <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
-                ))}
+                {batchOptions.map((b) => {
+                  const n = b.value === BATCH_ALL ? undefined : birdCounts.byBatch.get(Number(b.value))
+                  return (
+                    <SelectItem key={b.value} value={b.value}>
+                      {b.label}
+                      {n && <span className="ml-1.5 text-slate-500">· {birdsText(n.total)}</span>}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
+            {selectedBatchBirds && (
+              <p className="text-xs text-slate-500">
+                {birdsText(selectedBatchBirds.total)} now
+                {selectedBatchBirds.unplaced > 0 && ` (${selectedBatchBirds.unplaced.toLocaleString()} not placed in a flock)`}
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Flock <span className="text-red-500">*</span></Label>
@@ -896,11 +913,20 @@ export function ProductionRecordForm({
             >
               <SelectTrigger className="w-full"><SelectValue placeholder="Select a flock" /></SelectTrigger>
               <SelectContent>
-                {flocksForSelect.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
+                {flocksForSelect.map((o) => {
+                  const n = birdCounts.byFlock.get(Number(o.value))
+                  return (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                      {n != null && <span className="ml-1.5 text-slate-500">· {birdsText(n)}</span>}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
+            {selectedFlockBirds != null && (
+              <p className="text-xs text-slate-500">{birdsText(selectedFlockBirds)} in this flock now</p>
+            )}
             {isEdit && flockChanged && (
               <p className="text-xs text-amber-700">
                 Moving this record to a different flock. Its eggs, deaths and feed/medication

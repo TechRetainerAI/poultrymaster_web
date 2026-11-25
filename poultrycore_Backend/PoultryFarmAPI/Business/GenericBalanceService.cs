@@ -86,13 +86,24 @@ namespace PoultryFarmAPIWeb.Business
         /// </summary>
         private static string AllocationsJson(IEnumerable<PaymentAllocationInput> allocations)
         {
-            var rows = allocations.Select(a => new Dictionary<string, object?>
-            {
-                ["saleid"] = a.SaleId != 0 ? a.SaleId : a.DocumentId,
-                ["amount"] = a.Amount,
-            });
+            var rows = allocations.Select(a =>
+                // 488: a customer debt is paid like a sale, as {debtid, amount}.
+                string.Equals(a.DocumentType, CustomerDebtDocumentType, StringComparison.OrdinalIgnoreCase)
+                    ? new Dictionary<string, object?>
+                    {
+                        ["debtid"] = a.DocumentId,
+                        ["amount"] = a.Amount,
+                    }
+                    : new Dictionary<string, object?>
+                    {
+                        ["saleid"] = a.SaleId != 0 ? a.SaleId : a.DocumentId,
+                        ["amount"] = a.Amount,
+                    });
             return JsonSerializer.Serialize(rows);
         }
+
+        /// <summary>488: the document type of a customer debt in open items and allocations (as Poultry 369).</summary>
+        public const string CustomerDebtDocumentType = "CustomerDebt";
 
         /// <summary>
         /// The supplier grid. Generic payables span TWO tables -- purchases and
@@ -176,7 +187,9 @@ namespace PoultryFarmAPIWeb.Business
                 DocumentId = Int(r, "documentid"),
                 Reference = Str(r, "reference"),
                 DocumentDate = r.GetDateTime(r.GetOrdinal("documentdate")),
-                Label = Str(r, "label"),
+                // 488: a debt reads like Poultry's -- "Customer debt", with what it is for beneath.
+                Label = Str(r, "documenttype") == CustomerDebtDocumentType ? "Customer debt" : Str(r, "label"),
+                Description = Str(r, "documenttype") == CustomerDebtDocumentType ? Str(r, "label") : null,
                 TotalAmount = Dec(r, "totalamount"),
                 AmountPaid = Dec(r, "amountpaid"),
                 Balance = Dec(r, "balance"),
@@ -187,13 +200,84 @@ namespace PoultryFarmAPIWeb.Business
                 CashAccountId = IntN(r, "cashaccountid"),
             });
 
+        // ----------------------------------------------------- 488 customer debt
+        // Owed without a sale (Poultry 369). Recorded / reversed by the owner or an admin.
+
+        public async Task<string> CreateCustomerDebt(CustomerDebtRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT spgenericcustomerdebt_create(p_farmid => @FarmId::text, p_customerid => @CustomerId::int, " +
+                "p_amount => @Amount::numeric, p_debtdate => @Date::date, p_entrytype => @Type::text, " +
+                "p_description => @Description::text, p_reference => @Reference::text, p_notes => @Notes::text, " +
+                "p_by => @By::text)::text", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@CustomerId", r.CustomerId);
+            cmd.Parameters.AddWithValue("@Amount", r.Amount);
+            cmd.Parameters.AddWithValue("@Date", DbDate(r.DebtDate));
+            cmd.Parameters.AddWithValue("@Type", r.EntryType ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Description", r.Description ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Reference", Db(r.Reference));
+            cmd.Parameters.AddWithValue("@Notes", Db(r.Notes));
+            cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            await conn.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        /// <summary>488: refused while any payment is applied to the debt.</summary>
+        public async Task<int> ReverseCustomerDebt(int debtId, CustomerDebtReverseRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT spgenericcustomerdebt_reverse(p_farmid => @FarmId::text, p_debtid => @Debt::int, " +
+                "p_reason => @Reason::text, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@Debt", debtId);
+            cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", Db(r.ReversedBy));
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public Task<List<CustomerDebtRow>> GetCustomerDebts(string farmId, int? customerId) => Query(
+            "SELECT * FROM spgenericcustomerdebt_list(p_farmid => @FarmId::text, p_customerid => @CustomerId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@CustomerId", (object?)customerId ?? DBNull.Value);
+            },
+            r => new CustomerDebtRow
+            {
+                DebtId = Int(r, "debtid"),
+                DebtNumber = Str(r, "debtnumber") ?? string.Empty,
+                CustomerId = Int(r, "customerid"),
+                CustomerName = Str(r, "customername"),
+                Amount = Dec(r, "amount"),
+                Paid = Dec(r, "paid"),
+                Balance = Dec(r, "balance"),
+                DebtDate = DateN(r, "debtdate"),
+                EntryType = Str(r, "entrytype") ?? string.Empty,
+                Description = Str(r, "description") ?? string.Empty,
+                Reference = Str(r, "reference"),
+                Notes = Str(r, "notes"),
+                Status = Str(r, "status") ?? "Posted",
+                CreatedBy = Str(r, "createdby"),
+                CreatedAt = DateN(r, "createdat"),
+                ReversedBy = Str(r, "reversedby"),
+                ReversedAt = DateN(r, "reversedat"),
+                ReversalReason = Str(r, "reversalreason"),
+            });
+
         // -------------------------------------------------------------- payments
 
         public async Task<int> RecordCustomerPayment(RecordPaymentRequest r)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand(
-                "SELECT spgenericcustomerpayment_record(p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
+            var projectCall = "spgenericcustomerpayment_record(p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)";
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(r.Projects)
+                ? GenericProjectAttach.WrapInsert(projectCall, "CustomerPayment")
+                : "SELECT " + projectCall, conn);
+            if (GenericProjectAttach.Has(r.Projects)) GenericProjectAttach.AddParams(cmd, r.FarmId, r.Projects, r.CreatedBy);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@PartyId", Db(r.PartyId));
             cmd.Parameters.AddWithValue("@Amount", r.Amount);
@@ -390,8 +474,11 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> RecordSupplierPayment(RecordPaymentRequest r)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand(
-                "SELECT spgenericsupplierpayment_record(p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
+            var projectCall = "spgenericsupplierpayment_record(p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)";
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(r.Projects)
+                ? GenericProjectAttach.WrapInsert(projectCall, "SupplierPayment")
+                : "SELECT " + projectCall, conn);
+            if (GenericProjectAttach.Has(r.Projects)) GenericProjectAttach.AddParams(cmd, r.FarmId, r.Projects, r.CreatedBy);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@PartyId", Db(r.PartyId));
             cmd.Parameters.AddWithValue("@Amount", r.Amount);

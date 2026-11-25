@@ -354,9 +354,11 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
           <NavMegaMenu
             label="Operations" icon={ShoppingBag}
             title="Operations"
-            blurb="Products, inventory, stock adjustments, deliveries and internal use."
+            blurb={nav.catalog.length > 2
+              ? "Products, inventory, deliveries, and your projects & contracts."
+              : "Products, inventory, stock adjustments, deliveries and internal use."}
             groups={nav.catalog}
-            columns={2} widthRem={36} layout="grid" accent="emerald"
+            columns={nav.catalog.length > 2 ? 3 : 2} widthRem={nav.catalog.length > 2 ? 50 : 36} layout="grid" accent="emerald"
           />
         )}
 
@@ -431,8 +433,8 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
         {/* Admin — Account */}
         {nav.admin.length > 0 && (
           <NavMegaMenu
-            label="Admin" icon={Settings}
-            title="Admin"
+            label={permissions.isStaff ? "Staff" : "Admin"} icon={Settings}
+            title={permissions.isStaff ? "Staff" : "Admin"}
             blurb="Account settings."
             groups={nav.admin}
             columns={1} widthRem={18} layout="grid" accent="emerald"

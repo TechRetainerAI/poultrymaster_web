@@ -19,6 +19,11 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<PaymentHistoryRow>> GetCustomerPayments(string farmId, int? customerId, int? saleId, DateTime? from, DateTime? to);
         Task<List<PaymentAllocationRow>> GetCustomerPaymentAllocations(string farmId, int paymentId);
         Task<List<StatementLine>> GetCustomerStatement(string farmId, int customerId, DateTime? from, DateTime? to);
+
+        // 488: customer debt -- owed without a sale (Poultry 369).
+        Task<string> CreateCustomerDebt(CustomerDebtRequest r);
+        Task<int> ReverseCustomerDebt(int debtId, CustomerDebtReverseRequest r);
+        Task<List<CustomerDebtRow>> GetCustomerDebts(string farmId, int? customerId);
         // Supplier side (migration 248). genericexpenses gained amountpaid/duedate/
         // paymentstatus, and genericpurchases already had them, so both are now
         // payable documents behind one fngenericpayables union.

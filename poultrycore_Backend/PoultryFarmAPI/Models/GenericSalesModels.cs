@@ -572,12 +572,25 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? UpdatedAt { get; set; }
         public bool IsDeleted { get; set; }
 
+        /// <summary>484: set when the sale was reversed (483); its status is then 'Cancelled'.
+        /// Only the list returns it; null elsewhere and on a database without 484.</summary>
+        public int? SaleReversalId { get; set; }
+
+        /// <summary>485: on a correcting sale, the reversed sale it replaces.</summary>
+        public int? CorrectsSaleId { get; set; }
+
+        /// <summary>485: on a reversed sale, the live sale that corrects it (null = can still be reposted).</summary>
+        public int? CorrectedBySaleId { get; set; }
+
         public List<GenericSaleItemModel> Items { get; set; } = new();
     }
 
     // Used by POST /sales — bundles header + items.
     public class GenericSaleCreateRequest
     {
+        /// <summary>483: optional project split, saved with the sale. {"projectId": n|null} or {"lines": [[{projectId, quantity|amount|share}], ...]}.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
+
         public DateTime? SaleDate { get; set; }
         public int? GenericCustomerId { get; set; }
         public int? BranchId { get; set; }
@@ -615,6 +628,9 @@ namespace PoultryFarmAPIWeb.Models
 
         [MinLength(1, ErrorMessage = "Sale must have at least one item.")]
         public List<GenericSaleItemModel> Items { get; set; } = new();
+
+        /// <summary>485: Correct sale / Edit &amp; repost -- the reversed sale this one replaces.</summary>
+        public int? CorrectsSaleId { get; set; }
     }
 
     public class GenericSaleCancelRequest

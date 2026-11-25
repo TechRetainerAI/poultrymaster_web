@@ -212,7 +212,8 @@ export function StatementDialog({ open, onOpenChange, module, side, party }: Pro
                                 {allocations[l.paymentId!].map((a) => (
                                   <div key={a.allocationId} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
                                     <span className="font-medium">
-                                      Sale #{a.documentId}
+                                      {/* 488 / 369: a customer debt is not a sale -- show its number. */}
+                                      {a.documentType === "CustomerDebt" ? `Debt ${a.reference ?? `#${a.documentId}`}` : `Sale #${a.documentId}`}
                                       {a.label ? <span className="ml-1.5 font-normal text-slate-500">{a.label}</span> : null}
                                     </span>
                                     <span className="tabular-nums text-slate-600">

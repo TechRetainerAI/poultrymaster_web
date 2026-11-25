@@ -55,7 +55,11 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(string farmId, GenericSaleCreateRequest req, string? createdBy)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_insert(p_farmid => @FarmId::text, p_saledate => @SaleDate::timestamp, p_genericcustomerid => @GenericCustomerId::int, p_branchid => @BranchId::int, p_salestype => @SalesType::text, p_saleschannel => @SalesChannel::text, p_salespersonstaffid => @SalespersonStaffId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receiptnumber => @ReceiptNumber::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_items => @Items::jsonb, p_applycreditamount => @ApplyCreditAmount::numeric)", conn);
+            var projectCall = "spgenericsale_insert(p_farmid => @FarmId::text, p_saledate => @SaleDate::timestamp, p_genericcustomerid => @GenericCustomerId::int, p_branchid => @BranchId::int, p_salestype => @SalesType::text, p_saleschannel => @SalesChannel::text, p_salespersonstaffid => @SalespersonStaffId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receiptnumber => @ReceiptNumber::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_items => @Items::jsonb, p_applycreditamount => @ApplyCreditAmount::numeric)";
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(req.Projects)
+                ? GenericProjectAttach.WrapInsert(projectCall, "Sale")
+                : "SELECT * FROM " + projectCall, conn);
+            if (GenericProjectAttach.Has(req.Projects)) GenericProjectAttach.AddParams(cmd, farmId, req.Projects, createdBy);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@SaleDate", (object?)req.SaleDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@GenericCustomerId", (object?)req.GenericCustomerId ?? DBNull.Value);
@@ -81,7 +85,30 @@ namespace PoultryFarmAPIWeb.Business
             });
 
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // 485: a correcting sale is saved and linked to the reversed sale in
+            // ONE transaction -- a refused link leaves no orphan draft behind.
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            if (req.CorrectsSaleId is int corrects && corrects > 0)
+            {
+                try
+                {
+                    await using var link = new NpgsqlCommand(
+                        "SELECT spgenericsale_linkcorrection(p_farmid => @FarmId::text, p_newsaleid => @New::int, p_correctssaleid => @Old::int, p_by => @By::text)", conn, tx);
+                    link.Parameters.AddWithValue("@FarmId", farmId);
+                    link.Parameters.AddWithValue("@New", newId);
+                    link.Parameters.AddWithValue("@Old", corrects);
+                    link.Parameters.AddWithValue("@By", (object?)createdBy ?? DBNull.Value);
+                    await link.ExecuteNonQueryAsync();
+                }
+                catch (PostgresException ex) when (ex.SqlState == "P0001")
+                {
+                    throw new SaleRuleException(ex.MessageText, ex);
+                }
+            }
+            await tx.CommitAsync();
+            return newId;
         }
 
         // Keys must match the jsonb_to_recordset column list in spgenericsale_insert.
@@ -143,6 +170,57 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         // ====================================================================
+        // 483: reversal (preview -> reverse -> record), same JSON shape as
+        // Poultry / Water so the shared Reverse Sale dialog serves Generic too.
+        // ====================================================================
+        public Task<string> GetReversalPreviewAsync(int id, string farmId)
+            => ScalarJsonAsync("SELECT spgenericsale_reversalpreview(p_farmid => @FarmId::text, p_saleid => @Id::int)::text", farmId, id);
+
+        public async Task<string?> GetReversalAsync(int id, string farmId)
+        {
+            var json = await ScalarJsonAsync("SELECT spgenericsale_reversalget(p_farmid => @FarmId::text, p_saleid => @Id::int)::text", farmId, id);
+            return string.IsNullOrEmpty(json) || json == "null" ? null : json;
+        }
+
+        public async Task<int> ReverseAsync(int id, string farmId, SaleReverseRequest req, string? reversedBy)
+        {
+            try
+            {
+                await using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                await using var cmd = new NpgsqlCommand(
+                    "SELECT spgenericsale_reverse(p_farmid => @FarmId::text, p_saleid => @Id::int, p_reasoncode => @Code::text, " +
+                    "p_reason => @Reason::text, p_handling => @Handling::jsonb, p_expectedfingerprint => @Fp::text, " +
+                    "p_idempotencykey => @Key::text, p_reversedby => @By::text)", conn);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@Id", id);
+                cmd.Parameters.AddWithValue("@Code", (object?)req.ReasonCode ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Reason", req.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@Handling",
+                    System.Text.Json.JsonSerializer.Serialize(req.PaymentHandling ?? new Dictionary<string, string>()));
+                cmd.Parameters.AddWithValue("@Fp", (object?)req.ExpectedFingerprint ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Key", (object?)req.IdempotencyKey ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@By", (object?)reversedBy ?? DBNull.Value);
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex) { Stale = ex.Hint == "stale-preview" };
+            }
+        }
+
+        private async Task<string> ScalarJsonAsync(string sql, string farmId, int id)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Id", id);
+            var o = await cmd.ExecuteScalarAsync();
+            return o is null || o is DBNull ? "null" : (string)o;
+        }
+
+        // ====================================================================
         // Helpers
         // ====================================================================
         private static GenericSaleModel ReadSaleHeader(NpgsqlDataReader r) => new()
@@ -176,7 +254,20 @@ namespace PoultryFarmAPIWeb.Business
             CancellationReason    = r.IsDBNull(r.GetOrdinal("CancellationReason")) ? null : r.GetString(r.GetOrdinal("CancellationReason")),
             CreatedAt             = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt             = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+            // 484: only the list returns it, so read it only when the column is there.
+            SaleReversalId        = OptionalInt(r, "SaleReversalId"),
+            // 485: list only, read when present.
+            CorrectsSaleId        = OptionalInt(r, "CorrectsSaleId"),
+            CorrectedBySaleId     = OptionalInt(r, "CorrectedBySaleId"),
         };
+
+        private static int? OptionalInt(NpgsqlDataReader r, string name)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
+                    return r.IsDBNull(i) ? null : r.GetInt32(i);
+            return null;
+        }
 
         private static GenericSaleItemModel ReadSaleItem(NpgsqlDataReader r) => new()
         {

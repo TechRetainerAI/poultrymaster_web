@@ -92,5 +92,5 @@ export function useStaffEmployeeLink({ onFromEmployee }: { onFromEmployee: (pers
     />
   )
 
-  return { isEmployee, isFromEmployee, clearPending, linkCreated, makeEmployee, dialog }
+  return { isEmployee, isFromEmployee, clearPending, linkCreated, makeEmployee, reloadLinks, dialog }
 }

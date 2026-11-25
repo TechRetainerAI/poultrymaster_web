@@ -51,6 +51,8 @@ import {
   type GenericCashAccount, type GenericLoan, type GenericLoanPayment,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const LENDER_TYPES = ["Bank", "FinancialInstitution", "Individual", "Owner", "FamilyFriend", "Supplier", "Other"]
 const INTEREST_TYPES = ["Simple", "ReducingBalance", "Flat", "Unknown"]
@@ -239,6 +241,7 @@ export default function GenericLoansPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<string>("All")
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
 
   const [newOpen, setNewOpen] = useState(false)
   /** The loan being edited; null = recording a new one. */
@@ -479,6 +482,7 @@ export default function GenericLoansPage() {
               <Button key={s} size="sm" variant={status === s ? "default" : "outline"}
                       onClick={() => setStatus(s)}>{s}</Button>
             ))}
+            <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
           </div>
 
           {loading ? (

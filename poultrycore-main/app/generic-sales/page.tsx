@@ -12,15 +12,24 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
-import { Loader2, Plus, ShoppingCart, AlertCircle, ArrowLeft } from "lucide-react"
+import { Loader2, Plus, ShoppingCart, AlertCircle, ArrowLeft, Eye, Undo2, RotateCcw } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+// 483: a sale is reversed from the list too, with the same dialog as Poultry / Water.
+import { ReverseSaleDialog } from "@/components/sales/reverse-sale-dialog"
+import { getUserContext } from "@/lib/api/config"
+import { getSelectedCurrency } from "@/lib/utils/currency"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getSales, type GenericSale } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
-const STATUS_FILTERS = ["All", "Draft", "Approved", "Refunded", "Cancelled"] as const
+// "Reversed" (484) = reversed sales; "Cancelled" = cancelled drafts, not reversals.
+const STATUS_FILTERS = ["All", "Draft", "Approved", "Reversed", "Refunded", "Cancelled"] as const
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -35,8 +44,12 @@ function displayCustomer(s: GenericSale): string {
   return "Walk-in"
 }
 
+/** A reversed sale is stored as "Cancelled" + a reversal (483); show it as "Reversed". */
+const shownStatus = (s: GenericSale) => (s.saleReversalId ? "Reversed" : s.status)
+
 function statusBadgeClass(s: string) {
   switch (s) {
+    case "Reversed":  return "bg-slate-200 text-slate-800 hover:bg-slate-200"
     case "Approved":  return "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
     case "Cancelled": return "bg-rose-100 text-rose-800 hover:bg-rose-100"
     case "Refunded":  return "bg-amber-100 text-amber-800 hover:bg-amber-100"
@@ -66,6 +79,14 @@ function GenericSalesPageInner() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
+  // 483/485: Reverse, or Correct (reverse, then New sale filled in from it).
+  const [reverseTarget, setReverseTarget] = useState<{ sale: GenericSale; mode: "reverse" | "correct" } | null>(null)
+  /** Edit & repost: New sale filled in from a reversed sale, linked to it. */
+  const repost = (saleId: number) => router.push(`/generic-sales/new?corrects=${saleId}`)
+  /** A reversed sale nothing has replaced yet (a cancelled correcting draft does not count). */
+  const canRepost = (s: GenericSale) => !!s.saleReversalId && !s.correctedBySaleId
+  // Bumped after a reversal so the list reloads with the sale's new status.
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
@@ -79,15 +100,18 @@ function GenericSalesPageInner() {
       } finally { if (!cancelled) setLoading(false) }
     })()
     return () => { cancelled = true }
-  }, [activeFarmType, router, status, toast])
+  }, [activeFarmType, router, status, toast, reloadKey])
 
+  // 483: Project / Contract filter (hidden unless the module is on).
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const projectLabels = useProjectLabels("Sale", rows)
   const visibleRows = useMemo(
     () => filterByDateAndSearch(rows, {
       search, dateFrom, dateTo,
       searchKeys: ["customerName", "status", "notes"],
       dateKey: "saleDate",
-    }),
-    [rows, search, dateFrom, dateTo],
+    }).filter((s) => projectLabels.matches(s.genericSaleId, projectFilter)),
+    [rows, search, dateFrom, dateTo, projectLabels, projectFilter],
   )
 
   // Accounts receivable summary — total outstanding across all approved sales
@@ -156,6 +180,7 @@ function GenericSalesPageInner() {
               dateFrom={dateFrom} setDateFrom={setDateFrom}
               dateTo={dateTo} setDateTo={setDateTo}
               searchPlaceholder="Search customer, status or notes"
+              extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} />}
             />
             <Card>
               <CardContent className="p-0">
@@ -174,7 +199,7 @@ function GenericSalesPageInner() {
                       <span className="text-xs">{s.salesType}</span>
                     </>
                   )}
-                  trailing={(s) => <Badge className={statusBadgeClass(s.status)}>{s.status}</Badge>}
+                  trailing={(s) => <Badge className={statusBadgeClass(shownStatus(s))}>{shownStatus(s)}</Badge>}
                   details={(s) => [
                     { label: "Date", value: fmtDateTime(s.saleDate, s) },
                     { label: "Customer", value: displayCustomer(s) },
@@ -185,9 +210,26 @@ function GenericSalesPageInner() {
                     ...(s.paymentStatus ? [{ label: "Payment", value: <Badge className={paymentBadgeClass(s.paymentStatus)}>{s.paymentStatus}</Badge> }] : []),
                   ]}
                   actions={(s) => (
-                    <Button asChild size="sm" variant="outline" className="flex-1 h-10">
-                      <Link href={`/generic-sales/${s.genericSaleId}`}>Details</Link>
-                    </Button>
+                    <>
+                      <Button asChild size="sm" variant="outline" className="flex-1 h-10">
+                        <Link href={`/generic-sales/${s.genericSaleId}`}><Eye className="h-4 w-4 mr-1" />View</Link>
+                      </Button>
+                      {s.status === "Approved" && (
+                        <>
+                          <Button size="sm" variant="outline" className="flex-1 h-10 text-blue-700" onClick={() => setReverseTarget({ sale: s, mode: "correct" })}>
+                            <RotateCcw className="h-4 w-4 mr-1" />Correct
+                          </Button>
+                          <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 hover:text-red-700" onClick={() => setReverseTarget({ sale: s, mode: "reverse" })}>
+                            <Undo2 className="h-4 w-4 mr-1" />Reverse
+                          </Button>
+                        </>
+                      )}
+                      {canRepost(s) && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => repost(s.genericSaleId)}>
+                          <RotateCcw className="h-4 w-4 mr-1" />Edit &amp; repost
+                        </Button>
+                      )}
+                    </>
                   )}
                   desktopTable={
                     <div className="overflow-x-auto">
@@ -203,13 +245,13 @@ function GenericSalesPageInner() {
                           <TableHead className="text-right">Balance</TableHead>
                           <TableHead>Payment</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead></TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {visibleRows.map((s) => (
                           <TableRow key={s.genericSaleId}>
-                            <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link></TableCell>
+                            <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link>{projectLabels.labelOf(s.genericSaleId) && <div className="text-[11px] text-indigo-700">{projectLabels.labelOf(s.genericSaleId)}</div>}</TableCell>
                             <TableCell>{fmtDateTime(s.saleDate, s)}</TableCell>
                             <TableCell>{s.customerName ? s.customerName : <span className="text-slate-500">{displayCustomer(s)}</span>}</TableCell>
                             <TableCell className="text-xs text-slate-500">{s.salesType}</TableCell>
@@ -217,8 +259,62 @@ function GenericSalesPageInner() {
                             <TableCell className="text-right">{fmt(s.amountPaid)}</TableCell>
                             <TableCell className={`text-right ${s.balance > 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(s.balance)}</TableCell>
                             <TableCell>{s.paymentStatus && <Badge className={paymentBadgeClass(s.paymentStatus)}>{s.paymentStatus}</Badge>}</TableCell>
-                            <TableCell><Badge className={statusBadgeClass(s.status)}>{s.status}</Badge></TableCell>
-                            <TableCell><Button asChild size="sm" variant="ghost"><Link href={`/generic-sales/${s.genericSaleId}`}>Details</Link></Button></TableCell>
+                            <TableCell>
+                              <Badge className={statusBadgeClass(shownStatus(s))}>{shownStatus(s)}</Badge>
+                              {s.correctedBySaleId && (
+                                <Link href={`/generic-sales/${s.correctedBySaleId}`} className="block text-[11px] text-blue-700 hover:underline">Corrected by #{s.correctedBySaleId}</Link>
+                              )}
+                              {s.correctsSaleId && (
+                                <Link href={`/generic-sales/${s.correctsSaleId}`} className="block text-[11px] text-slate-500 hover:underline">Corrects #{s.correctsSaleId}</Link>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right whitespace-nowrap">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button asChild variant="ghost" size="sm" aria-label="View sale">
+                                    <Link href={`/generic-sales/${s.genericSaleId}`}><Eye className="h-4 w-4" /></Link>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">View sale</TooltipContent>
+                              </Tooltip>
+                              {s.status === "Approved" && (
+                                <>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-blue-700 hover:text-blue-800 hover:bg-blue-50"
+                                        onClick={() => setReverseTarget({ sale: s, mode: "correct" })}
+                                        aria-label="Correct sale"
+                                      >
+                                        <RotateCcw className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">Correct sale (reverse it and enter it again)</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        onClick={() => setReverseTarget({ sale: s, mode: "reverse" })}
+                                        aria-label="Reverse sale"
+                                      >
+                                        <Undo2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">Reverse sale</TooltipContent>
+                                  </Tooltip>
+                                </>
+                              )}
+                              {canRepost(s) && (
+                                <Button size="sm" variant="outline" className="h-8 ml-1" onClick={() => repost(s.genericSaleId)} title="Enter this sale again, corrected">
+                                  <RotateCcw className="h-4 w-4 mr-1" />Edit &amp; repost
+                                </Button>
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -230,6 +326,33 @@ function GenericSalesPageInner() {
             </Card>
             </>
           )}
+
+          <ReverseSaleDialog
+            open={!!reverseTarget}
+            module="generic"
+            mode={reverseTarget?.mode ?? "reverse"}
+            saleId={reverseTarget ? reverseTarget.sale.genericSaleId : null}
+            saleLabel={reverseTarget ? `#${reverseTarget.sale.genericSaleId}` : ""}
+            farmId={getUserContext().farmId}
+            userId={getUserContext().userId}
+            currencyCode={getSelectedCurrency()}
+            onOpenChange={(o) => { if (!o) setReverseTarget(null) }}
+            onReversed={({ reversal: r }) => {
+              const id = reverseTarget?.sale.genericSaleId
+              const correcting = reverseTarget?.mode === "correct"
+              setReverseTarget(null)
+              // Correct: the sale is reversed; now enter it again, filled in.
+              if (correcting && id) { repost(id); return }
+              toast({
+                title: `Sale #${id} reversed${r?.reversalNumber ? ` (${r.reversalNumber})` : ""}`,
+                description: r
+                  ? [r.cashReversed > 0 ? `${fmt(r.cashReversed)} paid back` : "", r.creditCreated > 0 ? `${fmt(r.creditCreated)} kept as credit` : ""]
+                      .filter(Boolean).join(" · ") || "Stock put back; nothing had been paid."
+                  : undefined,
+              })
+              setReloadKey((k) => k + 1)
+            }}
+          />
         </main>
       </div>
     </div>

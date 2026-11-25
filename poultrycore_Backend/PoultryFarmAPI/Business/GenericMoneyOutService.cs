@@ -321,12 +321,17 @@ namespace PoultryFarmAPIWeb.Business
                 ReversalReason = Str(r, "reversalreason"),
             });
 
+        private const string OwnerEntryCall = "spgenericownerentry_record(p_farmid => @FarmId::text, p_entrytype => @EntryType::text, p_amount => @Amount::numeric, p_cashaccountid => @CashAccountId::int, p_entrydate => @EntryDate::timestamp, p_paymentmethod => @Method::text, p_ownername => @OwnerName::text, p_reference => @Reference::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text)";
+
         /// <summary>
         /// Owner money moves cash and NOTHING else — no expense, no sale — so
         /// profit is unaffected by how the owner funds the business.
         /// </summary>
         public Task<int> RecordOwnerEntry(RecordOwnerEntryRequest r) => Scalar(
-            "SELECT spgenericownerentry_record(p_farmid => @FarmId::text, p_entrytype => @EntryType::text, p_amount => @Amount::numeric, p_cashaccountid => @CashAccountId::int, p_entrydate => @EntryDate::timestamp, p_paymentmethod => @Method::text, p_ownername => @OwnerName::text, p_reference => @Reference::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text)",
+            // 483: an owner contribution or draw can be marked as funding for a project, in the same statement.
+            GenericProjectAttach.Has(r.Projects)
+                ? GenericProjectAttach.WrapInsert(OwnerEntryCall, "OwnerEntry")
+                : "SELECT " + OwnerEntryCall,
             cmd =>
             {
                 cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
@@ -339,6 +344,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Reference", Db(r.Reference));
                 cmd.Parameters.AddWithValue("@Notes", Db(r.Notes));
                 cmd.Parameters.AddWithValue("@CreatedBy", Db(r.CreatedBy));
+                if (GenericProjectAttach.Has(r.Projects)) GenericProjectAttach.AddParams(cmd, r.FarmId, r.Projects, r.CreatedBy);
             });
 
         public Task<int> ReverseOwnerEntry(string farmId, int entryId, string? reason, string? reversedBy) => Scalar(

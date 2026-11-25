@@ -11,7 +11,7 @@
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 // 425: the same routes exist under Water/.
-import { creditModule } from "./credit-module"
+import { creditModule, isGenericCompany } from "./credit-module"
 
 export type CustomerDebtEntryType =
   | "OpeningBalance" | "HistoricalDebt" | "Adjustment" | "Migration" | "ExternalTransaction" | "Other"
@@ -72,15 +72,23 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T
 }
 
+// 488: Generic keeps its debts with its balances, api/generic-company/{farmId}/balances.
+function base(farmId: string): string {
+  return isGenericCompany()
+    ? `generic-company/${encodeURIComponent(farmId)}/balances`
+    : creditModule()
+}
+
 export function listCustomerDebts(customerId?: number): Promise<CustomerDebtRow[]> {
-  const q = new URLSearchParams({ farmId: farm() })
+  const farmId = farm()
+  const q = new URLSearchParams({ farmId })
   if (customerId) q.set("customerId", String(customerId))
-  return call(`${creditModule()}/customer-debts?${q.toString()}`)
+  return call(`${base(farmId)}/customer-debts?${q.toString()}`)
 }
 
 export function createCustomerDebt(input: CustomerDebtInput): Promise<{ debtId: number; debtNumber: string }> {
   const farmId = farm()
-  return call(`${creditModule()}/customer-debts?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${base(farmId)}/customer-debts?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ ...input, farmId }),
   })
@@ -88,7 +96,7 @@ export function createCustomerDebt(input: CustomerDebtInput): Promise<{ debtId: 
 
 export function reverseCustomerDebt(debtId: number, reason: string): Promise<{ debtId: number }> {
   const farmId = farm()
-  return call(`${creditModule()}/customer-debts/${debtId}/reverse?farmId=${encodeURIComponent(farmId)}`, {
+  return call(`${base(farmId)}/customer-debts/${debtId}/reverse?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ farmId, reason }),
   })

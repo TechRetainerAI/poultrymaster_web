@@ -123,6 +123,9 @@ export function isFinancialNavItemVisible(
   if (href === "/poultry-profit-loss" || href === "/poultry/reports/profit-loss") {
     return isAdmin || f.canViewFinancial || f.canViewReports
   }
+  // 481 Egg Cost & Profit Analyzer: costs, payroll and margins -- the same
+  // readers as Profit & Loss (the API maps it to poultry.reports too).
+  if (href === "/egg-cost-analyzer") return isAdmin || f.canViewFinancial || f.canViewReports
 
   // ---- Generic Company financial routes ----
   // Same deny-by-default pattern: staff only see pages whose flag they hold.
@@ -133,7 +136,11 @@ export function isFinancialNavItemVisible(
   if (href === "/generic-owner-money" || href === "/generic-employee-loans" || href === "/generic-employee-credit") return f.canViewCashLedger
   if (href === "/generic-profit-loss") return isAdmin || f.canViewFinancial || f.canViewReports
   if (href === "/generic-daily-closings") return f.canViewCashLedger
-  if (href === "/generic-customers" || href === "/generic-customer-payments") {
+  // The Customers list follows View Customers (or the Financial umbrella).
+  // Enter Sales alone does not show it: the sale form picks customers itself,
+  // so an admin can hide the list from someone who only records sales.
+  if (href === "/generic-customers") return isAdmin || f.canViewCustomers || f.canViewFinancial
+  if (href === "/generic-customer-payments") {
     return isAdmin || f.canViewCustomers || f.canViewFinancial || f.canEnterSales
   }
   if (href === "/generic-customer-balances") {
@@ -156,6 +163,13 @@ export function isFinancialNavItemVisible(
   if (href === "/generic-deferred-costs") return isAdmin || f.canViewFinancial
   if (href === "/generic-assets") return isAdmin || f.canViewFinancial
   if (href === "/generic-reports") return isAdmin || f.canViewReports
+  // 482 Projects & Contracts: project money is financial reporting -- the same
+  // readers as Profit & Loss. Creating projects and linking older transactions
+  // change what reports show, so they need the Financial umbrella.
+  if (href === "/generic-projects" || href === "/generic-projects/compare") {
+    return Boolean(isAdmin || f.canViewFinancial || f.canViewReports)
+  }
+  if (href === "/generic-projects/new" || href === "/generic-projects/link") return Boolean(isAdmin || f.canViewFinancial)
   if (href === "/generic-setup" || href === "/generic-settings" || href === "/generic-business-features") return isAdmin
 
   return false

@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { SetupGuideCard } from "@/components/help/setup-guide-card"
+import { SetupPathCard } from "@/components/help/setup-path-card"
+import { usePermissions } from "@/hooks/use-permissions"
 import { useSearchPages } from "@/hooks/use-global-search"
 import { prepareHelpIndex, searchHelp } from "@/lib/help/help-search"
 import { shotsFor } from "@/lib/help/help-shots"
@@ -90,6 +92,13 @@ export default function SetupGuidePage() {
     router.push("/login")
   }
 
+  // Setup pages are for the owner and admins only, so only they get the path.
+  const { isAdmin } = usePermissions()
+  const openGuide = (id: string) => {
+    if (window.location.hash === `#${id}`) window.dispatchEvent(new HashChangeEvent("hashchange"))
+    else window.location.hash = id
+  }
+
   const pictureCount = GUIDES.reduce((n, g) => n + shotsFor(g.id).length, 0)
 
   return (
@@ -137,6 +146,11 @@ export default function SetupGuidePage() {
                 )}
               </div>
             </div>
+
+            {/* The numbered path for a new farm, before the walkthroughs */}
+            {isAdmin && !searching && (
+              <SetupPathCard hasGuide={(id) => GUIDES.some((g) => g.id === id)} onOpenGuide={openGuide} />
+            )}
 
             {searching ? (
               /* ------------------------------------------------ results */

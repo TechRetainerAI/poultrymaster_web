@@ -39,6 +39,8 @@ import {
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { exportTableToPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const DEFAULT = defaultReportRange()
 
@@ -82,6 +84,7 @@ export default function GenericStockMovementsPage() {
   const [productFilter, setProductFilter] = useState("ALL")
   const [sortKey, setSortKey] = useState<string>("date")
   const [sortDir, setSortDir] = useState<SortDirection>("desc")
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
 
   // Manual movement dialog
   const [manualOpen, setManualOpen] = useState(false)
@@ -320,6 +323,7 @@ export default function GenericStockMovementsPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
                   </div>
                 </div>
               </CardHeader>

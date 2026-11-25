@@ -135,6 +135,7 @@ namespace PoultryFarmAPIWeb.Filters
                 "EnableCashAccounts"      => s.EnableCashAccounts,
                 "EnableRecurringExpenses" => s.EnableRecurringExpenses,
                 "EnableSupplierBalances"  => s.EnableSupplierBalances,
+                "EnableProjects"          => s.EnableProjects == true,
                 _ => true // Unknown module name — fail open
             };
         }

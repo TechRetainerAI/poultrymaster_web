@@ -138,6 +138,12 @@ export interface PaymentAllocationInput {
 }
 
 export interface RecordPaymentRequest {
+  /**
+   * 483 (Generic only): the part of this payment applied to nothing is an
+   * advance for this project. Payments applied to a sale or purchase follow
+   * that document's project automatically and need nothing here.
+   */
+  projects?: { projectId: number | null }
   farmId: string
   partyId: number | null
   amount: number

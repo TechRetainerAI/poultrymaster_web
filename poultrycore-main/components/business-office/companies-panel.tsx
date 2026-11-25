@@ -28,6 +28,7 @@ import {
 // arrived with none of its menus or starter categories.
 import { BUSINESS_TYPES, findBusinessType, needsTemplate, businessTypeForIndustry } from "@/lib/companies/business-types"
 import { getBusinessTemplateFor } from "@/lib/api/generic-subscriptions"
+import { SetupProjectsCheckbox } from "@/components/generic/projects/setup-projects-checkbox"
 
 // Derived from the business-type list rather than hardcoded, so a company type
 // added there shows up in the filter without a second edit here.
@@ -61,6 +62,8 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
   // The business type id is what is held; the CompanyType and the templates are
   // derived from it, so this form and /companies cannot drift on what a given
   // business means.
+  // Spec Part 2.1: Projects & Contracts can be switched on while creating a Generic company.
+  const [withProjects, setWithProjects] = useState(false)
   const [form, setForm] = useState<{ name: string; businessTypeId: string; email: string; phoneNumber: string }>({ name: "", businessTypeId: "water", email: "", phoneNumber: "" })
   const chosen = findBusinessType(form.businessTypeId)
   const companyType: CompanyType = chosen?.companyType ?? "Generic"
@@ -127,7 +130,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
         try {
           const res = await switchCompany(created.farmId)
           setActiveCompany(res.farmId, res.farmName, companyType, res.accessToken.token)
-          router.push(`/generic-setup/wizard?industry=${encodeURIComponent(chosen!.industryTemplate!)}`)
+          router.push(`/generic-setup/wizard?industry=${encodeURIComponent(chosen!.industryTemplate!)}${withProjects ? "&projects=1" : ""}`)
         } catch {
           // Switching failed — the company still exists and the owner can open
           // it from this list, so say nothing louder than the create toast.
@@ -278,6 +281,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
                   We&apos;ll automatically set up the recommended features, menus and starter categories for this business. You can customise them anytime in Setup → Business Features.
                 </p>
               )}
+              {needsTemplate(chosen) && <SetupProjectsCheckbox checked={withProjects} onChange={setWithProjects} />}
             </div>
             <div><Label>Company name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Great Favour Water Co." /></div>
             <div><Label>Contact email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>

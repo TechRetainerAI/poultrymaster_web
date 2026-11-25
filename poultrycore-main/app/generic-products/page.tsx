@@ -22,7 +22,7 @@ import { FormSection, FormField } from "@/components/ui/form-section"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Loader2, Package, Plus, Pencil, Trash2, ArrowLeft, ShoppingCart,
-  Factory, Users, Eye, ChevronDown, ChevronUp, X,
+  Factory, Users, Eye, ChevronDown, ChevronUp, X, ImageIcon, Upload,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -31,9 +31,11 @@ import {
   getProducts, createGenericProduct, updateGenericProduct, deleteGenericProduct,
   getProductCategories, createProductCategory,
   getUomConversions, upsertUomConversion, deleteUomConversion,
+  getUnitsOfMeasure, upsertUnitOfMeasure,
   getStockMovementsForProduct, getSales, getPurchases,
   getItemCostReconciliation,
   type GenericProduct, type GenericProductInput, type GenericProductCategory, type GenericUomConversion,
+  type GenericUnitOfMeasure,
   type GenericStockMovement, type GenericSale, type GenericPurchase,
   type GenericItemCostReconciliation,
 } from "@/lib/api/generic"
@@ -121,6 +123,7 @@ const EMPTY_FORM = {
   canSell: true,
   canUseInProduction: false,
   canUseInternally: false,
+  imageUrl: "" as string,
 }
 
 // =============================================================================
@@ -161,6 +164,14 @@ export default function GenericProductsPage() {
   const [conversions, setConversions] = useState<GenericUomConversion[]>([])
   const [newConv, setNewConv] = useState({ fromUnit: "", toUnit: "", factor: "" })
 
+  // Units of measure from DB
+  const [units, setUnits] = useState<GenericUnitOfMeasure[]>([])
+  const [unitSearch, setUnitSearch] = useState("")
+  const [unitDropdownOpen, setUnitDropdownOpen] = useState(false)
+
+  // Dialog tab (two-tab form)
+  const [formTab, setFormTab] = useState<"details" | "image">("details")
+
   // Category filter
   const [filterCategory, setFilterCategory] = useState<string>("")
 
@@ -169,6 +180,7 @@ export default function GenericProductsPage() {
     setForm(EMPTY_FORM)
     setConversions([])
     setShowAdvanced(false)
+    setFormTab("details")
     setOpen(true)
   }
 
@@ -197,8 +209,10 @@ export default function GenericProductsPage() {
       canSell: p.canSell ?? (p.itemType !== "SupplyItem"),
       canUseInProduction: p.canUseInProduction ?? false,
       canUseInternally: p.canUseInternally ?? (p.itemType === "SupplyItem"),
+      imageUrl: p.imageUrl ?? "",
     })
     setShowAdvanced(false)
+    setFormTab("details")
     getUomConversions(p.genericProductId).then(setConversions).catch(() => setConversions([]))
     setOpen(true)
   }
@@ -232,9 +246,14 @@ export default function GenericProductsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [prods, cats] = await Promise.all([getProducts(), getProductCategories().catch(() => [])])
+      const [prods, cats, uoms] = await Promise.all([
+        getProducts(),
+        getProductCategories().catch(() => []),
+        getUnitsOfMeasure().catch(() => []),
+      ])
       setRows(prods)
       setCategories(cats)
+      setUnits(uoms)
     } catch (e: any) {
       toast({ title: "Could not load products", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setLoading(false) }
@@ -339,6 +358,7 @@ export default function GenericProductsPage() {
         canSell: form.canSell,
         canUseInProduction: form.canUseInProduction,
         canUseInternally: form.canUseInternally,
+        imageUrl: form.imageUrl || null,
       }
       if (editingId != null) {
         await updateGenericProduct(editingId, input)
@@ -564,48 +584,92 @@ export default function GenericProductsPage() {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Two-tab layout */}
+          <div className="flex gap-1 border-b mb-3">
+            <button type="button" onClick={() => setFormTab("details")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${formTab === "details" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
+              Details
+            </button>
+            <button type="button" onClick={() => setFormTab("image")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${formTab === "image" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
+              <ImageIcon className="h-3.5 w-3.5" /> Image {form.imageUrl && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
+            </button>
+          </div>
+
+          {formTab === "image" ? (
+            <div className="space-y-4">
+              <div className="flex flex-col items-center gap-4 py-6">
+                {form.imageUrl ? (
+                  <div className="relative group">
+                    <img src={form.imageUrl} alt="Product" className="h-48 w-48 rounded-lg object-cover border shadow-sm" />
+                    <button type="button" onClick={() => setForm((f) => ({ ...f, imageUrl: "" }))}
+                      className="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remove image">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="h-48 w-48 rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                    <ImageIcon className="h-10 w-10 mb-2" />
+                    <span className="text-xs">No image</span>
+                  </div>
+                )}
+                <label className="cursor-pointer">
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    if (file.size > 2 * 1024 * 1024) {
+                      toast({ title: "Image too large", description: "Max 2 MB", variant: "destructive" }); return
+                    }
+                    const reader = new FileReader()
+                    reader.onload = () => setForm((f) => ({ ...f, imageUrl: reader.result as string }))
+                    reader.readAsDataURL(file)
+                  }} />
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-slate-50 transition-colors">
+                    <Upload className="h-4 w-4" /> {form.imageUrl ? "Change Image" : "Upload Image"}
+                  </span>
+                </label>
+                <p className="text-xs text-slate-500">JPG, PNG or WebP. Max 2 MB.</p>
+              </div>
+              {/* Preview card */}
+              {form.productName && (
+                <div className="rounded-lg border p-4 bg-white">
+                  <h4 className="text-sm font-medium text-slate-500 mb-2">Preview</h4>
+                  <div className="flex items-center gap-3">
+                    {form.imageUrl
+                      ? <img src={form.imageUrl} alt="" className="h-12 w-12 rounded-lg object-cover border" />
+                      : <div className="h-12 w-12 rounded-lg bg-slate-100 flex items-center justify-center"><Package className="h-6 w-6 text-slate-400" /></div>}
+                    <div>
+                      <div className="font-medium text-slate-900">{form.productName || "Product name"}</div>
+                      <div className="text-xs text-slate-500">{form.unitOfMeasure || "unit"} · {form.canSell ? "Sale" : ""}{form.canUseInProduction ? " · Production" : ""}{form.canUseInternally ? " · Internal" : ""}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="space-y-4">
-            {/* Item Purpose (most important — show first) */}
-            <FormSection title="What will this item be used for?" color="blue" columns={1}>
-              <div className="space-y-3">
-                <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-blue-50 transition-colors">
-                  <input type="checkbox" checked={form.canSell}
-                    onChange={(e) => setForm((f) => ({ ...f, canSell: e.target.checked }))}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                  <div>
-                    <div className="font-medium text-slate-900 flex items-center gap-1.5">
-                      <ShoppingCart className="h-4 w-4 text-blue-600" /> Sell to Customers
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">Products you sell directly.</div>
-                  </div>
+            {/* Item Purpose — compact inline chips */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 mb-1.5 block">What will this item be used for?</label>
+              <div className="flex flex-wrap gap-2">
+                <label className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors ${form.canSell ? "border-blue-300 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
+                  <input type="checkbox" checked={form.canSell} onChange={(e) => setForm((f) => ({ ...f, canSell: e.target.checked }))} className="h-3 w-3 rounded border-slate-300 text-blue-600" />
+                  <ShoppingCart className="h-3 w-3" /> Sell to Customers
                 </label>
-                <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-amber-50 transition-colors">
-                  <input type="checkbox" checked={form.canUseInProduction}
-                    onChange={(e) => setForm((f) => ({ ...f, canUseInProduction: e.target.checked }))}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
-                  <div>
-                    <div className="font-medium text-slate-900 flex items-center gap-1.5">
-                      <Factory className="h-4 w-4 text-amber-600" /> Use in Production
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">Materials used to make other products.</div>
-                  </div>
+                <label className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors ${form.canUseInProduction ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
+                  <input type="checkbox" checked={form.canUseInProduction} onChange={(e) => setForm((f) => ({ ...f, canUseInProduction: e.target.checked }))} className="h-3 w-3 rounded border-slate-300 text-amber-600" />
+                  <Factory className="h-3 w-3" /> Use in Production
                 </label>
-                <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-purple-50 transition-colors">
-                  <input type="checkbox" checked={form.canUseInternally}
-                    onChange={(e) => setForm((f) => ({ ...f, canUseInternally: e.target.checked }))}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
-                  <div>
-                    <div className="font-medium text-slate-900 flex items-center gap-1.5">
-                      <Users className="h-4 w-4 text-purple-600" /> Use Internally
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">Items used by your business, such as staff food or cleaning supplies.</div>
-                  </div>
+                <label className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors ${form.canUseInternally ? "border-purple-300 bg-purple-50 text-purple-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
+                  <input type="checkbox" checked={form.canUseInternally} onChange={(e) => setForm((f) => ({ ...f, canUseInternally: e.target.checked }))} className="h-3 w-3 rounded border-slate-300 text-purple-600" />
+                  <Users className="h-3 w-3" /> Use Internally
                 </label>
               </div>
               {!form.canSell && !form.canUseInProduction && !form.canUseInternally && (
                 <p className="text-xs text-red-500 mt-1">Select at least one purpose.</p>
               )}
-            </FormSection>
+            </div>
 
             {/* Basic Details */}
             <FormSection title="Basic Details" color="indigo">
@@ -648,8 +712,37 @@ export default function GenericProductsPage() {
                   </Button>
                 </div>
               </FormField>
-              <FormField label="Base stock unit" hint="The unit used for inventory tracking (e.g. kg, piece, litre)">
-                <Input value={form.unitOfMeasure} onChange={(e) => setForm((f) => ({ ...f, unitOfMeasure: e.target.value }))} maxLength={30} placeholder="e.g. kg" />
+              <FormField label="Base stock unit" hint="Pick from the list or type a custom unit below">
+                <Select value={form.unitOfMeasure || "__none__"} onValueChange={(v) => { setForm((f) => ({ ...f, unitOfMeasure: v === "__none__" ? "" : v })); setUnitSearch("") }}>
+                  <SelectTrigger><SelectValue placeholder="e.g. kg, piece, litre" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {units.map((u) => (
+                      <SelectItem key={u.genericUnitOfMeasureId} value={u.unitName}>{u.unitName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2 mt-1.5">
+                  <Input
+                    value={unitSearch}
+                    onChange={(e) => setUnitSearch(e.target.value)}
+                    placeholder="Or type a custom unit…"
+                    maxLength={30}
+                    className="text-sm h-8"
+                  />
+                  {unitSearch.trim() && (
+                    <Button type="button" size="sm" className="h-8 shrink-0"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, unitOfMeasure: unitSearch.trim() }))
+                        setUnitSearch("")
+                      }}>
+                      Use &quot;{unitSearch.trim()}&quot;
+                    </Button>
+                  )}
+                </div>
+                {form.unitOfMeasure && !units.some((u) => u.unitName.toLowerCase() === form.unitOfMeasure.toLowerCase()) && (
+                  <p className="text-[11px] text-blue-600 mt-1">Custom unit &quot;{form.unitOfMeasure}&quot; will be added automatically when you save.</p>
+                )}
               </FormField>
             </FormSection>
 
@@ -792,13 +885,15 @@ export default function GenericProductsPage() {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="flex gap-3 justify-end pt-2">
-              <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
-              <Button onClick={onSave} disabled={saving}>
-                {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : (editingId != null ? "Save changes" : "Create item")}
-              </Button>
-            </div>
+          </div>
+          )}
+
+          {/* Footer — shared by both tabs */}
+          <div className="flex gap-3 justify-end pt-2">
+            <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+            <Button onClick={onSave} disabled={saving}>
+              {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : (editingId != null ? "Save changes" : "Create item")}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

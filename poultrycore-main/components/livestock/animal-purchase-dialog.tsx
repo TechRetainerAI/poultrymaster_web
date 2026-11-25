@@ -21,7 +21,7 @@ import { SupplierSelect } from "@/components/livestock/supplier-select"
 import { AgeTextInput, BreedSelect } from "@/components/livestock/breed-age-inputs"
 import { AMBER_BUTTON, fmtMoney, todayIso } from "./livestock-page"
 
-type Line = { speciesCode: string; breed: string; age: string; quantity: string; unitCost: string }
+type Line = { batchCode: string; speciesCode: string; breed: string; age: string; quantity: string; unitCost: string }
 
 export function AnimalPurchaseDialog({ open, onOpenChange, onSaved }: {
   open: boolean
@@ -30,7 +30,7 @@ export function AnimalPurchaseDialog({ open, onOpenChange, onSaved }: {
 }) {
   const { toast } = useToast()
   const { kept } = useLivestockSpecies()
-  const blankLine = (): Line => ({ speciesCode: kept.length === 1 ? kept[0].speciesCode : "", breed: "", age: "", quantity: "", unitCost: "" })
+  const blankLine = (): Line => ({ batchCode: "", speciesCode: kept.length === 1 ? kept[0].speciesCode : "", breed: "", age: "", quantity: "", unitCost: "" })
   const [accounts, setAccounts] = useState<CashAccount[]>([])
   const [supplierId, setSupplierId] = useState<number | null>(null)
   const [date, setDate] = useState(todayIso())
@@ -65,7 +65,9 @@ export function AnimalPurchaseDialog({ open, onOpenChange, onSaved }: {
   const setLine = (i: number, patch: Partial<Line>) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)))
 
   const used = lines.filter((l) => Number(l.quantity) > 0)
-  const linesOk = used.length > 0 && used.every((l) => l.speciesCode)
+  const codes = used.map((l) => l.batchCode.trim().toLowerCase()).filter(Boolean)
+  const dupCode = codes.length !== new Set(codes).size
+  const linesOk = used.length > 0 && used.every((l) => l.speciesCode) && !dupCode
   const canSave = linesOk && !!date && (payment === "none" || !!accountId) && (!!supplierId || amountPaid >= total) && !short && !overpaid
 
   const save = async () => {
@@ -74,7 +76,7 @@ export function AnimalPurchaseDialog({ open, onOpenChange, onSaved }: {
       await createPurchase({
         supplierId, date, reference: null,
         dueDate: payment !== "full" ? dueDate || null : null, notes: notes.trim() || null,
-        lines: used.map((l) => ({ lineType: "Animals" as const, speciesCode: l.speciesCode, quantity: Number(l.quantity),
+        lines: used.map((l) => ({ lineType: "Animals" as const, batchCode: l.batchCode.trim() || null, speciesCode: l.speciesCode, quantity: Number(l.quantity),
           unitCost: Number(l.unitCost) || 0, breed: l.breed || null, ageAtIntake: l.age || null })),
         amountPaid, accountId: amountPaid > 0 ? accountId : null,
       })
@@ -90,7 +92,7 @@ export function AnimalPurchaseDialog({ open, onOpenChange, onSaved }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl">
+      <DialogContent className="sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-amber-900">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-700"><ShoppingCart className="h-4 w-4" /></span>
@@ -105,12 +107,14 @@ export function AnimalPurchaseDialog({ open, onOpenChange, onSaved }: {
           </div>
 
           <div className="rounded-lg border border-amber-200 overflow-hidden">
-            <div className="hidden sm:grid grid-cols-[1fr_1fr_14rem_7rem_8rem_7rem_2.5rem] gap-2 px-3 py-2 bg-amber-600 text-xs font-semibold text-white">
-              <div>Animal</div><div>Breed</div><div>Age when bought</div><div>Quantity</div><div>Price each</div><div className="text-right">Amount</div><div />
+            <div className="hidden sm:grid grid-cols-[8rem_1fr_1fr_14rem_7rem_8rem_7rem_2.5rem] gap-2 px-3 py-2 bg-amber-600 text-xs font-semibold text-white">
+              <div>Batch code</div><div>Animal</div><div>Breed</div><div>Age when bought</div><div>Quantity</div><div>Price each</div><div className="text-right">Amount</div><div />
             </div>
             <div className="divide-y divide-amber-100">
               {lines.map((l, i) => (
-                <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_14rem_7rem_8rem_7rem_2.5rem] gap-2 px-3 py-2 items-center odd:bg-white even:bg-amber-50/40">
+                <div key={i} className="grid grid-cols-1 sm:grid-cols-[8rem_1fr_1fr_14rem_7rem_8rem_7rem_2.5rem] gap-2 px-3 py-2 items-center odd:bg-white even:bg-amber-50/40">
+                  <Input placeholder="Made for you" aria-label="Batch code" maxLength={50}
+                    value={l.batchCode} onChange={(e) => setLine(i, { batchCode: e.target.value })} />
                   <Select value={l.speciesCode} onValueChange={(v) => setLine(i, { speciesCode: v, breed: "" })}>
                     <SelectTrigger><SelectValue placeholder="Animal" /></SelectTrigger>
                     <SelectContent>{kept.map((s) => <SelectItem key={s.speciesCode} value={s.speciesCode}>{s.name}</SelectItem>)}</SelectContent>
@@ -127,6 +131,7 @@ export function AnimalPurchaseDialog({ open, onOpenChange, onSaved }: {
                 </div>
               ))}
             </div>
+            {dupCode && <p className="px-3 py-1 text-xs text-rose-700">Two lines have the same batch code.</p>}
             <div className="flex items-center justify-between px-3 py-2 border-t border-amber-200 bg-amber-50">
               <Button variant="outline" size="sm" className="border-amber-300 text-amber-800 hover:bg-amber-100" onClick={() => setLines((ls) => [...ls, blankLine()])}><Plus className="h-4 w-4 mr-1" />More animals</Button>
               <div className="text-base font-bold text-amber-900">Total {fmtMoney(total)}</div>

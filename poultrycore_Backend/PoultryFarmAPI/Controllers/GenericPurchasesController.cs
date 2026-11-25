@@ -224,6 +224,7 @@ namespace PoultryFarmAPIWeb.Controllers
             if (req.Items is null || req.Items.Count == 0)
                 return BadRequest("Purchase must have at least one item.");
 
+            req.UpdatedByForProjects = User?.Identity?.Name;
             await _purchases.UpdateAsync(id, farmId, req);
             return Ok(await _purchases.GetByIdAsync(id, farmId));
         }

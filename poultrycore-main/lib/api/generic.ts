@@ -109,6 +109,8 @@ export interface GenericProduct {
   createdBy?: string | null
   createdAt?: string | null
   updatedAt?: string | null
+  /** Product image URL or base64 data URL (migration 492). */
+  imageUrl?: string | null
 }
 
 export interface GenericCustomer {
@@ -215,10 +217,23 @@ export interface GenericSale {
   status: "Draft" | "Approved" | "Cancelled" | "Refunded" | string
   notes?: string | null
   createdAt: string
+  /** 484: set when the sale was reversed (its status is then "Cancelled"). List only. */
+  saleReversalId?: number | null
+  /** 485: on a correcting sale, the reversed sale it replaces. List only. */
+  correctsSaleId?: number | null
+  /** 485: on a reversed sale, the live sale that corrects it; null = it can still be reposted. List only. */
+  correctedBySaleId?: number | null
   items: GenericSaleItem[]
 }
 
 export interface GenericSaleCreateInput {
+  /**
+   * 483 Projects & Contracts: optional, saved in the same statement as this
+   * transaction. Leave it out to keep the old behaviour exactly.
+   */
+  projects?: import("@/lib/api/generic-projects").ProjectAssignment
+  /** 485: Correct sale / Edit & repost -- the reversed sale this one replaces. */
+  correctsSaleId?: number | null
   saleDate?: string | null
   genericCustomerId?: number | null
   salesType: string
@@ -728,6 +743,8 @@ export interface GenericProductInput {
   canSell?: boolean
   canUseInProduction?: boolean
   canUseInternally?: boolean
+  /** Product image URL or base64 data URL (migration 492). */
+  imageUrl?: string | null
 }
 
 export async function createGenericProduct(input: GenericProductInput): Promise<GenericProduct | null> {
@@ -772,6 +789,31 @@ export async function upsertUomConversion(input: {
 
 export async function deleteUomConversion(id: number): Promise<void> {
   await deleteResource(`${farmBase()}/uom-conversions/${id}`)
+}
+
+// =============================================================================
+// Units of Measure (migration 492)
+// =============================================================================
+
+export interface GenericUnitOfMeasure {
+  genericUnitOfMeasureId: number
+  farmId: string
+  unitName: string
+  unitAbbreviation?: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+export async function getUnitsOfMeasure(): Promise<GenericUnitOfMeasure[]> {
+  return getJson<GenericUnitOfMeasure[]>(`${farmBase()}/units`)
+}
+
+export async function upsertUnitOfMeasure(input: { unitName: string; unitAbbreviation?: string | null }): Promise<{ genericUnitOfMeasureId: number } | null> {
+  return postJson(`${farmBase()}/units`, input)
+}
+
+export async function deleteUnitOfMeasure(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/units/${id}`)
 }
 
 // =============================================================================
@@ -1054,6 +1096,8 @@ export interface GenericExpenseCategory {
 }
 
 export interface GenericPurchaseItem {
+  /** Present on a saved line (read back from the server). */
+  genericPurchaseItemId?: number
   genericProductId: number
   description?: string | null
   quantity: number
@@ -1067,6 +1111,11 @@ export interface GenericPurchaseItem {
 }
 
 export interface GenericPurchaseCreateInput {
+  /**
+   * 483 Projects & Contracts: optional, saved in the same statement as this
+   * transaction. Leave it out to keep the old behaviour exactly.
+   */
+  projects?: import("@/lib/api/generic-projects").ProjectAssignment
   purchaseDate?: string | null
   genericSupplierId?: number | null
   headerDiscountAmount: number
@@ -1080,6 +1129,11 @@ export interface GenericPurchaseCreateInput {
 }
 
 export interface GenericExpenseCreateInput {
+  /**
+   * 483 Projects & Contracts: optional, saved in the same statement as this
+   * transaction. Leave it out to keep the old behaviour exactly.
+   */
+  projects?: import("@/lib/api/generic-projects").ProjectAssignment
   expenseDate?: string | null
   genericExpenseCategoryId: number
   genericSupplierId?: number | null
@@ -1869,8 +1923,13 @@ export interface GenericProfitLossEntry {
   amount: number
 }
 
-export async function getProfitLossEntries(farmId: string, fromDate: string, toDate: string): Promise<GenericProfitLossEntry[]> {
+/**
+ * project (484): "all" / undefined = the whole company (unchanged), "general" =
+ * only what is on no project, "12" or "12,15" = those projects' share.
+ */
+export async function getProfitLossEntries(farmId: string, fromDate: string, toDate: string, project?: string): Promise<GenericProfitLossEntry[]> {
   const params = new URLSearchParams({ fromDate, toDate })
+  if (project && project !== "all") params.append("project", project)
   return getJson<GenericProfitLossEntry[]>(`/generic-company/${encodeURIComponent(farmId)}/reports/profit-loss?${params}`)
 }
 
