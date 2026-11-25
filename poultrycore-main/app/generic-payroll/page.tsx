@@ -30,6 +30,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
+import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
 import {
   listGenericPayrollRuns, createGenericPayrollRun, getGenericPayrollRun,
   listGenericPayrollDeductionsForRun, type GenericPayrollDeductionRunRow,
@@ -46,8 +47,6 @@ import {
   type GenericPayrollRun, type GenericPayrollItem, type GenericCashAccount, type GenericStaff,
 } from "@/lib/api/generic-payroll"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
-import { ProjectFilter } from "@/components/generic/projects/project-filter"
-import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const today = () => new Date().toISOString().split("T")[0]
 const STATUS_STYLE: Record<string, string> = {
@@ -89,14 +88,18 @@ export default function GenericPayrollPage() {
   const [staff, setStaff] = useState<GenericStaff[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
-  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
   // 419. Payroll templates.
   const { canEdit } = usePermissions()
   const [tab, setTab] = useState<"runs" | "templates">("runs")
   const [templates, setTemplates] = useState<GenericPayrollTemplate[]>([])
   const [templatesRefresh, setTemplatesRefresh] = useState(0)
 
-  const visible = useMemo(() => statusFilter === "all" ? runs : runs.filter(r => r.status === statusFilter), [runs, statusFilter])
+  // 493: Project / Contract filter -- payroll runs given to a project (Link older transactions).
+  const { extraFilter: projectFilter } = useProjectListFilter<GenericPayrollRun>("PayrollRun", (r) => r.genericPayrollRunId)
+  const visible = useMemo(
+    () => runs.filter(r => (statusFilter === "all" || r.status === statusFilter) && (!projectFilter || projectFilter.matches(r))),
+    [runs, statusFilter, projectFilter],
+  )
 
   // Client-side paging: the whole list is already in memory, so this is a
   // slice. Feed the SAME slice to the cards and the desktop table.
@@ -542,7 +545,7 @@ export default function GenericPayrollPage() {
                 {["Draft", "Approved", "Paid", "Reopened", "Cancelled"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
-            <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
+            {projectFilter && <div className="ml-2">{projectFilter.control}</div>}
           </div>
 
           <Card>

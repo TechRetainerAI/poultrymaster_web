@@ -1571,6 +1571,8 @@ export async function createLoan(input: {
   genericCashAccountId?: number | null; notes?: string | null
   lenderType?: string | null; accountNumber?: string | null; interestType?: string | null
   termMonths?: number | null; paymentFrequency?: string | null; nextPaymentDate?: string | null
+  /** Projects & Contracts: saved with the loan (singleAssignment). */
+  projects?: unknown
 }): Promise<number | null> {
   const { userId } = getUserContext()
   return postJson<number>(`${farmBase()}/loans`, withFarmId({ ...input, createdBy: userId || null }))
@@ -1582,6 +1584,8 @@ export async function updateLoan(loanId: number, input: {
   interestRate?: number | null; interestType?: string | null; termMonths?: number | null
   paymentFrequency?: string | null; dueDate?: string | null; nextPaymentDate?: string | null
   notes?: string | null
+  /** Projects & Contracts: only when the project was changed; leave out to keep it. */
+  projects?: unknown
 }): Promise<void> {
   const { userId } = getUserContext()
   await putJson(`${farmBase()}/loans/${loanId}`, withFarmId({ ...input, updatedBy: userId || null }))

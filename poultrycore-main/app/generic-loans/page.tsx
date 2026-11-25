@@ -51,8 +51,11 @@ import {
   type GenericCashAccount, type GenericLoan, type GenericLoanPayment,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
-import { ProjectFilter } from "@/components/generic/projects/project-filter"
-import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
+import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
+import {
+  SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, loadSingleProject, type SingleProjectValue,
+} from "@/components/generic/projects/form-project-field"
+import { useProjectsEnabled } from "@/hooks/use-generic-projects"
 
 const LENDER_TYPES = ["Bank", "FinancialInstitution", "Individual", "Owner", "FamilyFriend", "Supplier", "Other"]
 const INTEREST_TYPES = ["Simple", "ReducingBalance", "Flat", "Unknown"]
@@ -241,7 +244,6 @@ export default function GenericLoansPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<string>("All")
-  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
 
   const [newOpen, setNewOpen] = useState(false)
   /** The loan being edited; null = recording a new one. */
@@ -291,8 +293,25 @@ export default function GenericLoansPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, activeFarmId, router])
 
+  // 493: Project / Contract filter -- loans given to a project (Link older
+  // transactions). The cards and the list both follow it.
+  const { extraFilter: projectFilter, labels: projectLabels } = useProjectListFilter<GenericLoan>("Loan", (l) => l.genericLoanId, loans)
+
+  // 496: the loan's project / contract, chosen on the form. Its repayments,
+  // interest and fees follow it (P&L, Cash Flow, Financial Activity). It is
+  // financing: the loan itself is never revenue or profit.
+  const { enabled: projectsEnabled } = useProjectsEnabled()
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
+  const [projectChanged, setProjectChanged] = useState(false)
+  const changeProject = (v: SingleProjectValue) => { setProject(v); setProjectChanged(true) }
+  const projectLoans = useMemo(
+    () => (projectFilter ? loans.filter((l) => projectFilter.matches(l)) : loans),
+    [loans, projectFilter],
+  )
+
   // Poultry reads these from sppoultryloan_summary; the same sums, over the list.
   const summary = useMemo(() => {
+    const loans = projectLoans
     const live = loans.filter((l) => l.status !== "Cancelled")
     const due = loans
       .filter((l) => l.status === "Active" && l.outstandingBalance > 0 && l.nextPaymentDate)
@@ -309,11 +328,11 @@ export default function GenericLoansPage() {
       overdueLoans: loans.filter((l) => l.isOverdue).length,
       nextPaymentDate: due[0] ?? null,
     }
-  }, [loans])
+  }, [projectLoans])
 
   const visible = useMemo(
-    () => (status === "All" ? loans : loans.filter((l) => l.status === status)),
-    [loans, status],
+    () => (status === "All" ? projectLoans : projectLoans.filter((l) => l.status === status)),
+    [projectLoans, status],
   )
   const pg = usePagination(visible)
 
@@ -328,9 +347,16 @@ export default function GenericLoansPage() {
     [accounts],
   )
 
-  const openNew = () => { setEditing(null); setForm(blankForm()); setNewOpen(true) }
+  const openNew = () => {
+    setEditing(null); setForm(blankForm()); setNewOpen(true)
+    setProject({ ...EMPTY_SINGLE_PROJECT, costClass: "Financing" }); setProjectChanged(false)
+  }
   const openEdit = (l: GenericLoan) => {
     setEditing(l)
+    setProject({ ...EMPTY_SINGLE_PROJECT, costClass: "Financing" }); setProjectChanged(false)
+    if (projectsEnabled) {
+      void loadSingleProject("Loan", l.genericLoanId).then((v) => setProject({ ...v, costClass: "Financing" }))
+    }
     setForm({
       lenderName: l.lenderName ?? "", lenderType: l.lenderType || "Other", accountNumber: l.accountNumber ?? "",
       originalPrincipal: String(l.originalPrincipal), amountReceived: String(l.amountReceived),
@@ -358,6 +384,7 @@ export default function GenericLoansPage() {
           paymentFrequency: form.paymentFrequency || null,
           nextPaymentDate: form.nextPaymentDate || null,
           notes: form.notes.trim() || null,
+          projects: projectsEnabled && projectChanged ? singleAssignment({ ...project, costClass: "Financing" }) : undefined,
         })
         toast({ title: "Loan updated" })
       } else {
@@ -383,6 +410,8 @@ export default function GenericLoansPage() {
           paymentFrequency: form.paymentFrequency || null,
           nextPaymentDate: form.nextPaymentDate || null,
           notes: form.notes.trim() || null,
+          projects: projectsEnabled && (project.projectId != null || project.splits?.length)
+            ? singleAssignment({ ...project, costClass: "Financing" }) : undefined,
         })
         toast({
           title: "Loan recorded",
@@ -477,12 +506,12 @@ export default function GenericLoansPage() {
                   accent={summary.overdueLoans > 0 ? "rose" : "slate"} />
           </div>
 
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap items-end gap-2 mb-4">
+            {projectFilter && <div className="mr-2">{projectFilter.control}</div>}
             {STATUS_FILTERS.map((s) => (
               <Button key={s} size="sm" variant={status === s ? "default" : "outline"}
                       onClick={() => setStatus(s)}>{s}</Button>
             ))}
-            <ProjectFilter value={projectFilter} onChange={setProjectFilter} />
           </div>
 
           {loading ? (
@@ -591,7 +620,12 @@ export default function GenericLoansPage() {
                                 : `${loanPayments.length} repayment${loanPayments.length === 1 ? "" : "s"}`}
                             </div>
                           </TableCell>
-                          <TableCell>{lenderCell(l)}<div className="text-xs text-slate-500">{l.lenderType}</div></TableCell>
+                          <TableCell>
+                            {lenderCell(l)}<div className="text-xs text-slate-500">{l.lenderType}</div>
+                            {projectLabels.labelOf(l.genericLoanId) && (
+                              <div className="text-xs text-violet-700">{projectLabels.labelOf(l.genericLoanId)}</div>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.originalPrincipal)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.amountReceived)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.totalPrincipalPaid)}</TableCell>
@@ -745,6 +779,16 @@ export default function GenericLoansPage() {
                 </Select>
               </FormField>
             </FormSection>
+
+            {projectsEnabled && (
+              <FormSection title="Project / contract" color="slate" columns={1}>
+                <FormField label="Project / contract">
+                  <SingleProjectField value={project} onChange={changeProject} amount={Number(form.amountReceived) || 0}
+                    showCostClass={false} label=""
+                    hint="Borrowed for this project. Its repayments, interest and fees follow it on the project's P&L, cash flow and Financial Activity. A loan is financing, never revenue or profit." />
+                </FormField>
+              </FormSection>
+            )}
 
             <FormSection title="Notes" color="slate" columns={1}>
               <FormField label="Notes">

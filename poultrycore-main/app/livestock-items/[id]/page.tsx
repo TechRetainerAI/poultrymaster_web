@@ -23,7 +23,7 @@ import {
 
 const TYPE_LABEL: Record<StockMovementType, string> = {
   Opening: "Opening stock", StockIn: "Stock in", Purchase: "Purchase", Usage: "Used", Adjustment: "Count correction",
-  Produced: "Mixed", Loss: "Lost"
+  Produced: "Mixed", Loss: "Lost", Collected: "Collected"
 }
 
 export default function LivestockItemPage() {
@@ -100,6 +100,8 @@ export default function LivestockItemPage() {
                 <TableCell className="text-sm text-stone-600">
                   {m.sourceType === "ProductionRecord" && m.sourceId
                     ? <Link className="text-amber-800 hover:underline" href={`/livestock-production-records/${m.sourceId}`}>{m.groupName ?? "Daily record"}</Link>
+                    : m.sourceType === "ForageCollection"
+                    ? <Link className="text-amber-800 hover:underline" href="/livestock-items?tab=collected">{m.notes ?? "Collected"}</Link>
                     : m.sourceType === "FeedRun"
                     ? <Link className="text-amber-800 hover:underline" href="/livestock-feed-production">{m.notes}</Link>
                     : m.sourceType === "TreatmentDay" || m.sourceType === "HealthRecord"

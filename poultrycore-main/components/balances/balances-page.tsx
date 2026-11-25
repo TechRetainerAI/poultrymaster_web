@@ -11,7 +11,7 @@
 // or take one payment and spread it across several. The read-only, printable
 // version of the same numbers lives under Reports.
 
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -112,11 +112,26 @@ export interface BalancesPageProps {
    * given, a document row is clickable and gets a Details button.
    */
   onDocumentDetails?: (doc: OpenDocumentRow) => void
+  /**
+   * 493 (Generic): show only part of the company (a project / contract).
+   * `control` goes at the top of the filters. While `active`, the caller
+   * re-weights each party and open document to that part -- null hides it --
+   * and the summary cards are worked out from the parties shown. Payments and
+   * statements still open on the whole party / document. Absent = unchanged.
+   */
+  scope?: {
+    control: ReactNode
+    active: boolean
+    party: (row: PartyBalanceRow, f: { from: string; to: string; status: BalanceStatusFilter }) => PartyBalanceRow | null
+    document: (doc: OpenDocumentRow) => OpenDocumentRow | null
+    /** Called after every reload of the balances, so the caller re-reads its shares too. */
+    onReload?: () => void
+  }
 }
 
 export function BalancesPage({
   module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions, wording, iconClassName, pagerVariant,
-  afterSummary, onDocumentDetails, headerActions, afterTable, documentActions,
+  afterSummary, onDocumentDetails, headerActions, afterTable, documentActions, scope,
 }: BalancesPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -203,6 +218,10 @@ export function BalancesPage({
   const filtersAreEmpty =
     !from && !to && partyFilter === "all" && status === "All" && !minBalance && !search.trim()
 
+  // load() is memoised on the filters only; read the latest scope through a ref.
+  const scopeRef = useRef(scope)
+  scopeRef.current = scope
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -212,6 +231,7 @@ export function BalancesPage({
       ])
       setRows(list)
       setSummary(sum)
+      scopeRef.current?.onReload?.()
       // An unfiltered list IS the full set of parties, so take the dropdown's
       // options from it rather than spending a second request on them.
       if (filtersAreEmpty) {
@@ -268,12 +288,30 @@ export function BalancesPage({
 
   // Applied here rather than server-side: the balances endpoint has no notion of
   // a payment method, and the map above already has the answer.
-  const visibleRows = useMemo(
-    () => (methodFilter === "all"
+  const visibleRows = useMemo(() => {
+    const byMethod = methodFilter === "all"
       ? rows
-      : rows.filter((r) => (methodsByParty[r.partyId] ?? []).includes(methodFilter))),
-    [rows, methodFilter, methodsByParty],
-  )
+      : rows.filter((r) => (methodsByParty[r.partyId] ?? []).includes(methodFilter))
+    if (!scope?.active) return byMethod
+    // 493: each party's part of the balance; Min balance applies to that part.
+    const min = minBalance ? Number(minBalance) : null
+    return byMethod
+      .map((r) => scope.party(r, { from, to, status }))
+      .filter((r): r is PartyBalanceRow => r !== null && (min === null || r.totalBalance >= min))
+  }, [rows, methodFilter, methodsByParty, scope, minBalance, from, to, status])
+
+  // 493: the documents shown under a party (re-weighted while scoped), and the
+  // whole party / document a payment or statement opens on.
+  const docsFor = (partyId: number): OpenDocumentRow[] | undefined => {
+    const list = docs[partyId]
+    if (!list || !scope?.active) return list
+    return list.map((d) => scope.document(d)).filter((d): d is OpenDocumentRow => d !== null)
+  }
+  const wholeParty = (p: PartyBalanceRow) => rows.find((r) => r.partyId === p.partyId) ?? p
+  const openPay = (p: PartyBalanceRow, d: OpenDocumentRow | null) => setPayFor({
+    party: wholeParty(p),
+    doc: d ? (docs[p.partyId]?.find((x) => x.documentType === d.documentType && x.documentId === d.documentId) ?? d) : null,
+  })
   // Paged only when a caller asks for the pager (Restaurant, Hotel); Poultry keeps the full list.
   const pg = usePagination(visibleRows)
   const pagedRows = pagerVariant ? pg.pageItems : visibleRows
@@ -331,12 +369,26 @@ export function BalancesPage({
     )
   }
 
-  const cards: { label: string; value: string; tone?: "danger" }[] = summary ? [
-    { label: isCustomer ? "Total customer balance" : "Total supplier balance", value: fmt(summary.totalBalance) },
-    { label: isCustomer ? "Customers owing" : "Suppliers owed", value: String(summary.partyCount) },
-    { label: isCustomer ? "Overdue balance" : "Overdue payables", value: fmt(summary.overdueBalance), tone: summary.overdueBalance > 0 ? "danger" : undefined },
-    { label: isCustomer ? "Received today" : "Paid today", value: fmt(summary.paymentsToday) },
-    { label: isCustomer ? "Largest balance" : "Largest payable", value: fmt(summary.largestBalance) },
+  // 493: while scoped, the cards describe the parties shown, not the company.
+  const scopedSummary: BalanceSummary | null = scope?.active && summary ? (() => {
+    const largest = visibleRows.reduce<PartyBalanceRow | null>((m, r) => (!m || r.totalBalance > m.totalBalance ? r : m), null)
+    return {
+      totalBalance: visibleRows.reduce((t, r) => t + r.totalBalance, 0),
+      partyCount: visibleRows.length,
+      overdueBalance: visibleRows.reduce((t, r) => t + r.overdueAmount, 0),
+      paymentsToday: summary.paymentsToday,
+      largestBalance: largest?.totalBalance ?? 0,
+      largestBalanceParty: largest?.partyName ?? null,
+    }
+  })() : null
+  const shownSummary = scopedSummary ?? summary
+  const cards: { label: string; value: string; tone?: "danger" }[] = shownSummary ? [
+    { label: isCustomer ? "Total customer balance" : "Total supplier balance", value: fmt(shownSummary.totalBalance) },
+    { label: isCustomer ? "Customers owing" : "Suppliers owed", value: String(shownSummary.partyCount) },
+    { label: isCustomer ? "Overdue balance" : "Overdue payables", value: fmt(shownSummary.overdueBalance), tone: shownSummary.overdueBalance > 0 ? "danger" : undefined },
+    // Money received today is not split by project here: label it as the company figure rather than pass it off as the project's.
+    { label: `${isCustomer ? "Received today" : "Paid today"}${scopedSummary ? " (whole company)" : ""}`, value: fmt(shownSummary.paymentsToday) },
+    { label: isCustomer ? "Largest balance" : "Largest payable", value: fmt(shownSummary.largestBalance) },
   ] : []
 
   return (
@@ -371,9 +423,9 @@ export function BalancesPage({
                 </CardContent>
               </Card>
             ))}
-            {summary?.largestBalanceParty && (
+            {shownSummary?.largestBalanceParty && (
               <div className="col-span-2 self-center text-xs text-slate-500 md:col-span-3 xl:col-span-5">
-                Largest balance: <span className="font-medium text-slate-700">{summary.largestBalanceParty}</span>
+                Largest balance: <span className="font-medium text-slate-700">{shownSummary.largestBalanceParty}</span>
               </div>
             )}
           </div>
@@ -387,6 +439,7 @@ export function BalancesPage({
               meaning: row 1 is WHO and WHAT STATE, row 2 is WHEN and HOW MUCH. */}
           <Card className="mb-4">
             <CardContent className="space-y-4 p-4">
+              {scope && <div className="flex flex-wrap items-end gap-3">{scope.control}</div>}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="bal-search">Search</Label>
@@ -516,7 +569,7 @@ export function BalancesPage({
                 <div className="space-y-3 p-3 lg:hidden">
                   {pagedRows.map((party, idx) => {
                     const isOpen = expanded === party.partyId
-                    const lines = docs[party.partyId]
+                    const lines = docsFor(party.partyId)
                     return (
                       <Collapsible
                         key={party.partyId}
@@ -561,7 +614,7 @@ export function BalancesPage({
                               {/* Two per row: labelled buttons overflow a 375px card on one flex line. */}
                               <div className="grid grid-cols-2 gap-2 pt-2">
                                 {canPay && (
-                                  <Button size="sm" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); setPayFor({ party, doc: null }) }}>
+                                  <Button size="sm" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); openPay(party, null) }}>
                                     <Wallet className="mr-2 h-4 w-4" /> {payLabel(party)}
                                   </Button>
                                 )}
@@ -612,7 +665,7 @@ export function BalancesPage({
                                       </div>
                                       <div className="mt-2 grid grid-cols-2 gap-2">
                                         {canPay && (
-                                          <Button size="sm" variant="outline" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); setPayFor({ party, doc: d }) }}>
+                                          <Button size="sm" variant="outline" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); openPay(party, d) }}>
                                             <Wallet className="mr-2 h-4 w-4" /> {isCustomer ? "Receive payment" : "Record payment"}
                                           </Button>
                                         )}
@@ -661,7 +714,7 @@ export function BalancesPage({
                     <TableBody>
                       {pagedRows.map((party) => {
                         const isOpen = expanded === party.partyId
-                        const lines = docs[party.partyId]
+                        const lines = docsFor(party.partyId)
                         return (
                           <Fragment key={party.partyId}>
                             <TableRow>
@@ -692,7 +745,7 @@ export function BalancesPage({
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-1">
                                   {canPay && (
-                                    <Button size="sm" onClick={() => setPayFor({ party, doc: null })}>
+                                    <Button size="sm" onClick={() => openPay(party, null)}>
                                       {payLabel(party)}
                                     </Button>
                                   )}
@@ -783,7 +836,7 @@ export function BalancesPage({
                                                   </Button>
                                                 )}
                                                 {canPay && (
-                                                  <Button size="sm" variant="outline" onClick={() => setPayFor({ party, doc: d })}>
+                                                  <Button size="sm" variant="outline" onClick={() => openPay(party, d)}>
                                                     {isCustomer ? "Receive payment" : "Record payment"}
                                                   </Button>
                                                 )}

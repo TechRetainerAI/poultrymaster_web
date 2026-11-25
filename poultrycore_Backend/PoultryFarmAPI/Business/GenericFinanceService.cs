@@ -58,14 +58,19 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> CreateAsync(GenericLoanCreateRequest m)
         {
             using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand(
-                "SELECT spgenericloan_create(" +
+            const string call =
+                "spgenericloan_create(" +
                 "p_farmid=>@FarmId::text, p_lendername=>@Lender::text, p_originalprincipal=>@Principal::numeric, " +
                 "p_amountreceived=>@Received::numeric, p_interestrate=>@Rate::numeric, " +
                 "p_loandate=>@LoanDate::timestamp, p_startdate=>@StartDate::timestamp, p_duedate=>@DueDate::timestamp, " +
                 "p_cashaccountid=>@AccountId::int, p_notes=>@Notes::text, p_createdby=>@CreatedBy::text, " +
                 "p_lendertype=>@LenderType::text, p_accountnumber=>@AccountNumber::text, p_interesttype=>@InterestType::text, " +
-                "p_termmonths=>@Term::int, p_paymentfrequency=>@Frequency::text, p_nextpaymentdate=>@Next::date)", c);
+                "p_termmonths=>@Term::int, p_paymentfrequency=>@Frequency::text, p_nextpaymentdate=>@Next::date)";
+            // Projects & Contracts: the loan and its project are saved in one statement.
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(m.Projects)
+                ? GenericProjectAttach.WrapInsert(call, "Loan")
+                : "SELECT " + call, c);
+            if (GenericProjectAttach.Has(m.Projects)) GenericProjectAttach.AddParams(cmd, m.FarmId, m.Projects, m.CreatedBy);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Lender", m.LenderName ?? "");
             cmd.Parameters.AddWithValue("@Principal", m.OriginalPrincipal);
@@ -89,12 +94,17 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateAsync(int loanId, GenericLoanUpdateRequest m)
         {
             using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand(
-                "SELECT spgenericloan_update(p_genericloanid=>@Id::int, p_farmid=>@FarmId::text, " +
+            const string call =
+                "spgenericloan_update(p_genericloanid=>@Id::int, p_farmid=>@FarmId::text, " +
                 "p_lendername=>@Lender::text, p_lendertype=>@LenderType::text, p_accountnumber=>@AccountNumber::text, " +
                 "p_interestrate=>@Rate::numeric, p_interesttype=>@InterestType::text, p_termmonths=>@Term::int, " +
                 "p_paymentfrequency=>@Frequency::text, p_duedate=>@Due::date, p_nextpaymentdate=>@Next::date, " +
-                "p_notes=>@Notes::text, p_updatedby=>@By::text)", c);
+                "p_notes=>@Notes::text, p_updatedby=>@By::text)";
+            // Projects & Contracts: a changed project is saved with the terms in one statement.
+            using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(m.Projects)
+                ? GenericProjectAttach.WrapUpdate(call, "Loan")
+                : "SELECT " + call, c);
+            if (GenericProjectAttach.Has(m.Projects)) GenericProjectAttach.AddParams(cmd, m.FarmId, m.Projects, m.UpdatedBy, loanId);
             cmd.Parameters.AddWithValue("@Id", loanId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Lender", N(m.LenderName));
