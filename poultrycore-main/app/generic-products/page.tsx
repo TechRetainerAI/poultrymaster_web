@@ -712,39 +712,37 @@ export default function GenericProductsPage() {
                   </Button>
                 </div>
               </FormField>
-              <FormField label="Base stock unit" hint="Select or type a new unit (e.g. kg, piece, litre)">
-                <div className="relative">
+              <FormField label="Base stock unit" hint="Pick from the list or type a custom unit below">
+                <Select value={form.unitOfMeasure || "__none__"} onValueChange={(v) => { setForm((f) => ({ ...f, unitOfMeasure: v === "__none__" ? "" : v })); setUnitSearch("") }}>
+                  <SelectTrigger><SelectValue placeholder="e.g. kg, piece, litre" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {units.map((u) => (
+                      <SelectItem key={u.genericUnitOfMeasureId} value={u.unitName}>{u.unitName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2 mt-1.5">
                   <Input
-                    value={form.unitOfMeasure}
-                    onChange={(e) => { setForm((f) => ({ ...f, unitOfMeasure: e.target.value })); setUnitSearch(e.target.value); setUnitDropdownOpen(true) }}
-                    onFocus={() => { setUnitSearch(form.unitOfMeasure); setUnitDropdownOpen(true) }}
-                    onBlur={() => setTimeout(() => setUnitDropdownOpen(false), 200)}
-                    maxLength={30} placeholder="e.g. kg"
-                    autoComplete="off"
+                    value={unitSearch}
+                    onChange={(e) => setUnitSearch(e.target.value)}
+                    placeholder="Or type a custom unit…"
+                    maxLength={30}
+                    className="text-sm h-8"
                   />
-                  {unitDropdownOpen && (
-                    <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-40 overflow-y-auto rounded-lg border bg-white shadow-lg">
-                      {units
-                        .filter((u) => !unitSearch || u.unitName.toLowerCase().includes(unitSearch.toLowerCase()))
-                        .slice(0, 15)
-                        .map((u) => (
-                          <button key={u.genericUnitOfMeasureId} type="button"
-                            className="w-full px-3 py-1.5 text-left text-sm hover:bg-blue-50 transition-colors"
-                            onMouseDown={(e) => { e.preventDefault(); setForm((f) => ({ ...f, unitOfMeasure: u.unitName })); setUnitDropdownOpen(false) }}>
-                            {u.unitName}
-                          </button>
-                        ))}
-                      {unitSearch.trim() && !units.some((u) => u.unitName.toLowerCase() === unitSearch.trim().toLowerCase()) && (
-                        <div className="px-3 py-1.5 text-xs text-slate-500 border-t">
-                          <span className="text-blue-600 font-medium">&quot;{unitSearch.trim()}&quot;</span> will be added as a new unit when you save
-                        </div>
-                      )}
-                      {!unitSearch.trim() && units.length === 0 && (
-                        <div className="px-3 py-2 text-xs text-slate-400">No units yet — type to create one</div>
-                      )}
-                    </div>
+                  {unitSearch.trim() && (
+                    <Button type="button" size="sm" className="h-8 shrink-0"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, unitOfMeasure: unitSearch.trim() }))
+                        setUnitSearch("")
+                      }}>
+                      Use &quot;{unitSearch.trim()}&quot;
+                    </Button>
                   )}
                 </div>
+                {form.unitOfMeasure && !units.some((u) => u.unitName.toLowerCase() === form.unitOfMeasure.toLowerCase()) && (
+                  <p className="text-[11px] text-blue-600 mt-1">Custom unit &quot;{form.unitOfMeasure}&quot; will be added automatically when you save.</p>
+                )}
               </FormField>
             </FormSection>
 
