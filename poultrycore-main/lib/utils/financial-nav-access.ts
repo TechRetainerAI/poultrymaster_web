@@ -170,6 +170,11 @@ export function isFinancialNavItemVisible(
     return Boolean(isAdmin || f.canViewFinancial || f.canViewReports)
   }
   if (href === "/generic-projects/new" || href === "/generic-projects/link") return Boolean(isAdmin || f.canViewFinancial)
+  // Invoice Documents (494): same audience as Sales and Customer Balances —
+  // whoever can enter or review sales should see the invoices.
+  if (href === "/generic-invoices" || href === "/generic-invoice-documents") {
+    return isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers
+  }
   if (href === "/generic-setup" || href === "/generic-settings" || href === "/generic-business-features") return isAdmin
 
   return false
