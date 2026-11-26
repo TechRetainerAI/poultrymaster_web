@@ -667,21 +667,16 @@ export default function GenericOwnerMoneyPage() {
                   <span className="text-slate-500">Cash account</span>
                   <div className="font-medium">{editing.cashAccountName ?? "—"}</div>
                 </div>
+                <div className="text-sm">
+                  <span className="text-slate-500">Method</span>
+                  <div className="font-medium">{editing.paymentMethod ?? "—"}</div>
+                </div>
               </FormSection>
 
               <FormSection title="Editable" color="blue">
                 <FormField label="Owner">
                   <Input value={editForm.ownerName} placeholder="Whose money is this?"
                          onChange={(e) => setEditForm((f) => ({ ...f, ownerName: e.target.value }))} />
-                </FormField>
-                <FormField label="Method">
-                  <Select value={editForm.paymentMethod}
-                          onValueChange={(v) => setEditForm((f) => ({ ...f, paymentMethod: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
                 </FormField>
                 <FormField label="Reference">
                   <Input value={editForm.reference} placeholder="Bank or MoMo reference"
