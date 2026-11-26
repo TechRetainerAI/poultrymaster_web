@@ -217,6 +217,17 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
     }
 
+    /// <summary>498: edit non-financial fields on a posted owner entry.</summary>
+    public class UpdateOwnerEntryRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string? OwnerName { get; set; }
+        public string? PaymentMethod { get; set; }
+        public string? Reference { get; set; }
+        public string? Notes { get; set; }
+        public string? UpdatedBy { get; set; }
+    }
+
     /// <summary>Shared by every reversal on this side.</summary>
     public class ReverseMoneyOutRequest
     {

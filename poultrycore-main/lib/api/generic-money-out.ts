@@ -319,6 +319,28 @@ export async function recordOwnerEntry(input: RecordOwnerEntryInput): Promise<nu
   return res?.entryId ?? null
 }
 
+export interface UpdateOwnerEntryInput {
+  ownerName?: string | null
+  paymentMethod?: string | null
+  reference?: string | null
+  notes?: string | null
+}
+
+export async function updateOwnerEntry(
+  entryId: number,
+  input: UpdateOwnerEntryInput,
+): Promise<void> {
+  const r = await fetch(buildApiUrl(`${farmBase()}/owner-entries/${entryId}`), {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ ...input, farmId: currentFarmId() }),
+  })
+  if (!r.ok) {
+    const text = await r.text().catch(() => "")
+    throw new Error(explainHttpError("PUT", `owner-entries/${entryId}`, r.status, text))
+  }
+}
+
 export async function reverseOwnerEntry(
   entryId: number,
   reason: string,

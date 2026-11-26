@@ -29,6 +29,7 @@ namespace PoultryFarmAPIWeb.Business
         // Owner money
         Task<List<GenericOwnerEntryRow>> GetOwnerEntries(string farmId, string? entryType, DateTime? from, DateTime? to);
         Task<int> RecordOwnerEntry(RecordOwnerEntryRequest r);
+        Task<int> UpdateOwnerEntry(int entryId, UpdateOwnerEntryRequest r);
         Task<int> ReverseOwnerEntry(string farmId, int entryId, string? reason, string? reversedBy);
     }
 
@@ -345,6 +346,19 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Notes", Db(r.Notes));
                 cmd.Parameters.AddWithValue("@CreatedBy", Db(r.CreatedBy));
                 if (GenericProjectAttach.Has(r.Projects)) GenericProjectAttach.AddParams(cmd, r.FarmId, r.Projects, r.CreatedBy);
+            });
+
+        public Task<int> UpdateOwnerEntry(int entryId, UpdateOwnerEntryRequest r) => Scalar(
+            "SELECT spgenericownerentry_update(p_entryid => @EntryId::int, p_farmid => @FarmId::text, p_ownername => @OwnerName::text, p_paymentmethod => @Method::text, p_reference => @Reference::text, p_notes => @Notes::text, p_updatedby => @UpdatedBy::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@EntryId", entryId);
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@OwnerName", Db(r.OwnerName));
+                cmd.Parameters.AddWithValue("@Method", Db(r.PaymentMethod));
+                cmd.Parameters.AddWithValue("@Reference", Db(r.Reference));
+                cmd.Parameters.AddWithValue("@Notes", Db(r.Notes));
+                cmd.Parameters.AddWithValue("@UpdatedBy", Db(r.UpdatedBy));
             });
 
         public Task<int> ReverseOwnerEntry(string farmId, int entryId, string? reason, string? reversedBy) => Scalar(
