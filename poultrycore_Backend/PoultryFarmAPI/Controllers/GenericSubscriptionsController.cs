@@ -208,6 +208,96 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.SetStatus(subscriptionId, r);
             return NoContent();
         }
+
+        /// <summary>499: change a subscription's plan mid-cycle with proration.</summary>
+        [HttpPost("subscriptions/{subscriptionId:int}/change-plan")]
+        public async Task<ActionResult> ChangePlan(
+            string farmId, int subscriptionId, [FromBody] ChangePlanRequest r)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            r.FarmId = farmId;
+            var changeId = await _svc.ChangePlan(subscriptionId, r);
+            return Ok(new { changeId });
+        }
+
+        /// <summary>499: get plan change history for a subscription.</summary>
+        [HttpGet("subscriptions/{subscriptionId:int}/plan-changes")]
+        public async Task<ActionResult> GetPlanChanges(string farmId, int subscriptionId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.GetPlanChanges(farmId, subscriptionId));
+        }
+
+        // ---- Coupons ----
+
+        [HttpGet("coupons")]
+        public async Task<ActionResult> GetCoupons(string farmId, [FromQuery] bool activeOnly = false)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.GetCoupons(farmId, activeOnly));
+        }
+
+        [HttpPost("coupons")]
+        public async Task<ActionResult> CreateCoupon(string farmId, [FromBody] CreateCouponRequest r)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            r.FarmId = farmId;
+            var id = await _svc.CreateCoupon(r);
+            return Ok(new { genericCouponId = id });
+        }
+
+        [HttpPost("coupons/{couponId:int}/deactivate")]
+        public async Task<IActionResult> DeactivateCoupon(string farmId, int couponId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            await _svc.DeactivateCoupon(farmId, couponId);
+            return NoContent();
+        }
+
+        [HttpPost("coupons/validate")]
+        public async Task<ActionResult> ValidateCoupon(string farmId, [FromBody] ValidateCouponRequest r)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            r.FarmId = farmId;
+            return Ok(await _svc.ValidateCoupon(r));
+        }
+
+        // ---- Late fees ----
+
+        [HttpPost("late-fees/apply")]
+        public async Task<ActionResult> ApplyLateFees(string farmId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.ApplyLateFees(farmId));
+        }
+
+        [HttpPost("late-fees/{feeId:int}/waive")]
+        public async Task<IActionResult> WaiveLateFee(string farmId, int feeId, [FromBody] WaiveLateFeeRequest r)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            await _svc.WaiveLateFee(farmId, feeId, r.Reason, r.WaivedBy);
+            return NoContent();
+        }
+
+        [HttpGet("late-fees/by-sale/{saleId:int}")]
+        public async Task<ActionResult> GetLateFeesBySale(string farmId, int saleId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.GetLateFeesBySale(farmId, saleId));
+        }
     }
 
     // =========================================================================

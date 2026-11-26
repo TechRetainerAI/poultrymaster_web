@@ -453,6 +453,167 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@By", Db(r.By));
                 cmd.Parameters.AddWithValue("@Reason", Db(r.Reason));
             });
+
+        // 499: upgrade/downgrade
+        public Task<int> ChangePlan(int subscriptionId, ChangePlanRequest r) => Scalar(
+            "SELECT spgenericsubscription_changeplan(p_farmid => @FarmId::text, p_subscriptionid => @SubId::int, p_newserviceid => @NewServiceId::int, p_newbillingamount => @NewAmount::numeric, p_effectivedate => @EffDate::date, p_reason => @Reason::text, p_changedby => @ChangedBy::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@SubId", subscriptionId);
+                cmd.Parameters.AddWithValue("@NewServiceId", r.NewServiceId);
+                cmd.Parameters.AddWithValue("@NewAmount", r.NewBillingAmount);
+                cmd.Parameters.AddWithValue("@EffDate", DbDate(r.EffectiveDate));
+                cmd.Parameters.AddWithValue("@Reason", Db(r.Reason));
+                cmd.Parameters.AddWithValue("@ChangedBy", Db(r.ChangedBy));
+            });
+
+        public Task<List<PlanChangeRow>> GetPlanChanges(string farmId, int subscriptionId) => Query(
+            "SELECT * FROM genericsubscriptionplanchanges WHERE farmid = @FarmId AND genericsubscriptionid = @SubId ORDER BY changedat DESC",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@SubId", subscriptionId);
+            },
+            r => new PlanChangeRow
+            {
+                GenericSubscriptionPlanChangeId = Int(r, "genericsubscriptionplanchangeid"),
+                OldServiceId = Int(r, "oldserviceid"),
+                OldServiceName = Str(r, "oldservicename"),
+                OldBillingAmount = Dec(r, "oldbillingamount"),
+                NewServiceId = Int(r, "newserviceid"),
+                NewServiceName = Str(r, "newservicename"),
+                NewBillingAmount = Dec(r, "newbillingamount"),
+                ChangeType = Str(r, "changetype"),
+                ProratedCredit = Dec(r, "proratedcredit"),
+                ProratedCharge = Dec(r, "proratedcharge"),
+                EffectiveDate = Date(r, "effectivedate"),
+                Reason = Str(r, "reason"),
+                ChangedBy = Str(r, "changedby"),
+                ChangedAt = Date(r, "changedat"),
+            });
+
+        // 499: coupons
+        public Task<List<CouponRow>> GetCoupons(string farmId, bool activeOnly) => Query(
+            "SELECT * FROM spgenericcoupon_getall(p_farmid => @FarmId::text, p_activeonly => @ActiveOnly::boolean)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@ActiveOnly", activeOnly);
+            },
+            r => new CouponRow
+            {
+                GenericCouponId = Int(r, "genericcouponid"),
+                Code = Str(r, "code") ?? string.Empty,
+                Description = Str(r, "description"),
+                DiscountType = Str(r, "discounttype") ?? "Flat",
+                DiscountValue = Dec(r, "discountvalue"),
+                MaxUses = IntN(r, "maxuses"),
+                UsedCount = Int(r, "usedcount"),
+                MaxUsesPerCustomer = IntN(r, "maxusespercustomer"),
+                ValidFrom = DateN(r, "validfrom"),
+                ValidUntil = DateN(r, "validuntil"),
+                ApplicableServiceId = IntN(r, "applicableserviceid"),
+                ServiceName = Str(r, "servicename"),
+                IsActive = Bool(r, "isactive"),
+                CreatedAt = Date(r, "createdat"),
+            });
+
+        public Task<int> CreateCoupon(CreateCouponRequest r) => Scalar(
+            "SELECT spgenericcoupon_create(p_farmid => @FarmId::text, p_code => @Code::text, p_description => @Desc::text, p_discounttype => @DType::text, p_discountvalue => @DValue::numeric, p_maxuses => @MaxUses::int, p_maxusespercustomer => @MaxPC::int, p_validfrom => @VFrom::date, p_validuntil => @VUntil::date, p_applicableserviceid => @ServiceId::int, p_createdby => @CreatedBy::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@Code", r.Code);
+                cmd.Parameters.AddWithValue("@Desc", Db(r.Description));
+                cmd.Parameters.AddWithValue("@DType", r.DiscountType);
+                cmd.Parameters.AddWithValue("@DValue", r.DiscountValue);
+                cmd.Parameters.AddWithValue("@MaxUses", Db(r.MaxUses));
+                cmd.Parameters.AddWithValue("@MaxPC", Db(r.MaxUsesPerCustomer));
+                cmd.Parameters.AddWithValue("@VFrom", Db(r.ValidFrom));
+                cmd.Parameters.AddWithValue("@VUntil", Db(r.ValidUntil));
+                cmd.Parameters.AddWithValue("@ServiceId", Db(r.ApplicableServiceId));
+                cmd.Parameters.AddWithValue("@CreatedBy", Db(r.CreatedBy));
+            });
+
+        public async Task DeactivateCoupon(string farmId, int couponId)
+        {
+            using var conn = new NpgsqlConnection(ConnectionString);
+            using var cmd = new NpgsqlCommand("SELECT spgenericcoupon_deactivate(p_farmid => @FarmId::text, p_couponid => @Id::int)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Id", couponId);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<CouponValidationResult> ValidateCoupon(ValidateCouponRequest r)
+        {
+            var rows = await Query(
+                "SELECT * FROM spgenericcoupon_validate(p_farmid => @FarmId::text, p_code => @Code::text, p_customerid => @CustId::int, p_serviceid => @ServiceId::int, p_billingamount => @Amount::numeric)",
+                cmd =>
+                {
+                    cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                    cmd.Parameters.AddWithValue("@Code", r.Code);
+                    cmd.Parameters.AddWithValue("@CustId", Db(r.CustomerId));
+                    cmd.Parameters.AddWithValue("@ServiceId", Db(r.ServiceId));
+                    cmd.Parameters.AddWithValue("@Amount", Db(r.BillingAmount));
+                },
+                reader => new CouponValidationResult
+                {
+                    GenericCouponId = IntN(reader, "genericcouponid"),
+                    Code = Str(reader, "code"),
+                    DiscountType = Str(reader, "discounttype"),
+                    DiscountValue = reader.IsDBNull(reader.GetOrdinal("discountvalue")) ? null : Dec(reader, "discountvalue"),
+                    CalculatedDiscount = reader.IsDBNull(reader.GetOrdinal("calculatediscount")) ? null : Dec(reader, "calculatediscount"),
+                    Description = Str(reader, "description"),
+                    Valid = Bool(reader, "valid"),
+                    Reason = Str(reader, "reason"),
+                });
+            return rows.FirstOrDefault() ?? new CouponValidationResult { Valid = false, Reason = "Coupon not found." };
+        }
+
+        // 499: late fees
+        public Task<List<AppliedLateFeeRow>> ApplyLateFees(string farmId) => Query(
+            "SELECT * FROM spgenericlatefee_apply(p_farmid => @FarmId::text)",
+            cmd => cmd.Parameters.AddWithValue("@FarmId", farmId),
+            r => new AppliedLateFeeRow
+            {
+                GenericSaleId = Int(r, "genericsaleid"),
+                FeeAmount = Dec(r, "feeamount"),
+                DaysOverdue = Int(r, "daysoverdue"),
+            });
+
+        public async Task WaiveLateFee(string farmId, int feeId, string reason, string? waivedBy)
+        {
+            using var conn = new NpgsqlConnection(ConnectionString);
+            using var cmd = new NpgsqlCommand("SELECT spgenericlatefee_waive(p_farmid => @FarmId::text, p_feeid => @FeeId::int, p_reason => @Reason::text, p_waivedby => @WaivedBy::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@FeeId", feeId);
+            cmd.Parameters.AddWithValue("@Reason", reason);
+            cmd.Parameters.AddWithValue("@WaivedBy", Db(waivedBy));
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public Task<List<LateFeeRow>> GetLateFeesBySale(string farmId, int saleId) => Query(
+            "SELECT * FROM spgenericlatefee_getbysale(p_farmid => @FarmId::text, p_saleid => @SaleId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@SaleId", saleId);
+            },
+            r => new LateFeeRow
+            {
+                GenericLateFeeId = Int(r, "genericlatefeeid"),
+                FeeAmount = Dec(r, "feeamount"),
+                FeeType = Str(r, "feetype") ?? "Flat",
+                AppliedDate = Date(r, "applieddate"),
+                DaysOverdue = Int(r, "daysoverdue"),
+                Status = Str(r, "status") ?? "Applied",
+                WaivedBy = Str(r, "waivedby"),
+                WaiveReason = Str(r, "waivereason"),
+                Notes = Str(r, "notes"),
+            });
     }
 
     // =========================================================================

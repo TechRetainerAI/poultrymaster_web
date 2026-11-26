@@ -30,6 +30,21 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<GenericSubscriptionRow>> GetAll(string farmId, string? status);
         Task<int> Create(CreateSubscriptionRequest r);
         Task<int> SetStatus(int subscriptionId, SetSubscriptionStatusRequest r);
+
+        // 499: upgrade/downgrade
+        Task<int> ChangePlan(int subscriptionId, ChangePlanRequest r);
+        Task<List<PlanChangeRow>> GetPlanChanges(string farmId, int subscriptionId);
+
+        // 499: coupons
+        Task<List<CouponRow>> GetCoupons(string farmId, bool activeOnly);
+        Task<int> CreateCoupon(CreateCouponRequest r);
+        Task DeactivateCoupon(string farmId, int couponId);
+        Task<CouponValidationResult> ValidateCoupon(ValidateCouponRequest r);
+
+        // 499: late fees
+        Task<List<AppliedLateFeeRow>> ApplyLateFees(string farmId);
+        Task WaiveLateFee(string farmId, int feeId, string reason, string? waivedBy);
+        Task<List<LateFeeRow>> GetLateFeesBySale(string farmId, int saleId);
     }
 
     /// <summary>
