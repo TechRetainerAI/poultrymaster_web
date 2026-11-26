@@ -48,7 +48,7 @@ const RETAIL_DEFAULTS: RecommendedModules = {
   enableInternalUse: true,
   enablePurchases: true,
   enableSubscriptions: false,
-  enableInvoices: false,
+  enableInvoices: true,
   // On for every template: credit sales and customer debts are owed whatever
   // the business sells (matches the DB default, migration 487).
   enableCustomerBalances: true,

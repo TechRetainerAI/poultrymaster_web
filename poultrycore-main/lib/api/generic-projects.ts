@@ -335,7 +335,27 @@ export const getProjectLabels = (sourceType: string, ids?: number[]) =>
   call<{ sourceId: number; projects: { projectId: number; label: string }[] }[]>(
     "GET", `${base()}/project-allocations/labels${qs({ sourceType, ids: ids?.join(",") })}`)
 
-export const getLinkCandidates = (f: { documentType: LinkDocumentType; fromDate?: string; toDate?: string; search?: string; onlyUnassigned?: boolean }) =>
+/** 493: Financial Activity -- each event in the period that belongs (partly) to a project. */
+export const getActivityShares = (fromDate: string, toDate: string) =>
+  call<{ eventKey: string; projects: { projectId: number; share: number }[] }[]>(
+    "GET", `${base()}/project-allocations/activity-shares${qs({ fromDate, toDate })}`)
+
+/** 493: one open document behind a customer / supplier balance, with its project shares. */
+export interface ProjectOpenBalance {
+  partyId: number
+  documentType: string
+  documentId: number
+  documentDate: string
+  amountPaid: number
+  balance: number
+  dueDate?: string | null
+  isOverdue: boolean
+  projects: { projectId: number; share: number }[]
+}
+export const getProjectOpenBalances = (side: "customer" | "supplier") =>
+  call<ProjectOpenBalance[]>("GET", `${base()}/project-allocations/open-balances${qs({ side })}`)
+
+export const getLinkCandidates =(f: { documentType: LinkDocumentType; fromDate?: string; toDate?: string; search?: string; onlyUnassigned?: boolean }) =>
   call<LinkCandidate[]>("GET", `${base()}/project-allocations/link-candidates${qs(f)}`)
 export const previewLink = (projectId: number, items: { documentType: LinkDocumentType; documentId: number }[]) =>
   call<{ before: ProjectSummary; adds: { revenue: number; costs: number; ownerFunding: number; purchaseValue: number }; note: string }>(

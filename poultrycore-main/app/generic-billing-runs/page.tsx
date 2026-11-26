@@ -32,13 +32,14 @@ import { usePagination } from "@/hooks/use-pagination"
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
-import { Loader2, Play, Receipt, RefreshCw, ArrowLeft } from "lucide-react"
+import { Loader2, Play, Receipt, RefreshCw, ArrowLeft, AlertTriangle } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
   previewBilling, generateBilling, getBillingRuns, getBusinessTemplate, getModuleSettings,
+  applyLateFees,
   type BillingPreviewRow, type BillingRun,
 } from "@/lib/api/generic-subscriptions"
 import { templateLabels } from "@/lib/generic/template-labels"
@@ -60,6 +61,7 @@ export default function GenericBillingRunsPage() {
   const [previewing, setPreviewing] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [applyingFees, setApplyingFees] = useState(false)
 
   const labels = templateLabels(industry)
 
@@ -136,7 +138,7 @@ export default function GenericBillingRunsPage() {
             : `${n} ${n === 1 ? labels.invoice.toLowerCase() : labels.invoicePlural.toLowerCase()} raised as drafts.`,
         description:
           n > 0
-            ? `Approve them on ${labels.invoicePlural} to make them owed.`
+            ? `Approve them on the ${labels.invoicePlural} page to make them owed.`
             : undefined,
       })
       await load()
@@ -148,6 +150,25 @@ export default function GenericBillingRunsPage() {
       })
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const onApplyLateFees = async () => {
+    setApplyingFees(true)
+    try {
+      const applied = await applyLateFees()
+      toast({
+        title: applied.length === 0
+          ? "No late fees to apply"
+          : `${applied.length} late fee${applied.length === 1 ? "" : "s"} applied`,
+        description: applied.length > 0
+          ? `Fees added to ${applied.length} overdue invoice${applied.length === 1 ? "" : "s"}. Configure late fee settings in Business Settings.`
+          : "No overdue invoices past the grace period, or late fees are not enabled in Business Settings.",
+      })
+    } catch (e: any) {
+      toast({ title: "Could not apply late fees", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setApplyingFees(false)
     }
   }
 
@@ -169,6 +190,15 @@ export default function GenericBillingRunsPage() {
               </p>
             </div>
             <div className="flex gap-2">
+              <Link href="/generic-invoices">
+                <Button variant="outline" className="h-11 sm:h-10">
+                  <Receipt className="h-4 w-4 mr-1" /> {labels.invoicePlural}
+                </Button>
+              </Link>
+              <Button variant="outline" className="h-11 sm:h-10" onClick={onApplyLateFees} disabled={applyingFees}>
+                {applyingFees ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <AlertTriangle className="h-4 w-4 mr-1" />}
+                Apply late fees
+              </Button>
               <Link href="/generic-subscriptions">
                 <Button variant="outline" className="h-11 sm:h-10">
                   {labels.subscriptionPlural}

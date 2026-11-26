@@ -15,11 +15,14 @@ import { GenericSaleLinesDialog } from "@/components/generic/generic-sale-lines-
 import { GenericCustomerCreditPanel } from "@/components/generic/generic-customer-credit-panel"
 import { RecordCustomerDebtButton, ReverseCustomerDebtButton } from "@/components/balances/customer-debts-panel"
 import { getCashAccounts } from "@/lib/api/generic"
+import { useProjectBalanceScope } from "@/components/generic/projects/use-project-balance-scope"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 
 export default function GenericCustomerBalancesPage() {
   const router = useRouter()
   const { labels } = useGenericModules()
+  // 493: Project / Contract filter -- each customer's balance on that project.
+  const projectScope = useProjectBalanceScope("customer")
 
   // Click a sale row: show what was sold, without leaving the page.
   const [detailSaleId, setDetailSaleId] = useState<number | null>(null)
@@ -30,6 +33,7 @@ export default function GenericCustomerBalancesPage() {
       module="generic"
       side="customer"
       companyType="Generic"
+      scope={projectScope}
       // 488 (Poultry 369): debts recorded by hand (owed without a sale). Recording
       // is a header button, reversing is on the debt's row. Both reload the balances.
       headerActions={(reload) => <RecordCustomerDebtButton onChanged={reload} />}

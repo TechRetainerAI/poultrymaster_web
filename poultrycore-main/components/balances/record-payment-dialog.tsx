@@ -48,6 +48,7 @@ import { entryTimestamp } from "@/lib/utils/date-key"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { SALE_PRODUCT_OPTIONS } from "@/components/sales/sale-item-row"
 import { listWaterProducts } from "@/lib/api/water"
+import { getProducts as getGenericProducts } from "@/lib/api/generic"
 import { RelatedProjectField } from "@/components/generic/projects/form-project-field"
 
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank Transfer", "Cheque", "Card", "Other"] as const
@@ -126,18 +127,29 @@ export function RecordPaymentDialog({
   const [addToPL, setAddToPL] = useState(false)
   const [saleType, setSaleType] = useState("")
   // 425: on Water, "what was sold" is one of the company's own products.
-  const [waterSaleTypes, setWaterSaleTypes] = useState<string[] | null>(null)
+  // Generic: same idea — fetch the company's own products for the dropdown.
+  const [dynamicSaleTypes, setDynamicSaleTypes] = useState<string[] | null>(null)
   useEffect(() => {
-    if (!open || module !== "water" || !remainderAsOldDebt || waterSaleTypes) return
-    listWaterProducts()
-      .then((ps) => setWaterSaleTypes([
-        ...Array.from(new Set(ps.filter((x) => x.isActive && x.productType === "FinishedGood")
-          .map((x) => x.name).filter(Boolean))),
-        "Other",
-      ]))
-      .catch(() => setWaterSaleTypes(["Other"]))
-  }, [open, module, remainderAsOldDebt, waterSaleTypes])
-  const saleTypeOptions = module === "water" ? (waterSaleTypes ?? ["Other"]) : SALE_PRODUCT_OPTIONS
+    if (!open || !remainderAsOldDebt || dynamicSaleTypes) return
+    if (module === "water") {
+      listWaterProducts()
+        .then((ps) => setDynamicSaleTypes([
+          ...Array.from(new Set(ps.filter((x) => x.isActive && x.productType === "FinishedGood")
+            .map((x) => x.name).filter(Boolean))),
+          "Other",
+        ]))
+        .catch(() => setDynamicSaleTypes(["Other"]))
+    } else if (module === "generic") {
+      getGenericProducts()
+        .then((ps) => setDynamicSaleTypes([
+          ...Array.from(new Set(ps.filter((x) => x.isActive)
+            .map((x) => x.productName).filter(Boolean))),
+          "Other",
+        ]))
+        .catch(() => setDynamicSaleTypes(["Other"]))
+    }
+  }, [open, module, remainderAsOldDebt, dynamicSaleTypes])
+  const saleTypeOptions = (module === "water" || module === "generic") ? (dynamicSaleTypes ?? ["Other"]) : SALE_PRODUCT_OPTIONS
   const [saleTypeOther, setSaleTypeOther] = useState("")
   // "Payment for an earlier sale": on Profit & Loss unless the income was
   // already recorded (owner / admin only -- it is a P&L exclusion).

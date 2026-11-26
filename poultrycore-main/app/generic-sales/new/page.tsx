@@ -25,16 +25,23 @@ import { useToast } from "@/hooks/use-toast"
 import {
   createCustomer,
   createSale,
+  createService,
   getCashAccounts,
   getCustomers,
   getProducts,
+  getServices,
   getSale,
   type GenericCashAccount,
   type GenericCustomer,
   type GenericProduct,
   type GenericSale,
   type GenericSaleItem,
+  type GenericService,
+  type GenericServiceInput,
 } from "@/lib/api/generic"
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
 
 /** Find or create a walk-in customer record so walk-in sales are tracked. */
 async function resolveWalkInCustomer(
@@ -71,6 +78,7 @@ function fmt(n: number) {
 type Row = {
   itemType: "Product" | "Service"
   genericProductId?: number
+  genericServiceId?: number
   description: string
   quantity: number
   unitPrice: number
@@ -103,7 +111,16 @@ export default function NewGenericSalePage() {
   const [saving, setSaving] = useState(false)
   const [customers, setCustomers] = useState<GenericCustomer[]>([])
   const [products, setProducts] = useState<GenericProduct[]>([])
+  const [services, setServices] = useState<GenericService[]>([])
   const [cashAccounts, setCashAccounts] = useState<GenericCashAccount[]>([])
+
+  // Inline service creation modal
+  const [inlineServiceOpen, setInlineServiceOpen] = useState(false)
+  const [inlineServiceRowIdx, setInlineServiceRowIdx] = useState<number | null>(null)
+  const [inlineServiceName, setInlineServiceName] = useState("")
+  const [inlineServicePrice, setInlineServicePrice] = useState("")
+  const [inlineServiceUnit, setInlineServiceUnit] = useState("Per Job")
+  const [inlineServiceSaving, setInlineServiceSaving] = useState(false)
 
   const [header, setHeader] = useState(() => {
     const now = new Date()
@@ -142,10 +159,11 @@ export default function NewGenericSalePage() {
     let cancelled = false
     ;(async () => {
       try {
-        const [cs, ps, as_] = await Promise.all([getCustomers(), getProducts(), getCashAccounts()])
+        const [cs, ps, ss, as_] = await Promise.all([getCustomers(), getProducts(), getServices().catch(() => [] as GenericService[]), getCashAccounts()])
         if (cancelled) return
         setCustomers(cs)
         setProducts(ps.filter((p) => p.canSell === true || (p.canSell == null && p.itemType !== "SupplyItem")))
+        setServices(ss.filter((s) => s.isActive))
         setCashAccounts(as_)
         const defaultId = modules.businessSettings?.defaultCashAccountForPayments
         const defaultAccount = defaultId ? as_.find((a) => a.genericCashAccountId === defaultId && a.isActive) : null
@@ -177,6 +195,7 @@ export default function NewGenericSalePage() {
               setRows(old.items.map((i) => ({
                 itemType: i.itemType === "Service" ? "Service" : "Product",
                 genericProductId: i.genericProductId ?? undefined,
+                genericServiceId: i.genericServiceId ?? undefined,
                 description: i.description ?? "",
                 quantity: Number(i.quantity) || 0,
                 unitPrice: Number(i.unitPrice) || 0,
@@ -245,6 +264,63 @@ export default function NewGenericSalePage() {
     })
   }
 
+  const onPickService = (idx: number, serviceId: string) => {
+    if (serviceId === "__new__") {
+      setInlineServiceRowIdx(idx)
+      setInlineServiceName("")
+      setInlineServicePrice("")
+      setInlineServiceUnit("Per Job")
+      setInlineServiceOpen(true)
+      return
+    }
+    const s = services.find((x) => x.genericServiceId === Number(serviceId))
+    if (!s) {
+      updateRow(idx, { genericServiceId: undefined, description: "", saleUnit: "", unitFactor: 1 })
+      return
+    }
+    updateRow(idx, {
+      genericServiceId: s.genericServiceId,
+      description: s.serviceName,
+      unitPrice: s.defaultPrice > 0 ? s.defaultPrice : rows[idx].unitPrice,
+      saleUnit: s.pricingUnit || "Job",
+      unitFactor: 1,
+      quantity: rows[idx].quantity || 1,
+    })
+  }
+
+  const handleInlineServiceSave = async () => {
+    if (!inlineServiceName.trim()) return
+    setInlineServiceSaving(true)
+    try {
+      const input: GenericServiceInput = {
+        serviceName: inlineServiceName.trim(),
+        pricingUnit: inlineServiceUnit,
+        defaultPrice: inlineServicePrice ? parseFloat(inlineServicePrice) : 0,
+        isActive: true,
+      }
+      const created = await createService(input)
+      if (created) {
+        // Refresh service list and select the new service
+        const refreshed = await getServices().catch(() => [] as GenericService[])
+        setServices(refreshed.filter((s) => s.isActive))
+        if (inlineServiceRowIdx != null) {
+          updateRow(inlineServiceRowIdx, {
+            genericServiceId: created.genericServiceId,
+            description: created.serviceName,
+            unitPrice: created.defaultPrice > 0 ? created.defaultPrice : rows[inlineServiceRowIdx]?.unitPrice ?? 0,
+            saleUnit: created.pricingUnit || "Job",
+            unitFactor: 1,
+            quantity: rows[inlineServiceRowIdx]?.quantity || 1,
+          })
+        }
+        toast({ title: `Service "${created.serviceName}" created` })
+      }
+      setInlineServiceOpen(false)
+    } catch (e: any) {
+      toast({ title: "Could not create service", description: e?.message ?? String(e), variant: "destructive" })
+    } finally { setInlineServiceSaving(false) }
+  }
+
   // Build unit options for a product: base unit + salesUnit if different
   const getUnitOptions = useCallback((row: Row) => {
     if (row.itemType !== "Product" || !row.genericProductId) return []
@@ -281,12 +357,19 @@ export default function NewGenericSalePage() {
       return
     }
 
-    const keptRows = rows.filter((r) => r.quantity > 0 && (r.itemType === "Service" || r.genericProductId))
+    // Validate: service lines need a selected service
+    const unselectedServiceLines = rows.filter((r) => r.itemType === "Service" && r.quantity > 0 && !r.genericServiceId)
+    if (unselectedServiceLines.length > 0) {
+      toast({ title: "Please select a service or create a new service before saving this sale.", variant: "destructive" })
+      return
+    }
+
+    const keptRows = rows.filter((r) => r.quantity > 0 && (r.itemType === "Service" ? r.genericServiceId : r.genericProductId))
     const items: GenericSaleItem[] = keptRows
       .map((r) => ({
         itemType: r.itemType,
-        genericProductId: r.itemType === "Product" ? r.genericProductId : null,
-        genericServiceId: null,
+        genericProductId: r.itemType === "Product" ? (r.genericProductId ?? null) : null,
+        genericServiceId: r.itemType === "Service" ? (r.genericServiceId ?? null) : null,
         description: r.description || null,
         quantity: r.quantity,
         unitPrice: r.unitPrice,
@@ -457,7 +540,17 @@ export default function NewGenericSalePage() {
                           return (
                             <TableRow key={idx}>
                               <TableCell>
-                                <Select value={r.itemType} onValueChange={(v) => updateRow(idx, { itemType: v as "Product" | "Service" })}>
+                                <Select value={r.itemType} onValueChange={(v) => {
+                                      const type = v as "Product" | "Service"
+                                      updateRow(idx, {
+                                        itemType: type,
+                                        genericProductId: type === "Service" ? undefined : rows[idx].genericProductId,
+                                        genericServiceId: type === "Product" ? undefined : rows[idx].genericServiceId,
+                                        description: "",
+                                        saleUnit: "",
+                                        unitFactor: 1,
+                                      })
+                                    }}>
                                   <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="Product">Product</SelectItem>
@@ -478,7 +571,17 @@ export default function NewGenericSalePage() {
                                     </SelectContent>
                                   </Select>
                                 ) : (
-                                  <Input className="h-8" value={r.description} onChange={(e) => updateRow(idx, { description: e.target.value })} placeholder="Service description" />
+                                  <Select value={r.genericServiceId ? String(r.genericServiceId) : ""} onValueChange={(v) => onPickService(idx, v)}>
+                                    <SelectTrigger className="h-8"><SelectValue placeholder="— select service —" /></SelectTrigger>
+                                    <SelectContent>
+                                      {services.map((s) => (
+                                        <SelectItem key={s.genericServiceId} value={String(s.genericServiceId)}>
+                                          {s.serviceName}{s.serviceCode ? ` (${s.serviceCode})` : ""}
+                                        </SelectItem>
+                                      ))}
+                                      <SelectItem value="__new__" className="text-blue-600 font-medium">+ Create New Service</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                 )}
                                 <LineProjectButton splits={r.projects} onChange={(p) => updateRow(idx, { projects: p })}
                                   headerProjectId={projectId} description={r.description || products.find((p) => p.genericProductId === r.genericProductId)?.productName || ""}
@@ -526,7 +629,17 @@ export default function NewGenericSalePage() {
                       return (
                         <div key={idx} className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
                           <div className="flex items-center gap-2">
-                            <Select value={r.itemType} onValueChange={(v) => updateRow(idx, { itemType: v as "Product" | "Service" })}>
+                            <Select value={r.itemType} onValueChange={(v) => {
+                                      const type = v as "Product" | "Service"
+                                      updateRow(idx, {
+                                        itemType: type,
+                                        genericProductId: type === "Service" ? undefined : rows[idx].genericProductId,
+                                        genericServiceId: type === "Product" ? undefined : rows[idx].genericServiceId,
+                                        description: "",
+                                        saleUnit: "",
+                                        unitFactor: 1,
+                                      })
+                                    }}>
                               <SelectTrigger className="h-9 w-28 shrink-0"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="Product">Product</SelectItem>
@@ -728,6 +841,44 @@ export default function NewGenericSalePage() {
           )}
         </main>
       </div>
+
+      {/* Inline Service Creation Dialog */}
+      <Dialog open={inlineServiceOpen} onOpenChange={setInlineServiceOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Create New Service</DialogTitle>
+            <DialogDescription>Quick-add a service to your catalog.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Service Name</Label>
+              <Input value={inlineServiceName} onChange={(e) => setInlineServiceName(e.target.value)} placeholder="e.g. Equipment Installation" />
+            </div>
+            <div>
+              <Label>Pricing Unit</Label>
+              <Select value={inlineServiceUnit} onValueChange={setInlineServiceUnit}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["Per Job", "Per Hour", "Per Day", "Per Week", "Per Month", "Per Unit", "Per Session", "Per Visit"].map((u) => (
+                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Default Price (optional)</Label>
+              <NumberInput step="0.01" min="0" value={inlineServicePrice} onChange={(e) => setInlineServicePrice(e.target.value)} placeholder="Leave empty for variable" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInlineServiceOpen(false)}>Cancel</Button>
+            <Button onClick={handleInlineServiceSave} disabled={inlineServiceSaving || !inlineServiceName.trim()}>
+              {inlineServiceSaving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Create & Select
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

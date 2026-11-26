@@ -134,8 +134,9 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
         cashAccounts={cashAccounts}
         sourceType={isCustomer ? "PaymentsPage" : "SupplierPayments"}
         // 383/384: money not applied can pay an old debt on Profit & Loss (customer: only when ticked, with a sale type).
-        // 488: not on Generic customers -- there an old debt is recorded as a customer debt and paid like a sale.
-        remainderAsOldDebt={!(isCustomer && isGenericCompany())}
+        // 488: Generic customers now get the same overpayment handling as Poultry
+        // (Keep as Customer Credit vs Payment for an Earlier Sale).
+        remainderAsOldDebt
         onPosted={() => { setParty(null); onPosted() }}
       />
     </>

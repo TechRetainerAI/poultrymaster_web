@@ -227,6 +227,10 @@ namespace PoultryFarmAPIWeb.Models
         public string? DefaultPaymentMethod { get; set; }
         public int? DefaultCashAccountId { get; set; }
         public string Status { get; set; } = string.Empty;
+        /// <summary>499: trial period in days (0 = no trial).</summary>
+        public int TrialDays { get; set; }
+        public DateTime? TrialEndDate { get; set; }
+        public int? GenericCouponId { get; set; }
         public string? Notes { get; set; }
         /// <summary>Approved invoices for this subscription that still carry a balance.</summary>
         public int OpenInvoiceCount { get; set; }
@@ -253,6 +257,10 @@ namespace PoultryFarmAPIWeb.Models
         public bool AutoGenerateInvoice { get; set; } = true;
         public string? DefaultPaymentMethod { get; set; }
         public int? DefaultCashAccountId { get; set; }
+        /// <summary>499: trial period in days (0 = no trial).</summary>
+        public int TrialDays { get; set; }
+        /// <summary>499: coupon code to apply.</summary>
+        public string? CouponCode { get; set; }
         public string? Notes { get; set; }
         public string? CreatedBy { get; set; }
     }
@@ -337,5 +345,117 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>Bill everything due up to this date. Defaults to today.</summary>
         public DateTime? AsOf { get; set; }
         public string? CreatedBy { get; set; }
+    }
+
+    // =========================================================================
+    // 499: Subscription enhancements — upgrade/downgrade, coupons, late fees
+    // =========================================================================
+
+    public class ChangePlanRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public int NewServiceId { get; set; }
+        public decimal NewBillingAmount { get; set; }
+        public DateTime? EffectiveDate { get; set; }
+        public string? Reason { get; set; }
+        public string? ChangedBy { get; set; }
+    }
+
+    public class PlanChangeRow
+    {
+        public int GenericSubscriptionPlanChangeId { get; set; }
+        public int OldServiceId { get; set; }
+        public string? OldServiceName { get; set; }
+        public decimal OldBillingAmount { get; set; }
+        public int NewServiceId { get; set; }
+        public string? NewServiceName { get; set; }
+        public decimal NewBillingAmount { get; set; }
+        public string? ChangeType { get; set; }
+        public decimal ProratedCredit { get; set; }
+        public decimal ProratedCharge { get; set; }
+        public DateTime EffectiveDate { get; set; }
+        public string? Reason { get; set; }
+        public string? ChangedBy { get; set; }
+        public DateTime ChangedAt { get; set; }
+    }
+
+    public class CreateCouponRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        [Required] public string Code { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string DiscountType { get; set; } = "Flat";
+        [Range(0.01, double.MaxValue)] public decimal DiscountValue { get; set; }
+        public int? MaxUses { get; set; }
+        public int? MaxUsesPerCustomer { get; set; }
+        public DateTime? ValidFrom { get; set; }
+        public DateTime? ValidUntil { get; set; }
+        public int? ApplicableServiceId { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+
+    public class CouponRow
+    {
+        public int GenericCouponId { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string DiscountType { get; set; } = "Flat";
+        public decimal DiscountValue { get; set; }
+        public int? MaxUses { get; set; }
+        public int UsedCount { get; set; }
+        public int? MaxUsesPerCustomer { get; set; }
+        public DateTime? ValidFrom { get; set; }
+        public DateTime? ValidUntil { get; set; }
+        public int? ApplicableServiceId { get; set; }
+        public string? ServiceName { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class ValidateCouponRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        [Required] public string Code { get; set; } = string.Empty;
+        public int? CustomerId { get; set; }
+        public int? ServiceId { get; set; }
+        public decimal? BillingAmount { get; set; }
+    }
+
+    public class CouponValidationResult
+    {
+        public int? GenericCouponId { get; set; }
+        public string? Code { get; set; }
+        public string? DiscountType { get; set; }
+        public decimal? DiscountValue { get; set; }
+        public decimal? CalculatedDiscount { get; set; }
+        public string? Description { get; set; }
+        public bool Valid { get; set; }
+        public string? Reason { get; set; }
+    }
+
+    public class WaiveLateFeeRequest
+    {
+        [Required] public string Reason { get; set; } = string.Empty;
+        public string? WaivedBy { get; set; }
+    }
+
+    public class LateFeeRow
+    {
+        public int GenericLateFeeId { get; set; }
+        public decimal FeeAmount { get; set; }
+        public string FeeType { get; set; } = "Flat";
+        public DateTime AppliedDate { get; set; }
+        public int DaysOverdue { get; set; }
+        public string Status { get; set; } = "Applied";
+        public string? WaivedBy { get; set; }
+        public string? WaiveReason { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    public class AppliedLateFeeRow
+    {
+        public int GenericSaleId { get; set; }
+        public decimal FeeAmount { get; set; }
+        public int DaysOverdue { get; set; }
     }
 }

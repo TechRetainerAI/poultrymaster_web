@@ -122,7 +122,7 @@ export function singleAssignment(v: SingleProjectValue) {
   return { projectId: v.projectId, costClass: v.costClass }
 }
 
-export async function loadSingleProject(documentType: "Expense" | "OwnerEntry", id: number): Promise<SingleProjectValue> {
+export async function loadSingleProject(documentType: "Expense" | "OwnerEntry" | "Loan", id: number): Promise<SingleProjectValue> {
   try {
     const v = await getAllocations(documentType, id)
     const a = v.active.filter((x) => x.lineId == null)

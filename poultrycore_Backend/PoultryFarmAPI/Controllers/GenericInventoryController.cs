@@ -196,7 +196,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}")]
     [RequireCompanyType("Generic")]
-    [RequireGenericModule("EnableSubscriptions")]
+    [RequireGenericModule("EnableProducts")]
     public class GenericServiceCatalogController : ControllerBase
     {
         private readonly IGenericServiceCatalogService _services;
@@ -305,8 +305,48 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             var guard = await EnsureGenericFarm(farmId);
             if (guard is not null) return guard;
+
+            // Guard: don't hard-delete if posted sales exist
+            if (await _services.HasPostedSalesAsync(id, farmId))
+                return Conflict("This service has posted sales and cannot be deleted. Use deactivation or archival instead.");
+
             await _services.DeleteAsync(id, farmId);
             return NoContent();
+        }
+
+        [HttpPost("services/{id:int}/archive")]
+        public async Task<IActionResult> Archive(string farmId, int id)
+        {
+            var guard = await EnsureGenericFarm(farmId);
+            if (guard is not null) return guard;
+            await _services.ArchiveAsync(id, farmId, User?.Identity?.Name);
+            return NoContent();
+        }
+
+        [HttpPost("services/{id:int}/activate")]
+        public async Task<IActionResult> Activate(string farmId, int id)
+        {
+            var guard = await EnsureGenericFarm(farmId);
+            if (guard is not null) return guard;
+            await _services.SetActiveAsync(id, farmId, true, User?.Identity?.Name);
+            return NoContent();
+        }
+
+        [HttpPost("services/{id:int}/deactivate")]
+        public async Task<IActionResult> Deactivate(string farmId, int id)
+        {
+            var guard = await EnsureGenericFarm(farmId);
+            if (guard is not null) return guard;
+            await _services.SetActiveAsync(id, farmId, false, User?.Identity?.Name);
+            return NoContent();
+        }
+
+        [HttpGet("services/{id:int}/has-posted-sales")]
+        public async Task<ActionResult<bool>> HasPostedSales(string farmId, int id)
+        {
+            var guard = await EnsureGenericFarm(farmId);
+            if (guard is not null) return guard;
+            return Ok(await _services.HasPostedSalesAsync(id, farmId));
         }
 
         // ---------------------------------------------------------------------

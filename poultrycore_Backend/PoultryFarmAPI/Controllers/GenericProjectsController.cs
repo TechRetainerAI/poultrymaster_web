@@ -235,6 +235,20 @@ namespace PoultryFarmAPIWeb.Controllers
             => Run(farmId, false, async _ => JsonText(await _db.JsonAsync("spgenericproject_labels",
                 Text("p_farmid", farmId), Text("p_sourcetype", sourceType), Ints("p_ids", Ids(ids)))));
 
+        /// <summary>493: Financial Activity -- each event's projects and shares in the period.</summary>
+        [HttpGet("project-allocations/activity-shares")]
+        public Task<IActionResult> ActivityShares(string farmId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
+            => Run(farmId, false, async _ => JsonText(await _db.JsonAsync("spgenericproject_activityshares",
+                Text("p_farmid", farmId), Date("p_from", fromDate), Date("p_to", toDate))));
+
+        /// <summary>493: Customer / Supplier Balances -- every open document with its party and project shares.</summary>
+        [HttpGet("project-allocations/open-balances")]
+        public Task<IActionResult> OpenBalances(string farmId, [FromQuery] string side)
+            => side is "customer" or "supplier"
+                ? Run(farmId, false, async _ => JsonText(await _db.JsonAsync("spgenericproject_openbalances",
+                    Text("p_farmid", farmId), Text("p_side", side))))
+                : Task.FromResult<IActionResult>(BadRequest(new { message = "side must be customer or supplier." }));
+
         // ------------------------------------------------------------ assignment
 
         [HttpGet("project-allocations")]

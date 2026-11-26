@@ -144,6 +144,12 @@ export interface GenericSubscription {
   defaultPaymentMethod?: string | null
   defaultCashAccountId?: number | null
   status: SubscriptionStatus | string
+  /** 499: trial period in days (0 = no trial). */
+  trialDays: number
+  /** 499: computed trial end date. */
+  trialEndDate?: string | null
+  /** 499: coupon applied to this subscription. */
+  genericCouponId?: number | null
   notes?: string | null
   openInvoiceCount: number
   openBalance: number
@@ -164,6 +170,10 @@ export interface CreateSubscriptionInput {
   autoGenerateInvoice?: boolean
   defaultPaymentMethod?: string | null
   defaultCashAccountId?: number | null
+  /** 499: trial period in days (0 = no trial). */
+  trialDays?: number
+  /** 499: coupon code to apply. */
+  couponCode?: string | null
   notes?: string | null
   createdBy?: string | null
 }
@@ -404,6 +414,156 @@ export async function setSubscriptionStatus(
   input: { status: SubscriptionStatus | string; reason?: string | null; by?: string | null },
 ): Promise<void> {
   await sendJson("POST", `${farmBase()}/subscriptions/${subscriptionId}/status`, input)
+}
+
+// =============================================================================
+// 499: Upgrade / Downgrade
+// =============================================================================
+
+export interface ChangePlanInput {
+  newServiceId: number
+  newBillingAmount: number
+  effectiveDate?: string | null
+  reason?: string | null
+}
+
+export interface PlanChangeRow {
+  genericSubscriptionPlanChangeId: number
+  oldServiceId: number
+  oldServiceName: string | null
+  oldBillingAmount: number
+  newServiceId: number
+  newServiceName: string | null
+  newBillingAmount: number
+  changeType: string
+  proratedCredit: number
+  proratedCharge: number
+  effectiveDate: string
+  reason: string | null
+  changedBy: string | null
+  changedAt: string
+}
+
+export async function changePlan(
+  subscriptionId: number,
+  input: ChangePlanInput,
+): Promise<number | null> {
+  const res = await sendJson<{ changeId: number }>(
+    "POST",
+    `${farmBase()}/subscriptions/${subscriptionId}/change-plan`,
+    input,
+  )
+  return res?.changeId ?? null
+}
+
+export async function getPlanChanges(
+  subscriptionId: number,
+): Promise<PlanChangeRow[]> {
+  return getJson<PlanChangeRow[]>(`${farmBase()}/subscriptions/${subscriptionId}/plan-changes`)
+}
+
+// =============================================================================
+// 499: Coupon / Discount Codes
+// =============================================================================
+
+export interface CouponRow {
+  genericCouponId: number
+  code: string
+  description: string | null
+  discountType: string
+  discountValue: number
+  maxUses: number | null
+  usedCount: number
+  maxUsesPerCustomer: number | null
+  validFrom: string | null
+  validUntil: string | null
+  applicableServiceId: number | null
+  serviceName: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+export interface CreateCouponInput {
+  code: string
+  description?: string | null
+  discountType: string
+  discountValue: number
+  maxUses?: number | null
+  maxUsesPerCustomer?: number | null
+  validFrom?: string | null
+  validUntil?: string | null
+  applicableServiceId?: number | null
+}
+
+export interface CouponValidationResult {
+  genericCouponId: number | null
+  code: string | null
+  discountType: string | null
+  discountValue: number | null
+  calculatedDiscount: number | null
+  description: string | null
+  valid: boolean
+  reason: string | null
+}
+
+export async function getCoupons(activeOnly = false): Promise<CouponRow[]> {
+  const qs = activeOnly ? "?activeOnly=true" : ""
+  return getJson<CouponRow[]>(`${farmBase()}/subscriptions/coupons${qs}`)
+}
+
+export async function createCoupon(input: CreateCouponInput): Promise<number | null> {
+  const res = await sendJson<{ genericCouponId: number }>("POST", `${farmBase()}/subscriptions/coupons`, input)
+  return res?.genericCouponId ?? null
+}
+
+export async function deactivateCoupon(couponId: number): Promise<void> {
+  await sendJson("POST", `${farmBase()}/subscriptions/coupons/${couponId}/deactivate`, {})
+}
+
+export async function validateCoupon(
+  code: string,
+  opts?: { customerId?: number; serviceId?: number; billingAmount?: number },
+): Promise<CouponValidationResult> {
+  const res = await sendJson<CouponValidationResult>("POST", `${farmBase()}/subscriptions/coupons/validate`, {
+    code,
+    ...opts,
+  })
+  return res ?? { genericCouponId: null, code, discountType: null, discountValue: null, calculatedDiscount: null, description: null, valid: false, reason: "No response" }
+}
+
+// =============================================================================
+// 499: Late Fees
+// =============================================================================
+
+export interface LateFeeRow {
+  genericLateFeeId: number
+  feeAmount: number
+  feeType: string
+  appliedDate: string
+  daysOverdue: number
+  status: string
+  waivedBy: string | null
+  waiveReason: string | null
+  notes: string | null
+}
+
+export interface AppliedLateFeeRow {
+  genericSaleId: number
+  feeAmount: number
+  daysOverdue: number
+}
+
+export async function applyLateFees(): Promise<AppliedLateFeeRow[]> {
+  const res = await sendJson<AppliedLateFeeRow[]>("POST", `${farmBase()}/subscriptions/late-fees/apply`, {})
+  return res ?? []
+}
+
+export async function waiveLateFee(feeId: number, reason: string): Promise<void> {
+  await sendJson("POST", `${farmBase()}/subscriptions/late-fees/${feeId}/waive`, { reason })
+}
+
+export async function getLateFeesBySale(saleId: number): Promise<LateFeeRow[]> {
+  return getJson<LateFeeRow[]>(`${farmBase()}/subscriptions/late-fees/by-sale/${saleId}`)
 }
 
 /**

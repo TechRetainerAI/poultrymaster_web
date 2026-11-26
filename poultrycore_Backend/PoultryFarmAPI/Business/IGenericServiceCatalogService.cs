@@ -16,5 +16,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<int>  InsertAsync(GenericServiceModel m);
         Task UpdateAsync(GenericServiceModel m);
         Task DeleteAsync(int id, string farmId);
+        Task ArchiveAsync(int id, string farmId, string? archivedBy);
+        Task SetActiveAsync(int id, string farmId, bool isActive, string? updatedBy);
+        Task<bool> HasPostedSalesAsync(int id, string farmId);
     }
 }

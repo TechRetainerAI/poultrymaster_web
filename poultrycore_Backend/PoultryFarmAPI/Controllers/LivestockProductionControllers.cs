@@ -87,6 +87,34 @@ namespace PoultryFarmAPIWeb.Controllers
                     Text("p_reason", Str(body, "reason")), Text("p_by", by));
                 return NoContent();
             });
+
+        // 494: feed collected from the forest / bush (forage). Under stock/, so
+        // the livestock.stock permission covers it.
+
+        [HttpGet("collections")]
+        public Task<IActionResult> Collections([FromQuery] string farmId, [FromQuery] DateTime? from, [FromQuery] DateTime? to,
+                                               [FromQuery] int? itemId)
+            => Read(farmId, async () => JsonText(await Db.JsonAsync("splivestockforage_list", Text("p_farmid", farmId),
+                Jsonb("p_filter", JsonSerializer.Serialize(new
+                {
+                    from = from?.ToString("yyyy-MM-dd"), to = to?.ToString("yyyy-MM-dd"), itemId,
+                })))));
+
+        /// <summary>Body: { farmId, itemId, date, quantity, place, collectedBy, cost, accountId, notes }.</summary>
+        [HttpPost("collections")]
+        public Task<IActionResult> Collect([FromBody] JsonElement body)
+            => Write(FarmOf(body), async by => JsonText(await Db.JsonAsync("splivestockforage_collect",
+                Text("p_farmid", FarmOf(body)), Jsonb("p_c", body.GetRawText()), Text("p_by", by))));
+
+        /// <summary>Body: { farmId, reason }.</summary>
+        [HttpPost("collections/{id:int}/reversal")]
+        public Task<IActionResult> ReverseCollection(int id, [FromBody] JsonElement body)
+            => Write(FarmOf(body), async by =>
+            {
+                await Db.ExecAsync("splivestockforage_reverse", Text("p_farmid", FarmOf(body)), Int("p_id", id),
+                    Text("p_reason", Str(body, "reason")), Text("p_by", by));
+                return NoContent();
+            });
     }
 
     [Authorize]

@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Loader2, Package, Plus, Pencil, Trash2, ArrowLeft, ShoppingCart,
   Factory, Users, Eye, ChevronDown, ChevronUp, X, ImageIcon, Upload,
+  Wrench,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -42,6 +43,7 @@ import {
 import { getProductionRecords, type GenericProductionRecord } from "@/lib/api/generic-production"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { GenericServicesTab } from "@/components/generic/services-tab"
 
 // =============================================================================
 // Helpers
@@ -135,6 +137,7 @@ export default function GenericProductsPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
   const { toast } = useToast()
+  const [topTab, setTopTab] = useState<"physical" | "services">("physical")
   const [rows, setRows] = useState<GenericProduct[]>([])
   const [search, setSearch] = useState("")
   useGlobalSearchPrefill(setSearch)
@@ -392,16 +395,46 @@ export default function GenericProductsPage() {
                 <ArrowLeft className="w-5 h-5 text-slate-600" />
               </button>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <Package className="h-6 w-6 text-blue-600" /> Products
+                <Package className="h-6 w-6 text-blue-600" /> Products & Services
               </h1>
-              <p className="text-sm text-slate-500">Manage the items your business buys, sells, produces and uses.</p>
+              <p className="text-sm text-slate-500">Manage the products, materials, supplies, and services your business sells or uses.</p>
             </div>
-            <Button onClick={openNew} className="w-full sm:w-auto h-11 sm:h-10">
-              <Plus className="h-4 w-4 mr-1" /> New item
-            </Button>
+            {topTab === "physical" && (
+              <Button onClick={openNew} className="w-full sm:w-auto h-11 sm:h-10">
+                <Plus className="h-4 w-4 mr-1" /> New item
+              </Button>
+            )}
           </div>
 
-          {/* Tabs */}
+          {/* Top-level tabs: Physical Items | Services */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setTopTab("physical")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                topTab === "physical"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+              }`}
+            >
+              <Package className="h-4 w-4" /> Physical Items
+            </button>
+            <button
+              onClick={() => setTopTab("services")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                topTab === "services"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+              }`}
+            >
+              <Wrench className="h-4 w-4" /> Services
+            </button>
+          </div>
+
+          {topTab === "services" ? (
+            <GenericServicesTab />
+          ) : (
+          <>
+          {/* Physical Item sub-tabs */}
           <div className="flex flex-wrap gap-1.5 mb-4">
             {TABS.map((tab) => {
               const Icon = tab.icon
@@ -562,6 +595,8 @@ export default function GenericProductsPage() {
                 />
               </CardContent>
             </Card>
+          )}
+          </>
           )}
         </main>
       </div>

@@ -211,6 +211,14 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(200)]
         public string ServiceName { get; set; } = string.Empty;
 
+        [StringLength(60)]
+        public string? ServiceCode { get; set; }
+
+        public string? Description { get; set; }
+
+        [StringLength(30)]
+        public string PricingUnit { get; set; } = "Per Job";
+
         [Range(0, double.MaxValue)]
         public decimal DefaultPrice { get; set; }
 
@@ -223,6 +231,11 @@ namespace PoultryFarmAPIWeb.Models
 
         [StringLength(1000)]
         public string? Notes { get; set; }
+
+        public DateTime? ArchivedAt { get; set; }
+
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

@@ -208,6 +208,19 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(new { entryId });
         }
 
+        /// <summary>498: edit non-financial fields (owner name, method, reference, notes).</summary>
+        [HttpPut("{entryId:int}")]
+        public async Task<IActionResult> Update(
+            string farmId, int entryId, [FromBody] UpdateOwnerEntryRequest r)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            r.FarmId = farmId;
+            await _svc.UpdateOwnerEntry(entryId, r);
+            return NoContent();
+        }
+
         [HttpPost("{entryId:int}/reverse")]
         public async Task<IActionResult> Reverse(
             string farmId, int entryId, [FromBody] ReverseMoneyOutRequest r)

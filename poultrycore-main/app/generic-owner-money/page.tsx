@@ -33,18 +33,19 @@ import { useProjectsEnabled } from "@/hooks/use-generic-projects"
 import { projectIdFromQuery } from "@/lib/generic/project-math"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import {
-  Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Undo2,
+  Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Undo2, Pencil,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
-  getOwnerEntries, recordOwnerEntry, reverseOwnerEntry,
+  getOwnerEntries, recordOwnerEntry, reverseOwnerEntry, updateOwnerEntry,
   type GenericOwnerEntry, type OwnerEntryType,
 } from "@/lib/api/generic-money-out"
 import { getCashAccounts } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectAssignmentCard } from "@/components/generic/projects/project-assignment-card"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectLabels } from "@/hooks/use-project-labels"
 import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
@@ -89,6 +90,10 @@ export default function GenericOwnerMoneyPage() {
 
   const [reversing, setReversing] = useState<GenericOwnerEntry | null>(null)
   const [reason, setReason] = useState("")
+
+  // 498: edit non-financial fields on a posted entry
+  const [editing, setEditing] = useState<GenericOwnerEntry | null>(null)
+  const [editForm, setEditForm] = useState({ ownerName: "", paymentMethod: "", reference: "", notes: "" })
 
   const load = async () => {
     setLoading(true)
@@ -237,6 +242,36 @@ export default function GenericOwnerMoneyPage() {
     }
   }
 
+  const openEdit = (entry: GenericOwnerEntry) => {
+    setEditing(entry)
+    setEditForm({
+      ownerName: entry.ownerName ?? "",
+      paymentMethod: entry.paymentMethod ?? "Cash",
+      reference: entry.referenceNo ?? "",
+      notes: entry.notes ?? "",
+    })
+  }
+
+  const onEdit = async () => {
+    if (!editing) return
+    setSaving(true)
+    try {
+      await updateOwnerEntry(editing.genericOwnerEntryId, {
+        ownerName: editForm.ownerName.trim() || null,
+        paymentMethod: editForm.paymentMethod || null,
+        reference: editForm.reference.trim() || null,
+        notes: editForm.notes.trim() || null,
+      })
+      toast({ title: "Entry updated", description: "Non-financial fields saved. The books are unchanged." })
+      setEditing(null)
+      await load()
+    } catch (e: any) {
+      toast({ title: "Could not update", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const typeBadge = (t: string) =>
     t === "Contribution"
       ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
@@ -358,10 +393,16 @@ export default function GenericOwnerMoneyPage() {
               ]}
               actions={(r) =>
                 r.status !== "Reversed" ? (
-                  <Button size="sm" variant="outline" className="flex-1 h-10"
-                    onClick={() => { setReversing(r); setReason("") }}>
-                    <Undo2 className="h-4 w-4 mr-1" /> Reverse
-                  </Button>
+                  <div className="flex gap-2 w-full">
+                    <Button size="sm" variant="outline" className="flex-1 h-10"
+                      onClick={() => openEdit(r)}>
+                      <Pencil className="h-4 w-4 mr-1" /> Edit
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1 h-10"
+                      onClick={() => { setReversing(r); setReason("") }}>
+                      <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                    </Button>
+                  </div>
                 ) : null
               }
               pagination={pg.paginationProps}
@@ -406,12 +447,18 @@ export default function GenericOwnerMoneyPage() {
                               {r.status}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right whitespace-nowrap">
                             {r.status !== "Reversed" && (
-                              <Button size="sm" variant="outline"
-                                      onClick={() => { setReversing(r); setReason("") }}>
-                                <Undo2 className="h-3 w-3 mr-1" /> Reverse
-                              </Button>
+                              <>
+                                <Button size="sm" variant="ghost" className="mr-1"
+                                        onClick={() => openEdit(r)} title="Edit non-financial fields">
+                                  <Pencil className="h-3 w-3 mr-1" /> Edit
+                                </Button>
+                                <Button size="sm" variant="outline"
+                                        onClick={() => { setReversing(r); setReason("") }}>
+                                  <Undo2 className="h-3 w-3 mr-1" /> Reverse
+                                </Button>
+                              </>
                             )}
                           </TableCell>
                         </TableRow>
@@ -583,6 +630,82 @@ export default function GenericOwnerMoneyPage() {
             <Button variant="destructive" onClick={onReverse} disabled={saving}>
               {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Reversing...</>
                       : <><Undo2 className="w-4 h-4 mr-2" />Reverse</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---- edit non-financial fields --------------------------------- */}
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null) }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-sky-600" /> Edit Entry
+            </DialogTitle>
+            <DialogDescription>
+              Change the owner, method, reference or notes. Financial fields (amount, date, account)
+              cannot be edited — reverse and re-enter if those are wrong.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editing && (
+            <div className="space-y-4">
+              <FormSection title="Locked (read-only)" color="slate" columns={2}>
+                <div className="text-sm">
+                  <span className="text-slate-500">Type</span>
+                  <div className="font-medium">{editing.entryType}</div>
+                </div>
+                <div className="text-sm">
+                  <span className="text-slate-500">Amount</span>
+                  <div className="font-medium tabular-nums">{fmt(editing.amount)}</div>
+                </div>
+                <div className="text-sm">
+                  <span className="text-slate-500">Date</span>
+                  <div className="font-medium">{fmtDateTime(editing.entryDate, editing)}</div>
+                </div>
+                <div className="text-sm">
+                  <span className="text-slate-500">Cash account</span>
+                  <div className="font-medium">{editing.cashAccountName ?? "—"}</div>
+                </div>
+                <div className="text-sm">
+                  <span className="text-slate-500">Method</span>
+                  <div className="font-medium">{editing.paymentMethod ?? "—"}</div>
+                </div>
+              </FormSection>
+
+              <FormSection title="Editable" color="blue">
+                <FormField label="Owner">
+                  <Input value={editForm.ownerName} placeholder="Whose money is this?"
+                         onChange={(e) => setEditForm((f) => ({ ...f, ownerName: e.target.value }))} />
+                </FormField>
+                <FormField label="Reference">
+                  <Input value={editForm.reference} placeholder="Bank or MoMo reference"
+                         onChange={(e) => setEditForm((f) => ({ ...f, reference: e.target.value }))} />
+                </FormField>
+                <FormField label="Notes" full>
+                  <Textarea rows={2} value={editForm.notes}
+                            onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />
+                </FormField>
+              </FormSection>
+
+              {/* Project / Contract — same card the sales detail page uses.
+                  Reassigning a project is a reporting-only change: the books
+                  stay exactly as they are. */}
+              {projectsEnabled && (
+                <ProjectAssignmentCard
+                  documentType="OwnerEntry"
+                  documentId={editing.genericOwnerEntryId}
+                  amount={editing.amount}
+                />
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button type="button" onClick={() => setEditing(null)} variant="outline">Cancel</Button>
+            <Button onClick={onEdit} disabled={saving}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                      : <><Pencil className="w-4 h-4 mr-2" />Save Changes</>}
             </Button>
           </div>
         </DialogContent>
