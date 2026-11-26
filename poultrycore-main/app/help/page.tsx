@@ -4,20 +4,18 @@ import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
-  ArrowRight, BookA, BookOpen, HelpCircle, Keyboard, LifeBuoy, MessageCircle, Search, Wrench, X,
+  BookA, BookOpen, HelpCircle, Keyboard, LifeBuoy, Wrench,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { HelpEntryCard } from "@/components/help/help-entry-card"
 import { ContactSupport, type ContactSupportHandle } from "@/components/help/contact-support"
 import { useSearchPages } from "@/hooks/use-global-search"
-import { rankPages } from "@/lib/search/page-index"
-import { prepareHelpIndex, searchHelp } from "@/lib/help/help-search"
 import type { HelpEntry, HelpKind } from "@/lib/help/help-types"
 import { FEATURE_GUIDES, HELP_ENTRIES, toneFor } from "@/lib/help/poultry-help-content"
 
@@ -27,9 +25,6 @@ const SHORTCUTS: { keys: string[]; what: string }[] = [
   { keys: ["↑", "↓", "Enter"], what: "Move through search results and open one" },
   { keys: ["Esc"], what: "Clear the search, then close it" },
 ]
-
-/** Questions people actually type, offered before they type anything. */
-const SUGGESTIONS = ["who owes me", "cash doesn't match profit", "reverse a sale", "eggs per crate", "close the day", "can't see a page"]
 
 const TAB_FOR_KIND: Record<HelpKind, string> = { faq: "questions", fix: "troubleshooting", term: "glossary" }
 
@@ -46,7 +41,6 @@ export default function HelpPage() {
     else if (activeFarmType === "Generic") router.replace("/generic-dashboard")
   }, [activeFarmType, router])
 
-  const [searchQuery, setSearchQuery] = useState("")
   const [tab, setTab] = useState("questions")
   const [selectedCategory, setSelectedCategory] = useState<string>("All")
   // Questions are open by default, and several at once: someone on a help page
@@ -64,10 +58,6 @@ export default function HelpPage() {
   const openable = useMemo(() => new Set(pages.map((p) => p.href.split("?")[0])), [pages])
   const canOpen = (href: string) => openable.has(href.split("?")[0])
 
-  const index = useMemo(() => prepareHelpIndex(HELP_ENTRIES), [])
-  const hits = useMemo(() => searchHelp(searchQuery, index), [searchQuery, index])
-  const pageHits = useMemo(() => rankPages(searchQuery, pages, [], 5), [searchQuery, pages])
-  const searching = searchQuery.trim().length > 0
 
   const isOpen = (e: HelpEntry) => (e.kind === "fix" ? opened.has(e.id) : !closed.has(e.id))
   const toggle = (e: HelpEntry) => {
@@ -90,7 +80,6 @@ export default function HelpPage() {
         if (id === "contact") document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })
         return
       }
-      setSearchQuery("")
       setSelectedCategory("All")
       setTab(TAB_FOR_KIND[entry.kind])
       if (entry.kind === "fix") setOpened((p) => new Set(p).add(entry.id))
@@ -131,126 +120,39 @@ export default function HelpPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="max-w-5xl mx-auto space-y-8">
-            {/* Page Header */}
-            <div className="text-center space-y-3">
-              <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto">
-                <HelpCircle className="w-8 h-8 text-indigo-600" />
-              </div>
-              <h1 className="text-3xl font-bold text-slate-900">Help Center</h1>
-              <p className="text-slate-600 max-w-xl mx-auto">
-                Ask in your own words. Answers, fixes for common problems, what the terms mean, and a quick way to
-                reach us.
+            {/* Page header: title on top, description in one row under it */}
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold text-slate-900">Help Center</h1>
+              <p className="text-sm text-slate-600">
+                Pick a question to see its answer. Fixes for common problems, what the terms mean, and a quick way to reach us.
               </p>
             </div>
 
-            {/* Search */}
-            <div className="max-w-xl mx-auto space-y-2">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <Input
-                  placeholder="e.g. how do I reverse a sale?"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Escape") setSearchQuery("") }}
-                  aria-label="Search help"
-                  className="pl-12 pr-10 h-12 text-base rounded-xl bg-white"
-                />
-                {searching && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    aria-label="Clear search"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              {!searching && (
-                <div className="flex flex-wrap justify-center gap-1.5">
-                  {SUGGESTIONS.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSearchQuery(s)}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:border-indigo-300 hover:text-indigo-700"
-                    >
-                      {s}
-                    </button>
+            {/* Pick a question: opens its answer below */}
+            <div className="max-w-xl">
+              <Select
+                value=""
+                onValueChange={(id) => {
+                  // Same path as a shared /help#id link: switch tab, open, scroll, ring.
+                  if (window.location.hash === `#${id}`) window.dispatchEvent(new HashChangeEvent("hashchange"))
+                  else window.location.hash = id
+                }}
+              >
+                <SelectTrigger aria-label="Pick a question" className="h-12 w-full rounded-xl bg-white text-base">
+                  <SelectValue placeholder="Pick a question..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {categories.filter((c) => c !== "All").map((cat) => (
+                    <SelectGroup key={cat}>
+                      <SelectLabel>{cat}</SelectLabel>
+                      {faqs.filter((f) => f.category === cat).map((f) => (
+                        <SelectItem key={f.id} value={f.id}>{f.title}</SelectItem>
+                      ))}
+                    </SelectGroup>
                   ))}
-                </div>
-              )}
+                </SelectContent>
+              </Select>
             </div>
-
-            {searching ? (
-              /* ------------------------------------------------ results */
-              <div className="space-y-4">
-                {pageHits.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-400">Go to page</span>
-                    {pageHits.map((p) => (
-                      <Link
-                        key={p.href}
-                        href={p.href}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
-                      >
-                        {p.icon && <p.icon className="h-3.5 w-3.5" />}
-                        {p.title}
-                        <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    ))}
-                  </div>
-                )}
-
-                <h2 className="text-sm font-medium text-slate-500">
-                  {hits.length} {hits.length === 1 ? "answer" : "answers"} for “{searchQuery.trim()}”
-                </h2>
-
-                {hits.length > 0 ? (
-                  <div className="space-y-2">
-                    {hits.map(({ entry, matched }) => (
-                      <HelpEntryCard
-                        key={entry.id}
-                        entry={entry}
-                        tone={toneFor(entry.category)}
-                        open={isOpen(entry)}
-                        onToggle={() => toggle(entry)}
-                        matched={matched}
-                        canOpen={canOpen}
-                        showKind
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <Card>
-                    <CardContent className="space-y-3 py-8 text-center text-slate-500">
-                      <p>No answer matches “{searchQuery.trim()}” yet.</p>
-                      <button
-                        type="button"
-                        onClick={() => supportRef.current?.ask(searchQuery.trim())}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-                      >
-                        <MessageCircle className="h-4 w-4" /> Ask support this question
-                      </button>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {hits.length > 0 && (
-                  <p className="text-center text-sm text-slate-500">
-                    Not what you needed?{" "}
-                    <button
-                      type="button"
-                      onClick={() => supportRef.current?.ask(searchQuery.trim())}
-                      className="font-medium text-indigo-600 hover:underline"
-                    >
-                      Ask support
-                    </button>
-                  </p>
-                )}
-              </div>
-            ) : (
-              <>
                 {/* Questions / Troubleshooting / Glossary */}
                 <Tabs value={tab} onValueChange={setTab}>
                   <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
@@ -384,8 +286,6 @@ export default function HelpPage() {
                     ))}
                   </div>
                 </div>
-              </>
-            )}
 
             {/* Support + shortcuts */}
             <div className="grid gap-4 lg:grid-cols-3">
