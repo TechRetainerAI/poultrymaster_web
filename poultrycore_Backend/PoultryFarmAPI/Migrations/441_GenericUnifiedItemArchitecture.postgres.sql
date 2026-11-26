@@ -113,15 +113,21 @@ WHERE cansell = FALSE
   );
 
 -- Items that have production records → CanUseInProduction = true
-UPDATE genericproducts p
-SET canuseinproduction = TRUE
-WHERE canuseinproduction = FALSE
-  AND EXISTS (
-    SELECT 1 FROM genericproductionrecords pr
-    WHERE pr."GenericProductId" = p.genericproductid
-      AND pr."FarmId" = p.farmid
-      AND pr."Status" = 'Posted'
-  );
+-- Guarded: the generic production module (genericproductionrecords) is not on
+-- every environment. Without this guard the whole DO block aborts where the
+-- table is absent and NONE of the columns above get added (this is exactly how
+-- prod ended up missing the unified-item columns — hotfix 2026-11-25).
+IF to_regclass('public.genericproductionrecords') IS NOT NULL THEN
+  UPDATE genericproducts p
+  SET canuseinproduction = TRUE
+  WHERE canuseinproduction = FALSE
+    AND EXISTS (
+      SELECT 1 FROM genericproductionrecords pr
+      WHERE pr."GenericProductId" = p.genericproductid
+        AND pr."FarmId" = p.farmid
+        AND pr."Status" = 'Posted'
+    );
+END IF;
 
 -- Items that have internal usage records → CanUseInternally = true
 UPDATE genericproducts p
