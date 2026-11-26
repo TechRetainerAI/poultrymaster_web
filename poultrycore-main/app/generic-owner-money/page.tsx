@@ -45,6 +45,7 @@ import {
 } from "@/lib/api/generic-money-out"
 import { getCashAccounts } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectAssignmentCard } from "@/components/generic/projects/project-assignment-card"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectLabels } from "@/hooks/use-project-labels"
 import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
@@ -691,6 +692,17 @@ export default function GenericOwnerMoneyPage() {
                             onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />
                 </FormField>
               </FormSection>
+
+              {/* Project / Contract — same card the sales detail page uses.
+                  Reassigning a project is a reporting-only change: the books
+                  stay exactly as they are. */}
+              {projectsEnabled && (
+                <ProjectAssignmentCard
+                  documentType="OwnerEntry"
+                  documentId={editing.genericOwnerEntryId}
+                  amount={editing.amount}
+                />
+              )}
             </div>
           )}
 

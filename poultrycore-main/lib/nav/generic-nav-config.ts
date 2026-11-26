@@ -14,7 +14,7 @@ import {
   CheckCircle2, ClipboardCheck, CreditCard, DollarSign, Factory, FileText, Gift, GraduationCap, HandCoins, History, Landmark,
   Hourglass, MapPin, PiggyBank, Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
   PieChart, ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
-  Briefcase, Columns3, Link2, FolderPlus,
+  Briefcase, Columns3, Link2, FolderPlus, Tag,
 } from "lucide-react"
 import type { MegaMenuGroup, MegaMenuItem } from "./nav-model"
 import type { GenericModulesResult } from "@/hooks/use-generic-modules"
@@ -59,6 +59,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       item("/generic-service-plans", labels.planPlural,         Repeat),
       item("/generic-subscriptions", labels.subscriptionPlural, CalendarClock),
       item("/generic-billing-runs",  "Billing runs",            Receipt),
+      item("/generic-coupons",       "Coupons",                 Tag),
       ...(showNew("enableInvoices")
         ? [item("/generic-invoices", labels.invoicePlural, FileText)]
         : []),

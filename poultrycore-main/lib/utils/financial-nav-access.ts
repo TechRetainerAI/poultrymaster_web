@@ -175,6 +175,7 @@ export function isFinancialNavItemVisible(
   if (href === "/generic-invoices" || href === "/generic-invoice-documents") {
     return isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers
   }
+  if (href === "/generic-coupons") return isAdmin || f.canEnterSales
   if (href === "/generic-setup" || href === "/generic-settings" || href === "/generic-business-features") return isAdmin
 
   return false
