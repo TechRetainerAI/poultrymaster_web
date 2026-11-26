@@ -465,7 +465,6 @@ export default function GenericOwnerMoneyPage() {
                       ))}
                     </TableBody>
                   </Table>
-                  <DataPagination {...pg.paginationProps} />
                 </div>
               }
             />

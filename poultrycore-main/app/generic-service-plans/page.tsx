@@ -447,7 +447,6 @@ export default function GenericServicePlansPage() {
                             ))}
                           </TableBody>
                         </Table>
-                        <DataPagination {...pg.paginationProps} />
                       </div>
                     }
                   />

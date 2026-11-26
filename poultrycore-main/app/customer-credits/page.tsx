@@ -484,7 +484,6 @@ export default function CustomerCreditsPage() {
                             })}
                           </TableBody>
                         </Table>
-                        <DataPagination {...heldPg.paginationProps} />
                       </>
                     }
                   />
@@ -577,7 +576,6 @@ export default function CustomerCreditsPage() {
                           })}
                         </TableBody>
                       </Table>
-                      <DataPagination {...manualPg.paginationProps} />
                     </>
                   }
                 />
@@ -657,7 +655,6 @@ export default function CustomerCreditsPage() {
                           })}
                         </TableBody>
                       </Table>
-                      <DataPagination {...refundPg.paginationProps} />
                     </>
                   }
                 />

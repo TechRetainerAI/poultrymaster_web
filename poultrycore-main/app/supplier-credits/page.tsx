@@ -382,7 +382,6 @@ export default function SupplierCreditsPage() {
                             })}
                           </TableBody>
                         </Table>
-                        <DataPagination {...heldPg.paginationProps} />
                       </>
                     }
                   />
@@ -453,7 +452,6 @@ export default function SupplierCreditsPage() {
                           })}
                         </TableBody>
                       </Table>
-                      <DataPagination {...appPg.paginationProps} />
                     </>
                   }
                 />
@@ -527,7 +525,6 @@ export default function SupplierCreditsPage() {
                           })}
                         </TableBody>
                       </Table>
-                      <DataPagination {...refundPg.paginationProps} />
                     </>
                   }
                 />

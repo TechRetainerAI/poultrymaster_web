@@ -11,8 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { SetupGuideCard } from "@/components/help/setup-guide-card"
-import { SetupPathCard } from "@/components/help/setup-path-card"
-import { usePermissions } from "@/hooks/use-permissions"
 import { useSearchPages } from "@/hooks/use-global-search"
 import { prepareHelpIndex, searchHelp } from "@/lib/help/help-search"
 import { shotsFor } from "@/lib/help/help-shots"
@@ -92,13 +90,6 @@ export default function SetupGuidePage() {
     router.push("/login")
   }
 
-  // Setup pages are for the owner and admins only, so only they get the path.
-  const { isAdmin } = usePermissions()
-  const openGuide = (id: string) => {
-    if (window.location.hash === `#${id}`) window.dispatchEvent(new HashChangeEvent("hashchange"))
-    else window.location.hash = id
-  }
-
   const pictureCount = GUIDES.reduce((n, g) => n + shotsFor(g.id).length, 0)
 
   return (
@@ -147,11 +138,6 @@ export default function SetupGuidePage() {
               </div>
             </div>
 
-            {/* The numbered path for a new farm, before the walkthroughs */}
-            {isAdmin && !searching && (
-              <SetupPathCard hasGuide={(id) => GUIDES.some((g) => g.id === id)} onOpenGuide={openGuide} />
-            )}
-
             {searching ? (
               /* ------------------------------------------------ results */
               <div className="space-y-4">
@@ -187,21 +173,29 @@ export default function SetupGuidePage() {
             ) : (
               /* ------------------------------------------------ browse */
               <div>
-                {/* Filter chips, exactly as on the Help Center's Questions tab */}
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
-                  <div className="flex flex-wrap gap-2">
+                {/* Section tabs: large and boxed so they read as the way to browse */}
+                <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                  <div
+                    role="tablist"
+                    aria-label="Guide sections"
+                    className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
+                  >
                     {categories.map((cat) => {
                       const tone = toneFor(cat === "All" ? "" : cat)
                       const on = selectedCategory === cat
                       return (
                         <Badge
                           key={cat}
+                          role="tab"
+                          aria-selected={on}
+                          tabIndex={0}
                           variant={on ? "default" : "outline"}
-                          className={`cursor-pointer px-3 py-1 transition-colors ${on ? tone.chipOn : tone.chip}`}
+                          className={`cursor-pointer rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${on ? `${tone.chipOn} shadow` : tone.chip}`}
                           onClick={() => setSelectedCategory(cat)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedCategory(cat) } }}
                         >
                           {cat}
-                          <span className={`ml-1.5 text-[10px] ${on ? "opacity-80" : "text-slate-400"}`}>
+                          <span className={`ml-2 rounded-full px-1.5 text-xs ${on ? "bg-white/25" : "bg-slate-100 text-slate-500"}`}>
                             {cat === "All" ? GUIDES.length : GUIDES.filter((g) => g.category === cat).length}
                           </span>
                         </Badge>
