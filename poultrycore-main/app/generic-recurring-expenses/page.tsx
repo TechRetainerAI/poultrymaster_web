@@ -539,7 +539,6 @@ export default function GenericRecurringExpensesPage() {
                                 ))}
                               </TableBody>
                             </Table>
-                            <DataPagination {...pg.paginationProps} />
                           </div>
                         }
                       />

@@ -379,7 +379,6 @@ export default function GenericBillingRunsPage() {
                               ))}
                             </TableBody>
                           </Table>
-                          <DataPagination {...pg.paginationProps} />
                         </div>
                       }
                     />
