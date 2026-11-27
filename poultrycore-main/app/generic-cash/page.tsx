@@ -38,6 +38,8 @@ import {
   type GenericCashAccount, type GenericCashAccountDetails, type GenericCashTransfer, type GenericCashTransaction,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectCell, ProjectHead } from "@/components/generic/projects/project-column"
+import { useCashShares } from "@/components/generic/projects/use-cash-shares"
 
 const ACCOUNT_TYPES = ["CashBox", "Bank", "MobileMoney", "PettyCash", "Other"]
 
@@ -93,6 +95,8 @@ export default function GenericCashPage() {
 
   // Transactions quick-view dialog
   const [txDlg, setTxDlg] = useState<{ open: boolean; acc?: GenericCashAccount; rows: GenericCashTransaction[] }>({ open: false, rows: [] })
+  // 501: each entry's project, in the quick-view (read only when it is open).
+  const txShares = useCashShares(txDlg.acc?.genericCashAccountId, txDlg.rows, !txDlg.open)
 
   // Detail dialog
 
@@ -487,14 +491,14 @@ export default function GenericCashPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Transactions quick-view — matching poultry */}
+      {/* Transactions quick-view — matching poultry. 501: plus each entry's project. */}
       <Dialog open={txDlg.open} onOpenChange={(v) => setTxDlg({ open: v, rows: [] })}>
         <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Transactions — {txDlg.acc?.accountName}</DialogTitle></DialogHeader>
           {txDlg.rows.length === 0 ? <div className="p-4 text-slate-500">No transactions yet.</div> : (
             <div className="max-h-96 overflow-auto overflow-x-auto">
               <Table>
-                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Source</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Source</TableHead><TableHead className="text-right">Amount</TableHead>{txShares.enabled && <ProjectHead />}<TableHead>Description</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {txDlg.rows.map((r) => (
                     <TableRow key={r.genericCashTransactionId}>
@@ -502,6 +506,7 @@ export default function GenericCashPage() {
                       <TableCell>{r.transactionType}</TableCell>
                       <TableCell>{r.sourceType ?? "—"}</TableCell>
                       <TableCell className={`text-right tabular-nums ${r.amount < 0 ? "text-rose-600" : "text-green-700"}`}>{fmt(r.amount)}</TableCell>
+                      {txShares.enabled && <ProjectCell labels={txShares.labelsOf(r.genericCashTransactionId)} />}
                       <TableCell className="max-w-sm whitespace-normal break-words align-top">{r.description ?? "—"}</TableCell>
                     </TableRow>
                   ))}

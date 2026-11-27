@@ -30,6 +30,8 @@ namespace PoultryFarmAPIWeb.Business
                 CustomerName = r.StrN("CustomerName"), CreditType = r.Str("CreditType"),
                 Amount = r.Dec("Amount"), RemainingBalance = r.Dec("RemainingBalance"),
                 CreditDate = r.Date("CreditDate"), Notes = r.StrN("Notes"),
+                ReferenceType = r.StrN("ReferenceType"),
+                ReferenceId = r.IsDBNull(r.GetOrdinal("ReferenceId")) ? null : r.GetInt32(r.GetOrdinal("ReferenceId")),
                 Status = r.Str("Status"), CreatedAt = r.Date("CreatedAt"),
             });
             return list;
@@ -38,11 +40,16 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> CreateAsync(GenericCustomerCreditCreateRequest m)
         {
             using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand(
-                "SELECT * FROM spgenericcustomercredit_create(" +
+            // 501: the project split (if any) is saved in the same statement.
+            const string createCall = "spgenericcustomercredit_create(" +
                 "p_farmid=>@FarmId::text, p_customerid=>@CustomerId::int, p_credittype=>@CreditType::varchar, " +
                 "p_amount=>@Amount::numeric, p_creditdate=>@CreditDate::timestamp, " +
-                "p_notes=>@Notes::text, p_createdby=>@CreatedBy::text)", c);
+                "p_notes=>@Notes::text, p_createdby=>@CreatedBy::text)";
+            var withProject = GenericProjectAttach.Has(m.Projects);
+            using var cmd = new NpgsqlCommand(withProject
+                ? GenericProjectAttach.WrapInsert(createCall, "CustomerCredit")
+                : "SELECT * FROM " + createCall, c);
+            if (withProject) GenericProjectAttach.AddParams(cmd, m.FarmId, m.Projects, m.CreatedBy);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@CustomerId", m.GenericCustomerId);
             cmd.Parameters.AddWithValue("@CreditType", m.CreditType);

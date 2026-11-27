@@ -132,7 +132,12 @@ export interface PaymentsLedgerPageProps {
    * 493 (Generic): one more filter (the Project / Contract filter), shown above
    * the everyday filters, and the test it applies to each payment. Absent = unchanged.
    */
-  extraFilter?: { control: React.ReactNode; matches: (row: PaymentHistoryRow) => boolean }
+  extraFilter?: {
+    control: React.ReactNode
+    matches: (row: PaymentHistoryRow) => boolean
+    /** An extra column (Generic: Project / contract), shown only when given. */
+    column?: { title: string; cell: (row: PaymentHistoryRow) => React.ReactNode }
+  }
 }
 
 export function PaymentsLedgerPage({
@@ -456,6 +461,7 @@ export function PaymentsLedgerPage({
             <TableHead>Date</TableHead>
             <TableHead>Payment #</TableHead>
             <TableHead>Supplier</TableHead>
+            {extraFilter?.column && <TableHead>{extraFilter.column.title}</TableHead>}
             <TableHead>Paid against</TableHead>
             <TableHead className="text-right">Amount</TableHead>
             <TableHead>Method</TableHead>
@@ -501,6 +507,7 @@ export function PaymentsLedgerPage({
                       <span className="text-slate-400">No supplier</span>
                     )}
                   </TableCell>
+                  {extraFilter?.column && <TableCell>{extraFilter.column.cell(row)}</TableCell>}
 
                   {/* One item names it and says what kind; several say how many. */}
                   <TableCell className="whitespace-nowrap">
@@ -549,7 +556,7 @@ export function PaymentsLedgerPage({
                 {isReversed && row.reversalReason && (
                   <TableRow>
                     <TableCell />
-                    <TableCell colSpan={10} className="py-1 text-xs text-slate-500">
+                    <TableCell colSpan={extraFilter?.column ? 11 : 10} className="py-1 text-xs text-slate-500">
                       Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
                       {row.reversedAt ? ` on ${fmtInstant(row.reversedAt)}` : ""}: {row.reversalReason}
                     </TableCell>
@@ -559,7 +566,7 @@ export function PaymentsLedgerPage({
                 {isOpen && (
                   <TableRow>
                     <TableCell />
-                    <TableCell colSpan={10} className="py-2">
+                    <TableCell colSpan={extraFilter?.column ? 11 : 10} className="py-2">
                       {!allocs ? (
                         <span className="flex items-center gap-2 text-sm text-slate-500">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading allocation…
@@ -892,6 +899,7 @@ export function PaymentsLedgerPage({
                       { label: "Reference", value: r.reference ?? "—" },
                       { label: "Entered from", value: sourceLabel(r.sourceType) },
                       { label: "Paid by", value: r.createdBy ?? "—" },
+                      ...(extraFilter?.column ? [{ label: extraFilter.column.title, value: extraFilter.column.cell(r) }] : []),
                     ]
                   }}
                   actions={(r) => (

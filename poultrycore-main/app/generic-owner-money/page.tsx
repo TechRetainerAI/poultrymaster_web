@@ -48,6 +48,7 @@ import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { ProjectAssignmentCard } from "@/components/generic/projects/project-assignment-card"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
 import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const PAYMENT_METHODS = ["Cash", "BankTransfer", "MoMo", "Cheque", "Card", "Other"]
@@ -383,6 +384,7 @@ export default function GenericOwnerMoneyPage() {
               details={(r) => [
                 { label: "Type", value: r.entryType },
                 { label: "Owner", value: r.ownerName ?? "–" },
+                ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectLabels.labelsOf(r.genericOwnerEntryId)} /> }] : []),
                 { label: "Account", value: r.cashAccountName ?? "–" },
                 { label: "Method", value: r.paymentMethod ?? "–" },
                 { label: "Reference", value: r.referenceNo ?? "–" },
@@ -413,6 +415,7 @@ export default function GenericOwnerMoneyPage() {
                       <TableRow>
                         <TableHead>Date</TableHead>
                         <TableHead>Owner</TableHead>
+                        {projectLabels.enabled && <ProjectHead />}
                         <TableHead>Type</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
                         <TableHead>Cash account</TableHead>
@@ -429,6 +432,7 @@ export default function GenericOwnerMoneyPage() {
                             {fmtDateTime(r.entryDate, r)}
                           </TableCell>
                           <TableCell>{r.ownerName ?? "–"}</TableCell>
+                          {projectLabels.enabled && <ProjectCell labels={projectLabels.labelsOf(r.genericOwnerEntryId)} />}
                           <TableCell>
                             <Badge className={typeBadge(r.entryType)}>{r.entryType}</Badge>
                           </TableCell>

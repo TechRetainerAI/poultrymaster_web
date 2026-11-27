@@ -13,7 +13,7 @@ import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
-import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
+import { buildGenericNavConfig, genericQuickLinksNav } from "@/lib/nav/generic-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { usePoultryBroilerFeatures, usePoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
@@ -236,6 +236,10 @@ export function MobileBottomNav() {
     permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs, showEggFeatures, showBroilerFeatures,
   })
 
+  const genericNavForQuickLinks = activeFarmType === "Generic"
+    ? genericQuickLinksNav(buildGenericNavConfig(genericModules, permissions), quickLinkHrefs, genericModules.industry === "School")
+    : null
+
   // Per-company-type bar config. The 4 main tabs are the most-used daily flow
   // pages for each company; everything else goes into "More". Colours match
   // the desktop top-nav so the company-type identity is consistent.
@@ -381,6 +385,7 @@ export function MobileBottomNav() {
               { href: "/generic-expenses",      label: "Expenses",                                icon: DollarSign },
             ]) as NavItem[],
         moreGroups: asSections([
+          { title: "Quick Links", items: [...genericNavForQuickLinks!.quickLinks.items, customiseRow] },
           ...(genericModules.showNew("enableSubscriptions")
             ? [{ title: "Subscriptions", items: [
                 { href: "/generic-service-plans", label: genericModules.labels.planPlural,         icon: Repeat },
@@ -930,11 +935,11 @@ export function MobileBottomNav() {
     {/* Outside the <nav>: the sheet closes before this opens, and a dialog
         inside a fixed, z-40 bar inherits its stacking context. Only the two
         company types with a customisable bar get one. */}
-    {(activeFarmType === "Water" || isPoultry) && (
+    {(activeFarmType === "Water" || isPoultry || genericNavForQuickLinks) && (
       <QuickLinksDialog
         open={customiseOpen}
         onOpenChange={setCustomiseOpen}
-        nav={activeFarmType === "Water" ? waterNavForQuickLinks : poultryNavForQuickLinks}
+        nav={activeFarmType === "Water" ? waterNavForQuickLinks : genericNavForQuickLinks ?? poultryNavForQuickLinks}
       />
     )}
     </>

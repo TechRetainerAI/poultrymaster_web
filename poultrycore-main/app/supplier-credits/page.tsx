@@ -44,6 +44,11 @@ import { useCurrency } from "@/lib/currency"
 import { formatCurrency, getSelectedCurrency } from "@/lib/utils/currency"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { cn } from "@/lib/utils"
+import { isGenericCompany } from "@/lib/api/credit-module"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 import {
   listSupplierCredit, listSupplierCreditApplications, listSupplierCreditEvents, listSupplierRefunds,
   reverseSupplierCredit, reverseSupplierRefund, unapplySupplierCredit, SUPPLIER_CREDIT_KIND_LABEL,
@@ -137,10 +142,56 @@ export default function SupplierCreditsPage() {
   const toggle = (id: number) =>
     setExpanded((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
+  // 501 (Generic only): Project / contract. A credit is a supplier payment, so
+  // it carries the payment's project (what it paid follows the purchase; the
+  // unused rest follows the project it was held for). An application follows
+  // the purchase / expense it was used on; a refund follows its credit.
+  const generic = isGenericCompany()
+  const creditTags = useProjectLabels("SupplierPayment", rows)
+  const purchaseTags = useProjectLabels("Purchase", apps)
+  const expenseTags = useProjectLabels("Expense", apps)
+  const projectsOn = generic && creditTags.enabled
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const filterOn = projectsOn && projectFilter.kind !== "all"
+  const hit = (ps: { projectId: number }[]) => !filterOn ? true
+    : projectFilter.kind === "general" ? ps.length === 0 : ps.some((p) => projectFilter.ids.includes(p.projectId))
+  const creditProjects = (paymentId: number) => creditTags.map.get(paymentId) ?? []
+  const appProjects = (a: SupplierCreditApplication) =>
+    a.documentType === "Purchase" ? (purchaseTags.map.get(a.documentId) ?? [])
+      : a.documentType === "Expense" ? (expenseTags.map.get(a.documentId) ?? []) : []
+  // With a project picked, every supplier's credits are read so the filter sees them all.
+  useEffect(() => {
+    if (!filterOn) return
+    rows.forEach((r) => { if (!(r.supplierId in events)) void loadEvents(r.supplierId) })
+  }, [filterOn, rows, events, loadEvents])
+  // creditNumber -> payment id, for refunds (which name their credits).
+  const paymentOfCredit = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const a of apps) m.set(a.creditNumber, a.poultrySupplierPaymentId)
+    for (const list of Object.values(events)) for (const e of list ?? []) m.set(e.creditNumber, e.poultrySupplierPaymentId)
+    return m
+  }, [apps, events])
+  const refundProjects = (r: SupplierRefundRow) => {
+    const ids = (r.creditNumbers ?? "").split(",").map((s) => s.trim()).filter(Boolean)
+      .map((n) => paymentOfCredit.get(n)).filter((x): x is number => x != null)
+    const seen = new Map<number, { projectId: number; label: string }>()
+    for (const id of ids) for (const p of creditProjects(id)) seen.set(p.projectId, p)
+    return Array.from(seen.values())
+  }
+
   const q = search.trim().toLowerCase()
-  const heldRows = useMemo(() => rows.filter((r) => !q || r.supplierName.toLowerCase().includes(q)), [rows, q])
-  const appRows = useMemo(() => apps.filter((r) => !q || (r.supplierName ?? "").toLowerCase().includes(q) || (r.reference ?? "").toLowerCase().includes(q)), [apps, q])
-  const refundRows = useMemo(() => refunds.filter((r) => !q || (r.supplierName ?? "").toLowerCase().includes(q) || r.refundNumber.toLowerCase().includes(q)), [refunds, q])
+  const heldRows = useMemo(() => rows.filter((r) => (!q || r.supplierName.toLowerCase().includes(q))
+      && (!filterOn || (events[r.supplierId] ?? []).some((e) => hit(creditProjects(e.poultrySupplierPaymentId))))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, q, filterOn, events, projectFilter, creditTags])
+  const appRows = useMemo(() => apps.filter((r) => (!q || (r.supplierName ?? "").toLowerCase().includes(q) || (r.reference ?? "").toLowerCase().includes(q))
+      && hit(appProjects(r))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [apps, q, filterOn, projectFilter, purchaseTags, expenseTags])
+  const refundRows = useMemo(() => refunds.filter((r) => (!q || (r.supplierName ?? "").toLowerCase().includes(q) || r.refundNumber.toLowerCase().includes(q))
+      && hit(refundProjects(r))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [refunds, q, filterOn, projectFilter, paymentOfCredit, creditTags])
   const heldPg = usePagination(heldRows)
   const appPg = usePagination(appRows)
   const refundPg = usePagination(refundRows)
@@ -223,6 +274,7 @@ export default function SupplierCreditsPage() {
               <th className="px-3 py-2 font-medium">Credit</th>
               <th className="px-3 py-2 font-medium">Source</th>
               <th className="px-3 py-2 font-medium">Reference</th>
+              {projectsOn && <th className="px-3 py-2 font-medium">{PROJECT_COLUMN_TITLE}</th>}
               <th className="px-3 py-2 text-right font-medium">Original</th>
               <th className="px-3 py-2 text-right font-medium">Applied</th>
               <th className="px-3 py-2 text-right font-medium">Refunded</th>
@@ -232,12 +284,13 @@ export default function SupplierCreditsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {list.map((e) => (
+            {list.filter((e) => hit(creditProjects(e.poultrySupplierPaymentId))).map((e) => (
               <tr key={e.poultrySupplierPaymentId} className="whitespace-nowrap">
                 <td className="px-3 py-2">{fmtDateTime(e.creditDate)}</td>
                 <td className="px-3 py-2 font-medium">{e.creditNumber}</td>
                 <td className="px-3 py-2">{e.source}{e.accountName ? <span className="block text-xs text-slate-500">{e.accountName}</span> : null}</td>
                 <td className="max-w-[12rem] truncate px-3 py-2 text-slate-600" title={[e.reference, e.notes].filter(Boolean).join(" · ") || undefined}>{e.reference ?? e.notes ?? "—"}</td>
+                {projectsOn && <td className="px-3 py-2"><ProjectLabels labels={creditProjects(e.poultrySupplierPaymentId).map((p) => p.label)} /></td>}
                 <td className="px-3 py-2 text-right tabular-nums">{money(e.originalAmount)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{money(e.applied)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{money(e.refunded)}</td>
@@ -321,7 +374,14 @@ export default function SupplierCreditsPage() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search supplier" className="h-10 pl-9" />
               </div>
+              {projectsOn && <ProjectFilter value={projectFilter} onChange={setProjectFilter} className="h-10 w-full sm:w-64" />}
             </div>
+            {filterOn && (
+              <p className="-mt-1 text-xs text-slate-500">
+                Showing the credits held for this project, what was applied to its purchases and expenses, and refunds of those credits.
+                A supplier&apos;s totals stay whole.
+              </p>
+            )}
 
             <TabsContent value="held">
               <Card><CardContent className="p-0 sm:p-0">
@@ -401,6 +461,7 @@ export default function SupplierCreditsPage() {
                   highlights={(r) => [{ label: "Applied", value: money(r.amount), accent: "blue" }]}
                   details={(r) => [
                     { label: "On", value: r.label || "—" },
+                    ...(projectsOn ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={appProjects(r).map((p) => p.label)} /> }] : []),
                     ...(r.status === "Reversed" ? [{ label: "Undone", value: r.reversalReason || "—" }] : []),
                   ]}
                   actions={(r) => canManage && r.status === "Posted" ? (
@@ -418,6 +479,7 @@ export default function SupplierCreditsPage() {
                             <TableHead>Supplier</TableHead>
                             <TableHead>Credit</TableHead>
                             <TableHead>Applied to</TableHead>
+                            {projectsOn && <TableHead>{PROJECT_COLUMN_TITLE}</TableHead>}
                             <TableHead className="text-right">Amount</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -425,7 +487,7 @@ export default function SupplierCreditsPage() {
                         </TableHeader>
                         <TableBody>
                           {appPg.pageItems.length === 0 ? (
-                            <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-slate-500">No supplier credit has been applied yet.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={projectsOn ? 8 : 7} className="py-8 text-center text-sm text-slate-500">No supplier credit has been applied yet.</TableCell></TableRow>
                           ) : appPg.pageItems.map((r) => {
                             const undone = r.status === "Reversed"
                             return (
@@ -438,6 +500,7 @@ export default function SupplierCreditsPage() {
                                   {r.label && <span className="block text-xs text-slate-500">{r.label}</span>}
                                   {undone && r.reversalReason && <span className="block text-xs">Undone: {r.reversalReason}</span>}
                                 </TableCell>
+                                {projectsOn && <TableCell><ProjectLabels labels={appProjects(r).map((p) => p.label)} /></TableCell>}
                                 <TableCell className={undone ? "text-right tabular-nums line-through" : "text-right tabular-nums"}>{money(r.amount)}</TableCell>
                                 <TableCell><Badge variant={undone ? "secondary" : "outline"}>{undone ? "Undone" : "Applied"}</Badge></TableCell>
                                 <TableCell className="text-right">
@@ -471,6 +534,7 @@ export default function SupplierCreditsPage() {
                   details={(r) => [
                     { label: "Into", value: r.accountName || "—" },
                     { label: "Credit", value: r.creditNumbers || "—" },
+                    ...(projectsOn ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={refundProjects(r).map((p) => p.label)} /> }] : []),
                     { label: "Reason", value: r.reason || "—" },
                   ]}
                   actions={(r) => canManage && r.status === "Posted" ? (
@@ -490,6 +554,7 @@ export default function SupplierCreditsPage() {
                             <TableHead className="text-right">Amount</TableHead>
                             <TableHead>Received into</TableHead>
                             <TableHead>Credit</TableHead>
+                            {projectsOn && <TableHead>{PROJECT_COLUMN_TITLE}</TableHead>}
                             <TableHead>Reason</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -497,7 +562,7 @@ export default function SupplierCreditsPage() {
                         </TableHeader>
                         <TableBody>
                           {refundPg.pageItems.length === 0 ? (
-                            <TableRow><TableCell colSpan={9} className="py-8 text-center text-sm text-slate-500">No supplier has sent money back.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={projectsOn ? 10 : 9} className="py-8 text-center text-sm text-slate-500">No supplier has sent money back.</TableCell></TableRow>
                           ) : refundPg.pageItems.map((r) => {
                             const reversed = r.status === "Reversed"
                             return (
@@ -508,6 +573,7 @@ export default function SupplierCreditsPage() {
                                 <TableCell className={reversed ? "text-right tabular-nums line-through" : "text-right tabular-nums"}>{money(r.amount)}</TableCell>
                                 <TableCell>{[r.accountName, r.paymentMethod].filter(Boolean).join(" · ") || "—"}</TableCell>
                                 <TableCell className="whitespace-nowrap">{r.creditNumbers || "—"}</TableCell>
+                                {projectsOn && <TableCell><ProjectLabels labels={refundProjects(r).map((p) => p.label)} /></TableCell>}
                                 <TableCell className="max-w-[240px]">
                                   <span className="block truncate" title={r.reason}>{r.reason}</span>
                                   {reversed && <span className="block truncate text-xs">Reversed{r.reversalDate ? ` ${fmtDateTime(r.reversalDate)}` : ""}: {r.reversalReason}</span>}

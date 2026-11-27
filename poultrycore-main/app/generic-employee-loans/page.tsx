@@ -5,7 +5,7 @@
 
 import { CANCEL_REASONS, LOAN_REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { ReasonSelect } from "@/components/ui/reason-select"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -31,6 +31,12 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { cn } from "@/lib/utils"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, type SingleProjectValue } from "@/components/generic/projects/form-project-field"
+import { useProjectTeam } from "@/components/generic/projects/use-project-team"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 import { getCashAccounts, getStaff, type GenericCashAccount, type GenericStaff } from "@/lib/api/generic"
 import {
   listGenericEmployeeLoans, getGenericEmployeeLoanSummary,
@@ -179,6 +185,10 @@ export default function GenericEmployeeLoansPage() {
   const [staffId, setStaffId] = useState<string>("ALL")
   const [loanType, setLoanType] = useState<string>("ALL")
   const [offset, setOffset] = useState(0)
+  // 501: Project / contract. A loan shows for a project when it was taken FOR
+  // that project, or when its employee is on the project's team (500).
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const projectOn = projectFilter.kind !== "all"
 
   const [historyByLoan, setHistoryByLoan] =
     useState<Map<number, GenericEmployeeLoanRepayment[]>>(new Map())
@@ -194,8 +204,9 @@ export default function GenericEmployeeLoansPage() {
           search: search || null,
           staffId: staffId === "ALL" ? null : Number(staffId),
           loanType: loanType === "ALL" ? null : loanType,
-          limit: PAGE_SIZE,
-          offset,
+          // With a project picked, read every loan so the filter covers all pages.
+          limit: projectOn ? 1000 : PAGE_SIZE,
+          offset: projectOn ? 0 : offset,
         }),
         getGenericEmployeeLoanSummary(),
       ])
@@ -207,9 +218,28 @@ export default function GenericEmployeeLoansPage() {
     } finally {
       setLoading(false)
     }
-  }, [status, search, staffId, loanType, offset])
+  }, [status, search, staffId, loanType, offset, projectOn])
 
   useEffect(() => { void load() }, [load])
+
+  const projectLabels = useProjectLabels("EmployeeLoan", rows)
+  const team = useProjectTeam()
+  const shownRows = useMemo(() => {
+    if (!projectLabels.enabled || !projectOn) return rows
+    return rows.filter((l) => projectFilter.kind === "general"
+      ? projectLabels.matches(l.genericEmployeeLoanId, projectFilter)
+      : projectLabels.matches(l.genericEmployeeLoanId, projectFilter) || team.staffMatches(l.genericStaffId, projectFilter))
+  }, [rows, projectLabels, projectOn, projectFilter, team])
+  const projectCell = (l: GenericEmployeeLoan) => {
+    const tagged = projectLabels.labelsOf(l.genericEmployeeLoanId)
+    const onTeam = team.teamLabels(l.genericStaffId)
+    return (
+      <div className="space-y-0.5">
+        {tagged.length > 0 ? <ProjectLabels labels={tagged} /> : <span className="text-xs text-slate-400">Personal</span>}
+        {onTeam.length > 0 && <div className="text-[11px] text-slate-500">Team: {onTeam.map((x) => x.split(" — ")[0]).join(", ")}</div>}
+      </div>
+    )
+  }
 
   useEffect(() => {
     void (async () => {
@@ -332,6 +362,9 @@ export default function GenericEmployeeLoansPage() {
                 ))}
               </SelectContent>
             </Select>
+            {projectLabels.enabled && (
+              <ProjectFilter value={projectFilter} onChange={(v) => { setProjectFilter(v); setOffset(0) }} className="h-9 w-full sm:w-64" />
+            )}
             <Select value={loanType} onValueChange={(v) => { setLoanType(v); setOffset(0) }}>
               <SelectTrigger className="h-9 w-full sm:w-44"><SelectValue placeholder="All types" /></SelectTrigger>
               <SelectContent>
@@ -353,9 +386,9 @@ export default function GenericEmployeeLoansPage() {
             <div className="flex items-center gap-2 text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
-          ) : rows.length === 0 ? (
+          ) : shownRows.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-slate-500">
-              {status || search || staffId !== "ALL" || loanType !== "ALL"
+              {status || search || staffId !== "ALL" || loanType !== "ALL" || projectOn
                 ? "No advances match this filter."
                 : "No advances recorded yet."}
             </CardContent></Card>
@@ -364,7 +397,7 @@ export default function GenericEmployeeLoansPage() {
               <MobileCardList
                 striped
                 defaultOpen
-                items={rows}
+                items={shownRows}
                 getKey={(l: GenericEmployeeLoan) => l.genericEmployeeLoanId}
                 primary={(l: GenericEmployeeLoan) => (
                   <>{l.loanNumber ?? `#${l.genericEmployeeLoanId}`} · {l.staffName}</>
@@ -393,6 +426,7 @@ export default function GenericEmployeeLoansPage() {
                   { label: "Paid from", value: l.cashAccountName ?? "—" },
                   { label: "Reference", value: l.referenceNumber ?? "—" },
                   { label: "Purpose", value: l.purpose ?? l.description ?? "—" },
+                  ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: projectCell(l) }] : []),
                   { label: "Repayments", value: String(l.repaymentCount) },
                 ]}
                 actions={(l: GenericEmployeeLoan) => (
@@ -434,6 +468,7 @@ export default function GenericEmployeeLoansPage() {
                         <TableRow>
                           <TableHead>Loan #</TableHead>
                           <TableHead>Employee</TableHead>
+                          {projectLabels.enabled && <ProjectHead />}
                           <TableHead>Type</TableHead>
                           <TableHead>Issued</TableHead>
                           <TableHead className="text-right">Advanced</TableHead>
@@ -446,13 +481,14 @@ export default function GenericEmployeeLoansPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rows.map((l) => (
+                        {shownRows.map((l) => (
                           <TableRow key={l.genericEmployeeLoanId} className="cursor-pointer"
                                     onClick={() => setDetailFor(l)}>
                             <TableCell className="font-medium whitespace-nowrap">
                               {l.loanNumber ?? `#${l.genericEmployeeLoanId}`}
                             </TableCell>
                             <TableCell>{l.staffName}</TableCell>
+                            {projectLabels.enabled && <TableCell>{projectCell(l)}</TableCell>}
                             <TableCell className="text-xs">
                               {EMPLOYEE_LOAN_TYPE_LABELS[l.loanType] ?? l.loanType}
                             </TableCell>
@@ -502,6 +538,12 @@ export default function GenericEmployeeLoansPage() {
                 }
               />
 
+              {projectOn ? (
+                <div className="mt-3 text-sm text-slate-500">
+                  {shownRows.length} {shownRows.length === 1 ? "advance" : "advances"} for this project filter
+                  (taken for the project, or by staff on its team).
+                </div>
+              ) : (
               <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
                 <span>Showing {from}–{to} of {total}</span>
                 <div className="flex gap-2">
@@ -515,6 +557,7 @@ export default function GenericEmployeeLoansPage() {
                   </Button>
                 </div>
               </div>
+              )}
             </>
           )}
 
@@ -623,6 +666,8 @@ function NewLoanDialog({
   fmt: (n: number) => string
   onSave: (input: any) => Promise<boolean>
 }) {
+  // 501: an advance taken FOR a project. Blank = a personal loan (stays with the employee).
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
   const [f, setF] = useState({
     genericStaffId: 0, loanType: "EmployeeLoan", principalAmount: 0,
     disbursementDate: today(), purpose: "", notes: "",
@@ -631,7 +676,10 @@ function NewLoanDialog({
     disburseNow: true, genericCashAccountId: 0, paymentMethod: "Cash", referenceNumber: "",
   })
   useEffect(() => {
-    if (open) setF((p) => ({ ...p, genericStaffId: 0, principalAmount: 0, purpose: "", notes: "", referenceNumber: "" }))
+    if (open) {
+      setF((p) => ({ ...p, genericStaffId: 0, principalAmount: 0, purpose: "", notes: "", referenceNumber: "" }))
+      setProject(EMPTY_SINGLE_PROJECT)
+    }
   }, [open])
 
   const totalRepayable = f.principalAmount + (f.interestEnabled ? f.interestAmount : 0)
@@ -743,6 +791,10 @@ function NewLoanDialog({
             <Switch checked={f.disburseNow} onCheckedChange={(v) => setF({ ...f, disburseNow: v })} />
           </div>
 
+          <SingleProjectField className="sm:col-span-2" value={project} onChange={setProject}
+            amount={f.principalAmount} showCostClass={false} label="For a project / contract (optional)"
+            hint="Only for an advance given for project work. Leave blank for a personal loan: it stays with the employee and never becomes a project cost." />
+
           {f.disburseNow && (
             <>
               <div className="space-y-1">
@@ -786,6 +838,7 @@ function NewLoanDialog({
             genericCashAccountId: f.disburseNow ? f.genericCashAccountId : null,
             paymentMethod: f.disburseNow ? f.paymentMethod : null,
             referenceNumber: f.referenceNumber || null,
+            projects: project.projectId != null || (project.splits?.length ?? 0) > 0 ? singleAssignment(project) : undefined,
           })}>
             {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
             {f.disburseNow ? "Record and hand over" : "Record only"}

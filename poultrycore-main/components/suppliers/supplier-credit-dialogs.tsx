@@ -24,6 +24,8 @@ import { listOpenDocuments, recordPayment, type OpenDocumentRow } from "@/lib/ap
 import { type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { creditBalanceModule, listCreditCashAccounts, listCreditSuppliers } from "@/lib/api/credit-module"
 import { entryTimestamp } from "@/lib/utils/date-key"
+import { isGenericCompany } from "@/lib/api/credit-module"
+import { SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, type SingleProjectValue } from "@/components/generic/projects/form-project-field"
 import {
   applySupplierCredit, createSupplierCredit, recordSupplierRefund, SUPPLIER_CREDIT_KIND_LABEL,
   type SupplierCreditEvent, type SupplierCreditKind,
@@ -76,10 +78,14 @@ export function PaySupplierAdvanceDialog({ open, currencyCode, onOpenChange, onP
   const [notes, setNotes] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 501 (Generic only): the project this advance is paid for.
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
+  const generic = isGenericCompany()
 
   useEffect(() => {
     if (!open) return
     setSupplierId(""); setAmount(""); setDate(today()); setMethod("Cash"); setReference(""); setNotes(""); setError(null)
+    setProject(EMPTY_SINGLE_PROJECT)
   }, [open])
   useEffect(() => { if (!accountId && accounts[0]) setAccountId(String(accounts[0].poultryCashAccountId)) }, [accounts, accountId])
 
@@ -98,6 +104,8 @@ export function PaySupplierAdvanceDialog({ open, currencyCode, onOpenChange, onP
         sourceType: "SupplierCredits",
         // Applied to nothing: the whole amount is the supplier's credit.
         allocations: [],
+        ...(generic && (project.projectId != null || (project.splits?.length ?? 0) > 0)
+          ? { projects: singleAssignment(project) } : {}),
       })
       onPaid({ supplierName, amount: value })
     } catch (e: any) { setError(e?.message ?? String(e)) } finally { setSaving(false) }
@@ -160,6 +168,11 @@ export function PaySupplierAdvanceDialog({ open, currencyCode, onOpenChange, onP
               <Label htmlFor="sa-notes" className="sr-only">Notes</Label>
               <Textarea id="sa-notes" rows={2} className="bg-white" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional, e.g. maize for next month" />
             </div>
+            {generic && (
+              <SingleProjectField value={project} onChange={setProject} amount={value} showCostClass={false}
+                label="For a project / contract (optional)"
+                hint="While unused, the advance counts for this project. Once applied to a purchase it follows that purchase's project." />
+            )}
           </FormSection>
           {value > 0 && supplierName && (
             <p className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-900">
@@ -200,10 +213,14 @@ export function SupplierCreditDialog({ open, currencyCode, onOpenChange, onCreat
   const [reason, setReason] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 501 (Generic only): the project this credit is held for.
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
+  const generic = isGenericCompany()
 
   useEffect(() => {
     if (!open) return
     setSupplierId(""); setKind("SupplierCreditNote"); setAmount(""); setDate(today()); setReference(""); setReason(""); setError(null)
+    setProject(EMPTY_SINGLE_PROJECT)
   }, [open])
 
   const value = Math.round((Number(amount) || 0) * 100) / 100
@@ -215,7 +232,9 @@ export function SupplierCreditDialog({ open, currencyCode, onOpenChange, onCreat
     setSaving(true); setError(null)
     try {
       await createSupplierCredit({ supplierId: Number(supplierId), kind, amount: value, creditDate: date,
-        reference: reference.trim() || null, reason: reason.trim() })
+        reference: reference.trim() || null, reason: reason.trim(),
+        ...(generic && (project.projectId != null || (project.splits?.length ?? 0) > 0)
+          ? { projects: singleAssignment(project) } : {}) })
       onCreated({ supplierName, amount: value, kind })
     } catch (e: any) { setError(e?.message ?? String(e)) } finally { setSaving(false) }
   }
@@ -266,6 +285,11 @@ export function SupplierCreditDialog({ open, currencyCode, onOpenChange, onCreat
           </FormSection>
           <FormSection title="Reason *" color="slate" tinted columns={1}>
             <ReasonSelect id="sc-reason" options={SUPPLIER_CREDIT_REASONS} value={reason} onChange={setReason} />
+            {generic && (
+              <SingleProjectField value={project} onChange={setProject} amount={value} showCostClass={false}
+                label="For a project / contract (optional)"
+                hint="While unused, the credit counts for this project. Once applied to a purchase it follows that purchase's project." />
+            )}
           </FormSection>
           {value > 0 && supplierName && (
             <p className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-sm text-blue-900">

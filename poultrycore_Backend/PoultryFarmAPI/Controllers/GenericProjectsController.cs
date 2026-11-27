@@ -241,6 +241,12 @@ namespace PoultryFarmAPIWeb.Controllers
             => Run(farmId, false, async _ => JsonText(await _db.JsonAsync("spgenericproject_activityshares",
                 Text("p_farmid", farmId), Date("p_from", fromDate), Date("p_to", toDate))));
 
+        /// <summary>501: Cash &amp; Accounts / Reconciliation -- each cash-ledger entry's projects and shares (optionally one account).</summary>
+        [HttpGet("project-allocations/cash-shares")]
+        public Task<IActionResult> CashShares(string farmId, [FromQuery] int? accountId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+            => Run(farmId, false, async _ => JsonText(await _db.JsonAsync("spgenericproject_cashshares",
+                Text("p_farmid", farmId), Int("p_accountid", accountId), Date("p_from", fromDate), Date("p_to", toDate))));
+
         /// <summary>493: Customer / Supplier Balances -- every open document with its party and project shares.</summary>
         [HttpGet("project-allocations/open-balances")]
         public Task<IActionResult> OpenBalances(string farmId, [FromQuery] string side)
@@ -423,5 +429,24 @@ namespace PoultryFarmAPIWeb.Controllers
                     Int("p_milestoneid", milestoneId), Text("p_by", by));
                 return NoContent();
             });
+
+        // ---------------------------------------------------------------- team (500)
+
+        [HttpGet("projects/{id:int}/team")]
+        public Task<IActionResult> Team(string farmId, int id)
+            => Run(farmId, false, async _ => JsonText(await _db.JsonAsync("spgenericproject_team",
+                Text("p_farmid", farmId), Int("p_projectid", id))));
+
+        /// <summary>Replace the team. Body: [{staffId, role?, startDate?, endDate?}].</summary>
+        [HttpPut("projects/{id:int}/team")]
+        public Task<IActionResult> SaveTeam(string farmId, int id, [FromBody] JsonElement body)
+            => Run(farmId, true, async by => JsonText(await _db.JsonAsync("spgenericproject_saveteam",
+                Text("p_farmid", farmId), Int("p_projectid", id), Jsonb("p_members", Raw(body)), Text("p_by", by))));
+
+        /// <summary>Every staff member on an active team, with their projects (people-page filters).</summary>
+        [HttpGet("projects/team/by-staff")]
+        public Task<IActionResult> TeamByStaff(string farmId)
+            => Run(farmId, false, async _ => JsonText(await _db.JsonAsync("spgenericproject_teamofstaff",
+                Text("p_farmid", farmId))));
     }
 }

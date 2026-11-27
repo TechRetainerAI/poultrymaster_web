@@ -61,6 +61,27 @@ const EPS = 1e-9
  * stays General company activity -- but never to more, and never twice the same
  * project.
  */
+/**
+ * Share the whole evenly between the rows that have a project (all rows when
+ * none has one yet), rounded to the basis's precision -- quantity to 0.001,
+ * amount and percent to 0.01. The last row takes the rounding remainder, so
+ * the parts always add up to exactly the whole (e.g. 100 / 3 = 33.33, 33.33, 33.34).
+ */
+export function splitEvenly(rows: SplitRow[], basis: SplitBasis, whole: number): SplitRow[] {
+  const total = basis === "percent" ? 100 : whole
+  const picked = rows.some((r) => r.projectId != null)
+  const idx = rows.map((r, i) => ((!picked || r.projectId != null) ? i : -1)).filter((i) => i >= 0)
+  if (idx.length === 0 || !(total > 0)) return rows
+  const dp = basis === "quantity" ? 3 : 2
+  const each = Math.floor((total / idx.length) * 10 ** dp) / 10 ** dp
+  const last = round(total - each * (idx.length - 1), dp)
+  return rows.map((r, i) => {
+    const k = idx.indexOf(i)
+    if (k < 0) return r
+    return { ...r, value: k === idx.length - 1 ? last : each }
+  })
+}
+
 export function checkSplit(rows: SplitRow[], basis: SplitBasis, whole: number): SplitCheck {
   const used = rows.filter((r) => r.projectId != null)
   const total = basis === "percent" ? 100 : whole

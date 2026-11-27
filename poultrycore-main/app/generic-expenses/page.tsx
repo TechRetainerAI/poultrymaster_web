@@ -87,6 +87,7 @@ import { SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, loadSingleP
 import { useProjectsEnabled } from "@/hooks/use-generic-projects"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
 import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 type PayStatus = (typeof SELECTABLE_PAYMENT_STATUSES)[number]
@@ -1036,6 +1037,9 @@ function GenericExpensesPageInner() {
                                   <div><span className="text-slate-500">Paid to</span> <span className="font-medium">{expense.supplierName || expense.paidTo || "N/A"}</span></div>
                                   <div><span className="text-slate-500">Paid</span> <span className="font-medium">{formatCurrency(expense.amountPaidN)}</span></div>
                                   <div><span className="text-slate-500">Balance</span> <span className="font-medium">{formatCurrency(expense.balance)}</span></div>
+                                  {projectLabels.enabled && (
+                                    <div className="col-span-2"><span className="text-slate-500">{PROJECT_COLUMN_TITLE}</span> <ProjectLabels labels={projectLabels.labelsOf(expense.genericExpenseId)} /></div>
+                                  )}
                                 </div>
                                 <div>{renderPaymentStatus(expense)}</div>
                                 {expense.sourceType === "GenericPayrollRun" ? (
@@ -1063,13 +1067,14 @@ function GenericExpensesPageInner() {
                       )}
                       {/* Date 100 + Category 150 + Supplier 140 + Total 110 + Paid 110 + Balance 110
                           + Status 120 + Method 120 + Approval 110 + Actions 180 = 1250, + 250 Description = 1500. */}
-                      <Table className="table-fixed w-full min-w-[1500px]">
+                      <Table className={cn("table-fixed w-full", projectLabels.enabled ? "min-w-[1660px]" : "min-w-[1500px]")}>
                         <TableHeader>
                           <TableRow>
                             <SortableHeader label="Date" sortKey="expenseDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[100px]" />
                             <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-auto min-w-0" />
                             <SortableHeader label="Category" sortKey="categoryName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[150px]" />
                             <SortableHeader label="Supplier / Paid To" sortKey="supplierName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[140px] min-w-0" />
+                            {projectLabels.enabled && <ProjectHead className="w-[160px]" />}
                             <SortableHeader label="Total" sortKey="amount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
                             <SortableHeader label="Paid" sortKey="amountPaidN" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
                             <SortableHeader label="Balance" sortKey="balance" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
@@ -1103,6 +1108,7 @@ function GenericExpensesPageInner() {
                               </TableCell>
                               <TableCell className="align-top min-w-0"><Badge className="whitespace-normal break-words shrink max-w-full text-left bg-gray-100 text-gray-800">{expense.categoryName}</Badge></TableCell>
                               <TableCell className="text-slate-600 min-w-0 wrap-anywhere whitespace-normal align-top overflow-hidden">{expense.supplierName || expense.paidTo || "N/A"}</TableCell>
+                              {projectLabels.enabled && <ProjectCell className="align-top min-w-0" labels={projectLabels.labelsOf(expense.genericExpenseId)} />}
                               <TableCell className="text-right font-medium whitespace-nowrap align-top">{formatCurrency(Number(expense.amount))}</TableCell>
                               <TableCell className="text-right whitespace-nowrap align-top text-slate-600">{formatCurrency(expense.amountPaidN)}</TableCell>
                               <TableCell className={cn("text-right whitespace-nowrap align-top font-medium", expense.balance > 0 ? "text-amber-700" : "text-slate-400")}>{formatCurrency(expense.balance)}</TableCell>

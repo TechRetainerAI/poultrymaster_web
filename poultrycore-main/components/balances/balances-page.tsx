@@ -126,6 +126,12 @@ export interface BalancesPageProps {
     document: (doc: OpenDocumentRow) => OpenDocumentRow | null
     /** Called after every reload of the balances, so the caller re-reads its shares too. */
     onReload?: () => void
+    /** An extra column on the party and open-document rows (Generic: Project / contract). */
+    column?: {
+      title: string
+      party: (row: PartyBalanceRow) => ReactNode
+      document: (doc: OpenDocumentRow) => ReactNode
+    }
   }
 }
 
@@ -585,6 +591,7 @@ export function BalancesPage({
                                 <div className="pr-6">
                                   <div className="font-semibold text-slate-900 break-words">{party.partyName}</div>
                                   <div className="mt-0.5 truncate text-xs text-slate-500">{party.contactPhone ?? "No phone"}</div>
+                                  {scope?.column && <div className="mt-1">{scope.column.party(party)}</div>}
                                 </div>
                                 <div className="mt-3 grid grid-cols-2 gap-2">
                                   <div className="rounded-lg border border-violet-300 bg-violet-100 px-3 py-2 shadow-sm">
@@ -650,6 +657,7 @@ export function BalancesPage({
                                         <div className="min-w-0">
                                           <div className="font-medium text-slate-900">{d.reference ?? d.documentId}</div>
                                           <div className="truncate text-xs text-slate-500">{d.label ?? d.description ?? "—"}</div>
+                                          {scope?.column && <div className="mt-0.5">{scope.column.document(d)}</div>}
                                         </div>
                                         {d.isOverdue
                                           ? <Badge variant="destructive" className="shrink-0 gap-1"><AlertTriangle className="h-3 w-3" /> Overdue</Badge>
@@ -702,6 +710,7 @@ export function BalancesPage({
                       <TableRow>
                         <TableHead className="w-8" />
                         <TableHead>{isCustomer ? "Customer" : "Supplier"}</TableHead>
+                        {scope?.column && <TableHead>{scope.column.title}</TableHead>}
                         <TableHead>Phone</TableHead>
                         <TableHead className="text-right">Balance</TableHead>
                         <TableHead className="text-right">Open {docWord}s</TableHead>
@@ -728,6 +737,7 @@ export function BalancesPage({
                                   {party.partyName}
                                 </button>
                               </TableCell>
+                              {scope?.column && <TableCell>{scope.column.party(party)}</TableCell>}
                               <TableCell className="text-slate-500">{party.contactPhone ?? "—"}</TableCell>
                               <TableCell className="text-right font-semibold">{fmt(party.totalBalance)}</TableCell>
                               <TableCell className="text-right">{party.openDocumentCount}</TableCell>
@@ -772,7 +782,7 @@ export function BalancesPage({
                             {isOpen && (
                               <TableRow className="bg-blue-50 hover:bg-blue-50">
                                 <TableCell />
-                                <TableCell colSpan={8} className="py-3 pr-4">
+                                <TableCell colSpan={scope?.column ? 9 : 8} className="py-3 pr-4">
                                   {docsLoading === party.partyId || !lines ? (
                                     <span className="flex items-center gap-2 text-sm text-slate-500">
                                       <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading open {docWord}s…
@@ -791,6 +801,7 @@ export function BalancesPage({
                                               two-line value under a header that
                                               only named the first half of it. */}
                                           <TableHead>{isCustomer ? "Product" : "Item"}</TableHead>
+                                          {scope?.column && <TableHead>{scope.column.title}</TableHead>}
                                           <TableHead>Date</TableHead>
                                           <TableHead className="text-right">Total</TableHead>
                                           <TableHead className="text-right">Paid</TableHead>
@@ -815,6 +826,7 @@ export function BalancesPage({
                                             <TableCell className="text-slate-600">
                                               {d.label ?? d.description ?? "—"}
                                             </TableCell>
+                                            {scope?.column && <TableCell>{scope.column.document(d)}</TableCell>}
                                             <TableCell className="whitespace-nowrap">{fmtDateTime(d.documentDate, d)}</TableCell>
                                             <TableCell className="text-right">{fmt(d.totalAmount)}</TableCell>
                                             <TableCell className="text-right text-slate-500">{fmt(d.amountPaid)}</TableCell>

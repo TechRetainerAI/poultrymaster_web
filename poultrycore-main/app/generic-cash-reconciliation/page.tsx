@@ -46,6 +46,7 @@ import {
   type GenericCashAccount, type GenericCashAccountCountStatus, type GenericCashReconciliation,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ReconciliationProjectEntries } from "@/components/generic/projects/reconciliation-project-entries"
 
 const COUNT_BADGE: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -329,6 +330,11 @@ function GenericCashReconciliationPageInner() {
                           </Button>
                         </AlertDescription>
                       </Alert>
+                    )}
+
+                    {accountId != null && (
+                      <ReconciliationProjectEntries accountId={accountId}
+                        since={accountStatus?.lastReconciledAt} reloadKey={counts} />
                     )}
 
                     <Card>

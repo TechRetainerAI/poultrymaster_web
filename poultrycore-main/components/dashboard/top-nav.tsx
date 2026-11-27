@@ -21,7 +21,7 @@ import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
-import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
+import { buildGenericNavConfig, genericQuickLinksNav } from "@/lib/nav/generic-nav-config"
 import { buildLivestockNavConfig, navSectionHasRows, type LivestockNavDeps } from "@/lib/nav/livestock-nav-config"
 import { useLivestockFeatures } from "@/hooks/use-livestock-species"
 import { useOnlineOrderCounts } from "@/lib/utils/online-order-alerts"
@@ -342,12 +342,31 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
   const modules = useGenericModules()
   const nav = useMemo(() => buildGenericNavConfig(modules, permissions), [modules, permissions])
   const isSub = modules.isSubscriptionBusiness
+  // The user's own Quick Links (318). null = never customised = the defaults.
+  const quickLinkHrefs = useQuickLinkHrefs()
+  const [customiseOpen, setCustomiseOpen] = useState(false)
+  const quickNav = useMemo(
+    () => genericQuickLinksNav(nav, quickLinkHrefs, modules.industry === "School"),
+    [nav, quickLinkHrefs, modules.industry],
+  )
 
   return (
+    <>
     <div className="hidden lg:block bg-emerald-600 border-b border-emerald-700">
       <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
         <NavLink item={{ href: "/generic-dashboard", label: "Dashboard", icon: Home }} accent="emerald" />
         <div className="h-5 w-px bg-white/30 mx-1" />
+
+        {/* Setup — first after Dashboard. Company, Finance, Delivery, People */}
+        {nav.setup.length > 0 && (
+          <NavMegaMenu
+            label="Setup" icon={Settings}
+            title="Setup"
+            blurb="Company profile, finance, delivery and your team."
+            groups={nav.setup}
+            columns={2} widthRem={30} layout="grid" accent="emerald"
+          />
+        )}
 
         {/* Operations — products, inventory, deliveries, stock (2 columns like poultry) */}
         {nav.catalog.length > 0 && (
@@ -419,16 +438,8 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
           />
         )}
 
-        {/* Setup — Company, Finance, Delivery, People */}
-        {nav.setup.length > 0 && (
-          <NavMegaMenu
-            label="Setup" icon={Settings}
-            title="Setup"
-            blurb="Company profile, finance, delivery and your team."
-            groups={nav.setup}
-            columns={2} widthRem={30} layout="grid" accent="emerald"
-          />
-        )}
+        <NavDropdown group={quickNav.quickLinks} accent="emerald"
+                     footer={<CustomiseQuickLinksButton onClick={() => setCustomiseOpen(true)} />} />
 
         {/* Admin — Account */}
         {nav.admin.length > 0 && (
@@ -446,6 +457,8 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
         </div>
       </div>
     </div>
+    <QuickLinksDialog open={customiseOpen} onOpenChange={setCustomiseOpen} nav={quickNav} />
+    </>
   )
 }
 

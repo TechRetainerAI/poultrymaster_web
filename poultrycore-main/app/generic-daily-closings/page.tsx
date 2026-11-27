@@ -30,6 +30,10 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { usePagination } from "@/hooks/use-pagination"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { useFmt } from "@/lib/currency"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { useDailyProjectActivity } from "@/components/generic/projects/use-daily-project-activity"
+import { useProjectsEnabled } from "@/hooks/use-generic-projects"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 function badgeClass(s: string) {
   switch (s) {
@@ -113,6 +117,19 @@ export default function GenericDailyClosingsPage() {
     }),
     [rows, search, dateFrom, dateTo],
   )
+
+  // 501: Project / contract -- adds that project's part of each day's sales,
+  // collections, expenses and net cash. The closing's own figures, approval and
+  // submit are the company's and do not change.
+  const { enabled: projectsEnabled } = useProjectsEnabled()
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const dayRange = useMemo(() => {
+    const days = visibleRows.map((c) => (c.closingDate ?? "").slice(0, 10)).filter(Boolean).sort()
+    return days.length ? { from: days[0], to: days[days.length - 1] } : { from: null, to: null }
+  }, [visibleRows])
+  const project = useDailyProjectActivity(dayRange.from, dayRange.to, projectFilter)
+  const dayPart = (c: GenericDailyClosing) => project.byDay?.get((c.closingDate ?? "").slice(0, 10))
+    ?? { sales: 0, collections: 0, expenses: 0, netCash: 0 }
 
   const onCreate = async () => {
     setSaving(true)
@@ -278,7 +295,14 @@ export default function GenericDailyClosingsPage() {
               dateFrom={dateFrom} setDateFrom={setDateFrom}
               dateTo={dateTo} setDateTo={setDateTo}
               searchPlaceholder="Search status or manager notes"
+              extras={projectsEnabled ? <ProjectFilter value={projectFilter} onChange={setProjectFilter} className="h-9 w-full sm:w-60" /> : undefined}
             />
+            {project.active && (
+              <p className="text-xs text-slate-500">
+                The indigo columns are this project&apos;s part of each day{project.loading ? " (loading…)" : ""}. The closing&apos;s own
+                figures, approval and cash count stay the company&apos;s.
+              </p>
+            )}
             <Card>
               <CardContent className="p-0">
                 <MobileCardList
@@ -308,6 +332,12 @@ export default function GenericDailyClosingsPage() {
                     { label: "Expected cash", value: fmt(c.expectedCash) },
                     { label: "Actual cash", value: fmt(c.actualCashCounted) },
                     { label: "Difference", value: <span className={c.cashDifference !== 0 ? "text-rose-700 font-semibold" : ""}>{fmt(c.cashDifference)}</span> },
+                    ...(project.active ? [
+                      { label: "Project sales", value: fmt(dayPart(c).sales) },
+                      { label: "Project collections", value: fmt(dayPart(c).collections) },
+                      { label: "Project expenses", value: fmt(dayPart(c).expenses) },
+                      { label: "Project net cash", value: fmt(dayPart(c).netCash) },
+                    ] : []),
                   ]}
                   actions={(c) => (
                     <>
@@ -351,6 +381,12 @@ export default function GenericDailyClosingsPage() {
                           <TableHead className="text-right">Expected cash</TableHead>
                           <TableHead className="text-right">Actual cash</TableHead>
                           <TableHead className="text-right">Difference</TableHead>
+                          {project.active && <>
+                            <TableHead className="text-right text-indigo-700">Project sales</TableHead>
+                            <TableHead className="text-right text-indigo-700">Project collections</TableHead>
+                            <TableHead className="text-right text-indigo-700">Project expenses</TableHead>
+                            <TableHead className="text-right text-indigo-700">Project net cash</TableHead>
+                          </>}
                           <TableHead>Status</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
@@ -364,6 +400,12 @@ export default function GenericDailyClosingsPage() {
                             <TableCell className="text-right">{fmt(c.expectedCash)}</TableCell>
                             <TableCell className="text-right">{fmt(c.actualCashCounted)}</TableCell>
                             <TableCell className={`text-right ${c.cashDifference !== 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(c.cashDifference)}</TableCell>
+                            {project.active && <>
+                              <TableCell className="text-right tabular-nums text-indigo-700">{fmt(dayPart(c).sales)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-indigo-700">{fmt(dayPart(c).collections)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-indigo-700">{fmt(dayPart(c).expenses)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-indigo-700">{fmt(dayPart(c).netCash)}</TableCell>
+                            </>}
                             <TableCell><Badge className={badgeClass(c.status)}>{c.status}</Badge></TableCell>
                             <TableCell className="flex gap-1">
                               {c.status === "Submitted" && (

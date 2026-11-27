@@ -41,6 +41,13 @@ import { useFmt } from "@/lib/currency"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { fmtInstant } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectLabels } from "@/components/generic/projects/project-column"
+import {
+  SingleProjectField, EMPTY_SINGLE_PROJECT, loadSingleProject, singleAssignment, type SingleProjectValue,
+} from "@/components/generic/projects/form-project-field"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 import {
   createRecurringTemplate, deleteRecurringTemplate, editRecurringOccurrence, generateRecurringExpenses,
   linkRecurringOccurrence, listRecurringOccurrences, listRecurringTemplates, listUpcomingRecurring,
@@ -97,6 +104,21 @@ export default function RecurringExpensesPage() {
   const [ending, setEnding] = useState<RecurringTemplate | null>(null)
   const [linking, setLinking] = useState<RecurringOccurrence | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
+
+  // 501 (Generic only): Project / contract. A template carries its own split;
+  // a posted occurrence shows its expense's project (it was given the
+  // template's split when it was created).
+  const templateTags = useProjectLabels("RecurringTemplate", templates)
+  const expenseTags = useProjectLabels("Expense", occurrences)
+  const projectsOn = module === "generic" && templateTags.enabled
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const tplProjects = (id: number) => templateTags.map.get(id) ?? []
+  const occProjects = (o: RecurringOccurrence) =>
+    o.status === "Posted" && o.expenseId ? (expenseTags.map.get(o.expenseId) ?? []) : tplProjects(o.templateId)
+  const hit = (ps: { projectId: number }[]) => !projectsOn || projectFilter.kind === "all" ? true
+    : projectFilter.kind === "general" ? ps.length === 0 : ps.some((p) => projectFilter.ids.includes(p.projectId))
+  const shownOccurrences = occurrences.filter((o) => hit(occProjects(o)))
+  const shownTemplates = templates.filter((t) => hit(tplProjects(t.templateId)))
 
   useEffect(() => {
     if (!activeFarmType) return
@@ -217,6 +239,9 @@ export default function RecurringExpensesPage() {
               ))}
             </div>
           )}
+          {projectsOn && tab !== "upcoming" && (
+            <ProjectFilter value={projectFilter} onChange={setProjectFilter} className="h-9 w-full sm:w-60" />
+          )}
           {tab === "upcoming" && (
             <div className={filterGroupCls} role="group" aria-label="Show">
               <span className={filterLabelCls}>Show</span>
@@ -232,13 +257,13 @@ export default function RecurringExpensesPage() {
         <TabsContent value="review" className="space-y-3">
           {loading ? (
             <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-          ) : occurrences.length === 0 ? (
+          ) : shownOccurrences.length === 0 ? (
             <Card><CardContent className="p-8 text-center text-slate-500">
               {occView === "Open" ? <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Nothing waiting for review.</span> : "Nothing here."}
             </CardContent></Card>
           ) : (
             <div className="space-y-2">
-              {occurrences.map((o) => (
+              {shownOccurrences.map((o) => (
                 <div key={o.occurrenceId} className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -263,6 +288,7 @@ export default function RecurringExpensesPage() {
                     </span>
                     {o.status === "Posted" && <span className="text-slate-500">· expense #{o.expenseId} by {o.postedBy ?? "—"} {o.postedAt ? fmtInstant(o.postedAt) : ""}</span>}
                     {o.status === "Skipped" && <span className="text-slate-500">· {o.skipReason}</span>}
+                    {projectsOn && <span className="inline-flex items-center gap-1 text-slate-500">· <ProjectLabels labels={occProjects(o).map((p) => p.label)} /></span>}
                   </div>
                   {o.note && <p className="text-xs text-slate-600">{o.note}</p>}
                   <div className="flex flex-wrap gap-2">
@@ -322,9 +348,9 @@ export default function RecurringExpensesPage() {
 
         {/* --------------------------------------------------------- templates */}
         <TabsContent value="templates" className="space-y-2">
-          {templates.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-slate-500">No recurring expenses yet.</CardContent></Card>
-          ) : templates.map((t) => (
+          {shownTemplates.length === 0 ? (
+            <Card><CardContent className="p-8 text-center text-slate-500">{templates.length ? "No recurring expense matches this project filter." : "No recurring expenses yet."}</CardContent></Card>
+          ) : shownTemplates.map((t) => (
             <div key={t.templateId} className={cn("rounded-lg border border-slate-200 bg-white p-3 space-y-2", t.status === "Ended" && "opacity-70")}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -337,6 +363,7 @@ export default function RecurringExpensesPage() {
                     {t.nextDueDate && t.status === "Active" ? ` · next ${day(t.nextDueDate)}` : ""}
                   </div>
                   <div className="text-xs text-slate-500">{t.posted} posted · {t.drafts} waiting · {t.skipped} skipped{t.endReason ? ` · ended: ${t.endReason}` : ""}</div>
+                  {projectsOn && <div className="mt-0.5"><ProjectLabels labels={tplProjects(t.templateId).map((p) => p.label)} /></div>}
                 </div>
                 <div className="text-right">
                   <div className="font-semibold tabular-nums">{gh(t.amount)}</div>
@@ -362,7 +389,7 @@ export default function RecurringExpensesPage() {
 
       {lookups && (
         <TemplateEditor
-          open={editor.open} template={editor.template} lookups={lookups}
+          open={editor.open} template={editor.template} lookups={lookups} projectsOn={projectsOn}
           onOpenChange={(o) => setEditor((e) => ({ ...e, open: o }))}
           onSaved={async () => {
             setEditor({ open: false, template: null })
@@ -454,10 +481,13 @@ function Tile({ label, value, tone }: { label: string; value: string; tone: "amb
 }
 
 // ------------------------------------------------------------ template editor
-function TemplateEditor({ open, template, lookups, onOpenChange, onSaved }: {
+function TemplateEditor({ open, template, lookups, projectsOn, onOpenChange, onSaved }: {
   open: boolean; template: RecurringTemplate | null; lookups: ModuleLookups
+  /** Generic with Projects & Contracts on: the template can carry a project split. */
+  projectsOn: boolean
   onOpenChange: (o: boolean) => void; onSaved: () => void | Promise<void>
 }) {
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
   const { toast } = useToast()
   const gh = useFmt()
   const today = new Date().toISOString().slice(0, 10)
@@ -480,6 +510,8 @@ function TemplateEditor({ open, template, lookups, onOpenChange, onSaved }: {
       endDate: template.endDate ? day(template.endDate) : null, paymentMethod: template.paymentMethod,
       cashAccountId: template.cashAccountId ?? null, description: template.description ?? null, approvalMode: template.approvalMode,
     } : blank)
+    setProject(EMPTY_SINGLE_PROJECT)
+    if (projectsOn && template) void loadSingleProject("RecurringTemplate", template.templateId).then(setProject)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, template])
 
@@ -496,7 +528,10 @@ function TemplateEditor({ open, template, lookups, onOpenChange, onSaved }: {
     if (errs.length) return
     setSaving(true)
     try {
-      const input = { ...f, categoryName: lookups.categoriesAreText ? f.categoryName : (lookups.categories.find((c) => c.id === f.categoryId)?.name ?? null) }
+      const input = {
+        ...f, categoryName: lookups.categoriesAreText ? f.categoryName : (lookups.categories.find((c) => c.id === f.categoryId)?.name ?? null),
+        ...(projectsOn ? { projects: singleAssignment(project) } : {}),
+      }
       if (template) await updateRecurringTemplate(template.templateId, input)
       else await createRecurringTemplate(input)
       toast({ title: template ? "Saved" : "Recurring expense created" })
@@ -579,6 +614,10 @@ function TemplateEditor({ open, template, lookups, onOpenChange, onSaved }: {
             </div>
           </Field>
           <Field label="Description" full><Textarea rows={2} value={f.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} /></Field>
+          {projectsOn && (
+            <SingleProjectField className="sm:col-span-2" value={project} onChange={setProject} amount={f.amount}
+              hint="Each expense this creates is recorded against this project. Changing it here affects only expenses created from now on." />
+          )}
         </div>
         <div className="rounded-md border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600 space-y-1">
           <div><strong>Next dates:</strong> {dates.join(" · ") || "—"}</div>

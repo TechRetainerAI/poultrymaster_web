@@ -536,10 +536,15 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(GenericInternalUsageModel m)
         {
             using var conn = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand(
-                "SELECT public.spgenericinternalusage_insert(p_farmid => @FarmId::text, p_usagedate => @UsageDate::timestamp, p_category => @Category::text, p_reason => @Reason::text, p_recipientname => @RecipientName::text, p_responsiblestaffid => @ResponsibleStaffId::int, p_staffcount => @StaffCount::int, p_notes => @Notes::text, p_itemsjson => @ItemsJson::text, p_createdby => @CreatedBy::text)", conn);
+            // 501: the project split is saved in the same statement as the usage.
+            const string insertCall = "public.spgenericinternalusage_insert(p_farmid => @FarmId::text, p_usagedate => @UsageDate::timestamp, p_category => @Category::text, p_reason => @Reason::text, p_recipientname => @RecipientName::text, p_responsiblestaffid => @ResponsibleStaffId::int, p_staffcount => @StaffCount::int, p_notes => @Notes::text, p_itemsjson => @ItemsJson::text, p_createdby => @CreatedBy::text)";
+            var withProject = GenericProjectAttach.Has(m.Projects);
+            using var cmd = new NpgsqlCommand(withProject
+                ? GenericProjectAttach.WrapInsert(insertCall, "InternalUsage")
+                : "SELECT " + insertCall, conn);
             AddHeaderParams(cmd, m);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)(m.CreatedBy ?? m.UserId) ?? DBNull.Value);
+            if (withProject) GenericProjectAttach.AddParams(cmd, m.FarmId, m.Projects, m.CreatedBy ?? m.UserId);
             await conn.OpenAsync();
             var id = await cmd.ExecuteScalarAsync();
             return id is null || id == DBNull.Value ? 0 : Convert.ToInt32(id);
@@ -548,11 +553,15 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateAsync(GenericInternalUsageModel m)
         {
             using var conn = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand(
-                "SELECT public.spgenericinternalusage_update(p_genericinternalusageid => @Id::int, p_farmid => @FarmId::text, p_usagedate => @UsageDate::timestamp, p_category => @Category::text, p_reason => @Reason::text, p_recipientname => @RecipientName::text, p_responsiblestaffid => @ResponsibleStaffId::int, p_staffcount => @StaffCount::int, p_notes => @Notes::text, p_itemsjson => @ItemsJson::text, p_updatedby => @UpdatedBy::text)", conn);
+            const string updateCall = "public.spgenericinternalusage_update(p_genericinternalusageid => @Id::int, p_farmid => @FarmId::text, p_usagedate => @UsageDate::timestamp, p_category => @Category::text, p_reason => @Reason::text, p_recipientname => @RecipientName::text, p_responsiblestaffid => @ResponsibleStaffId::int, p_staffcount => @StaffCount::int, p_notes => @Notes::text, p_itemsjson => @ItemsJson::text, p_updatedby => @UpdatedBy::text)";
+            var withProject = GenericProjectAttach.Has(m.Projects);
+            using var cmd = new NpgsqlCommand(withProject
+                ? GenericProjectAttach.WrapUpdate(updateCall, "InternalUsage")
+                : "SELECT " + updateCall, conn);
             cmd.Parameters.AddWithValue("@Id", m.GenericInternalUsageId);
             AddHeaderParams(cmd, m);
             cmd.Parameters.AddWithValue("@UpdatedBy", (object?)(m.CreatedBy ?? m.UserId) ?? DBNull.Value);
+            if (withProject) GenericProjectAttach.AddParams(cmd, m.FarmId, m.Projects, m.CreatedBy ?? m.UserId, m.GenericInternalUsageId);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }

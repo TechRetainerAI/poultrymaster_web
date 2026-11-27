@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Label } from "@/components/ui/label"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectsEnabled } from "@/hooks/use-generic-projects"
+import { PROJECT_COLUMN_TITLE, ProjectLabels, useProjectNames } from "@/components/generic/projects/project-column"
 import { getProjectOpenBalances, type ProjectOpenBalance } from "@/lib/api/generic-projects"
 import { ALL_PROJECTS, projectPart, round, type ProjectFilterValue } from "@/lib/generic/project-math"
 import type { BalanceStatusFilter, OpenDocumentRow, PartyBalanceRow } from "@/lib/api/balances"
@@ -25,15 +26,18 @@ export function useProjectBalanceScope(side: "customer" | "supplier") {
   const [version, setVersion] = useState(0)
   const active = enabled && filter.kind !== "all"
 
-  // Read only while a project is picked; again after every reload of the page.
+  const projectNames = useProjectNames()
+
+  // Read whenever the module is on (the Project / contract column needs it even
+  // with "All projects"); again after every reload of the page.
   useEffect(() => {
-    if (!active) return
+    if (!enabled) return
     let cancelled = false
     getProjectOpenBalances(side)
       .then((rows) => { if (!cancelled) setDocs(rows) })
       .catch(() => { if (!cancelled) setDocs([]) })
     return () => { cancelled = true }
-  }, [active, side, version])
+  }, [enabled, side, version])
 
   const byParty = useMemo(() => {
     const m = new Map<number, ProjectOpenBalance[]>()
@@ -83,11 +87,21 @@ export function useProjectBalanceScope(side: "customer" | "supplier") {
           latestDocumentDate: days[days.length - 1] ?? row.latestDocumentDate,
         }
       },
+      /** The Project / contract column: a party lists every project its open documents belong to. */
+      column: {
+        title: PROJECT_COLUMN_TITLE,
+        party: (row: PartyBalanceRow) => (
+          <ProjectLabels labels={projectNames((byParty.get(row.partyId) ?? []).flatMap((d) => d.projects.map((p) => p.projectId)))} />
+        ),
+        document: (doc: OpenDocumentRow) => (
+          <ProjectLabels labels={projectNames((byDoc.get(docKey(doc.documentType, doc.documentId))?.projects ?? []).map((p) => p.projectId))} />
+        ),
+      },
       document: (doc: OpenDocumentRow) => {
         const d = byDoc.get(docKey(doc.documentType, doc.documentId))
         const amount = projectPart(doc.balance, d?.projects, filter)
         return amount === 0 ? null : { ...doc, balance: amount }
       },
     }
-  }, [enabled, active, filter, byParty, byDoc, onReload])
+  }, [enabled, active, filter, byParty, byDoc, onReload, projectNames])
 }

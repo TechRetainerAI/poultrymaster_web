@@ -56,6 +56,11 @@ import {
   type GenericInternalUsage, type InternalUseCategory, type InternalUseStatus,
 } from "@/lib/api/internal-use"
 import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
+import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import {
+  EMPTY_SINGLE_PROJECT, SingleProjectField, loadSingleProject, singleAssignment, type SingleProjectValue,
+} from "@/components/generic/projects/form-project-field"
 
 const gh = (n: number) => fmtMoney(n)
 
@@ -108,6 +113,10 @@ export default function GenericInternalUsePage() {
   const [dateTo, setDateTo] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL")
+  // 501: Project / contract -- filter, column and the field on the form.
+  const { extraFilter: projectFilter, labels: projectLabels } =
+    useProjectListFilter<GenericInternalUsage>("InternalUsage", (r) => r.genericInternalUsageId, items)
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
 
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -232,8 +241,9 @@ export default function GenericInternalUsePage() {
     } as any)
     if (statusFilter !== "ALL") rows = rows.filter((r) => r.status === statusFilter)
     if (categoryFilter !== "ALL") rows = rows.filter((r) => r.category === categoryFilter)
+    if (projectFilter) rows = rows.filter(projectFilter.matches)
     return rows
-  }, [items, search, dateFrom, dateTo, statusFilter, categoryFilter])
+  }, [items, search, dateFrom, dateTo, statusFilter, categoryFilter, projectFilter])
 
   const pg = usePagination(visible)
 
@@ -286,11 +296,14 @@ export default function GenericInternalUsePage() {
       genericProductId: only?.genericProductId ?? 0,
       entryUnit: only?.unitOfMeasure || "Unit",
     })
+    setProject(EMPTY_SINGLE_PROJECT)
     setOpen(true)
   }
 
   function openEdit(r: GenericInternalUsage) {
     setPrefill(null); setPrefillConfirmed(false)
+    setProject(EMPTY_SINGLE_PROJECT)
+    if (projectLabels.enabled) void loadSingleProject("InternalUsage", r.genericInternalUsageId).then(setProject)
     const line = r.items?.[0]
     setForm({
       ...emptyForm(),
@@ -345,6 +358,7 @@ export default function GenericInternalUsePage() {
         recipientName: form.recipientName || null,
         staffCount: form.useStaffHelper && isStaffCategory(form.category) ? form.staffCount : null,
         notes: form.notes || null,
+        projects: projectLabels.enabled ? singleAssignment(project) : undefined,
         items: [{
           genericProductId: form.genericProductId,
           entryQuantity: effectiveQuantity,
@@ -459,6 +473,7 @@ export default function GenericInternalUsePage() {
                     <SelectItem value="Reversed">Reversed</SelectItem>
                   </SelectContent>
                 </Select>
+                {projectFilter?.control}
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                   <SelectTrigger className="w-full sm:w-52"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -505,6 +520,7 @@ export default function GenericInternalUsePage() {
                     { label: "Date", value: fmtDateTime(r.usageDate, r) },
                     { label: "Product", value: r.items?.[0]?.productName ?? "—" },
                     { label: "Recipient", value: r.recipientName ?? "—" },
+                    ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectLabels.labelsOf(r.genericInternalUsageId)} /> }] : []),
                     { label: "Staff", value: r.staffCount ? r.staffCount.toLocaleString() : "—" },
                   ]}
                   actions={(r) => rowActions(r)}
@@ -515,6 +531,7 @@ export default function GenericInternalUsePage() {
                           <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Reason</TableHead>
+                            {projectLabels.enabled && <ProjectHead />}
                             <TableHead>Product</TableHead>
                             <TableHead>Quantity</TableHead>
                             <TableHead className="text-right">Cost</TableHead>
@@ -527,6 +544,7 @@ export default function GenericInternalUsePage() {
                             <TableRow key={r.genericInternalUsageId}>
                               <TableCell className="font-medium">{fmtDateTime(r.usageDate, r)}</TableCell>
                               <TableCell>{GENERIC_INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category}</TableCell>
+                              {projectLabels.enabled && <ProjectCell labels={projectLabels.labelsOf(r.genericInternalUsageId)} />}
                               <TableCell>{r.items?.[0]?.productName ?? "—"}</TableCell>
                               <TableCell>{describeQty(r)}</TableCell>
                               <TableCell className="text-right">{gh(r.totalCostValue ?? 0)}</TableCell>
@@ -703,6 +721,8 @@ export default function GenericInternalUsePage() {
                 </p>
               </div>
 
+              <SingleProjectField value={project} onChange={setProject} amount={totalCost}
+                hint="The cost goes to this project's Profit & Loss when the internal use is posted." />
               <FormField label="Notes" hint="Optional">
                 <Textarea rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
               </FormField>

@@ -332,13 +332,18 @@ export const setLineSplits = (documentType: "Sale" | "Purchase", documentId: num
 
 /** Which projects each of many documents belongs to (list columns). */
 export const getProjectLabels = (sourceType: string, ids?: number[]) =>
-  call<{ sourceId: number; projects: { projectId: number; label: string }[] }[]>(
+  call<{ sourceId: number; projects: { projectId: number; label: string; share?: number | null }[] }[]>(
     "GET", `${base()}/project-allocations/labels${qs({ sourceType, ids: ids?.join(",") })}`)
 
 /** 493: Financial Activity -- each event in the period that belongs (partly) to a project. */
 export const getActivityShares = (fromDate: string, toDate: string) =>
   call<{ eventKey: string; projects: { projectId: number; share: number }[] }[]>(
     "GET", `${base()}/project-allocations/activity-shares${qs({ fromDate, toDate })}`)
+
+/** 501: Cash & Accounts / Reconciliation -- each cash-ledger entry's projects (optionally one account). */
+export const getCashShares = (f: { accountId?: number; fromDate?: string; toDate?: string } = {}) =>
+  call<{ cashTransactionId: number; projects: { projectId: number; share: number; label: string }[] }[]>(
+    "GET", `${base()}/project-allocations/cash-shares${qs(f)}`)
 
 /** 493: one open document behind a customer / supplier balance, with its project shares. */
 export interface ProjectOpenBalance {
@@ -381,6 +386,18 @@ export const saveProjectBudget = (id: number, lines: { category: BudgetCategory;
   call<ProjectBudget>("PUT", `${base()}/projects/${id}/budget`, { lines, effectiveDate })
 export const setExpenseCategoryBudget = (categoryId: number, budgetCategory: string | null) =>
   call<void>("PUT", `${base()}/projects/budget-categories/${categoryId}`, { budgetCategory })
+
+// ---------------------------------------------------------------- team (500)
+
+export interface ProjectTeamMember {
+  staffId: number; name?: string; role?: string | null; startDate?: string | null; endDate?: string | null
+}
+export const getProjectTeam = (id: number) => call<ProjectTeamMember[]>("GET", `${base()}/projects/${id}/team`)
+export const saveProjectTeam = (id: number, members: ProjectTeamMember[]) =>
+  call<ProjectTeamMember[]>("PUT", `${base()}/projects/${id}/team`, members)
+/** Every staff member on an active team, with their projects (people-page filters). */
+export const getTeamByStaff = () =>
+  call<{ staffId: number; projects: { projectId: number; label: string }[] }[]>("GET", `${base()}/projects/team/by-staff`)
 
 export const getMilestones = (id: number) => call<ProjectMilestone[]>("GET", `${base()}/projects/${id}/milestones`)
 export const saveMilestone = (id: number, m: Partial<ProjectMilestone> & { name: string }) =>

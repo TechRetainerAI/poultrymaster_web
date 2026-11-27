@@ -425,6 +425,8 @@ export interface GenericInternalUsage {
 
 export interface GenericInternalUsageInput {
   genericInternalUsageId?: number
+  /** 501: Projects & Contracts -- { projectId, costClass } or { splits }. */
+  projects?: unknown
   usageDate: string
   category: InternalUseCategory
   reason?: string | null

@@ -1486,6 +1486,8 @@ export interface GenericCustomerCredit {
   customerName: string | null; creditType: string; amount: number
   remainingBalance: number; creditDate: string; notes: string | null
   status: string; createdAt: string
+  /** What made it: "CustomerPayment" + the payment id; null when added by hand. */
+  referenceType?: string | null; referenceId?: number | null
 }
 
 export async function getCustomerCredits(): Promise<GenericCustomerCredit[]> {
@@ -1495,6 +1497,8 @@ export async function getCustomerCredits(): Promise<GenericCustomerCredit[]> {
 export async function createCustomerCredit(input: {
   genericCustomerId: number; creditType: string; amount: number
   creditDate?: string; notes?: string
+  /** 501: Projects & Contracts -- { projectId } or { splits }. */
+  projects?: unknown
 }): Promise<number | null> {
   return postJson<number>(`${farmBase()}/customer-credits`, withFarmId(input))
 }

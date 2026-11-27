@@ -114,13 +114,27 @@ namespace PoultryFarmAPIWeb.Business
     public class GenericRecurringExpensePoster : IRecurringExpensePoster
     {
         private readonly IGenericExpenseRecordService _expenses;
-        public GenericRecurringExpensePoster(IGenericExpenseRecordService expenses) => _expenses = expenses;
+        private readonly IGenericProjectDb _projects;
+        public GenericRecurringExpensePoster(IGenericExpenseRecordService expenses, IGenericProjectDb projects)
+        {
+            _expenses = expenses;
+            _projects = projects;
+        }
         public string Module => "generic";
         public bool ModuleApproves => true;
 
-        public Task<int> CreateExpenseAsync(string farmId, RecurringExpenseClaim c, string? actor) =>
-            _expenses.InsertAsync(new GenericExpenseModel
+        public async Task<int> CreateExpenseAsync(string farmId, RecurringExpenseClaim c, string? actor)
+        {
+            // 501: the template's project split goes onto the new expense (its own
+            // Expense allocation, so nothing is counted twice). Null = General.
+            var splits = await _projects.JsonAsync("spgenericproject_templatesplits",
+                GenericProjectDb.Text("p_farmid", farmId), GenericProjectDb.Int("p_templateid", c.TemplateId));
+            System.Text.Json.JsonElement? projects = splits == "null"
+                ? null
+                : System.Text.Json.JsonDocument.Parse(splits).RootElement.Clone();
+            return await _expenses.InsertAsync(new GenericExpenseModel
             {
+                Projects = projects,
                 FarmId = farmId,
                 ExpenseDate = c.ExpenseDate.Date,
                 GenericExpenseCategoryId = c.CategoryId ?? 0,
@@ -133,6 +147,7 @@ namespace PoultryFarmAPIWeb.Business
                 Notes = c.Note,
                 CreatedBy = actor,
             });
+        }
     }
 
     /// <summary>

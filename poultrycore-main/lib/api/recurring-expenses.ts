@@ -53,6 +53,8 @@ export interface RecurringTemplate {
 }
 
 export interface RecurringTemplateInput {
+  /** 501 (Generic only): the template's project split; every expense it makes carries it. */
+  projects?: unknown
   name: string
   categoryId?: number | null
   categoryName?: string | null

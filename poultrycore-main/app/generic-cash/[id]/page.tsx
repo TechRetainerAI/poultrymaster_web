@@ -33,6 +33,10 @@ import {
   type GenericCashAccount, type GenericCashTransaction,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { useCashShares } from "@/components/generic/projects/use-cash-shares"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 export default function GenericCashAccountDetailPage() {
   const router = useRouter()
@@ -57,6 +61,11 @@ export default function GenericCashAccountDetailPage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  // 501: Project / contract -- filters the ENTRIES only. Opening, current and
+  // running balances are the account's and are never split by project.
+  const cashShares = useCashShares(id, rows)
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const filterOn = cashShares.enabled && projectFilter.kind !== "all"
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
@@ -116,9 +125,19 @@ export default function GenericCashAccountDetailPage() {
       search, dateFrom, dateTo,
       searchKeys: ["transactionType", "description", "sourceType"],
       dateKey: "transactionDate",
-    }),
-    [ledger, search, dateFrom, dateTo],
+    }).filter((r) => !filterOn || cashShares.matches(r.genericCashTransactionId, projectFilter)),
+    [ledger, search, dateFrom, dateTo, filterOn, cashShares, projectFilter],
   )
+  // With a project picked: that project's part of each entry, in and out.
+  const projectTotals = useMemo(() => {
+    if (!filterOn) return null
+    let inn = 0, out = 0
+    for (const r of visibleLedger) {
+      const part = cashShares.part(r.genericCashTransactionId, r.amount, projectFilter)
+      if (part > 0) inn += part; else out += -part
+    }
+    return { inn, out, net: inn - out }
+  }, [filterOn, visibleLedger, cashShares, projectFilter])
 
   // Client-side paging: the whole list is already in memory, so this is a
   // slice. Feed the SAME slice to the cards and the desktop table.
@@ -201,12 +220,26 @@ export default function GenericCashAccountDetailPage() {
                 <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total money out</div><div className="text-xl font-semibold tabular-nums text-rose-600">{gh(totalOut)}</div></CardContent></Card>
                 <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Current balance</div><div className="text-xl font-semibold tabular-nums">{gh(account.currentBalance)}</div></CardContent></Card>
               </div>
+              {projectTotals && (
+                <div className="mb-4 space-y-2">
+                  <div className="grid grid-cols-3 gap-3">
+                    <Card className="border-indigo-200"><CardContent className="p-4"><div className="text-xs text-slate-500">Project cash received</div><div className="text-xl font-semibold tabular-nums text-green-700">{gh(projectTotals.inn)}</div></CardContent></Card>
+                    <Card className="border-indigo-200"><CardContent className="p-4"><div className="text-xs text-slate-500">Project cash paid</div><div className="text-xl font-semibold tabular-nums text-rose-600">{gh(projectTotals.out)}</div></CardContent></Card>
+                    <Card className="border-indigo-200"><CardContent className="p-4"><div className="text-xs text-slate-500">Net for the project</div><div className="text-xl font-semibold tabular-nums">{gh(projectTotals.net)}</div></CardContent></Card>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    The project&apos;s part of the entries shown. The balances above are the whole account&apos;s and are not split by project;
+                    the running balance is hidden while filtered because it only makes sense over every entry.
+                  </p>
+                </div>
+              )}
 
               <ListFilters
                 search={search} setSearch={setSearch}
                 dateFrom={dateFrom} setDateFrom={setDateFrom}
                 dateTo={dateTo} setDateTo={setDateTo}
                 searchPlaceholder="Search type, source or description"
+                extras={cashShares.enabled ? <ProjectFilter value={projectFilter} onChange={setProjectFilter} className="h-9 w-full sm:w-60" /> : undefined}
               />
               <Card>
                 <CardContent className="p-0">
@@ -220,7 +253,7 @@ export default function GenericCashAccountDetailPage() {
                       pagination={pg.paginationProps}
                       getKey={(r) => r.genericCashTransactionId}
                       primary={(r) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${r.transactionType}`}
-                      secondary={(r) => (<><span>{fmtDateTime(r.transactionDate, r)}</span><span>· Bal {gh(r.running)}</span></>)}
+                      secondary={(r) => (<><span>{fmtDateTime(r.transactionDate, r)}</span>{!filterOn && <span>· Bal {gh(r.running)}</span>}</>)}
                       details={(r) => [
                         { label: "Date", value: fmtDateTime(r.transactionDate, r) },
                         { label: "Type", value: r.transactionType },
@@ -230,7 +263,8 @@ export default function GenericCashAccountDetailPage() {
                         { label: "Source", value: categoryLabel(r.sourceType ?? "") },
                         { label: "Money in", value: r.amount > 0 ? gh(r.amount) : "—" },
                         { label: "Money out", value: r.amount < 0 ? gh(Math.abs(r.amount)) : "—" },
-                        { label: "Running balance", value: gh(r.running) },
+                        ...(filterOn ? [] : [{ label: "Running balance", value: gh(r.running) }]),
+                        ...(cashShares.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={cashShares.labelsOf(r.genericCashTransactionId)} /> }] : []),
                         { label: "Description", value: r.description ?? "—" },
                       ]}
                       desktopTable={
@@ -243,7 +277,8 @@ export default function GenericCashAccountDetailPage() {
                                 <TableHead>Source</TableHead>
                                 <TableHead className="text-right">Money in</TableHead>
                                 <TableHead className="text-right">Money out</TableHead>
-                                <TableHead className="text-right">Running balance</TableHead>
+                                {!filterOn && <TableHead className="text-right">Running balance</TableHead>}
+                                {cashShares.enabled && <ProjectHead />}
                                 <TableHead>Description</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -255,7 +290,8 @@ export default function GenericCashAccountDetailPage() {
                                   <TableCell>{categoryLabel(r.sourceType ?? "")}</TableCell>
                                   <TableCell className="text-right tabular-nums text-green-700">{r.amount > 0 ? gh(r.amount) : "—"}</TableCell>
                                   <TableCell className="text-right tabular-nums text-rose-600">{r.amount < 0 ? gh(Math.abs(r.amount)) : "—"}</TableCell>
-                                  <TableCell className="text-right tabular-nums font-medium">{gh(r.running)}</TableCell>
+                                  {!filterOn && <TableCell className="text-right tabular-nums font-medium">{gh(r.running)}</TableCell>}
+                                  {cashShares.enabled && <ProjectCell labels={cashShares.labelsOf(r.genericCashTransactionId)} />}
                                   <TableCell className="max-w-sm whitespace-normal break-words align-top">{r.description ?? "—"}</TableCell>
                                 </TableRow>
                               ))}

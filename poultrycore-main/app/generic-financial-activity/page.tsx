@@ -46,6 +46,7 @@ import {
 } from "@/lib/api/generic-financial-activity"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectsEnabled } from "@/hooks/use-generic-projects"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE, useProjectNames } from "@/components/generic/projects/project-column"
 import { getActivityShares } from "@/lib/api/generic-projects"
 import { ALL_PROJECTS, projectPart, type ProjectFilterValue, type ProjectShare } from "@/lib/generic/project-math"
 
@@ -115,6 +116,9 @@ function FinancialActivityPageInner() {
   const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
   const projectActive = projectsEnabled && projectFilter.kind !== "all"
   const [shares, setShares] = useState<Map<string, ProjectShare[]> | null>(null)
+  const projectNames = useProjectNames()
+  /** The Project / contract column: the projects an event belongs to; none = General. */
+  const projectsOfEvent = (key: string) => projectNames((shares?.get(key) ?? []).map((p) => p.projectId))
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const toggle = (key: string) =>
@@ -144,15 +148,16 @@ function FinancialActivityPageInner() {
     setRefreshing(false)
   }
 
-  // Read the shares for the period whenever a project is picked or the data reloads.
+  // Read the shares for the period whenever the module is on (the Project /
+  // contract column needs them even under "All projects") or the data reloads.
   useEffect(() => {
-    if (!projectActive) { setShares(null); return }
+    if (!projectsEnabled) { setShares(null); return }
     let cancelled = false
     getActivityShares(fromDate, toDate)
       .then((list) => { if (!cancelled) setShares(new Map(list.map((x) => [x.eventKey, x.projects]))) })
       .catch((e: any) => { if (!cancelled) { setShares(new Map()); setError(e?.message ?? String(e)) } })
     return () => { cancelled = true }
-  }, [projectActive, fromDate, toDate, data])
+  }, [projectsEnabled, fromDate, toDate, data])
 
   // While a project is picked: only the events that belong to it, each at its
   // project part (rounded per project, General takes the remainder -- the same
@@ -506,6 +511,7 @@ function FinancialActivityPageInner() {
                 ]}
                 details={(r) => [
                   { label: "Description", value: r.description ?? "\u2014" },
+                  ...(projectsEnabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectsOfEvent(r.eventKey)} /> }] : []),
                   { label: "Revenue", value: money(r.revenue) },
                   { label: "Expense", value: money(r.expense) },
                   { label: "Running cash", value: gh(r.runningCash) },
@@ -514,7 +520,7 @@ function FinancialActivityPageInner() {
                 pagination={pg.paginationProps}
                 desktopTable={
                   <div className="overflow-x-auto table-scroll-wrapper pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
-                    <Table className="w-full min-w-[1080px]">
+                    <Table className={cn("w-full", projectsEnabled ? "min-w-[1240px]" : "min-w-[1080px]")}>
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-8" />
@@ -522,6 +528,7 @@ function FinancialActivityPageInner() {
                           <SortableHeader label="Type" sortKey="type" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                           <SortableHeader label="Category" sortKey="category" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                           <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          {projectsEnabled && <ProjectHead />}
                           <SortableHeader label="Money In" sortKey="moneyIn" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" title={TIP.moneyIn} />
                           <SortableHeader label="Money Out" sortKey="moneyOut" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" title={TIP.moneyOut} />
                           <SortableHeader label="Revenue" sortKey="revenue" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" title={TIP.revenue} />
@@ -551,6 +558,7 @@ function FinancialActivityPageInner() {
                                 <TableCell className="max-w-[280px] truncate text-sm" title={r.description ?? ""}>
                                   {r.description ?? "\u2014"}
                                 </TableCell>
+                                {projectsEnabled && <ProjectCell labels={projectsOfEvent(r.eventKey)} />}
                                 <TableCell className="text-right tabular-nums text-emerald-700">{money(r.moneyIn)}</TableCell>
                                 <TableCell className="text-right tabular-nums text-rose-700">{money(r.moneyOut)}</TableCell>
                                 <TableCell className="text-right tabular-nums text-emerald-700">{money(r.revenue)}</TableCell>
@@ -563,7 +571,7 @@ function FinancialActivityPageInner() {
                               </TableRow>
                               {open && (
                                 <TableRow>
-                                  <TableCell colSpan={11} className="bg-slate-50 p-0">{positionsFor(r)}</TableCell>
+                                  <TableCell colSpan={projectsEnabled ? 12 : 11} className="bg-slate-50 p-0">{positionsFor(r)}</TableCell>
                                 </TableRow>
                               )}
                             </Fragment>
@@ -572,7 +580,7 @@ function FinancialActivityPageInner() {
                       </TableBody>
                       <TableFooter>
                         <TableRow className="bg-slate-50 hover:bg-slate-50">
-                          <TableCell colSpan={5} className="font-medium text-slate-700">
+                          <TableCell colSpan={projectsEnabled ? 6 : 5} className="font-medium text-slate-700">
                             {filtersActive ? "Filtered total" : "Period total"}
                             <span className="ml-1.5 text-xs font-normal text-slate-500">
                               ({filtered.length.toLocaleString()} {filtered.length === 1 ? "event" : "events"})

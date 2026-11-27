@@ -52,6 +52,8 @@ import {
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
+import { ProjectHead, ProjectSplitLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, loadSingleProject, type SingleProjectValue,
 } from "@/components/generic/projects/form-project-field"
@@ -90,7 +92,9 @@ function statusClass(l: GenericLoan) {
 
 const canEdit = (l: GenericLoan) => l.status !== "Cancelled"
 // Same rule as the SP: reverse every repayment first.
-const canCancel = (l: GenericLoan) => l.status !== "Cancelled" && l.paymentCount === 0
+// Reverse (the SP's cancel) is offered on every live loan; repayments must be
+// reversed first, and the dialog says so rather than hiding the action.
+const canCancel = (l: GenericLoan) => l.status !== "Cancelled"
 
 const blankForm = () => ({
   lenderName: "", lenderType: "Bank", accountNumber: "",
@@ -253,6 +257,8 @@ export default function GenericLoansPage() {
   const [repaying, setRepaying] = useState<GenericLoan | null>(null)
   const [reversing, setReversing] = useState<GenericLoanPayment | null>(null)
   const [cancelling, setCancelling] = useState<GenericLoan | null>(null)
+  /** After reversing, open a new loan with the same details so the amounts can be corrected. */
+  const [reEnter, setReEnter] = useState(true)
   const [reason, setReason] = useState("")
 
   const paymentsByLoan = useMemo(() => {
@@ -453,17 +459,36 @@ export default function GenericLoansPage() {
     }
     setSaving(true)
     try {
+      const reversed = cancelling
+      // Read its project split BEFORE reversing, to carry it to the new loan.
+      const split = reEnter && projectsEnabled ? await loadSingleProject("Loan", reversed.genericLoanId) : null
       await cancelLoan(cancelling.genericLoanId, reason.trim())
       toast({
-        title: "Loan cancelled",
+        title: "Loan reversed",
         description: cancelling.amountReceived > 0
           ? `${fmt(cancelling.amountReceived)} taken back out of ${cancelling.accountName ?? "the account"}.`
           : "Nothing was received, so no cash moved.",
       })
       setCancelling(null); setReason("")
       await load()
+      if (reEnter) {
+        // A NEW loan with the reversed one's details; change the amounts and save.
+        setEditing(null)
+        setForm({
+          lenderName: reversed.lenderName ?? "", lenderType: reversed.lenderType || "Other", accountNumber: reversed.accountNumber ?? "",
+          originalPrincipal: String(reversed.originalPrincipal), amountReceived: String(reversed.amountReceived),
+          genericCashAccountId: reversed.genericCashAccountId ? String(reversed.genericCashAccountId) : "",
+          startDate: dateOnly(reversed.startDate ?? reversed.loanDate),
+          interestRate: reversed.interestRate ? String(reversed.interestRate) : "", interestType: reversed.interestType || "Unknown",
+          termMonths: reversed.termMonths != null ? String(reversed.termMonths) : "", paymentFrequency: reversed.paymentFrequency || "Monthly",
+          nextPaymentDate: dateOnly(reversed.nextPaymentDate), notes: reversed.notes ?? "",
+        })
+        setProject(split ? { ...split, costClass: "Financing" } : { ...EMPTY_SINGLE_PROJECT, costClass: "Financing" })
+        setProjectChanged(false)
+        setNewOpen(true)
+      }
     } catch (e: any) {
-      toast({ title: "Could not cancel", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: "Could not reverse the loan", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setSaving(false) }
   }
 
@@ -544,6 +569,7 @@ export default function GenericLoansPage() {
               highlights={(l) => [
                 { label: "Still owed", value: fmt(l.outstandingBalance) },
                 { label: "Borrowed", value: fmt(l.originalPrincipal) },
+                ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectSplitLabels parts={projectLabels.partsOf(l.genericLoanId)} amount={l.originalPrincipal} fmt={fmt} /> }] : []),
               ]}
               details={(l) => [
                 { label: "Received", value: fmt(l.amountReceived) },
@@ -576,7 +602,7 @@ export default function GenericLoansPage() {
                   {canCancel(l) && (
                     <Button size="sm" variant="outline" className="flex-1 h-10 text-rose-700"
                             onClick={() => { setCancelling(l); setReason("") }}>
-                      <Ban className="h-4 w-4 mr-1" /> Cancel
+                      <Undo2 className="h-4 w-4 mr-1" /> Reverse
                     </Button>
                   )}
                 </>
@@ -590,6 +616,7 @@ export default function GenericLoansPage() {
                         <TableHead className="w-8" />
                         <TableHead>Loan #</TableHead>
                         <TableHead>Lender</TableHead>
+                        {projectLabels.enabled && <ProjectHead />}
                         <TableHead className="text-right">Borrowed</TableHead>
                         <TableHead className="text-right">Received</TableHead>
                         <TableHead className="text-right">Repaid</TableHead>
@@ -622,10 +649,10 @@ export default function GenericLoansPage() {
                           </TableCell>
                           <TableCell>
                             {lenderCell(l)}<div className="text-xs text-slate-500">{l.lenderType}</div>
-                            {projectLabels.labelOf(l.genericLoanId) && (
-                              <div className="text-xs text-violet-700">{projectLabels.labelOf(l.genericLoanId)}</div>
-                            )}
                           </TableCell>
+                          {projectLabels.enabled && (
+                            <TableCell><ProjectSplitLabels parts={projectLabels.partsOf(l.genericLoanId)} amount={l.originalPrincipal} fmt={fmt} /></TableCell>
+                          )}
                           <TableCell className="text-right tabular-nums">{fmt(l.originalPrincipal)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.amountReceived)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.totalPrincipalPaid)}</TableCell>
@@ -651,9 +678,9 @@ export default function GenericLoansPage() {
                                 </Button>
                               )}
                               {canCancel(l) && (
-                                <Button size="sm" variant="outline" className="text-rose-700" title="Cancel the loan"
+                                <Button size="sm" variant="outline" className="text-rose-700" title="Reverse the loan (to correct its amounts, reverse and re-enter it)"
                                         onClick={(e) => { e.stopPropagation(); setCancelling(l); setReason("") }}>
-                                  <Ban className="h-3 w-3" />
+                                  <Undo2 className="h-3 w-3" />
                                 </Button>
                               )}
                             </div>
@@ -661,7 +688,13 @@ export default function GenericLoansPage() {
                         </TableRow>
                         {open && (
                           <TableRow>
-                            <TableCell colSpan={12} className="bg-slate-50 p-0">
+                            <TableCell colSpan={projectLabels.enabled ? 13 : 12} className="bg-slate-50 p-0">
+                              {projectLabels.enabled && projectLabels.partsOf(l.genericLoanId).length > 0 && (
+                                <div className="border-b border-slate-200 px-4 py-3">
+                                  <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Project split of {fmt(l.originalPrincipal)}</div>
+                                  <ProjectSplitLabels parts={projectLabels.partsOf(l.genericLoanId)} amount={l.originalPrincipal} fmt={fmt} />
+                                </div>
+                              )}
                               <LoanRepaymentTable
                                 payments={loanPayments}
                                 fmt={fmt}
@@ -886,17 +919,18 @@ export default function GenericLoansPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Ban className="w-5 h-5 text-rose-600" /> Cancel Loan
+              <Undo2 className="w-5 h-5 text-rose-600" /> Reverse loan
             </DialogTitle>
             <DialogDescription>
-              The debt is written off the books and the money received is taken back out of the
-              account it landed in. The loan stays on the record as Cancelled.
+              The loan is reversed: the debt comes off the books and the money received is taken back out of the
+              account it landed in. It stays on the record as Cancelled. To correct a loan&apos;s amounts, reverse it
+              and record it again.
             </DialogDescription>
           </DialogHeader>
 
           {cancelling && (
             <div className="space-y-4">
-              <FormSection title="Loan being cancelled" color="slate" columns={1}>
+              <FormSection title="Loan being reversed" color="slate" columns={1}>
                 <div className="text-sm">
                   <div className="font-medium">{cancelling.loanNumber ?? "#" + cancelling.genericLoanId} · {cancelling.lenderName}</div>
                   <div className="mt-1">
@@ -906,20 +940,34 @@ export default function GenericLoansPage() {
                 </div>
               </FormSection>
 
-              <FormSection title="Why" color="amber" columns={1}>
-                <FormField label="Reason *" hint="Written to the audit trail.">
-                  <ReasonSelect options={CANCEL_REASONS} value={reason} onChange={setReason} />
-                </FormField>
-              </FormSection>
+              {cancelling.paymentCount > 0 ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  This loan has {cancelling.paymentCount} repayment{cancelling.paymentCount === 1 ? "" : "s"}. Reverse
+                  {cancelling.paymentCount === 1 ? " it" : " them"} first (open the loan&apos;s row and use Reverse on each
+                  repayment), then reverse the loan.
+                </div>
+              ) : (
+                <>
+                  <FormSection title="Why" color="amber" columns={1}>
+                    <FormField label="Reason *" hint="Written to the audit trail.">
+                      <ReasonSelect options={CANCEL_REASONS} value={reason} onChange={setReason} />
+                    </FormField>
+                  </FormSection>
+                  <label className="flex items-start gap-2 text-sm text-slate-700">
+                    <Checkbox checked={reEnter} onCheckedChange={(v) => setReEnter(v === true)} className="mt-0.5" />
+                    <span>Then record it again with the same details{projectsEnabled ? " and project split" : ""}, so I can correct the amounts</span>
+                  </label>
+                </>
+              )}
             </div>
           )}
 
           <div className="flex gap-3 justify-end pt-2">
             <Button type="button" onClick={() => { setCancelling(null); setReason("") }}
                     className="bg-red-600 hover:bg-red-700 text-white">Keep loan</Button>
-            <Button variant="destructive" onClick={doCancel} disabled={saving}>
-              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Cancelling...</>
-                      : <><Ban className="w-4 h-4 mr-2" />Cancel loan</>}
+            <Button variant="destructive" onClick={doCancel} disabled={saving || (cancelling?.paymentCount ?? 0) > 0}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Reversing...</>
+                      : <><Undo2 className="w-4 h-4 mr-2" />Reverse loan</>}
             </Button>
           </div>
         </DialogContent>

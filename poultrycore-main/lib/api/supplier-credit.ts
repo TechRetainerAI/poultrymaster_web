@@ -170,6 +170,8 @@ export async function supplierCreditTotal(supplierId: number): Promise<number> {
 
 export const createSupplierCredit = (input: {
   supplierId: number; kind: SupplierCreditKind; amount: number; creditDate?: string | null; reference?: string | null; reason: string
+  /** 501 (Generic only): the project this credit is held for -- { projectId } or { splits }. */
+  projects?: unknown
 }) => post<{ paymentId: number }>(`${creditModule()}/supplier-credits/manual`, input)
 
 export const reverseSupplierCredit = (paymentId: number, reason: string) =>

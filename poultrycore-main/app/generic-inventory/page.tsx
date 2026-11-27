@@ -55,6 +55,8 @@ import {
 } from "@/lib/api/generic"
 import { ReservedStockNote, useReservedStock } from "@/components/generic/projects/reserved-stock-note"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { useProjectLabels } from "@/hooks/use-project-labels"
 import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 // ---- Shared building blocks (mirrors poultry-supply-purchases) ----------------
@@ -213,6 +215,8 @@ function GenericInventoryPageInner() {
   // 485: stock reserved for projects (still on the shelf; shown, never subtracted).
   const reservedStock = useReservedStock()
   const [purchases, setPurchases] = useState<GenericPurchase[]>([])
+  // The Project / contract column on the Purchases tab (only while the module is on).
+  const purchaseProjects = useProjectLabels("Purchase", purchases)
   const [adjustments, setAdjustments] = useState<GenericStockAdjustment[]>([])
   const [adjustmentsLoaded, setAdjustmentsLoaded] = useState(false)
   const [suppliers, setSuppliers] = useState<GenericSupplier[]>([])
@@ -697,6 +701,7 @@ function GenericInventoryPageInner() {
                         {(() => { const onSort = (k: string) => setPurchasesSort((s) => toggleSort(k, s.key, s.direction)); const cs = purchasesSort.key, cd = purchasesSort.direction; return (<>
                         <SortableHeader label="Date" sortKey="purchaseDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
                         <SortableHeader label="Supplier" sortKey="supplierName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                        {purchaseProjects.enabled && <ProjectHead />}
                         <TableHead>Invoice</TableHead>
                         <SortableHeader label="Total" sortKey="totalAmount" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                         <SortableHeader label="Paid" sortKey="amountPaid" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
@@ -708,7 +713,7 @@ function GenericInventoryPageInner() {
                       </TableRow></TableHeader>
                       <TableBody>
                         {filteredPurchases.length === 0 ? (
-                          <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-8">
+                          <TableRow><TableCell colSpan={purchaseProjects.enabled ? 10 : 9} className="text-center text-slate-500 py-8">
                             {purchases.length === 0 ? "No purchases yet — record one with Record Purchase." : "No purchases match these filters."}
                           </TableCell></TableRow>
                         ) : pgPurchases.pageItems.map((p) => (
@@ -717,6 +722,7 @@ function GenericInventoryPageInner() {
                             <TableCell>
                               <div className="font-medium text-slate-900">{displaySupplier(p)}</div>
                             </TableCell>
+                            {purchaseProjects.enabled && <ProjectCell labels={purchaseProjects.labelsOf(p.genericPurchaseId)} />}
                             <TableCell className="text-sm text-slate-600">{p.invoiceNumber ?? "—"}</TableCell>
                             <TableCell className="text-right font-medium whitespace-nowrap">{gh(p.totalAmount)}</TableCell>
                             <TableCell className="text-right whitespace-nowrap">{gh(p.amountPaid)}</TableCell>
@@ -773,6 +779,7 @@ function GenericInventoryPageInner() {
                             fields={[
                               ["Date", fmtDateTime(p.purchaseDate, p)],
                               ["Invoice", p.invoiceNumber ?? "—"],
+                              ...(purchaseProjects.enabled ? [[PROJECT_COLUMN_TITLE, <ProjectLabels key="project" labels={purchaseProjects.labelsOf(p.genericPurchaseId)} />] as [string, React.ReactNode]] : []),
                               ["Total", gh(p.totalAmount)],
                               ["Paid", gh(p.amountPaid)],
                               ["Balance", p.balance > 0 ? gh(p.balance) : "—"],

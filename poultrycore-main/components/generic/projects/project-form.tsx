@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Save } from "lucide-react"
+import { Loader2, Plus, Save } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,10 +18,19 @@ import { useToast } from "@/hooks/use-toast"
 import { invalidateProjectOptions } from "@/hooks/use-generic-projects"
 import { getCustomers, getStaff, type GenericCustomer, type GenericStaff } from "@/lib/api/generic"
 import {
-  createProject, updateProject, PROJECT_STATUSES, type GenericProject, type ProjectInput,
+  createProject, updateProject, listProjects, PROJECT_STATUSES, type GenericProject, type ProjectInput,
 } from "@/lib/api/generic-projects"
 
 type Form = Record<string, string>
+
+// General contract categories offered in the picker. Categories the company has
+// already used on other projects are added to the list, and they can type their own.
+const DEFAULT_CONTRACT_CATEGORIES = [
+  "Supply", "Construction", "Service", "Consultancy", "Maintenance & Repairs",
+  "Installation", "Transport & Logistics", "Cleaning & Facility Management", "Security",
+  "IT & Software", "Training", "Catering", "Printing & Branding", "Events",
+  "Renovation", "Engineering", "Design", "Rental & Leasing", "Agriculture", "Other",
+]
 
 const TEXT_FIELDS = [
   "name", "kind", "status", "description", "startDate", "expectedEndDate", "actualEndDate", "notes",
@@ -56,11 +65,16 @@ export function ProjectForm({ project }: { project?: GenericProject | null }) {
   const [saving, setSaving] = useState(false)
   const [customers, setCustomers] = useState<GenericCustomer[]>([])
   const [staff, setStaff] = useState<GenericStaff[]>([])
+  const [usedCategories, setUsedCategories] = useState<string[]>([])
+  const [newCategory, setNewCategory] = useState("")
 
   useEffect(() => { setF(toForm(project)) }, [project])
   useEffect(() => {
     getCustomers().then(setCustomers).catch(() => {})
     getStaff().then(setStaff).catch(() => {})
+    listProjects({ pageSize: 200 })
+      .then((pg) => setUsedCategories(pg.items.map((p) => p.category?.trim() ?? "").filter(Boolean)))
+      .catch(() => {})
   }, [])
 
   const set = (k: string, v: string) => setF((x) => ({ ...x, [k]: v }))
@@ -91,6 +105,15 @@ export function ProjectForm({ project }: { project?: GenericProject | null }) {
       {opts.hint && <p className="text-xs text-slate-500">{opts.hint}</p>}
     </div>
   )
+  // Common categories first, then this company's own; no name listed twice.
+  const categoryOptions = (() => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const c of [...DEFAULT_CONTRACT_CATEGORIES, ...usedCategories, f.category?.trim() ?? ""]) {
+      if (c && !seen.has(c.toLowerCase())) { seen.add(c.toLowerCase()); out.push(c) }
+    }
+    return out
+  })()
   const money = (k: string, label: string, hint?: string) => (
     <div className="space-y-1">
       <Label htmlFor={k}>{label}</Label>
@@ -194,7 +217,27 @@ export function ProjectForm({ project }: { project?: GenericProject | null }) {
       <Card>
         <CardHeader><CardTitle className="text-base">Organisation (optional)</CardTitle></CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          {field("category", "Contract category", { placeholder: "e.g. Supply, Construction, Service" })}
+          <div className="space-y-1">
+            <Label>Contract category</Label>
+            <Select value={f.category?.trim() || "none"} onValueChange={(v) => set("category", v === "none" ? "" : v)}>
+              <SelectTrigger><SelectValue placeholder="e.g. Supply, Construction, Service" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— No category —</SelectItem>
+                {categoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-1.5">
+              <Input className="h-8 text-xs" placeholder="New category name" maxLength={100} value={newCategory} onChange={(e) => setNewCategory(e.target.value)} />
+              <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 text-xs" disabled={!newCategory.trim()} onClick={() => {
+                const name = newCategory.trim()
+                setUsedCategories((prev) => [...prev, name])
+                set("category", name)
+                setNewCategory("")
+              }}>
+                <Plus className="h-3 w-3 mr-1" /> Add
+              </Button>
+            </div>
+          </div>
           {field("location", "Location / site")}
           <div className="space-y-1 md:col-span-2">
             <Label htmlFor="notes">Notes</Label>

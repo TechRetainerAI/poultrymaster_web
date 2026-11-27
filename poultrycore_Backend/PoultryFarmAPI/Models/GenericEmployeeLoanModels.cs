@@ -150,6 +150,8 @@ namespace PoultryFarmAPIWeb.Models
     public class GenericEmployeeLoanCreateRequest
     {
         public string FarmId { get; set; } = string.Empty;
+        /// <summary>Projects & Contracts (501): an advance taken FOR a project -- { projectId } or { splits }. Absent / null projectId = personal (General).</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
         public int GenericStaffId { get; set; }
         public decimal PrincipalAmount { get; set; }
         public DateTime DisbursementDate { get; set; }
@@ -183,6 +185,8 @@ namespace PoultryFarmAPIWeb.Models
     public class GenericEmployeeLoanUpdateRequest
     {
         public string FarmId { get; set; } = string.Empty;
+        /// <summary>Projects & Contracts (501): an advance taken FOR a project -- { projectId } or { splits }. Absent / null projectId = personal (General).</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
         /// <summary>Refused once the advance is disbursed -- that is history.</summary>
         public decimal? PrincipalAmount { get; set; }
         public DateTime? DisbursementDate { get; set; }

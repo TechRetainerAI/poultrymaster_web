@@ -60,7 +60,13 @@ function fmt(n: number) {
 // Component
 // =============================================================================
 
-export function GenericServicesTab() {
+export function GenericServicesTab({ newRequest = 0, onNewHandled, hideNewButton = false }: {
+  /** Bumped by the page's "New service" button: open the new-service form once. */
+  newRequest?: number
+  onNewHandled?: () => void
+  /** The page shows its own "New service" button beside "New item". */
+  hideNewButton?: boolean
+} = {}) {
   const { toast } = useToast()
   const [rows, setRows] = useState<GenericService[]>([])
   const [search, setSearch] = useState("")
@@ -127,6 +133,12 @@ export function GenericServicesTab() {
     setForm(EMPTY_FORM)
     setOpen(true)
   }
+
+  // The page asked for a new service (possibly from the Physical Items tab).
+  useEffect(() => {
+    if (newRequest > 0) { openNew(); onNewHandled?.() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newRequest])
 
   const openEdit = (s: GenericService) => {
     setEditingId(s.genericServiceId)
@@ -260,7 +272,7 @@ export function GenericServicesTab() {
   return (
     <>
       {/* Header button + Filters */}
-      {rows.length > 0 && (
+      {rows.length > 0 && !hideNewButton && (
         <div className="flex justify-end mb-3">
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New Service</Button>
         </div>
