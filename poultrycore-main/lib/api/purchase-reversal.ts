@@ -6,7 +6,8 @@
 import { farmApiUrl, getAuthHeaders } from "./config"
 import type { ApiResponse } from "./sale"
 
-export type PurchaseModule = "water" | "poultry"
+// "generic-expense" (504): an approved Generic expense, same shape (no stock).
+export type PurchaseModule = "water" | "poultry" | "generic" | "generic-expense"
 
 /** What happens to one money line: the supplier gave it back, or it stays with them as credit. */
 export type PurchaseMoneyAction = "Refund" | "KeepAsCredit"
@@ -53,6 +54,12 @@ export interface PurchaseReversalPreview {
   supplierCreditNow: number
   blockers: { code: string; message: string }[]
   fingerprint: string
+  /** Generic (500): a purchase has many lines -- the stock each one takes back out. */
+  lines?: { productId: number; name: string; quantity: number; unit: string; inStock: number }[]
+  /** Generic (500): false when the purchase was never on Profit & Loss (cost is booked on sale). */
+  costOnPl?: boolean
+  /** Generic expense (504): nothing to take out of stock. */
+  noStock?: boolean
 }
 
 export interface PurchaseReversalRecord {
@@ -87,14 +94,18 @@ async function readJson(response: Response): Promise<any> {
   try { return text ? JSON.parse(text) : null } catch { return text }
 }
 
-const base = (module: PurchaseModule, id: number) =>
-  `${module === "water" ? "Water" : "Poultry"}/raw-material-purchases/${id}`
+const base = (module: PurchaseModule, id: number, farmId: string) =>
+  module === "generic"
+    ? `generic-company/${encodeURIComponent(farmId)}/purchases/${id}`
+    : module === "generic-expense"
+    ? `generic-company/${encodeURIComponent(farmId)}/expenses/${id}`
+    : `${module === "water" ? "Water" : "Poultry"}/raw-material-purchases/${id}`
 
 export async function getPurchaseReversalPreview(
   module: PurchaseModule, id: number, farmId: string,
 ): Promise<ApiResponse<PurchaseReversalPreview>> {
   try {
-    const response = await fetch(farmApiUrl(`${base(module, id)}/reversal-preview?farmId=${encodeURIComponent(farmId)}`), {
+    const response = await fetch(farmApiUrl(`${base(module, id, farmId)}/reversal-preview?farmId=${encodeURIComponent(farmId)}`), {
       headers: getAuthHeaders(),
     })
     const data = await readJson(response)
@@ -109,7 +120,7 @@ export async function getPurchaseReversal(
   module: PurchaseModule, id: number, farmId: string,
 ): Promise<ApiResponse<PurchaseReversalRecord>> {
   try {
-    const response = await fetch(farmApiUrl(`${base(module, id)}/reversal?farmId=${encodeURIComponent(farmId)}`), {
+    const response = await fetch(farmApiUrl(`${base(module, id, farmId)}/reversal?farmId=${encodeURIComponent(farmId)}`), {
       headers: getAuthHeaders(),
     })
     const data = await readJson(response)
@@ -125,7 +136,7 @@ export async function reversePurchase(
   module: PurchaseModule, id: number, input: ReversePurchaseInput,
 ): Promise<ApiResponse<{ purchaseReversalId: number; reversal: PurchaseReversalRecord | null }> & { stale?: boolean }> {
   try {
-    const response = await fetch(farmApiUrl(`${base(module, id)}/reverse?farmId=${encodeURIComponent(input.farmId)}`), {
+    const response = await fetch(farmApiUrl(`${base(module, id, input.farmId)}/reverse?farmId=${encodeURIComponent(input.farmId)}`), {
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify(input),

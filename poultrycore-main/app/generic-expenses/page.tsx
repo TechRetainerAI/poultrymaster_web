@@ -10,9 +10,10 @@
 //     on Poultry (migration 448): the part paid now leaves the chosen cash
 //     account, the part still owed goes on the supplier and shows on Supplier
 //     Balances, where it is paid;
-//   * Edit and Delete as on Poultry. Deleting an approved expense gives its cash
-//     back and takes it off the supplier; both are refused once a supplier
-//     payment is applied to it (reverse the payment first).
+//   * Drafts are edited and deleted. An APPROVED expense is final (504): no
+//     Edit or Delete -- it is Reversed (reason, refund or supplier credit) and a
+//     corrected one is entered. A paid expense with a supplier makes an
+//     ExpenseEntry Supplier Payment on approval.
 // Poultry-only parts are left out: flock / batch, feed rule, receipts, cost
 // breakdown, repeat previous.
 
@@ -52,8 +53,10 @@ import { PaymentHistoryDialog } from "@/components/balances/payment-history-dial
 import type { OpenDocumentRow } from "@/lib/api/balances"
 import {
   Banknote, Calendar, Check, ChevronDown, ChevronUp, DollarSign, Download, FileText as FileTextIcon, Filter,
-  History, Loader2, Pencil, Plus, Search, Trash2, Truck, X,
+  History, Loader2, Pencil, Plus, Search, Trash2, Truck, Undo2, X,
 } from "lucide-react"
+import { ReversePurchaseDialog } from "@/components/purchases/reverse-purchase-dialog"
+import { getSelectedCurrency } from "@/lib/utils/currency"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useLogout } from "@/hooks/use-logout"
@@ -226,6 +229,7 @@ function GenericExpensesPageInner() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Row | null>(null)
+  const [reverseFor, setReverseFor] = useState<Row | null>(null)
   const [rejectFor, setRejectFor] = useState<Row | null>(null)
   const [rejectReason, setRejectReason] = useState("")
   const [payFor, setPayFor] = useState<Row | null>(null)
@@ -560,6 +564,8 @@ function GenericExpensesPageInner() {
   const rowActions = (e: Row, mobile = false) => {
     const draft = e.status === "Draft" || e.status === "Submitted"
     const own = ownExpense(e)
+    // 504: an approved expense is final -- no Edit or Delete; it is reversed.
+    const editable = own && (draft || e.status === "Rejected")
     const btn = mobile ? "flex-1 h-10" : "h-8 w-8 p-0"
     return (
       <>
@@ -575,7 +581,7 @@ function GenericExpensesPageInner() {
             <X className="w-4 h-4" />{mobile && <span className="ml-2">Reject</span>}
           </Button>
         )}
-        {own && (
+        {editable && (
           <Button variant={mobile ? "outline" : "ghost"} size="sm" className={btn} title="Edit" onClick={() => openEditDialog(e)}>
             <Pencil className="w-4 h-4" />{mobile && <span className="ml-2">Edit</span>}
           </Button>
@@ -598,7 +604,13 @@ function GenericExpensesPageInner() {
             <Truck className="w-4 h-4" />{mobile && <span className="ml-2">Supplier</span>}
           </Button>
         )}
-        {own && (
+        {own && e.status === "Approved" && (
+          <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-red-600 hover:text-red-700 hover:bg-red-50")}
+            title="Reverse: undo this approved expense (with a reason)" onClick={() => setReverseFor(e)}>
+            <Undo2 className="w-4 h-4" />{mobile && <span className="ml-2">Reverse</span>}
+          </Button>
+        )}
+        {editable && (
           <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-red-600 hover:text-red-700 hover:bg-red-50")}
             title="Delete" onClick={() => setPendingDelete(e)}>
             <Trash2 className="w-4 h-4" />{mobile && <span className="ml-2">Delete</span>}
@@ -1005,7 +1017,9 @@ function GenericExpensesPageInner() {
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-semibold text-slate-900 shrink-0">{formatDateShort(expense.expenseDate)}</span>
                                     <Badge className="whitespace-normal break-words shrink min-w-0 text-left bg-gray-100 text-gray-800">{expense.categoryName}</Badge>
-                                    <Badge className={approvalBadge(expense.status)}>{expense.status}</Badge>
+                                    {expense.expenseReversalId
+                                      ? <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-600">Reversed</Badge>
+                                      : <Badge className={approvalBadge(expense.status)}>{expense.status}</Badge>}
                                   </div>
                                   <div className="mt-1 flex items-baseline gap-3">
                                     <span className="text-lg font-bold text-red-600">{formatCurrency(Number(expense.amount))}</span>
@@ -1094,7 +1108,9 @@ function GenericExpensesPageInner() {
                               <TableCell className={cn("text-right whitespace-nowrap align-top font-medium", expense.balance > 0 ? "text-amber-700" : "text-slate-400")}>{formatCurrency(expense.balance)}</TableCell>
                               <TableCell className="align-top">{renderPaymentStatus(expense)}</TableCell>
                               <TableCell className="align-top"><Badge variant="outline">{methodLabel(expense.paymentMethod)}</Badge></TableCell>
-                              <TableCell className="align-top"><Badge className={approvalBadge(expense.status)}>{expense.status}</Badge></TableCell>
+                              <TableCell className="align-top">{expense.expenseReversalId
+                                      ? <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-600">Reversed</Badge>
+                                      : <Badge className={approvalBadge(expense.status)}>{expense.status}</Badge>}</TableCell>
                               <TableCell className="text-right whitespace-nowrap bg-white">
                                 <div className="flex flex-wrap items-center justify-end gap-2 min-w-[80px]">{rowActions(expense)}</div>
                               </TableCell>
@@ -1224,6 +1240,30 @@ function GenericExpensesPageInner() {
           onReversed={() => loadExpenses()}
         />
       )}
+
+      {/* 504: reverse an approved expense (the shared reverse dialog) */}
+      <ReversePurchaseDialog
+        open={!!reverseFor}
+        module="generic-expense"
+        purchaseId={reverseFor?.genericExpenseId ?? null}
+        purchaseLabel={reverseFor ? `#${reverseFor.genericExpenseId}` : ""}
+        farmId={getUserContext().farmId ?? ""}
+        userId={getUserContext().userId ?? undefined}
+        currencyCode={getSelectedCurrency()}
+        onOpenChange={(o) => { if (!o) setReverseFor(null) }}
+        onReversed={async ({ reversal }) => {
+          setReverseFor(null)
+          toast({
+            title: `Expense reversed${reversal?.reversalNumber ? ` (${reversal.reversalNumber})` : ""}`,
+            description: reversal
+              ? [reversal.refunded > 0 ? `${formatCurrency(reversal.refunded, getSelectedCurrency())} refunded` : "",
+                 reversal.creditCreated > 0 ? `${formatCurrency(reversal.creditCreated, getSelectedCurrency())} kept as supplier credit` : ""]
+                  .filter(Boolean).join(" · ") || "Its cost is off Profit & Loss; nothing was paid."
+              : undefined,
+          })
+          await loadExpenses()
+        }}
+      />
     </div>
   )
 }

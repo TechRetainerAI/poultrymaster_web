@@ -180,7 +180,7 @@ function HotelCashReconciliationPageInner() {
         <main className="flex-1 overflow-auto p-3 md:p-4">
           <div className="mb-2">
             <Button asChild variant="ghost" size="sm" className="-ml-2 text-slate-600">
-              <Link href="/hotel-cash-accounts"><ArrowLeft className="h-4 w-4 mr-1" /> Back to Cash &amp; Accounts</Link>
+              <Link href="/hotel-cash-accounts"><ArrowLeft className="h-4 w-4 mr-1" /> Back to Cash Accounts</Link>
             </Button>
 
             <div className="mt-0.5">

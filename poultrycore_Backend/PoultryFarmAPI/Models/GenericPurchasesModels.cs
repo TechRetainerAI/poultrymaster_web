@@ -296,6 +296,10 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
+        /// <summary>500: set when the purchase was reversed (status is then Cancelled). List only.</summary>
+        public int? PurchaseReversalId { get; set; }
+        public string? ReversalNumber { get; set; }
+
         public List<GenericPurchaseItemModel> Items { get; set; } = new();
     }
 
@@ -347,6 +351,22 @@ namespace PoultryFarmAPIWeb.Models
     {
         [StringLength(500)]
         public string? Reason { get; set; }
+    }
+
+    /// <summary>500: reverse an approved purchase (the shared Reverse Purchase dialog).</summary>
+    public class GenericPurchaseReverseRequest
+    {
+        public string? FarmId { get; set; }
+        public string? UserId { get; set; }
+        public string? ReasonCode { get; set; }
+        [StringLength(500)]
+        public string? Reason { get; set; }
+        /// <summary>Per money line ("entry" | "sp:{paymentId}"): KeepAsCredit | Refund.</summary>
+        public Dictionary<string, string>? PaymentHandling { get; set; }
+        /// <summary>The preview's fingerprint; refused (409, stale) if the purchase changed since.</summary>
+        public string? ExpectedFingerprint { get; set; }
+        /// <summary>A retried request returns the reversal it already made.</summary>
+        public string? IdempotencyKey { get; set; }
     }
 
     // =========================================================================
@@ -419,6 +439,9 @@ namespace PoultryFarmAPIWeb.Models
         public string? SourceType { get; set; }        // read only: set when another page made it
         public string? CashAccountName { get; set; }   // read only
         public decimal PaymentsApplied { get; set; }   // read only: applied by supplier payments
+        /// <summary>505: set when the expense was reversed (504; status is then Cancelled). List only.</summary>
+        public int? ExpenseReversalId { get; set; }
+        public string? ReversalNumber { get; set; }
     }
 
     public class GenericExpenseDeleteRequest
