@@ -52,7 +52,7 @@ import {
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
-import { ProjectHead, ProjectSplitLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { ProjectHead, ProjectSplitLabels, ProjectSplitTable, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, loadSingleProject, type SingleProjectValue,
@@ -569,9 +569,9 @@ export default function GenericLoansPage() {
               highlights={(l) => [
                 { label: "Still owed", value: fmt(l.outstandingBalance) },
                 { label: "Borrowed", value: fmt(l.originalPrincipal) },
-                ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectSplitLabels parts={projectLabels.partsOf(l.genericLoanId)} amount={l.originalPrincipal} fmt={fmt} /> }] : []),
               ]}
               details={(l) => [
+                ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectSplitLabels parts={projectLabels.partsOf(l.genericLoanId)} amount={l.originalPrincipal} fmt={fmt} /> }] : []),
                 { label: "Received", value: fmt(l.amountReceived) },
                 { label: "Principal repaid", value: fmt(l.totalPrincipalPaid) },
                 { label: "Interest paid", value: fmt(l.totalInterestPaid) },
@@ -691,8 +691,8 @@ export default function GenericLoansPage() {
                             <TableCell colSpan={projectLabels.enabled ? 13 : 12} className="bg-slate-50 p-0">
                               {projectLabels.enabled && projectLabels.partsOf(l.genericLoanId).length > 0 && (
                                 <div className="border-b border-slate-200 px-4 py-3">
-                                  <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Project split of {fmt(l.originalPrincipal)}</div>
-                                  <ProjectSplitLabels parts={projectLabels.partsOf(l.genericLoanId)} amount={l.originalPrincipal} fmt={fmt} />
+                                  <ProjectSplitTable title={`Project split of ${fmt(l.originalPrincipal)} borrowed`}
+                                    parts={projectLabels.partsOf(l.genericLoanId)} amount={l.originalPrincipal} fmt={fmt} />
                                 </div>
                               )}
                               <LoanRepaymentTable
