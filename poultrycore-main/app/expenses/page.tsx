@@ -17,6 +17,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Banknote, Calendar, ChevronDown, ChevronUp, DollarSign, Download, FileText as FileTextIcon, Filter, History, ImageIcon, Loader2, Pencil, Plus, Search, Trash2, Truck, Layers } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getExpenses, getExpense, createExpense, updateExpense, deleteExpense, type Expense, type ExpenseInput } from "@/lib/api/expense"
+import { getFlockBatchReversals, type FlockBatchReversalRow } from "@/lib/api/flock-batch"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { getSuppliers, type Supplier } from "@/lib/api/supplier"
 import { RecordPaymentDialog, type CashAccountOption } from "@/components/balances/record-payment-dialog"
@@ -43,6 +44,7 @@ import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 import { getUserContext } from "@/lib/utils/user-context"
+import { mergeNewestFirst } from "@/lib/utils/merge-by-date"
 import { getValidFlocks, getFlocksForExpenseSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
@@ -186,6 +188,20 @@ function ExpensesPageInner() {
   const canPayExpense = canDo("poultry.supplier-payments.create")
   const canReverseExpense = canDo("poultry.supplier-payments.reverse")
   const [expenses, setExpenses] = useState<Expense[]>([])
+  // 508: the expense lines of a reversed flock batch -- shown as Reversed, never in a total
+  const [reversedExpenses, setReversedExpenses] = useState<Expense[]>([])
+  useEffect(() => {
+    const { farmId } = getUserContext()
+    if (!farmId) return
+    void getFlockBatchReversals(farmId).then((rows) => setReversedExpenses(rows.flatMap((r) => (r.expenses ?? []).map((e) => ({
+      expenseId: e.expenseId, farmId, expenseDate: e.expenseDate, category: e.category,
+      description: e.description ?? "", amount: Number(e.amount) || 0, paymentMethod: e.paymentMethod ?? "",
+      paidTo: e.supplier ?? r.supplierName ?? "", supplierId: null, amountPaid: Number(e.amount) || 0, balance: 0,
+      reversal: r,
+    }) as unknown as Expense))))
+  }, [])
+  const isReversedExpense = (e: Expense) => !!(e as { reversal?: FlockBatchReversalRow }).reversal
+  const reversalOf = (e: Expense) => (e as { reversal?: FlockBatchReversalRow }).reversal
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -204,6 +220,8 @@ function ExpensesPageInner() {
    * them and links here; without a way to find them that link was a dead end.
    */
   const [cashAccountFilter, setCashAccountFilter] = useState<string>("all")
+  // 508: All records / Active only / Reversed only (a reversed flock batch's lines)
+  const [recordFilter, setRecordFilter] = useState<"all" | "active" | "reversed">("all")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [draftFromDate, setDraftFromDate] = useState("")
   const [draftToDate, setDraftToDate] = useState("")
@@ -627,6 +645,10 @@ function ExpensesPageInner() {
     !!e.dueDate && e.balance > 0 && new Date(e.dueDate) < new Date(new Date().toDateString())
 
   const renderPaymentStatus = (e: Expense) => {
+    if (isReversedExpense(e)) {
+      const r = reversalOf(e)
+      return <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-600" title={`Batch ${r?.batchCode ?? ""} reversed (${r?.reversalNumber ?? ""}): ${r?.reason ?? ""}`}>Reversed</Badge>
+    }
     if (e.paymentStatus === "NonCash") {
       return <Badge variant="outline" className="border-slate-300 text-slate-600">Non-cash</Badge>
     }
@@ -727,16 +749,17 @@ function ExpensesPageInner() {
   const activeFilterCount = [
     !!searchQuery, !!fromDate, !!toDate,
     selectedFlock !== "all", selectedMonth !== "all", selectedCategory !== "all",
-    cashAccountFilter !== "all",
+    cashAccountFilter !== "all", recordFilter !== "all",
   ].filter(Boolean).length
 
   function clearAllFilters() {
     setSearchQuery(""); setFromDate(""); setToDate("")
     setSelectedFlock("all"); setSelectedMonth("all"); setSelectedCategory("all")
     setCashAccountFilter("all")
+    setRecordFilter("all")
   }
 
-  const filteredExpenses = expenses.filter(expense => {
+  const filteredExpenses = (mergeNewestFirst(expenses, reversedExpenses, (e) => e.expenseDate) as Expense[]).filter(expense => {
     const q = searchQuery.trim().toLowerCase()
     const matchesSearch = q === "" || (() => {
       const flockStr = String(expense.flockId ?? "")
@@ -762,7 +785,8 @@ function ExpensesPageInner() {
       : cashAccountFilter === "none" ? expense.poultryCashAccountId == null
       : String(expense.poultryCashAccountId ?? "") === cashAccountFilter
     const focusOk = focusExpenseId === null || expense.expenseId === focusExpenseId
-    return matchesSearch && matchesFromDate && matchesToDate && flockOk && monthOk && catOk && linkOk && focusOk
+    const recordOk = recordFilter === "all" || (recordFilter === "reversed") === isReversedExpense(expense)
+    return matchesSearch && matchesFromDate && matchesToDate && flockOk && monthOk && catOk && linkOk && focusOk && recordOk
   })
 
   const thisMonthTotal = expenses
@@ -773,7 +797,8 @@ function ExpensesPageInner() {
     })
     .reduce((sum, expense) => sum + expense.amount, 0)
 
-  const filteredTotal = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+  // a reversed batch's lines are shown, never counted
+  const filteredTotal = filteredExpenses.reduce((sum, expense) => sum + (isReversedExpense(expense) ? 0 : expense.amount), 0)
   const sortedExpenses = sortData(filteredExpenses, sortKey, sortDir, (item: any, key: string) => {
     if (key === "expenseDate") return new Date(item.expenseDate)
     if (key === "amount") return Number(item.amount) || 0
@@ -793,7 +818,7 @@ function ExpensesPageInner() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory, cashAccountFilter])
+  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory, cashAccountFilter, recordFilter])
 
   const handlePageChange = (page: number) => setCurrentPage(page)
   const handlePreviousPage = () => { if (safePage > 1) setCurrentPage(safePage - 1) }
@@ -825,11 +850,11 @@ function ExpensesPageInner() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory, cashAccountFilter])
+  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory, cashAccountFilter, recordFilter])
 
   const handleExportCSV = () => {
     const headers = ['ExpenseId','ExpenseDate','Category','Description','Amount','PaymentMethod','PaidTo','FlockId']
-    const rows = filteredExpenses.map((e: any) => [
+    const rows = filteredExpenses.filter((e) => !isReversedExpense(e)).map((e: any) => [
       e.expenseId ?? e.ExpenseId ?? e.id ?? e.Id ?? '',
       new Date(e.expenseDate).toISOString().split('T')[0], e.category,
       stripReceiptSuffixFromDescription(e.description || '').replace(/\n|\r/g, ' '), e.amount, e.paymentMethod,
@@ -853,7 +878,7 @@ function ExpensesPageInner() {
       return
     }
     const fmt = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    const rows = filteredExpenses.map((e: any) => [
+    const rows = filteredExpenses.filter((e) => !isReversedExpense(e)).map((e: any) => [
       e.expenseId ?? e.ExpenseId ?? e.id ?? e.Id ?? '',
       fmtDateTime(e.expenseDate, e),
       e.category ?? '',
@@ -1267,6 +1292,17 @@ function ExpensesPageInner() {
                             </SelectContent>
                           </Select>
                         </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Records</label>
+                          <Select value={recordFilter} onValueChange={(v) => setRecordFilter(v as typeof recordFilter)}>
+                            <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="all">All records</SelectItem>
+                              <SelectItem value="active">Active only</SelectItem>
+                              <SelectItem value="reversed">Reversed only ({reversedExpenses.length})</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </MobileFilterSheetBody>
                       <MobileFilterSheetFooter>
                         <div className="flex flex-col gap-3">
@@ -1363,6 +1399,14 @@ function ExpensesPageInner() {
                       {a.accountName}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <Select value={recordFilter} onValueChange={(v) => setRecordFilter(v as typeof recordFilter)}>
+                <SelectTrigger className="w-[160px]" aria-label="Record status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All records</SelectItem>
+                  <SelectItem value="active">Active only</SelectItem>
+                  <SelectItem value="reversed">Reversed only ({reversedExpenses.length})</SelectItem>
                 </SelectContent>
               </Select>
               {/* Desktop had no way to clear filters — only the mobile sheet did. */}
@@ -1470,12 +1514,16 @@ function ExpensesPageInner() {
                                   <div><span className="text-slate-500">Paid to</span> <span className="font-medium">{expense.paidTo || "N/A"}</span></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
+                                  {isReversedExpense(expense) ? (
+                                    <p className="text-xs text-slate-500">Batch {reversalOf(expense)?.batchCode} reversed ({reversalOf(expense)?.reversalNumber}): {reversalOf(expense)?.reason}</p>
+                                  ) : (<>
                                   <Button variant="outline" size="sm" className="flex-1 h-10" disabled={!validId} onClick={() => validId && openEditDialog(idNum, fId)}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
                                   </Button>
                                   <Button variant="outline" size="sm" className="flex-1 h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={() => openConfirmDelete(eid, expense.farmId, stripReceiptSuffixFromDescription(expense.description || ""))}>
                                     <Trash2 className="h-4 w-4 mr-2" /> Delete
                                   </Button>
+                                  </>)}
                                 </div>
                               </div>
                             </CollapsibleContent>
@@ -1620,6 +1668,9 @@ function ExpensesPageInner() {
                                 instead would come out of Description, which
                                 expenses-table-width.test.ts exists to protect. */}
                             <div className="flex flex-wrap items-center justify-end gap-2 min-w-[80px]">
+                              {isReversedExpense(expense) ? (
+                                <span className="text-xs text-slate-500" title={reversalOf(expense)?.reason}>{reversalOf(expense)?.reversalNumber}</span>
+                              ) : (<>
                               {(() => {
                                 const eid = (expense as any).expenseId ?? (expense as any).ExpenseId ?? (expense as any).id ?? (expense as any).Id
                                 const idNum = Number(eid)
@@ -1674,6 +1725,7 @@ function ExpensesPageInner() {
                                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
                                 <Trash2 className="w-4 h-4" />
                               </Button>
+                              </>)}
                             </div>
                           </TableCell>
                         </TableRow>

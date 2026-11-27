@@ -215,8 +215,9 @@ namespace PoultryFarmAPIWeb.Controllers
 
         // DELETE: api/MainFlockBatch/5?userId=xxx&farmId=xxx
         // Deletes a batch record.
+        // 506: deleteFlocks=true when the user confirmed the batch's flocks go too.
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id, [FromQuery] string userId, [FromQuery] string farmId)
+        public async Task<IActionResult> Delete(int id, [FromQuery] string userId, [FromQuery] string farmId, [FromQuery] bool deleteFlocks = false)
         {
             if (string.IsNullOrEmpty(userId))
                 return BadRequest("UserId is required.");
@@ -227,8 +228,70 @@ namespace PoultryFarmAPIWeb.Controllers
             var existing = await _batchService.GetById(id, userId, farmId);
             if (existing == null) return NotFound();
 
-            await _batchService.Delete(id, userId, farmId);
+            try
+            {
+                await _batchService.Delete(id, userId, farmId, deleteFlocks);
+            }
+            catch (BatchDeleteBlockedException ex)
+            {
+                return Conflict(new { message = ex.Message, code = ex.Hint });
+            }
             return NoContent(); // 204 No Content success response.
+        }
+
+        // ------------------------------------------------------------ 507: reversal
+        // GET api/MainFlockBatch/5/reversal-preview?farmId=xxx
+        [HttpGet("{id:int}/reversal-preview")]
+        public async Task<IActionResult> ReversalPreview(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
+            return Content(await _batchService.GetReversalPreview(id, farmId), "application/json");
+        }
+
+        // GET api/MainFlockBatch/reversals?farmId=xxx -- the batch page's Reversed list
+        [HttpGet("reversals")]
+        public async Task<IActionResult> Reversals([FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
+            return Content(await _batchService.GetReversals(farmId), "application/json");
+        }
+
+        // POST api/MainFlockBatch/5/reverse -- reason, what happens to each payment,
+        // the confirmed flocks, the preview's fingerprint (409 + stale), an idempotency key.
+        [HttpPost("{id:int}/reverse")]
+        public async Task<IActionResult> Reverse(int id, [FromBody] FlockBatchReverseRequest body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest(new { message = "FarmId is required." });
+            if (string.IsNullOrWhiteSpace(body.ReasonCode) && string.IsNullOrWhiteSpace(body.Reason))
+                return BadRequest(new { message = "Give a reason for reversing this batch." });
+            var by = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? body.UserId;
+            try
+            {
+                var reversalId = await _batchService.Reverse(id, body.FarmId, body, by);
+                var json = await _batchService.GetReversal(reversalId, body.FarmId);
+                return Ok(new
+                {
+                    batchReversalId = reversalId,
+                    reversal = json is null ? (System.Text.Json.JsonElement?)null : System.Text.Json.JsonDocument.Parse(json).RootElement,
+                });
+            }
+            catch (SaleRuleException ex) when (ex.Stale)
+            {
+                return Conflict(new { message = ex.Message, stale = true });
+            }
+            catch (SaleRuleException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // GET: api/MainFlockBatch/5/delete-preview?farmId=xxx
+        // 506: the flocks that go with the batch, what blocks deleting it, and the money removed.
+        [HttpGet("{id:int}/delete-preview")]
+        public async Task<IActionResult> DeletePreview(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
+            return Content(await _batchService.GetDeletePreview(id, farmId), "application/json");
         }
 
         // POST: api/MainFlockBatch/5/pay-balance

@@ -22,7 +22,15 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<MainFlockBatchModel>> GetAll(string userId, string farmId);
 
         // Deletes a single batch record.
-        Task Delete(int batchId, string userId, string farmId);
+        // 506: deleteFlocks = the user confirmed its flocks go with it.
+        Task Delete(int batchId, string userId, string farmId, bool deleteFlocks = false);
+        Task<string> GetDeletePreview(int batchId, string farmId);
+
+        // 507: a batch is reversed (PBR-00001), not deleted.
+        Task<string> GetReversalPreview(int batchId, string farmId);
+        Task<int> Reverse(int batchId, string farmId, FlockBatchReverseRequest req, string? reversedBy);
+        Task<string?> GetReversal(int batchReversalId, string farmId);
+        Task<string> GetReversals(string farmId);
 
         // Records a follow-up payment toward a batch's outstanding balance
         // (part payment). Returns the new outstanding balance.

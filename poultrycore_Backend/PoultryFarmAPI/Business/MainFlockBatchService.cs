@@ -4,6 +4,14 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
 {
+    /// <summary>506: the database refused a batch delete for a business reason.</summary>
+    public class BatchDeleteBlockedException : Exception
+    {
+        public BatchDeleteBlockedException(string message, string? hint) : base(message) { Hint = hint; }
+        /// <summary>BATCH_HAS_FLOCKS (confirm and retry) or BATCH_DELETE_BLOCKED.</summary>
+        public string? Hint { get; }
+    }
+
     // Concrete implementation using ADO.NET and Stored Procedures, mirroring CustomerService.
     public class MainFlockBatchService : IMainFlockBatchService
     {
@@ -294,23 +302,93 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
-        public async Task Delete(int batchId, string userId, string farmId)
+        public async Task Delete(int batchId, string userId, string farmId, bool deleteFlocks = false)
         {
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_delete(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_delete(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_deleteflocks => @DeleteFlocks::boolean)", conn);
                 cmd.Parameters.AddWithValue("@BatchId", batchId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@DeleteFlocks", deleteFlocks);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                // 506: a rule refusal (flock with records, supplier payment, unconfirmed flocks) -- the caller shows it.
+                throw new BatchDeleteBlockedException(ex.MessageText, ex.Hint);
             }
             catch (Exception ex)
             {
                 throw new Exception($"Error deleting Main Flock Batch ID={batchId}.", ex);
             }
+        }
+
+        // 507: reversal (preview -> reverse -> record), shown in the batch page's Reversed list.
+        public Task<string> GetReversalPreview(int batchId, string farmId)
+            => ScalarJson("SELECT sppoultrybatch_reversalpreview(p_farmid => @FarmId::text, p_batchid => @Id::int)::text", farmId, batchId);
+
+        public async Task<string?> GetReversal(int batchReversalId, string farmId)
+        {
+            var json = await ScalarJson("SELECT sppoultrybatch_reversalget(p_farmid => @FarmId::text, p_batchreversalid => @Id::int)::text", farmId, batchReversalId);
+            return string.IsNullOrEmpty(json) || json == "null" ? null : json;
+        }
+
+        public Task<string> GetReversals(string farmId)
+            => ScalarJson("SELECT sppoultrybatchreversal_list(p_farmid => @FarmId::text)::text", farmId, 0);
+
+        public async Task<int> Reverse(int batchId, string farmId, FlockBatchReverseRequest req, string? reversedBy)
+        {
+            try
+            {
+                await using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                await using var cmd = new NpgsqlCommand(
+                    "SELECT sppoultrybatch_reverse(p_farmid => @FarmId::text, p_batchid => @Id::int, p_reasoncode => @Code::text, " +
+                    "p_reason => @Reason::text, p_handling => @Handling::jsonb, p_deleteflocks => @DeleteFlocks::boolean, " +
+                    "p_expectedfingerprint => @Fp::text, p_idempotencykey => @Key::text, p_reversedby => @By::text)", conn);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@Id", batchId);
+                cmd.Parameters.AddWithValue("@Code", (object?)req.ReasonCode ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Reason", req.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@Handling",
+                    System.Text.Json.JsonSerializer.Serialize(req.PaymentHandling ?? new Dictionary<string, string>()));
+                cmd.Parameters.AddWithValue("@DeleteFlocks", req.DeleteFlocks);
+                cmd.Parameters.AddWithValue("@Fp", (object?)req.ExpectedFingerprint ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Key", (object?)req.IdempotencyKey ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@By", (object?)reversedBy ?? DBNull.Value);
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex) { Stale = ex.Hint == "stale-preview" };
+            }
+        }
+
+        private async Task<string> ScalarJson(string sql, string farmId, int id)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            if (sql.Contains("@Id")) cmd.Parameters.AddWithValue("@Id", id);
+            var o = await cmd.ExecuteScalarAsync();
+            return o is null || o is DBNull ? "null" : (string)o;
+        }
+
+        // 506: what deleting the batch would do -- its flocks, what blocks it, the money removed.
+        public async Task<string> GetDeletePreview(int batchId, string farmId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT fnpoultrybatch_deletepreview(p_farmid => @FarmId::text, p_batchid => @BatchId::int)::text", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@BatchId", batchId);
+            await conn.OpenAsync();
+            var o = await cmd.ExecuteScalarAsync();
+            return o is null || o is DBNull ? "null" : (string)o;
         }
 
         public async Task<decimal> PayBalance(int batchId, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy)

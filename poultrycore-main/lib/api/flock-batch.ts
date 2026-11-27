@@ -171,12 +171,147 @@ export async function getFlockBatches(userId?: string, farmId?: string): Promise
     }
   }
   
-  export async function deleteFlockBatch(batchId: number, userId: string, farmId: string): Promise<ApiResponse> {
+  /** 506: what deleting a batch would do -- its flocks, what blocks it, the money removed. */
+  export interface FlockBatchDeletePreview {
+    found: boolean
+    batchId: number
+    batchCode?: string
+    batchName?: string | null
+    birds?: number
+    totalCost?: number
+    flocks: {
+      flockId: number
+      name: string
+      active: boolean
+      liveBirds: number
+      productionRecords: number
+      records: { label: string; rows: number }[]
+      canDelete: boolean
+    }[]
+    flocksToDelete?: number
+    expenseRemoved?: number
+    cashReturned?: number
+    cashAccountName?: string | null
+    blockers: { code: string; message: string }[]
+  }
+
+  export async function getFlockBatchDeletePreview(batchId: number, farmId: string): Promise<ApiResponse<FlockBatchDeletePreview>> {
+    try {
+      const url = `${buildApiUrl(`/MainFlockBatch/${batchId}/delete-preview`)}?farmId=${encodeURIComponent(farmId)}`
+      const response = await fetch(url, { headers: getAuthHeaders() })
+      if (!response.ok) {
+        return { success: false, message: await getErrorMessage(response, "Could not check what deleting this batch would do") }
+      }
+      return { success: true, message: "", data: await response.json() }
+    } catch {
+      return { success: false, message: "Could not check what deleting this batch would do" }
+    }
+  }
+
+  // ---------------------------------------------------------------- 507: reversal
+  export type BatchMoneyAction = "Refund" | "KeepAsCredit"
+
+  export interface FlockBatchReversalPreview extends Omit<FlockBatchDeletePreview, "flocksToDelete" | "cashReturned" | "cashAccountName"> {
+    supplierName?: string
+    total?: number
+    paid?: number
+    outstanding?: number
+    creditApplied?: number
+    payments: {
+      key: string
+      source: "PaidAtEntry" | "SupplierPayment"
+      paymentId: number | null
+      paymentNumbers: string
+      allocated: number
+      cashAccountName: string | null
+      allowed: BatchMoneyAction[]
+      default: BatchMoneyAction
+      keepUnavailableReason: string | null
+      refundUnavailableReason: string | null
+      noCashNote: string | null
+    }[]
+    fingerprint: string
+  }
+
+  export interface FlockBatchReversalRow {
+    batchReversalId: number
+    reversalNumber: string
+    batchId: number
+    batchCode: string | null
+    batchName: string | null
+    breed: string | null
+    birds: number | null
+    startDate: string | null
+    supplierName: string | null
+    total: number
+    paid: number
+    reason: string
+    occurredAt: string
+    reversedBy: string | null
+    refunded: number
+    creditKept: number
+    flocksRemoved: string[]
+    /** 508: what the batch, flock and expense pages show as Reversed rows. */
+    costPerChick?: number | null
+    supplierType?: string | null
+    supplierId?: number | null
+    flocks?: { flockId: number; name: string; liveBirds: number; breed: string | null; flockType: string | null; startDate: string | null; houseId: number | null }[]
+    expenses?: { expenseId: number; expenseDate: string; category: string; description: string | null; amount: number; paymentMethod: string | null; supplier: string | null; supplierId: number | null; amountPaid: number | null }[]
+  }
+
+  async function readJsonSafe(response: Response): Promise<any> {
+    const text = await response.text()
+    try { return text ? JSON.parse(text) : null } catch { return text }
+  }
+
+  export async function getFlockBatchReversalPreview(batchId: number, farmId: string): Promise<ApiResponse<FlockBatchReversalPreview>> {
+    try {
+      const response = await fetch(`${buildApiUrl(`/MainFlockBatch/${batchId}/reversal-preview`)}?farmId=${encodeURIComponent(farmId)}`, { headers: getAuthHeaders() })
+      const data = await readJsonSafe(response)
+      if (!response.ok) return { success: false, message: data?.message || "Could not check what reversing this batch would do" }
+      return { success: true, data }
+    } catch {
+      return { success: false, message: "Could not check what reversing this batch would do" }
+    }
+  }
+
+  /** stale: the batch changed after the preview -- reload it and confirm again. */
+  export async function reverseFlockBatch(batchId: number, input: {
+    farmId: string; userId?: string; reasonCode: string; reason: string
+    paymentHandling: Record<string, BatchMoneyAction>; deleteFlocks: boolean
+    expectedFingerprint: string; idempotencyKey: string
+  }): Promise<ApiResponse<{ batchReversalId: number; reversal: { reversalNumber: string; refunded: number; creditCreated: number; flocksRemoved: number } | null }> & { stale?: boolean }> {
+    try {
+      const response = await fetch(buildApiUrl(`/MainFlockBatch/${batchId}/reverse`), {
+        method: "POST", headers: getAuthHeaders(), body: JSON.stringify(input),
+      })
+      const data = await readJsonSafe(response)
+      if (!response.ok) return { success: false, stale: !!data?.stale, message: data?.message || (typeof data === "string" ? data : "The batch was not reversed.") }
+      return { success: true, data }
+    } catch {
+      return { success: false, message: "The batch was not reversed." }
+    }
+  }
+
+  export async function getFlockBatchReversals(farmId: string): Promise<FlockBatchReversalRow[]> {
+    try {
+      const response = await fetch(`${buildApiUrl(`/MainFlockBatch/reversals`)}?farmId=${encodeURIComponent(farmId)}`, { headers: getAuthHeaders() })
+      if (!response.ok) return []
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch {
+      return []
+    }
+  }
+
+  /** deleteFlocks (506): the user confirmed the batch's flocks are deleted with it. */
+  export async function deleteFlockBatch(batchId: number, userId: string, farmId: string, deleteFlocks = false): Promise<ApiResponse> {
     try {
       const params = new URLSearchParams();
       params.append('userId', userId);
       params.append('farmId', farmId);
-  
+      if (deleteFlocks) params.append('deleteFlocks', 'true');
+
       const url = `${buildApiUrl(`/MainFlockBatch/${batchId}`)}?${params.toString()}`;
       console.log("[v0] Deleting flock batch:", url);
   
