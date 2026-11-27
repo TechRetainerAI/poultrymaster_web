@@ -65,6 +65,7 @@ import {
   PlayCircle,
   PawPrint,
   Compass,
+  LifeBuoy,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -1073,6 +1074,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             below System so help is one click away, in the SAME order as inside
             the System menu (lib/nav/poultry-nav-config.ts). Poultry only, since
             they teach the poultry screens. */}
+        {poultryNav && renderNavItem({ href: "/support", label: "Support", icon: LifeBuoy })}
         {poultryNav && renderNavItem({ href: "/poultry-setup-guide", label: "Setup Guide", icon: Compass })}
         {poultryNav && renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
         {poultryNav && renderNavItem({ href: "/poultry-videos", label: "Support Videos", icon: PlayCircle })}
