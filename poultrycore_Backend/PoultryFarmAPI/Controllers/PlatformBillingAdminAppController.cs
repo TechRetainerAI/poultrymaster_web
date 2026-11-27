@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 // ADMIN APP endpoints (ADMIN APP spec 2026-10-05): organizations inspector,
 // special discounts & promotions, account credits, tier rules, pricing
 // presentation, coverage dashboards, enterprise contracts and granular
@@ -233,6 +234,7 @@ namespace PoultryFarmAPIWeb.Controllers
         { _admin = admin; _svc = svc; }
 
         [HttpGet("public-pricing")]
+        [AllowAnonymous]   // the marketing pricing page, before anyone signs in
         public async Task<IActionResult> PublicPricing([FromQuery] string market = "GH",
             [FromQuery] string profile = "POULTRY_BIRDS", [FromQuery] string? template = null)
         {

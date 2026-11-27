@@ -90,6 +90,105 @@ namespace User.Management.Data
             return result is bool b && b;
         }
 
+        public async Task<bool> MayManageEmployeeAsync(string callerUserId, string targetUserId, string permissionKey = "office.employees.edit")
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            try
+            {
+                using var cmd = new NpgsqlCommand("SELECT fniam_maymanageemployee(@Caller::text, @Target::text, @Key::text)", conn);
+                cmd.Parameters.AddWithValue("@Caller", callerUserId);
+                cmd.Parameters.AddWithValue("@Target", targetUserId);
+                cmd.Parameters.AddWithValue("@Key", permissionKey);
+                return await cmd.ExecuteScalarAsync() is bool b && b;
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42883")
+            {
+                // Migration 507 not applied yet: fall back to the old rule (an
+                // owner or staff admin), but still confined to one organisation
+                // by the target's primary company.
+                using var cmd = new NpgsqlCommand(@"
+                    SELECT EXISTS (
+                        SELECT 1 FROM aspnetusers c, aspnetusers t
+                        LEFT JOIN farms f ON (f.id = t.farmid OR f.farmid = t.farmid)
+                        WHERE c.id = @Caller AND t.id = @Target AND c.id <> t.id
+                          AND (NOT COALESCE(c.isstaff, FALSE) AND f.owneruserid = c.id
+                               OR COALESCE(c.isadmin, FALSE) AND COALESCE(c.farmid, '') = COALESCE(t.farmid, '')))", conn);
+                cmd.Parameters.AddWithValue("@Caller", callerUserId);
+                cmd.Parameters.AddWithValue("@Target", targetUserId);
+                return await cmd.ExecuteScalarAsync() is bool b && b;
+            }
+        }
+
+        public async Task<string?> GetMembershipStatusAsync(string userId, string farmId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            try
+            {
+                using var cmd = new NpgsqlCommand("SELECT fniam_membership(@UserId::text, @FarmId::text)", conn);
+                cmd.Parameters.AddWithValue("@UserId", userId);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                var result = await cmd.ExecuteScalarAsync();
+                return result is null or DBNull ? null : result.ToString();
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42883")
+            {
+                return await IsMemberAsync(userId, farmId) ? "active" : null;
+            }
+        }
+
+        public async Task<bool> HoldsInCompanyAsync(string userId, string farmId, string permissionKey)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            try
+            {
+                using var cmd = new NpgsqlCommand(@"
+                    SELECT CASE fniam_membership(@UserId::text, @FarmId::text)
+                             WHEN 'owner' THEN TRUE
+                             WHEN 'active' THEN
+                                  COALESCE((SELECT u.isadmin FROM aspnetusers u WHERE u.id = @UserId), FALSE)
+                               OR EXISTS (SELECT 1 FROM spiam_geteffectivepermissions(@UserId::text, @FarmId::text) e
+                                          WHERE e.permissionkey = @Key)
+                             ELSE FALSE END", conn);
+                cmd.Parameters.AddWithValue("@UserId", userId);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@Key", permissionKey);
+                return await cmd.ExecuteScalarAsync() is bool b && b;
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42883")
+            {
+                // Before 507: an owner or staff admin who belongs to the company.
+                using var cmd = new NpgsqlCommand(@"
+                    SELECT (NOT COALESCE(u.isstaff, FALSE) OR COALESCE(u.isadmin, FALSE))
+                    FROM aspnetusers u WHERE u.id = @UserId", conn);
+                cmd.Parameters.AddWithValue("@UserId", userId);
+                return await cmd.ExecuteScalarAsync() is bool b && b && await IsMemberAsync(userId, farmId);
+            }
+        }
+
+        public async Task<bool> HasUsableMembershipAsync(string userId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            try
+            {
+                using var cmd = new NpgsqlCommand(@"
+                    SELECT NOT COALESCE(u.isstaff, FALSE)
+                        OR NOT EXISTS (SELECT 1 FROM userfarms uf WHERE uf.userid = u.id)
+                        OR EXISTS (SELECT 1 FROM userfarms uf WHERE uf.userid = u.id AND uf.status = 'active')
+                    FROM aspnetusers u WHERE u.id = @UserId", conn);
+                cmd.Parameters.AddWithValue("@UserId", userId);
+                var result = await cmd.ExecuteScalarAsync();
+                return result is not bool b || b;
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42703")
+            {
+                return true; // userfarms.status not there yet (507 not applied)
+            }
+        }
+
         public async Task AddMemberAsync(string userId, string farmId, string role)
         {
             // Idempotent link into UserFarms — the table spCompany_GetByUserId

@@ -23,6 +23,7 @@ import {
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isHotelNavItemVisible } from "@/lib/utils/hotel-nav-access"
 import type { MegaMenuGroup, NavGroup } from "./nav-model"
+import { applyPageAccess, legacyGate } from "@/lib/iam/nav-access"
 
 export interface HotelNavDeps {
   permissions: UserPermissions
@@ -38,7 +39,7 @@ export interface HotelNavConfig {
   system: MegaMenuGroup[]
 }
 
-export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConfig {
+function buildHotelNavConfigUnfiltered({ permissions }: HotelNavDeps): HotelNavConfig {
   const { featureAccess, isAdmin } = permissions
   const vis = (href: string) => isHotelNavItemVisible(href, featureAccess, isAdmin)
 
@@ -218,4 +219,13 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
       },
     ],
   }
+}
+
+/**
+ * Page access: the old flag rules stand aside (legacyGate) and every row is
+ * then kept only if the person may open it (applyPageAccess). No-ops until
+ * per-company page access is live. See lib/iam/nav-access.ts.
+ */
+export function buildHotelNavConfig(deps: HotelNavDeps): ReturnType<typeof buildHotelNavConfigUnfiltered> {
+  return applyPageAccess(buildHotelNavConfigUnfiltered({ ...deps, permissions: legacyGate(deps.permissions) }), deps.permissions)
 }

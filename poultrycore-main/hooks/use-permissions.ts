@@ -5,6 +5,34 @@ import { resolveEffectivePermissions } from "@/lib/iam/resolve"
 import { COMPANY_CHANGED_EVENT } from "@/lib/store/auth-store"
 import { WATER_STAFF_FEATURE_KEYS } from "@/lib/employees/permissions"
 import type { PermissionKey } from "@/lib/iam/keys"
+import { canOpenPath } from "@/lib/iam/page-registry"
+import { featureAccessFromKeys } from "@/lib/iam/feature-shim"
+
+/**
+ * Fired when the server answers 403, or anything else suggests the person's
+ * access changed. Every mounted usePermissions re-reads its grants, so a page
+ * the owner just unticked disappears without signing in again.
+ */
+export const PERMISSIONS_STALE_EVENT = "iam:permissions-stale"
+
+/** How often an open tab re-checks its grants (the server checks every request regardless). */
+const ACCESS_REFRESH_MS = 60_000
+
+/**
+ * One read of status + grants shared by every mounted usePermissions (there are
+ * ~120 call sites; without this each would poll on its own). A read younger
+ * than a few seconds for the same company is reused; `force` skips that.
+ */
+let sharedAccess: { farmId: string | null; at: number; promise: Promise<[Awaited<ReturnType<typeof getIamStatus>>, Awaited<ReturnType<typeof getEffectivePermissions>>]> } | null = null
+function readAccess(farmId: string | null, force = false) {
+  // Even a forced read is shared for a moment: one stale signal reaches every
+  // mounted hook at once and should still cost a single request.
+  const age = sharedAccess && sharedAccess.farmId === farmId ? Date.now() - sharedAccess.at : Infinity
+  if (age < (force ? 1_000 : 5_000)) return sharedAccess!.promise
+  const promise = Promise.all([getIamStatus(), getEffectivePermissions(farmId)])
+  sharedAccess = { farmId, at: Date.now(), promise }
+  return promise
+}
 
 export interface FeatureAccessPermissions {
   canEnterSales: boolean
@@ -106,6 +134,18 @@ export interface UserPermissions {
   permissionKeys: Set<PermissionKey>
   /** Holds everything, including keys added later. Legacy admins qualify. */
   isSuperuser: boolean
+  /**
+   * Per-company page access is live (migrations 506/507, reported by
+   * GET /Iam/status). While false the old Staff Page Access flags decide the
+   * menus, exactly as before.
+   */
+  pageAccess: boolean
+  /** The company owner: every page, never restricted. */
+  isOwner: boolean
+  /** May this person open `href` in the active company? The single rule menus and the page guard share. */
+  canOpen: (href: string) => boolean
+  /** False until the active company's grants have been read at least once. */
+  accessLoaded: boolean
 }
 
 const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
@@ -283,10 +323,14 @@ function hasAnyWaterFlag(raw: Record<string, unknown>): boolean {
 }
 
 /** The legacy half, before IAM is layered on. Kept separate so state stays plain data. */
-type BasePermissions = Omit<UserPermissions, "can" | "permissionKeys" | "isSuperuser">
+type BasePermissions = Omit<UserPermissions, "can" | "permissionKeys" | "isSuperuser" | "pageAccess" | "isOwner" | "canOpen" | "accessLoaded">
 
 export function usePermissions(): UserPermissions {
   const [iamGrants, setIamGrants] = useState<string[]>([])
+  const [iamOwner, setIamOwner] = useState(false)
+  const [pageAccess, setPageAccess] = useState(false)
+  const [accessLoaded, setAccessLoaded] = useState(false)
+  const [companyType, setCompanyType] = useState<string | null>(null)
   // Whether the API enforces permissions. Owned by the server (Iam:Enforced) so
   // the two sides cannot disagree about which era they are in; false until it
   // says otherwise, which is the permissive direction.
@@ -412,27 +456,61 @@ export function usePermissions(): UserPermissions {
     // re-read whenever that changes. Without this, someone who is an Accountant
     // in one company and Data Entry in another keeps the wider set until they
     // reload the page.
-    const loadIam = async () => {
-      if (!localStorage.getItem("auth_token")) return
+    let loadedFarm: string | null | undefined = undefined
+    let grantsSignature = ""
+    const loadIam = async (force = false) => {
+      if (!localStorage.getItem("auth_token")) { setAccessLoaded(true); return }
       const farmId = localStorage.getItem("farmId")
-      const [status, res] = await Promise.all([getIamStatus(), getEffectivePermissions(farmId)])
+      const [status, res] = await readAccess(farmId, force)
       if (cancelled) return
       setIamEnforced(status?.enforced === true)
+      setPageAccess(status?.pageAccess === true)
+      setCompanyType(localStorage.getItem("farmType"))
       // null means the endpoint is unavailable or migration 199 has not been
       // applied here — fall back to legacy flags alone rather than to nothing.
-      setIamGrants(res?.grants?.map((g) => g.permissionKey) ?? [])
+      // Keep the same array when nothing changed: a new array on every
+      // refresh would hand every consumer a new `can` and re-run their effects.
+      const nextGrants = res?.grants?.map((g) => g.permissionKey) ?? []
+      const signature = [...nextGrants].sort().join(",")
+      loadedFarm = farmId
+      if (signature !== grantsSignature) {
+        grantsSignature = signature
+        setIamGrants(nextGrants)
+      }
+      setIamOwner(res?.grants?.some((g) => g.source === "owner" || g.source === "superuser") ?? false)
+      setAccessLoaded(true)
     }
     void loadIam()
 
     const onCompanyChanged = () => {
+      // The store announces a "change" every time it re-syncs the company,
+      // even when it is the same one. Only a real switch resets access —
+      // resetting on every announcement made the page guard remount the page,
+      // which re-synced the company, which announced again (a reload loop).
+      if (localStorage.getItem("farmId") === loadedFarm) return
+      // Never carry the previous company's access into the next one.
+      grantsSignature = ""
       setIamGrants([])
-      void loadIam()
+      setIamOwner(false)
+      setAccessLoaded(false)
+      void loadIam(true)
     }
+    const onStale = () => { void loadIam() }
+    const onVisible = () => { if (document.visibilityState === "visible") void loadIam() }
     window.addEventListener(COMPANY_CHANGED_EVENT, onCompanyChanged)
+    const onForce = () => { void loadIam(true) }
+    window.addEventListener(PERMISSIONS_STALE_EVENT, onForce)
+    window.addEventListener("focus", onStale)
+    document.addEventListener("visibilitychange", onVisible)
+    const timer = window.setInterval(onStale, ACCESS_REFRESH_MS)
 
     return () => {
       cancelled = true
       window.removeEventListener(COMPANY_CHANGED_EVENT, onCompanyChanged)
+      window.removeEventListener(PERMISSIONS_STALE_EVENT, onForce)
+      window.removeEventListener("focus", onStale)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.clearInterval(timer)
     }
   }, [computeFromStorage])
 
@@ -447,11 +525,46 @@ export function usePermissions(): UserPermissions {
     [permissions.featureAccess, permissions.isAdmin, iamGrants, iamEnforced]
   )
 
+  // Per-company page access: the server's grants for the active company are the
+  // only source. Owners hold everything; everyone else exactly what is ticked.
+  const pageModel = useMemo(() => {
+    if (!pageAccess) return null
+    const keys = new Set<PermissionKey>(iamGrants)
+    const can = (key: PermissionKey) => iamOwner || keys.has(key)
+    return {
+      keys,
+      can,
+      featureAccess: featureAccessFromKeys(can, companyType),
+      canOpen: (href: string) => canOpenPath(href, { companyType, isOwner: iamOwner, can }),
+    }
+  }, [pageAccess, iamGrants, iamOwner, companyType])
+
+  if (pageModel) {
+    return {
+      ...permissions,
+      featureAccess: pageModel.featureAccess,
+      isAdmin: permissions.isAdmin || iamOwner,
+      canDelete: permissions.canDelete || iamOwner,
+      can: pageModel.can,
+      permissionKeys: pageModel.keys,
+      isSuperuser: iamOwner,
+      pageAccess: true,
+      isOwner: iamOwner,
+      canOpen: pageModel.canOpen,
+      accessLoaded,
+      isLoading: permissions.isLoading || !accessLoaded,
+    }
+  }
+
   return {
     ...permissions,
     can: resolved.can,
     permissionKeys: resolved.keys,
     isSuperuser: resolved.isSuperuser,
+    pageAccess: false,
+    isOwner: !permissions.isStaff,
+    canOpen: () => true,
+    accessLoaded,
   }
 }
 

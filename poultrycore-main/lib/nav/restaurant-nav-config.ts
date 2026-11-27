@@ -25,6 +25,7 @@ import {
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isRestaurantNavItemVisible } from "@/lib/utils/restaurant-nav-access"
 import type { MegaMenuGroup, NavGroup, NavItem } from "./nav-model"
+import { applyPageAccess, legacyGate } from "@/lib/iam/nav-access"
 
 export interface RestaurantNavConfig {
   /** Stays a narrow single-column dropdown — a shortcut bar, not a menu. */
@@ -48,7 +49,7 @@ export interface RestaurantNavBadges {
   pendingGuestOrders?: number
 }
 
-export function buildRestaurantNavConfig(
+function buildRestaurantNavConfigUnfiltered(
   badges: RestaurantNavBadges = {},
   permissions?: UserPermissions,
 ): RestaurantNavConfig {
@@ -252,4 +253,13 @@ export function buildRestaurantNavConfig(
       },
     ],
   }
+}
+
+/**
+ * Page access: the old flag rules stand aside (legacyGate) and every row is
+ * then kept only if the person may open it (applyPageAccess). No-ops until
+ * per-company page access is live. See lib/iam/nav-access.ts.
+ */
+export function buildRestaurantNavConfig(badges: RestaurantNavBadges = {}, permissions?: UserPermissions): RestaurantNavConfig {
+  return applyPageAccess(buildRestaurantNavConfigUnfiltered(badges, legacyGate(permissions)), permissions)
 }

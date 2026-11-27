@@ -8,6 +8,7 @@ import { getSales } from "@/lib/api"
 import { getUserContext } from "@/lib/utils/user-context"
 import { formatCurrency } from "@/lib/utils/currency"
 import { usePoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
+import { useDashboardMoney } from "@/hooks/use-dashboard-money"
 
 interface MetricCardProps {
   title: string
@@ -50,6 +51,8 @@ function MetricCard({ title, value, change, changeType, icon: Icon, iconColor }:
 export function MetricsCards() {
   // 399: a broiler-only company has no eggs to count or laying rate to show.
   const showEggs = usePoultryEggFeatures()
+  // Page access: sales totals are "Dashboard money figures" (test 20).
+  const showMoney = useDashboardMoney()
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [salesData, setSalesData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -57,7 +60,7 @@ export function MetricsCards() {
 
   useEffect(() => {
     loadDashboardData()
-  }, [])
+  }, [showMoney])
 
   const loadDashboardData = async () => {
     const { farmId, userId } = getUserContext()
@@ -78,7 +81,8 @@ export function MetricsCards() {
       // Load dashboard summary and sales data in parallel
       const [summaryResult, salesResult] = await Promise.all([
         getDashboardSummary(farmId, userId),
-        getSales(userId, farmId)
+        // Not even requested without the permission.
+        showMoney ? getSales(userId, farmId) : Promise.resolve({ success: false, data: null } as any),
       ])
       
       if (summaryResult.success && summaryResult.data) {
@@ -219,7 +223,7 @@ export function MetricsCards() {
     }
   ]
 
-  const allMetrics: MetricCardProps[] = [
+  const allMetrics: MetricCardProps[] = !showMoney ? metrics : [
     ...metrics,
     {
       title: "TOTAL SALES",

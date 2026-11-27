@@ -43,6 +43,19 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<IamAccessAuditModel>> GetAccessAuditAsync(string callerUserId, string? subjectId, int days);
         Task<List<IamAccessReviewRow>> GetAccessReviewAsync(string callerUserId);
         Task RecordAccessReviewAsync(IamAccessReviewRequest request, string? reviewedBy);
+
+        // ---- Page access (migrations 506/507) ------------------------------
+        /// <summary>owner | active | suspended | terminated, or null when not a member of the company.</summary>
+        Task<string?> GetMembershipAsync(string userId, string? farmId);
+        /// <summary>Every catalog key. Cached process-wide for a few minutes; the catalog only changes by migration.</summary>
+        Task<IReadOnlySet<string>> GetCatalogKeysAsync();
+        /// <summary>True once migration 507 (per-company page access) is applied.</summary>
+        Task<bool> HasPageAccessModelAsync();
+        /// <summary>Replace one person's page access in one company. Returns how many pages/actions changed.</summary>
+        Task<int> SetPageAccessAsync(string callerUserId, string userId, IamPageAccessRequest request);
+        Task<string> SetMembershipStatusAsync(string callerUserId, string userId, IamMembershipStatusRequest request);
+        Task<List<IamMembershipModel>> GetMembershipsAsync(string userId);
+        Task<List<IamAccessAuditModel>> GetPageAccessHistoryAsync(string callerUserId, string userId, string? farmId, int days);
     }
 
     /// <summary>
@@ -85,6 +98,16 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
+        private static bool? ReadOptionalBool(NpgsqlDataReader reader, string columnName)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(i) ? null : reader.GetBoolean(i);
+            }
+            return null;
+        }
+
         private static object DbNullable(string? value) =>
             string.IsNullOrWhiteSpace(value) ? DBNull.Value : value.Trim();
 
@@ -113,6 +136,11 @@ namespace PoultryFarmAPIWeb.Business
                         ? null : reader.GetString(reader.GetOrdinal("CompanyType")),
                     IsDangerous = reader.GetBoolean(reader.GetOrdinal("IsDangerous")),
                     SortOrder = reader.GetInt32(reader.GetOrdinal("SortOrder")),
+                    NavSection = ReadOptionalString(reader, "NavSection"),
+                    Route = ReadOptionalString(reader, "Route"),
+                    DefaultGrant = ReadOptionalString(reader, "DefaultGrant") ?? "ordinary",
+                    DependsOn = ReadOptionalString(reader, "DependsOn"),
+                    IsDeprecated = ReadOptionalBool(reader, "IsDeprecated") ?? false,
                 });
             }
 
@@ -665,6 +693,136 @@ namespace PoultryFarmAPIWeb.Business
             }
 
             return results;
+        }
+            // ---- Page access (migrations 506/507) ------------------------------------
+
+        private readonly Dictionary<string, string?> _membershipCache = new();
+
+        public async Task<string?> GetMembershipAsync(string userId, string? farmId)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(farmId)) return null;
+            var cacheKey = $"{userId}|{farmId}";
+            if (_membershipCache.TryGetValue(cacheKey, out var cached)) return cached;
+
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT fniam_membership(@UserId::text, @FarmId::text)", conn);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            var result = await cmd.ExecuteScalarAsync();
+            var status = result is null or DBNull ? null : result.ToString();
+            _membershipCache[cacheKey] = status;
+            return status;
+        }
+
+        private static bool? _pageAccessModel;
+        private static DateTime _pageAccessModelAt;
+
+        public async Task<bool> HasPageAccessModelAsync()
+        {
+            if (_pageAccessModel is { } known && DateTime.UtcNow - _pageAccessModelAt < TimeSpan.FromMinutes(5)) return known;
+            try
+            {
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT to_regproc('public.fniam_membership') IS NOT NULL", conn);
+                await conn.OpenAsync();
+                _pageAccessModel = await cmd.ExecuteScalarAsync() is bool b && b;
+            }
+            catch (NpgsqlException)
+            {
+                _pageAccessModel = false;
+            }
+            _pageAccessModelAt = DateTime.UtcNow;
+            return _pageAccessModel.Value;
+        }
+
+        private static IReadOnlySet<string>? _catalogKeys;
+        private static DateTime _catalogKeysAt;
+        private static readonly SemaphoreSlim CatalogLock = new(1, 1);
+
+        public async Task<IReadOnlySet<string>> GetCatalogKeysAsync()
+        {
+            if (_catalogKeys is not null && DateTime.UtcNow - _catalogKeysAt < TimeSpan.FromMinutes(5)) return _catalogKeys;
+            await CatalogLock.WaitAsync();
+            try
+            {
+                if (_catalogKeys is not null && DateTime.UtcNow - _catalogKeysAt < TimeSpan.FromMinutes(5)) return _catalogKeys;
+                var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT permissionkey FROM iampermissions", conn);
+                await conn.OpenAsync();
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync()) keys.Add(reader.GetString(0));
+                _catalogKeys = keys;
+                _catalogKeysAt = DateTime.UtcNow;
+                return keys;
+            }
+            finally
+            {
+                CatalogLock.Release();
+            }
+        }
+
+        public async Task<int> SetPageAccessAsync(string callerUserId, string userId, IamPageAccessRequest request)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spiam_pageaccess_set(p_calleruserid => @Caller::text, p_userid => @UserId::text, p_farmid_in => @FarmId::text, p_permissionkeys => @Keys::text, p_reason => @Reason::text)", conn);
+            cmd.Parameters.AddWithValue("@Caller", callerUserId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@FarmId", request.FarmId);
+            cmd.Parameters.AddWithValue("@Keys", string.Join(",", request.PermissionKeys.Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k.Trim())));
+            cmd.Parameters.AddWithValue("@Reason", DbNullable(request.Reason));
+            await conn.OpenAsync();
+            var result = await cmd.ExecuteScalarAsync();
+            return result is null or DBNull ? 0 : Convert.ToInt32(result);
+        }
+
+        public async Task<string> SetMembershipStatusAsync(string callerUserId, string userId, IamMembershipStatusRequest request)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spiam_membership_setstatus(p_calleruserid => @Caller::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_status => @Status::text, p_reason => @Reason::text)", conn);
+            cmd.Parameters.AddWithValue("@Caller", callerUserId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@FarmId", request.FarmId);
+            cmd.Parameters.AddWithValue("@Status", (request.Status ?? "active").Trim().ToLowerInvariant());
+            cmd.Parameters.AddWithValue("@Reason", DbNullable(request.Reason));
+            await conn.OpenAsync();
+            var result = await cmd.ExecuteScalarAsync();
+            return result?.ToString() ?? request.Status;
+        }
+
+        public async Task<List<IamMembershipModel>> GetMembershipsAsync(string userId)
+        {
+            var results = new List<IamMembershipModel>();
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_getmemberships(@UserId::text)", conn);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                results.Add(new IamMembershipModel
+                {
+                    FarmId = reader.GetString(reader.GetOrdinal("FarmId")),
+                    FarmName = ReadOptionalString(reader, "FarmName"),
+                    FarmType = ReadOptionalString(reader, "FarmType"),
+                    Status = ReadOptionalString(reader, "Status") ?? "active",
+                    StatusChangedAt = reader.IsDBNull(reader.GetOrdinal("StatusChangedAt")) ? null : reader.GetDateTime(reader.GetOrdinal("StatusChangedAt")),
+                    StatusReason = ReadOptionalString(reader, "StatusReason"),
+                });
+            }
+            return results;
+        }
+
+        public async Task<List<IamAccessAuditModel>> GetPageAccessHistoryAsync(string callerUserId, string userId, string? farmId, int days)
+        {
+            var all = await GetAccessAuditAsync(callerUserId, userId, days);
+            return all
+                .Where(a => a.Entity is "PageAccess" or "Membership")
+                .Where(a => string.IsNullOrWhiteSpace(farmId) || string.Equals(a.FarmId, farmId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
     }
 }

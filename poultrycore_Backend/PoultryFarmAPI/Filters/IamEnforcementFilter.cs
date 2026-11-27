@@ -70,9 +70,12 @@ namespace PoultryFarmAPIWeb.Filters
                 return;
             }
 
-            var farmId = context.HttpContext.Request.Query["farmId"].FirstOrDefault()
-                         ?? context.RouteData.Values["farmId"]?.ToString()
-                         ?? user!.FindFirst("FarmId")?.Value;
+            // The company the request names. The JWT's FarmId is only a fallback
+            // for permission lookups: it can lag behind a company switch, so the
+            // membership check below runs only on a farmId the request itself sent.
+            var requestFarmId = context.HttpContext.Request.Query["farmId"].FirstOrDefault()
+                                ?? context.RouteData.Values["farmId"]?.ToString();
+            var farmId = requestFarmId ?? user!.FindFirst("FarmId")?.Value;
 
             // Phase 4: "sign out everywhere" stamps a watermark, and any token
             // issued before it stops working — including tokens already in the
@@ -88,34 +91,94 @@ namespace PoultryFarmAPIWeb.Filters
 
             await RecordSession(context, userId, farmId);
 
+            // Page access upgrade: a company-scoped request first needs an active
+            // membership of THAT company. This is what stops a valid token from
+            // reading another organisation's data by passing its farmId, and what
+            // makes suspension/termination bite whatever is still ticked.
+            if (!string.IsNullOrWhiteSpace(requestFarmId))
+            {
+                var membership = await _iam.GetMembershipAsync(userId, requestFarmId);
+                if (membership is null or "suspended" or "terminated")
+                {
+                    Report(context, route, method, userId,
+                        membership is null ? $"not a member of company {farmId}" : $"membership is {membership}",
+                        deny: _enforced,
+                        result: Forbidden(membership is null
+                            ? "You do not have access to this company."
+                            : "Your access to this company has been suspended. Please contact your company administrator.", null));
+                    if (context.Result is not null) return;
+                }
+                // Owners are never restricted.
+                if (membership == "owner") return;
+            }
+
             // Only the shared controllers need the farm's type; skip the lookup
             // for the ~80% of routes that name their module in the path.
             string? module = null;
-            var resource = IamPermissionMap.ResolveResource(route);
+            var resource = IamPermissionMap.ResourceOf(route);
             if (resource is not null && resource.StartsWith("*.", StringComparison.Ordinal))
                 module = await _iam.GetModuleForFarmAsync(farmId);
 
-            var key = IamPermissionMap.BuildKey(route, method, module);
+            var requirement = IamPermissionMap.Resolve(route, method, module);
+            if (requirement is { MemberOnly: true }) return;
 
+            var key = requirement?.Key is null ? null : await ExistingKey(requirement.Key);
             if (key is null)
             {
                 Report(context, route, method, userId,
-                    resource is null ? "route is not in IamPermissionMap" : "company type could not be resolved",
+                    requirement is null ? "route is not in IamPermissionMap"
+                    : requirement.Key is null ? "company type could not be resolved"
+                    : $"no catalog key for {requirement.Key}",
                     deny: _enforced && _denyUnmapped,
-                    result: new ObjectResult(new { message = "This action has no permission mapping." }) { StatusCode = 403 });
+                    result: Forbidden("This action has no permission mapping.", null));
                 return;
             }
 
-            if (await _iam.HasPermissionAsync(userId, farmId, key)) return;
+            if (!await _iam.HasPermissionAsync(userId, farmId, key))
+            {
+                Report(context, route, method, userId, $"missing {key}", deny: _enforced,
+                    result: Forbidden("You do not have permission to do this.", key));
+                return;
+            }
 
-            Report(context, route, method, userId, $"missing {key}", deny: _enforced,
-                result: new ObjectResult(new
+            // An export is a copy of the page: it needs the page itself too.
+            if (key.EndsWith(".export", StringComparison.Ordinal))
+            {
+                var view = key[..^".export".Length] + ".view";
+                if (!await _iam.HasPermissionAsync(userId, farmId, view))
                 {
-                    message = "You do not have permission to do this.",
-                    requiredPermission = key,
-                })
-                { StatusCode = 403 });
+                    Report(context, route, method, userId, $"export without {view}", deny: _enforced,
+                        result: Forbidden("You do not have permission to do this.", view));
+                }
+            }
         }
+
+        /// <summary>
+        /// The key to check: the resolved one when the catalog has it, else the
+        /// next equal-or-stronger action on the same page (never a weaker one).
+        /// </summary>
+        private async Task<string?> ExistingKey(string key)
+        {
+            var catalog = await _iam.GetCatalogKeysAsync();
+            if (catalog.Count == 0 || catalog.Contains(key)) return key;
+
+            var dot = key.LastIndexOf('.');
+            var stem = key[..dot];
+            var action = key[(dot + 1)..];
+            if (IamPermissionMap.FallbackActions.TryGetValue(action, out var fallbacks))
+            {
+                foreach (var f in fallbacks)
+                    if (catalog.Contains($"{stem}.{f}")) return $"{stem}.{f}";
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 403 for a signed-in person who may not do this. Never 401: an access
+        /// denial must not look like an expired session and log the person out.
+        /// </summary>
+        private static ObjectResult Forbidden(string message, string? requiredPermission) =>
+            new(new { code = "forbidden", message, requiredPermission }) { StatusCode = StatusCodes.Status403Forbidden };
 
         /// <summary>
         /// Was this token issued before the user was signed out everywhere?

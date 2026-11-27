@@ -12,6 +12,10 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> CreateAsync(GenericLoanCreateRequest r);
         Task UpdateAsync(int loanId, GenericLoanUpdateRequest r);
         Task CancelAsync(int loanId, string farmId, string reason, string? by);
+        /// <summary>509: Draft -> Active; the money received posts here.</summary>
+        Task ApproveAsync(int loanId, string farmId, string? by);
+        /// <summary>509: an approved loan with no posted repayments goes back to Draft.</summary>
+        Task ReverseAsync(int loanId, string farmId, string reason, string? by);
         /// <summary>loanId null = every repayment of the company (reversed ones included).</summary>
         Task<List<GenericLoanPaymentModel>> ListPaymentsAsync(int? loanId, string farmId);
         Task<int> RepayAsync(int loanId, GenericLoanRepayRequest r);
@@ -51,6 +55,8 @@ namespace PoultryFarmAPIWeb.Business
                 PaymentCount = r.Int("PaymentCount"), IsOverdue = r.Bool("IsOverdue"),
                 PaidOffDate = r.DateN("PaidOffDate"), CancelReason = r.StrN("CancelReason"),
                 Status = r.Str("Status"), Notes = r.StrN("Notes"), CreatedAt = r.Date("CreatedAt"),
+                ApprovedBy = r.StrN("ApprovedBy"), ApprovedAt = r.DateN("ApprovedAt"),
+                ReversedAt = r.DateN("ReversedAt"), ReversalReason = r.StrN("ReversalReason"),
             });
             return list;
         }
@@ -65,7 +71,8 @@ namespace PoultryFarmAPIWeb.Business
                 "p_loandate=>@LoanDate::timestamp, p_startdate=>@StartDate::timestamp, p_duedate=>@DueDate::timestamp, " +
                 "p_cashaccountid=>@AccountId::int, p_notes=>@Notes::text, p_createdby=>@CreatedBy::text, " +
                 "p_lendertype=>@LenderType::text, p_accountnumber=>@AccountNumber::text, p_interesttype=>@InterestType::text, " +
-                "p_termmonths=>@Term::int, p_paymentfrequency=>@Frequency::text, p_nextpaymentdate=>@Next::date)";
+                "p_termmonths=>@Term::int, p_paymentfrequency=>@Frequency::text, p_nextpaymentdate=>@Next::date, " +
+                "p_approve=>@Approve::boolean)";
             // Projects & Contracts: the loan and its project are saved in one statement.
             using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(m.Projects)
                 ? GenericProjectAttach.WrapInsert(call, "Loan")
@@ -88,6 +95,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Term", N(m.TermMonths));
             cmd.Parameters.AddWithValue("@Frequency", N(m.PaymentFrequency));
             cmd.Parameters.AddWithValue("@Next", N(m.NextPaymentDate?.Date));
+            cmd.Parameters.AddWithValue("@Approve", m.Approve ?? true);
             await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
 
@@ -99,7 +107,9 @@ namespace PoultryFarmAPIWeb.Business
                 "p_lendername=>@Lender::text, p_lendertype=>@LenderType::text, p_accountnumber=>@AccountNumber::text, " +
                 "p_interestrate=>@Rate::numeric, p_interesttype=>@InterestType::text, p_termmonths=>@Term::int, " +
                 "p_paymentfrequency=>@Frequency::text, p_duedate=>@Due::date, p_nextpaymentdate=>@Next::date, " +
-                "p_notes=>@Notes::text, p_updatedby=>@By::text)";
+                "p_notes=>@Notes::text, p_updatedby=>@By::text, " +
+                "p_originalprincipal=>@Principal::numeric, p_amountreceived=>@Received::numeric, " +
+                "p_cashaccountid=>@AccountId::int, p_loandate=>@LoanDate::date)";
             // Projects & Contracts: a changed project is saved with the terms in one statement.
             using var cmd = new NpgsqlCommand(GenericProjectAttach.Has(m.Projects)
                 ? GenericProjectAttach.WrapUpdate(call, "Loan")
@@ -118,6 +128,32 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Next", N(m.NextPaymentDate?.Date));
             cmd.Parameters.AddWithValue("@Notes", N(m.Notes));
             cmd.Parameters.AddWithValue("@By", N(m.UpdatedBy));
+            cmd.Parameters.AddWithValue("@Principal", N(m.OriginalPrincipal));
+            cmd.Parameters.AddWithValue("@Received", N(m.AmountReceived));
+            cmd.Parameters.AddWithValue("@AccountId", N(m.GenericCashAccountId));
+            cmd.Parameters.AddWithValue("@LoanDate", N(m.LoanDate?.Date));
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task ApproveAsync(int loanId, string farmId, string? by)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT spgenericloan_approve(@Id::int, @FarmId::text, @By::text)", c);
+            cmd.Parameters.AddWithValue("@Id", loanId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@By", N(by));
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task ReverseAsync(int loanId, string farmId, string reason, string? by)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT spgenericloan_reverse(@Id::int, @FarmId::text, @Reason::text, @By::text)", c);
+            cmd.Parameters.AddWithValue("@Id", loanId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Reason", reason ?? "");
+            cmd.Parameters.AddWithValue("@By", N(by));
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
 

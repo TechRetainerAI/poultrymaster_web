@@ -57,10 +57,18 @@ export function ProjectSplitEditor({
       const b: SplitBasis = initial.some((s) => s.quantity != null) && canQty ? "quantity"
         : initial.some((s) => s.amount != null) ? "amount" : canQty ? "quantity" : "amount"
       setBasis(b)
+      // Show what was typed when it still matches the saved share (the record
+      // has not changed size since); otherwise the share of today's whole,
+      // rounded like the whole is shown.
+      const pick = (typed: number | undefined, share: number | undefined, whole: number, dp: number) => {
+        const fromShare = Math.round((share ?? 0) * whole * 10 ** dp) / 10 ** dp
+        if (typed == null) return fromShare
+        if (share == null) return typed
+        return Math.abs(share * whole - typed) <= Math.max(0.01, whole * 1e-6) ? typed : fromShare
+      }
       setRows(initial.map((s) => ({
         projectId: s.projectId,
-        value: b === "quantity" ? (s.quantity ?? (s.share ?? 0) * (wholeQuantity ?? 0))
-          : (s.amount ?? (s.share ?? 0) * wholeAmount),
+        value: b === "quantity" ? pick(s.quantity, s.share, wholeQuantity ?? 0, 3) : pick(s.amount, s.share, wholeAmount, 2),
       })))
     } else {
       setBasis(canQty ? "quantity" : "amount")

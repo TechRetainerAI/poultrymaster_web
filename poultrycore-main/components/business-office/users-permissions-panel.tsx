@@ -354,6 +354,8 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
             onChange={setPerms}
             disabled={permsSaving}
             companyTypes={(managed?.companies ?? []).map((c) => c.type)}
+            employeeId={managed?.id ?? null}
+            companies={managed?.companies}
           />
           <div className="flex justify-end">
             <Button onClick={savePermissions} disabled={permsSaving}>

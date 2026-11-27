@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { usePermissions } from "@/hooks/use-permissions"
+import { applyPageAccess } from "@/lib/iam/nav-access"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -434,6 +435,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     badge?: number,
     alertOnBadge = false
   ) => {
+    // Page access: the sidebar keeps its own copies of some rows, so every row
+    // is checked here with the same rule as the page guard.
+    if (!isButton && item.href && !permissions.canOpen(item.href)) return null
     const isActive =
       pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`))
     const Icon = item.icon
@@ -513,7 +517,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     )
   }
 
-  const renderGroup = (title: string, items: SidebarItem[], groupKey: string) => {
+  const renderGroup = (title: string, allItems: SidebarItem[], groupKey: string) => {
+    const items = allItems.filter((i) => !i.href || permissions.canOpen(i.href))
     // A group whose every item was filtered out by permissions renders nothing —
     // otherwise a staff member without, say, Deliveries sees a bare "DELIVERY"
     // heading with an empty body under it.
@@ -599,9 +604,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const sidebarAccent: NavAccent = isWater ? "sky" : isGeneric ? "emerald" : isHotel ? "violet" : isRestaurant ? "rose" : isLivestock ? "amber" : "orange"
 
   const renderMenu = (
-    label: string, Icon: any, groups: MegaMenuGroup[], menuKey: string,
+    label: string, Icon: any, allGroups: MegaMenuGroup[], menuKey: string,
     panel: MenuPanel, inlineLead: SidebarGroup[] = [],
   ) => {
+    const groups = applyPageAccess(allGroups, permissions)
     if (isDesktop) {
       return (
         <SidebarFlyoutMenu

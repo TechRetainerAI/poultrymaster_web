@@ -21,6 +21,15 @@ export interface IamPermission {
   companyType: string | null
   isDangerous: boolean
   sortOrder: number
+  /** Menu section (Sales, Money, Operations…) — set for page keys by migration 506. */
+  navSection?: string | null
+  /** The page's main address. */
+  route?: string | null
+  /** "ordinary" (ticked for a new employee) or "sensitive". */
+  defaultGrant?: "ordinary" | "sensitive"
+  /** Another page's view key that must also be held. */
+  dependsOn?: string | null
+  isDeprecated?: boolean
 }
 
 export interface IamGrant {
@@ -126,6 +135,11 @@ export interface IamStatus {
   enforced: boolean
   /** Whether a route with no permission mapping is blocked. */
   denyUnmapped: boolean
+  /**
+   * Migrations 506/507 applied: per-company page access decides every page,
+   * and the old Staff Page Access flags are no longer read.
+   */
+  pageAccess?: boolean
 }
 
 /**
@@ -402,4 +416,44 @@ export async function getEffectivePermissions(
   if (farmId) params.set("farmId", farmId)
   const qs = params.toString()
   return getJson<IamEffectivePermissions>(`Iam/effective-permissions${qs ? `?${qs}` : ""}`)
+}
+
+// ---- Staff Page Access (migrations 506/507) ---------------------------------
+
+/** Save one person's complete set of ticked keys for one company. */
+export async function setPageAccess(
+  userId: string,
+  input: { farmId: string; permissionKeys: string[]; reason?: string | null },
+): Promise<IamMutationResult> {
+  return mutate(`Iam/users/${encodeURIComponent(userId)}/page-access`, "PUT", input)
+}
+
+export type MembershipStatus = "active" | "suspended" | "terminated"
+
+export async function setMembershipStatus(
+  userId: string,
+  input: { farmId: string; status: MembershipStatus; reason?: string | null },
+): Promise<IamMutationResult> {
+  return mutate(`Iam/users/${encodeURIComponent(userId)}/status`, "PUT", input)
+}
+
+export interface IamMembership {
+  farmId: string
+  farmName: string | null
+  farmType: string | null
+  status: MembershipStatus
+  statusChangedAt: string | null
+  statusReason: string | null
+}
+
+export async function getMemberships(userId: string, farmId?: string | null): Promise<IamMembership[] | null> {
+  const qs = farmId ? `?farmId=${encodeURIComponent(farmId)}` : ""
+  return getJson<IamMembership[]>(`Iam/users/${encodeURIComponent(userId)}/memberships${qs}`)
+}
+
+/** "View Profit & Loss: Enabled → Disabled" rows for one person. */
+export async function getPageAccessHistory(userId: string, farmId?: string | null, days = 365): Promise<IamAccessAuditEntry[] | null> {
+  const params = new URLSearchParams({ days: String(days) })
+  if (farmId) params.set("farmId", farmId)
+  return getJson<IamAccessAuditEntry[]>(`Iam/users/${encodeURIComponent(userId)}/page-access-history?${params}`)
 }

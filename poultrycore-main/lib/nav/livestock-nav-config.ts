@@ -21,6 +21,7 @@ import type { MegaMenuGroup } from "./nav-model"
 import type { PoultryNavConfig } from "./poultry-nav-config"
 import { resolveQuickLinks } from "./quick-links"
 import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
+import { applyPageAccess, legacyGate } from "@/lib/iam/nav-access"
 
 export interface LivestockNavDeps {
   permissions: UserPermissions
@@ -46,7 +47,7 @@ export const LIVESTOCK_MILK_ONLY_HREFS: ReadonlySet<string> = new Set<string>([]
 /** Pages that only mean something when animals are bred on the farm. */
 export const LIVESTOCK_BREEDING_ONLY_HREFS: ReadonlySet<string> = new Set<string>(["/livestock-breeding", "/livestock/reports/breeding"])
 
-export function buildLivestockNavConfig({
+function buildLivestockNavConfigUnfiltered({
   permissions, onOpenAlerts, alertCount, quickLinkHrefs,
   showEggFeatures = true, showMilkFeatures = true, showBreedingFeatures = true,
 }: LivestockNavDeps): LivestockNavConfig {
@@ -286,4 +287,13 @@ export function buildLivestockNavConfig({
 /** True when a section has at least one row a user can see. */
 export function navSectionHasRows(groups: MegaMenuGroup[]): boolean {
   return groups.some((g) => g.items.some((i) => i.visible !== false))
+}
+
+/**
+ * Page access: the old flag rules stand aside (legacyGate) and every row is
+ * then kept only if the person may open it (applyPageAccess). No-ops until
+ * per-company page access is live. See lib/iam/nav-access.ts.
+ */
+export function buildLivestockNavConfig(deps: LivestockNavDeps): ReturnType<typeof buildLivestockNavConfigUnfiltered> {
+  return applyPageAccess(buildLivestockNavConfigUnfiltered({ ...deps, permissions: legacyGate(deps.permissions) }), deps.permissions)
 }

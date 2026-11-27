@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useDashboardMoney } from "@/hooks/use-dashboard-money"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -19,6 +20,8 @@ import {
 } from "@/lib/api/restaurant"
 
 export default function RestaurantDashboardPage() {
+  // Page access: revenue needs "Dashboard money figures" (test 20).
+  const showMoney = useDashboardMoney()
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -123,7 +126,7 @@ export default function RestaurantDashboardPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Today's Revenue</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{todayRevenue.toFixed(0)}</p>
+                      <p className="text-3xl font-bold text-gray-900 mt-1">{showMoney ? todayRevenue.toFixed(0) : "—"}</p>
                     </div>
                     <div className="h-12 w-12 rounded-xl bg-green-100 flex items-center justify-center">
                       <DollarSign className="h-6 w-6 text-green-600" />

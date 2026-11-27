@@ -17,6 +17,8 @@
 //   Overrides  — deliberate exceptions, each carrying a reason and an expiry
 //   Effective  — what those two actually add up to, with the source of each grant
 import { PERMISSION_OVERRIDE_REASONS } from "@/lib/reversal-reasons"
+import { usePermissions } from "@/hooks/use-permissions"
+import { PageAccessEditor } from "@/components/employees/page-access-editor"
 import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -61,6 +63,7 @@ export function PeopleView({
   canEdit: boolean
 }) {
   const { toast } = useToast()
+  const { pageAccess } = usePermissions()
   const [query, setQuery] = useState("")
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -308,6 +311,23 @@ export function PeopleView({
               <div className="font-semibold text-slate-900">{displayName(selected)}</div>
               <div className="text-xs text-slate-500">{selected.email || selected.userName}</div>
             </CardContent></Card>
+
+            {/* ---- Page access (the same editor as Edit Employee → Staff Page Access) ---- */}
+            {pageAccess && (
+              <Card><CardContent className="p-4 space-y-3">
+                <div className="text-sm font-semibold text-slate-900">Page access</div>
+                <p className="text-xs text-slate-500">
+                  Tick the pages this person may open in each company. This is the same list as Staff Page Access on
+                  the employee&apos;s profile — changing it in either place changes it in both.
+                </p>
+                <PageAccessEditor
+                  key={selected.id}
+                  employeeId={selected.id}
+                  companies={(selected.companies ?? []).length > 0 ? selected.companies : undefined}
+                  disabled={!canEdit}
+                />
+              </CardContent></Card>
+            )}
 
             {/* ---- Roles ---- */}
             <Card><CardContent className="p-4 space-y-3">

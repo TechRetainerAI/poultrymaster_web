@@ -1546,7 +1546,8 @@ export async function getDeferredCosts(): Promise<GenericDeferredCost[]> {
 // Migration 455 brought these up to Poultry's loans: real lender type / account
 // number / interest type / term / frequency / next payment fields, loan and
 // payment numbers, edit, cancel and reversal, and every cash move posted to the
-// account ledger. Status reads 'Active' | 'PaidOff' | 'Cancelled'.
+// account ledger. 509 added Draft -> Approve -> (Reverse back to Draft).
+// Status reads 'Draft' | 'Active' | 'PaidOff' | 'Cancelled'.
 export interface GenericLoan {
   genericLoanId: number; farmId: string; loanNumber: string | null
   lenderName: string; lenderType: string | null; accountNumber: string | null
@@ -1558,6 +1559,8 @@ export interface GenericLoan {
   genericCashAccountId: number | null; accountName: string | null
   paymentCount: number; isOverdue: boolean; paidOffDate: string | null; cancelReason: string | null
   status: string; notes: string | null; createdAt: string
+  approvedBy?: string | null; approvedAt?: string | null
+  reversedAt?: string | null; reversalReason?: string | null
 }
 
 export interface GenericLoanPayment {
@@ -1581,6 +1584,8 @@ export async function createLoan(input: {
   genericCashAccountId?: number | null; notes?: string | null
   lenderType?: string | null; accountNumber?: string | null; interestType?: string | null
   termMonths?: number | null; paymentFrequency?: string | null; nextPaymentDate?: string | null
+  /** 509: false saves a Draft (nothing posts); true / left out approves on save. */
+  approve?: boolean
   /** Projects & Contracts: saved with the loan (singleAssignment). */
   projects?: unknown
 }): Promise<number | null> {
@@ -1588,12 +1593,18 @@ export async function createLoan(input: {
   return postJson<number>(`${farmBase()}/loans`, withFarmId({ ...input, createdBy: userId || null }))
 }
 
-/** Terms only. Blank fields keep their stored value; the money is never edited. */
+/**
+ * Blank fields keep their stored value. A Draft edits everything; an approved
+ * loan only lender, lender type, account number, due dates and notes (509).
+ */
 export async function updateLoan(loanId: number, input: {
   lenderName?: string | null; lenderType?: string | null; accountNumber?: string | null
   interestRate?: number | null; interestType?: string | null; termMonths?: number | null
   paymentFrequency?: string | null; dueDate?: string | null; nextPaymentDate?: string | null
   notes?: string | null
+  /** Draft only. */
+  originalPrincipal?: number | null; amountReceived?: number | null
+  genericCashAccountId?: number | null; loanDate?: string | null
   /** Projects & Contracts: only when the project was changed; leave out to keep it. */
   projects?: unknown
 }): Promise<void> {
@@ -1601,7 +1612,19 @@ export async function updateLoan(loanId: number, input: {
   await putJson(`${farmBase()}/loans/${loanId}`, withFarmId({ ...input, updatedBy: userId || null }))
 }
 
-/** Refused while the loan has posted repayments. Takes the received money back out. */
+/** 509: Draft -> Active. The money received posts to the account. */
+export async function approveLoan(loanId: number): Promise<void> {
+  const { userId } = getUserContext()
+  await postJson(`${farmBase()}/loans/${loanId}/approve`, { reason: "", by: userId || null })
+}
+
+/** 509: an approved loan goes back to Draft; the money received comes back out. Refused while repayments are posted. */
+export async function reverseLoan(loanId: number, reason: string): Promise<void> {
+  const { userId } = getUserContext()
+  await postJson(`${farmBase()}/loans/${loanId}/reverse`, { reason, by: userId || null })
+}
+
+/** 509: Draft only. Discards it (kept on the record as Cancelled). */
 export async function cancelLoan(loanId: number, reason: string): Promise<void> {
   const { userId } = getUserContext()
   await postJson(`${farmBase()}/loans/${loanId}/cancel`, { reason, by: userId || null })

@@ -16,6 +16,8 @@ export function HotelAccessGuard() {
     if (typeof window === "undefined") return
     if (!pathname) return
     if (permissions.isLoading) return
+    // Per-company page access (506/507) is decided by PageAccessGuard.
+    if (permissions.pageAccess) return
     if (activeFarmType !== "Hotel") return
     if (!localStorage.getItem("auth_token")) return
 
@@ -29,6 +31,7 @@ export function HotelAccessGuard() {
     router,
     activeFarmType,
     permissions.isLoading,
+    permissions.pageAccess,
     permissions.featureAccess,
     permissions.isAdmin,
   ])

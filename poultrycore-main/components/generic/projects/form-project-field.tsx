@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useProjectOptions, useProjectsEnabled } from "@/hooks/use-generic-projects"
-import { getAllocations, type CostClass, type ProjectSplit } from "@/lib/api/generic-projects"
+import { getAllocations, splitFromAllocation, type CostClass, type ProjectSplit } from "@/lib/api/generic-projects"
 import { ProjectPicker } from "./project-picker"
 import { ProjectSplitEditor } from "./project-split-editor"
 
@@ -93,12 +93,12 @@ export async function loadDocumentProjects(
     if (!lineIds) {
       const a = v.active.filter((x) => x.lineId == null)
       if (a.length === 1 && a[0].share >= 0.999999) return { projectId: a[0].projectId, lines: [] }
-      return { projectId: null, lines: a.length ? [a.map((x) => ({ projectId: x.projectId, share: x.share, costClass: x.costClass }))] : [] }
+      return { projectId: null, lines: a.length ? [a.map(splitFromAllocation)] : [] }
     }
     const per = lineIds.map((id) => v.active.filter((x) => x.lineId === id))
     const whole = per.every((p) => p.length === 1 && p[0].share >= 0.999999) && new Set(per.map((p) => p[0]?.projectId)).size === 1
     if (whole && per.length) return { projectId: per[0][0].projectId, lines: lineIds.map(() => null) }
-    return { projectId: null, lines: per.map((p) => (p.length ? p.map((x) => ({ projectId: x.projectId, share: x.share, costClass: x.costClass })) : null)) }
+    return { projectId: null, lines: per.map((p) => (p.length ? p.map(splitFromAllocation) : null)) }
   } catch {
     return { projectId: null, lines: [] }
   }
@@ -132,7 +132,7 @@ export async function loadSingleProject(documentType: SingleProjectDocument, id:
     const a = v.active.filter((x) => x.lineId == null)
     if (a.length === 0) return EMPTY_SINGLE_PROJECT
     if (a.length === 1 && a[0].share >= 0.999999) return { projectId: a[0].projectId, splits: null, costClass: a[0].costClass }
-    return { projectId: null, splits: a.map((x) => ({ projectId: x.projectId, share: x.share, costClass: x.costClass })), costClass: a[0].costClass }
+    return { projectId: null, splits: a.map(splitFromAllocation), costClass: a[0].costClass }
   } catch {
     return EMPTY_SINGLE_PROJECT
   }

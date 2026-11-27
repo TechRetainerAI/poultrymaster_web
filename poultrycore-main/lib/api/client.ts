@@ -78,6 +78,13 @@ class ApiClient {
       async (error: AxiosError) => {
         const originalRequest = error.config as any
 
+        // 403 = signed in but not allowed (page access). Never a logout; just
+        // ask every usePermissions to re-read, so a page the owner unticked
+        // disappears from the menus straight away.
+        if (error.response?.status === 403 && typeof window !== "undefined") {
+          window.dispatchEvent(new Event("iam:permissions-stale"))
+        }
+
         // If 401 and not already retrying
         if (error.response?.status === 401 && !originalRequest._retry) {
           if (this.isRefreshing) {

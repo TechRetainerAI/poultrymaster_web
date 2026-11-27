@@ -43,12 +43,15 @@ namespace PoultryFarmAPIWeb.Controllers
         /// </summary>
         [HttpGet("status")]
         [AllowAnonymous]
-        public ActionResult GetStatus([FromServices] IConfiguration config)
+        public async Task<ActionResult> GetStatus([FromServices] IConfiguration config)
         {
             return Ok(new
             {
                 enforced = config.GetValue("Iam:Enforced", false),
                 denyUnmapped = config.GetValue("Iam:DenyUnmapped", false),
+                // Migrations 506/507 applied: the IAM grants alone decide every
+                // page, per company, and the browser stops using the old flags.
+                pageAccess = await _service.HasPageAccessModelAsync(),
             });
         }
 
@@ -89,7 +92,10 @@ namespace PoultryFarmAPIWeb.Controllers
             {
                 if (!string.Equals(targetId, callerId, StringComparison.OrdinalIgnoreCase))
                 {
-                    var mayRead = await _service.HasPermissionAsync(callerId, scopeFarmId, "office.access.view");
+                    // Whoever may look after employees may see what they can open.
+                    var mayRead = await _service.HasPermissionAsync(callerId, scopeFarmId, "office.access.view")
+                                  || await _service.HasPermissionAsync(callerId, scopeFarmId, "office.employee-access.edit")
+                                  || await _service.HasPermissionAsync(callerId, scopeFarmId, "office.employees.view");
                     if (!mayRead)
                     {
                         _logger.LogWarning(
@@ -573,6 +579,114 @@ namespace PoultryFarmAPIWeb.Controllers
             catch (PostgresException ex)
             {
                 return HandleSql(ex, "access review");
+            }
+        }
+
+        // ---- Staff Page Access (migrations 506/507) ---------------------------------
+
+        /// <summary>
+        /// Save one person's page access in one company: the complete set of
+        /// ticked keys. The database works out the Allow/Deny exceptions against
+        /// their roles, refuses to grant beyond the caller's own access, and
+        /// writes a readable history row per page that changed. Owners and
+        /// holders of office.employee-access.edit only (checked in the function).
+        /// </summary>
+        [HttpPut("users/{userId}/page-access")]
+        public async Task<ActionResult<IamPageAccessResult>> SetPageAccess(string userId, [FromBody] IamPageAccessRequest request)
+        {
+            var callerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(callerId)) return Unauthorized(new { message = "No user id on the token." });
+            if (string.IsNullOrWhiteSpace(request.FarmId)) return BadRequest(new { message = "Choose the company these permissions are for." });
+
+            try
+            {
+                var changed = await _service.SetPageAccessAsync(callerId, userId, request);
+                _logger.LogInformation("IAM: {Caller} changed {Changed} page permission(s) for {Target} in {Farm}.",
+                    callerId, changed, userId, request.FarmId);
+                return Ok(new IamPageAccessResult { Changed = changed });
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42501")
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { code = "forbidden", message = ex.MessageText });
+            }
+            catch (PostgresException ex)
+            {
+                return HandleSql(ex, "page access");
+            }
+        }
+
+        /// <summary>Suspend, terminate or reactivate someone at one company.</summary>
+        [HttpPut("users/{userId}/status")]
+        public async Task<ActionResult> SetMembershipStatus(string userId, [FromBody] IamMembershipStatusRequest request)
+        {
+            var callerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(callerId)) return Unauthorized(new { message = "No user id on the token." });
+            if (string.IsNullOrWhiteSpace(request.FarmId)) return BadRequest(new { message = "Choose the company." });
+
+            try
+            {
+                var status = await _service.SetMembershipStatusAsync(callerId, userId, request);
+                return Ok(new { status });
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42501")
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { code = "forbidden", message = ex.MessageText });
+            }
+            catch (PostgresException ex)
+            {
+                return HandleSql(ex, "membership status");
+            }
+        }
+
+        /// <summary>The companies someone belongs to, with their status at each. Your own, or with employee rights.</summary>
+        [HttpGet("users/{userId}/memberships")]
+        public async Task<ActionResult<IEnumerable<IamMembershipModel>>> GetMemberships(string userId, [FromQuery] string? farmId)
+        {
+            var callerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(callerId)) return Unauthorized(new { message = "No user id on the token." });
+
+            try
+            {
+                if (!string.Equals(userId, callerId, StringComparison.OrdinalIgnoreCase)
+                    && !await Holds(callerId, farmId, "office.employees.view")
+                    && !await Holds(callerId, farmId, "office.employee-access.edit"))
+                    return Forbid();
+
+                var all = await _service.GetMembershipsAsync(userId);
+                if (string.Equals(userId, callerId, StringComparison.OrdinalIgnoreCase)) return Ok(all);
+
+                // Someone else's: only the companies the caller can see into.
+                var visible = new List<IamMembershipModel>();
+                foreach (var m in all)
+                    if (await _service.GetMembershipAsync(callerId, m.FarmId) is "owner" or "active") visible.Add(m);
+                return Ok(visible);
+            }
+            catch (PostgresException ex)
+            {
+                return MissingSchema(ex, "memberships");
+            }
+        }
+
+        /// <summary>"View Profit &amp; Loss: Enabled → Disabled" history for one person (test 22).</summary>
+        [HttpGet("users/{userId}/page-access-history")]
+        public async Task<ActionResult<IEnumerable<IamAccessAuditModel>>> GetPageAccessHistory(
+            string userId, [FromQuery] string? farmId, [FromQuery] int days = 365)
+        {
+            var callerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(callerId)) return Unauthorized(new { message = "No user id on the token." });
+
+            try
+            {
+                if (!await Holds(callerId, farmId, "office.employee-security.view")
+                    && !await Holds(callerId, farmId, "office.employee-access.edit")
+                    && !await Holds(callerId, farmId, "office.access.view"))
+                    return Forbid();
+
+                return Ok(await _service.GetPageAccessHistoryAsync(callerId, userId, farmId, Math.Clamp(days, 1, 3650)));
+            }
+            catch (PostgresException ex)
+            {
+                return MissingSchema(ex, "page access history");
             }
         }
 

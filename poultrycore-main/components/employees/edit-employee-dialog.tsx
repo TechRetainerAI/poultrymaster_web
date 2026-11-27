@@ -243,6 +243,7 @@ export function EditEmployeeDialog({
               onChange={(next) => setEditForm({ ...editForm, ...next })}
               disabled={editLoading}
               companyTypes={companyTypes}
+              employeeId={employeeId}
             />
             <div className="flex gap-3 justify-end pt-2">
               <Button type="button" onClick={() => onOpenChange(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>

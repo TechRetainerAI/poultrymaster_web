@@ -23,6 +23,10 @@ import {
 } from "@/lib/employees/permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 import type { EmployeePermissionSnapshot } from "@/lib/employees/permissions-io"
+import { usePermissions } from "@/hooks/use-permissions"
+import { PageAccessChecklist, PageAccessEditor } from "@/components/employees/page-access-editor"
+import { pagesForCompanyType } from "@/lib/iam/page-catalog"
+import type { CompanyAccess } from "@/lib/api/admin"
 
 export function EmployeeAccessFields({
   value,
@@ -31,6 +35,11 @@ export function EmployeeAccessFields({
   /** Start the staff list expanded (the Manage access dialog is all about it). */
   defaultStaffOpen = false,
   companyTypes,
+  employeeId,
+  companies,
+  pageDraft,
+  onPageDraftChange,
+  draftCompanyType,
 }: {
   value: EmployeePermissionSnapshot
   onChange: (next: EmployeePermissionSnapshot) => void
@@ -46,7 +55,18 @@ export function EmployeeAccessFields({
    * to the type of the company you're currently in.
    */
   companyTypes?: Array<string | null | undefined>
+  /**
+   * Per-company page access (migrations 506/507). An existing employee: the
+   * editor loads and saves their access per company itself.
+   */
+  employeeId?: string | null
+  companies?: CompanyAccess[]
+  /** A new employee (no id yet): the ticked keys, saved by the caller after creating them. */
+  pageDraft?: Set<string>
+  onPageDraftChange?: (next: Set<string>) => void
+  draftCompanyType?: string | null
 }) {
+  const { pageAccess } = usePermissions()
   const [showStaffPermissions, setShowStaffPermissions] = useState(defaultStaffOpen)
   // Show the toggles that apply to THIS EMPLOYEE's company access when the
   // caller knows it, and otherwise to the company you are administering. Before
@@ -69,7 +89,11 @@ export function EmployeeAccessFields({
           <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-800">Grant administrator access</p>
-              <p className="text-xs text-slate-500">Turn on to configure admin-only actions for this employee.</p>
+              <p className="text-xs text-slate-500">
+                {pageAccess
+                  ? "Administrators can open every page in every company they belong to, except pages you untick for them below. Only the owner can never be restricted."
+                  : "Turn on to configure admin-only actions for this employee."}
+              </p>
             </div>
             <Switch
               checked={value.isAdmin}
@@ -121,6 +145,24 @@ export function EmployeeAccessFields({
 
       <div className="rounded-xl border border-slate-200 overflow-hidden">
         <div className="bg-slate-700 px-4 py-2 text-sm font-semibold text-white">Staff Page Access</div>
+        {pageAccess && employeeId ? (
+          <div className="p-4 bg-white">
+            <PageAccessEditor employeeId={employeeId} companies={companies} disabled={disabled} />
+          </div>
+        ) : pageAccess && pageDraft && onPageDraftChange ? (
+          <div className="p-4 bg-white space-y-2">
+            <p className="text-xs text-slate-600">
+              Common pages are ticked for you; sensitive ones (payroll, cash, profit &amp; loss, owner money…) are not.
+              Untick anything this employee should not open.
+            </p>
+            <PageAccessChecklist
+              pages={pagesForCompanyType(draftCompanyType ?? activeFarmType)}
+              draft={pageDraft}
+              onDraftChange={onPageDraftChange}
+              disabled={disabled}
+            />
+          </div>
+        ) : (
         <div className="p-4 bg-white space-y-3">
           <p className="text-xs text-slate-600">Set exactly what this employee can access.</p>
           <Button
@@ -155,6 +197,7 @@ export function EmployeeAccessFields({
             </div>
           )}
         </div>
+        )}
       </div>
     </>
   )

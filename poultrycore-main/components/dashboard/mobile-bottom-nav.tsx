@@ -684,12 +684,16 @@ export function MobileBottomNav() {
       groups: sec.groups.map((g) => ({ ...g, items: g.items.filter((i) => !isBilling(i.href)) })),
     }))),
   }
-  const config = permissions.isAdmin ? baseConfig : {
+  // Page access (506/507): one rule for every row — the same canOpen the page
+  // guard and the desktop menus use. Before that, the setup-admin gate as before.
+  const keep = (href: string) =>
+    permissions.pageAccess ? permissions.canOpen(href) : (permissions.isAdmin || !isSetupAdminRoute(href))
+  const config = permissions.isAdmin && !permissions.pageAccess ? baseConfig : {
     ...baseConfig,
-    mainTabs: baseConfig.mainTabs.filter((t) => !isSetupAdminRoute(t.href)),
+    mainTabs: baseConfig.mainTabs.filter((t) => keep(t.href)),
     moreGroups: compactSections(baseConfig.moreGroups.map((sec) => ({
       ...sec,
-      groups: sec.groups.map((g) => ({ ...g, items: g.items.filter((i) => !isSetupAdminRoute(i.href)) })),
+      groups: sec.groups.map((g) => ({ ...g, items: g.items.filter((i) => keep(i.href)) })),
     }))),
   }
 

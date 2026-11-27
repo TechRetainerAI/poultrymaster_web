@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 // Business Office → Subscription & Billing (migration 329).
 //
 // The caller passes userId on the query string like the rest of this API.
@@ -195,6 +196,7 @@ namespace PoultryFarmAPIWeb.Controllers
         public PlatformBillingWebhookController(IPlatformBillingService svc) => _svc = svc;
 
         [HttpPost("paystack")]
+        [AllowAnonymous]   // called by the payment provider; authenticity is the signature check below
         public async Task<IActionResult> Paystack()
         {
             using var reader = new StreamReader(Request.Body);

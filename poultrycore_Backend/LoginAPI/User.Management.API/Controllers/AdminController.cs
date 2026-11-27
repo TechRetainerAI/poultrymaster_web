@@ -48,12 +48,44 @@ namespace User.Management.API.Controllers
         private readonly IAdminService _adminService;
         private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AdminController> _logger;
+        private readonly User.Management.Data.ICompanyDAL _companies;
 
-        public AdminController(IAdminService adminService, IAuditLogger auditLogger, ILogger<AdminController> logger)
+        public AdminController(IAdminService adminService, IAuditLogger auditLogger, ILogger<AdminController> logger,
+            User.Management.Data.ICompanyDAL companies)
         {
             _adminService = adminService;
             _auditLogger = auditLogger;
             _logger = logger;
+            _companies = companies;
+        }
+
+        // ---- Page access upgrade: who may manage whom -------------------------
+        // Every employee endpoint below was reachable by any signed-in user, so a
+        // staff member could make themselves admin or tick every page. Each one
+        // now checks the caller against the target (same organisation; owner,
+        // staff admin, or the matching office.* permission) or the company.
+
+        private string? CallerId => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        private ObjectResult Denied(string message) =>
+            StatusCode(StatusCodes.Status403Forbidden, new { code = "forbidden", message });
+
+        private async Task<ActionResult?> RequireManage(string targetId, string permissionKey)
+        {
+            var caller = CallerId;
+            if (string.IsNullOrWhiteSpace(caller)) return Unauthorized();
+            if (await _companies.MayManageEmployeeAsync(caller, targetId, permissionKey)) return null;
+            _logger.LogWarning("Admin: {Caller} denied {Key} on employee {Target}", caller, permissionKey, targetId);
+            return Denied("You don't have permission to manage this employee.");
+        }
+
+        private async Task<ActionResult?> RequireInCompany(string farmId, string permissionKey)
+        {
+            var caller = CallerId;
+            if (string.IsNullOrWhiteSpace(caller)) return Unauthorized();
+            if (await _companies.HoldsInCompanyAsync(caller, farmId, permissionKey)) return null;
+            _logger.LogWarning("Admin: {Caller} denied {Key} in company {Farm}", caller, permissionKey, farmId);
+            return Denied("You don't have permission to manage employees in this company.");
         }
 
         /// <summary>
@@ -70,6 +102,8 @@ namespace User.Management.API.Controllers
                 {
                     return BadRequest("FarmId not found in user claims");
                 }
+
+                if (await RequireInCompany(farmId, "office.employees.view") is { } listDenied) return listDenied;
 
                 _logger.LogInformation("Fetching employees for farm: {FarmId}", farmId);
 
@@ -157,6 +191,8 @@ namespace User.Management.API.Controllers
                     return BadRequest("FarmId not found in user claims");
                 }
 
+                if (await RequireManage(id, "office.employees.view") is { } viewDenied) return viewDenied;
+
                 var employee = await _adminService.GetEmployeeByIdAsync(id, farmId);
 
                 if (employee == null)
@@ -228,6 +264,13 @@ namespace User.Management.API.Controllers
                     _logger.LogError("CreateEmployee: no company supplied and none in claims");
                     return BadRequest("Please select a company for this employee.");
                 }
+
+                // Page access upgrade: only someone who may add staff to THIS company.
+                if (await RequireInCompany(farmId, "office.employees.create") is { } createDenied) return createDenied;
+                // Making the new person an admin, or ticking their pages, is an access decision.
+                if ((request.IsAdmin || request.FeaturePermissions is { Count: > 0 })
+                    && await RequireInCompany(farmId, "office.employee-access.edit") is { } createAccessDenied)
+                    return createAccessDenied;
 
                 if (!string.IsNullOrWhiteSpace(request.FarmId)
                     && !string.Equals(request.FarmId.Trim(), claimFarmId, StringComparison.OrdinalIgnoreCase)
@@ -343,6 +386,10 @@ namespace User.Management.API.Controllers
                     return BadRequest("ID mismatch");
                 }
 
+                if (await RequireManage(id, "office.employees.edit") is { } editDenied) return editDenied;
+                // Admin access and page ticks are access decisions, not profile edits.
+                if (await RequireManage(id, "office.employee-access.edit") is { } accessDenied) return accessDenied;
+
                 _logger.LogInformation("Updating employee {EmployeeId} for farm: {FarmId}", id, farmId);
 
                 var employee = new ApplicationUser
@@ -398,6 +445,8 @@ namespace User.Management.API.Controllers
                 {
                     return BadRequest("FarmId not found in user claims");
                 }
+
+                if (await RequireManage(id, "office.employees.delete") is { } deleteDenied) return deleteDenied;
 
                 _logger.LogInformation("Deleting employee {EmployeeId} from farm: {FarmId}", id, farmId);
 
@@ -521,6 +570,8 @@ namespace User.Management.API.Controllers
         {
             try
             {
+                if (await RequireManage(id, "office.employees.view") is { } companiesDenied) return companiesDenied;
+
                 var companies = await _adminService.GetEmployeeCompaniesAsync(id);
                 return Ok(companies.Select(c => new CompanyAccessModel
                 {
@@ -549,6 +600,10 @@ namespace User.Management.API.Controllers
                 {
                     return BadRequest("FarmId is required");
                 }
+
+                if (await RequireManage(id, "office.employee-access.edit") is { } assignDenied) return assignDenied;
+                // ...and only into a company the caller can grant access to.
+                if (await RequireInCompany(request.FarmId, "office.employee-access.edit") is { } farmDenied) return farmDenied;
 
                 await _adminService.AssignCompanyAccessAsync(id, request.FarmId, request.Role ?? "Staff");
 
@@ -581,6 +636,9 @@ namespace User.Management.API.Controllers
                 {
                     return BadRequest("FarmId is required");
                 }
+
+                if (await RequireInCompany(farmId, "office.employee-access.edit") is { } removeDenied) return removeDenied;
+                if (await RequireManage(id, "office.employee-access.edit") is { } removeTargetDenied) return removeTargetDenied;
 
                 await _adminService.RemoveCompanyAccessAsync(id, farmId);
 
@@ -617,6 +675,8 @@ namespace User.Management.API.Controllers
                 {
                     return BadRequest("FarmId is required");
                 }
+
+                if (await RequireInCompany(farmId, "office.employees.view") is { } companyListDenied) return companyListDenied;
 
                 var employees = await _adminService.GetEmployeesWithAccessAsync(farmId);
                 var result = employees.Select(e => new EmployeeModel

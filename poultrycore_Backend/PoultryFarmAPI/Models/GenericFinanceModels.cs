@@ -34,6 +34,11 @@ namespace PoultryFarmAPIWeb.Models
         public string Status { get; set; } = "Active";
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; }
+        // 509: Draft -> Approve -> (Reverse back to Draft)
+        public string? ApprovedBy { get; set; }
+        public DateTime? ApprovedAt { get; set; }
+        public DateTime? ReversedAt { get; set; }
+        public string? ReversalReason { get; set; }
     }
 
     public class GenericLoanCreateRequest
@@ -55,11 +60,13 @@ namespace PoultryFarmAPIWeb.Models
         public int? GenericCashAccountId { get; set; }
         public string? Notes { get; set; }
         public string? CreatedBy { get; set; }
+        /// <summary>509: false saves a Draft (nothing posts); null/true approves on save.</summary>
+        public bool? Approve { get; set; }
         /// <summary>Projects & Contracts: { projectId, costClass } or { splits: [...] }. Saved with the loan in one statement.</summary>
         public System.Text.Json.JsonElement? Projects { get; set; }
     }
 
-    /// <summary>Terms only; the money on a loan is never edited (as on Poultry).</summary>
+    /// <summary>509: a Draft edits everything; an approved loan only the lender, account number, due dates and notes.</summary>
     public class GenericLoanUpdateRequest
     {
         public string FarmId { get; set; } = string.Empty;
@@ -74,6 +81,11 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? NextPaymentDate { get; set; }
         public string? Notes { get; set; }
         public string? UpdatedBy { get; set; }
+        // 509: Draft only (refused on an approved loan when they differ).
+        public decimal? OriginalPrincipal { get; set; }
+        public decimal? AmountReceived { get; set; }
+        public int? GenericCashAccountId { get; set; }
+        public DateTime? LoanDate { get; set; }
         /// <summary>Projects & Contracts: sent only when the project was changed; null leaves it as it is.</summary>
         public System.Text.Json.JsonElement? Projects { get; set; }
     }

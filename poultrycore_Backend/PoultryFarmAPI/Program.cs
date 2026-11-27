@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using System.Configuration;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
@@ -167,6 +167,7 @@ builder.Services.AddScoped<IPlatformRevenueService>(sp => new PlatformRevenueSer
 // Identity & Access Management — migration 199. Read-only in phase 0; also the
 // service RequirePermissionAttribute resolves once enforcement lands (phase 3).
 builder.Services.AddScoped<IIamService>(sp => new IamService(connectionString));
+builder.Services.AddScoped<IIamDataGuard, IamDataGuard>();
 
 // Weekly observations (notes per farm + week) — migration 018
 builder.Services.AddScoped<IFarmObservationService>(sp => new FarmObservationService(connectionString));
@@ -628,9 +629,24 @@ builder.Services.AddControllers(options =>
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.GenericModuleFilter>();
     // 483: a save carrying a project split also needs generic.project-allocations.create.
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.ProjectAssignmentPermissionFilter>();
+    // Page access upgrade: approvedBy / reversedBy come from the token, not the request.
+    options.Filters.Add<PoultryFarmAPIWeb.Filters.ActorFromTokenFilter>();
     options.Filters.AddService<AuditLogActionFilter>();
 });
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
+
+// Page access upgrade: authenticated by default. 99 controllers carry no
+// [Authorize]; with this on, every endpoint needs a signed-in user unless it is
+// marked [AllowAnonymous] (guest QR ordering, the payment webhook, public
+// pricing). Off until the shadow run is clean, then switched on together with
+// Iam:Enforced — see Filters/IamEnforcementFilter.cs.
+if (builder.Configuration.GetValue("Iam:RequireAuthentication", false))
+{
+    builder.Services.AddAuthorization(options =>
+        options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build());
+}
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.ProjectAssignmentPermissionFilter>();
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.CompanyTypeFilter>();
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.GenericModuleFilter>();

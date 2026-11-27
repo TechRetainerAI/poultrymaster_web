@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 
 namespace PoultryFarmAPIWeb.Filters
 {
@@ -50,6 +50,13 @@ namespace PoultryFarmAPIWeb.Filters
             // on its OWN permission inside ActivityCheckService, following
             // Iam:Enforced exactly as this filter does.
             "activitychecks",
+            // Platform operator consoles (billing admin, CRM, ops, health,
+            // analytics). They are not company pages: no company staff
+            // permission applies, and they guard themselves on the platform
+            // operator check. The webhook is called by the payment provider.
+            "platformactivity", "platformanalytics", "platformbilling", "platformbillingadmin",
+            "platformbillingwebhook", "platformcrm", "platformfarms", "platformhealth",
+            "platformops", "platformrevenue",
         };
 
         /// <summary>
@@ -64,13 +71,13 @@ namespace PoultryFarmAPIWeb.Filters
         {
             // ---- Shared controllers: module resolved from the farm ----------
             ["sale"] = "*.sales",
-            ["customer"] = "*.customers",
-            ["supplier"] = "*.suppliers",
+            ["customer"] = "~*.customers",
+            ["supplier"] = "~*.suppliers",
             ["expense"] = "*.expenses",
             ["cash"] = "*.cash",
             ["inventoryitem"] = "*.inventory",
             ["inventorytransaction"] = "*.stock",
-            ["dashboard"] = "*.reports",
+            ["dashboard"] = "member",
             // 333. "Is this company's day closed?" -- module-neutral so Business
             // Office can ask it of every company; the module's own daily-closing
             // view right answers it.
@@ -80,12 +87,12 @@ namespace PoultryFarmAPIWeb.Filters
             ["staffuserlink"] = "*.staff",
 
             // ---- Poultry, via the shared/legacy controller names -------------
-            ["flock"] = "poultry.flocks",
+            ["flock"] = "~poultry.flocks",
             // 338. Its own resource so closing a flock is not simply "can edit
             // flocks". POST = create (close); the /reverse route resolves to
             // approve (reopen) via ApproveSegments with no extra wiring.
             ["flock-closeout"] = "poultry.flock-closeout",
-            ["mainflockbatch"] = "poultry.flock-batches",
+            ["mainflockbatch"] = "~poultry.flock-batches",
             // Migration 319. Initial Farm Setup creates batches, houses AND
             // flocks, and this table can only name one resource. It names
             // flocks because that is what the wizard ultimately produces and
@@ -94,24 +101,24 @@ namespace PoultryFarmAPIWeb.Filters
             // would lock the page out the day enforcement is switched on. The
             // batch and house rights are checked explicitly inside
             // PoultryFarmSetupController, gated on Iam:Enforced.
-            ["poultryfarmsetup"] = "poultry.flocks",
-            ["house"] = "poultry.houses",
+            ["poultryfarmsetup"] = "poultry.farm-setup",
+            ["house"] = "~poultry.houses",
             ["health"] = "poultry.health",
             ["feedusage"] = "poultry.feed-usage",
             ["feedinventoryadjustment"] = "poultry.stock",
             ["eggproduction"] = "poultry.egg-production",
-            ["egginventoryadjustment"] = "poultry.egg-stock",
+            ["egginventoryadjustment"] = "poultry.egg-production",
             ["productionrecord"] = "poultry.production-records",
-            ["productionbatchrecord"] = "poultry.production-records",
-            ["farmobservation"] = "poultry.reports",
-            ["farmproductionsettings"] = "office.settings",
+            ["productionbatchrecord"] = "poultry.batch-production",
+            ["farmobservation"] = "poultry.production-records",
+            ["farmproductionsettings"] = "~*.setup",
 
             // ---- Poultry, explicitly prefixed --------------------------------
             ["poultry/reports"] = "poultry.reports",
-            ["poultry/closing-report"] = "poultry.reports",
+            ["poultry/closing-report"] = "poultry.reports-financial",
             // 481. Egg Cost & Profit Analyzer: the same right as Profit & Loss.
             // Its costing-assumption writes are additionally [SetupAdminOnly].
-            ["poultry/egg-cost"] = "poultry.reports",
+            ["poultry/egg-cost"] = "poultry.egg-cost-analyzer",
             ["poultry/cash-accounts"] = "poultry.cash",
             // 255 gave these three their own resources. They all rode on
             // poultry.cash until then, which meant anyone who could SEE cash
@@ -129,7 +136,7 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/cash-transfers"] = "poultry.cash-transfers",
             ["poultry/owner-money"] = "poultry.owner-money",
             ["poultry/loans"] = "poultry.loans",
-            ["poultry/loan-payments"] = "poultry.loan-payments",
+            ["poultry/loan-payments"] = "poultry.loans",
             // 263. Its own resource rather than an action on office.settings,
             // where farmproductionsettings sits: choosing when inventory costs
             // reach Profit & Loss is a finance decision, and the people who
@@ -143,25 +150,25 @@ namespace PoultryFarmAPIWeb.Filters
             // resolve to the `approve` action via ResolveAction with no extra
             // wiring.
             ["poultry/cash-reconciliations"] = "poultry.cash-reconciliation",
-            ["poultry/drivers"] = "poultry.drivers",
-            ["poultry/vehicles"] = "poultry.vehicles",
-            ["poultry/routes"] = "poultry.routes",
-            ["poultry/vehicle-loadings"] = "poultry.deliveries",
-            ["poultry/deliveries"] = "poultry.deliveries",
+            ["poultry/drivers"] = "~poultry.drivers",
+            ["poultry/vehicles"] = "~poultry.vehicles",
+            ["poultry/routes"] = "~poultry.routes",
+            ["poultry/vehicle-loadings"] = "poultry.driver-returns",
+            ["poultry/deliveries"] = "poultry.driver-returns",
             ["poultry/driver-returns"] = "poultry.driver-returns",
             ["poultry/driver-shortages"] = "poultry.driver-returns",
             ["poultry/driver-delivery-expenses"] = "poultry.driver-returns",
-            ["poultry/feed-formulas"] = "poultry.feed-formulas",
+            ["poultry/feed-formulas"] = "~poultry.feed-formulas",
             ["poultry/feed-production"] = "poultry.feed-production",
             // 335. Distributing feed records feed usage on flocks' production
             // records, so it rides the existing feed-usage keys. Reversal is
             // checked explicitly against .delete in the controller.
-            ["poultry/feed-distributions"] = "poultry.feed-usage",
+            ["poultry/feed-distributions"] = "poultry.feed-distribution",
             // 389. Feed Usage entries: the same feed-usage keys.
             ["poultry/feed-usage-entries"] = "poultry.feed-usage",
             ["poultry/raw-material-items"] = "poultry.raw-materials",
             ["poultry/raw-material-adjustments"] = "poultry.raw-materials",
-            ["poultry/raw-material-purchases"] = "poultry.raw-materials",
+            ["poultry/raw-material-purchases"] = "poultry.supply-purchases",
             // 345. Its own resource (seeded from the raw-materials grants), so
             // reversing a whole supplier invoice is not simply "can delete a
             // purchase". POST = create; /reverse resolves to approve. Paying on
@@ -175,23 +182,23 @@ namespace PoultryFarmAPIWeb.Filters
             // resource, so every company type gates them the way it gates its
             // Expenses page. POST .../record (not /post) keeps posting a draft on
             // the create right rather than approve.
-            ["recurring-expenses"] = "*.expenses",
+            ["recurring-expenses"] = "*.recurring-expenses",
             // 337. How long the stock lasts is part of seeing the stock.
-            ["poultry/stock-supply"] = "poultry.raw-materials",
+            ["poultry/stock-supply"] = "poultry.restock-forecast",
             // 338. Flock anomaly alerts: a flock dying, laying less or eating
             // differently is flock health. view = see alerts and why; create =
             // acknowledge / note / resolve / rescan; edit = thresholds.
-            ["poultry/flock-alerts"] = "poultry.health",
+            ["poultry/flock-alerts"] = "poultry.alerts",
             // 339. Treatment campaigns record medication given to flocks:
             // flock health. view = see campaigns and history; create = new
             // campaign / record a day; edit = product dose settings, complete,
             // cancel. Reversal is checked explicitly against .delete in the
             // controller.
-            ["poultry/treatment-campaigns"] = "poultry.health",
+            ["poultry/treatment-campaigns"] = "poultry.treatment-campaigns",
             // 400. Weigh-ins are a daily flock record, like production records,
             // and are kept by the same people. GET view, POST create, PUT edit,
             // DELETE delete (soft, with a reason).
-            ["poultry/weigh-ins"] = "poultry.production-records",
+            ["poultry/weigh-ins"] = "poultry.weigh-ins",
             // 341-343. Egg Sorting Workspace: its own resource. view = workspace,
             // ledger, reports; create = save / commit a sorting; edit = sizes
             // and settings; delete = discard a draft. Reversal is a POST to
@@ -207,12 +214,12 @@ namespace PoultryFarmAPIWeb.Filters
             // The /reverse and /dispose segments resolve to approve and delete
             // through ResolveAction with no extra wiring here.
             ["poultry/assets"] = "poultry.assets",
-            ["poultry/asset-depreciation"] = "poultry.asset-depreciation",
+            ["poultry/asset-depreciation"] = "poultry.assets",
             // The structured P&L and its drilldowns are the reports resource.
-            ["poultry/profit-loss"] = "poultry.reports",
+            ["poultry/profit-loss"] = "poultry.profit-loss",
             ["poultry/raw-material-usage"] = "poultry.raw-materials",
             ["poultry/payments"] = "poultry.payments",
-            ["poultry/products"] = "poultry.products",
+            ["poultry/products"] = "~poultry.products",
             ["poultry/stock"] = "poultry.stock",
             // 441. Batch Bird Count: setting every flock of a batch to its counted
             // birds is its own right, not simply "can add a stock movement".
@@ -220,7 +227,7 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/stock/bird-count"] = "poultry.bird-count",
             // 413. Reconciling a batch's birds is part of managing the batch.
             ["poultry/bird-reconciliation"] = "poultry.flock-batches",
-            ["poultry/production-batches"] = "poultry.production-records",
+            ["poultry/production-batches"] = "poultry.batch-production",
             ["poultry/production-losses"] = "poultry.loss-records",
             ["poultry/loss-records"] = "poultry.loss-records",
             ["poultry/internal-usage"] = "poultry.internal-use",
@@ -245,23 +252,23 @@ namespace PoultryFarmAPIWeb.Filters
             // hard-enforced endpoints in the API, which is a phase-3 decision.
             ["poultry/customer-balances"] = "poultry.customer-balances",
             ["poultry/supplier-balances"] = "poultry.supplier-balances",
-            ["poultry/customer-payments"] = "poultry.customer-payments",
+            ["poultry/customer-payments"] = "poultry.payments",
             ["poultry/supplier-payments"] = "poultry.supplier-payments",
             ["poultry/balances"] = "poultry.supplier-balances",
 
             // ---- Livestock (458+) ----------------------------------------------
             // Each key mirrors a poultry twin (splivestock_iammirror): pens <-
             // houses, groups/animals <- flocks, batches <- flock-batches.
-            ["livestock/species"] = "livestock.species",
-            ["livestock/pens"] = "livestock.pens",
-            ["livestock/company"] = "office.settings",   // 467, as water/company
-            ["livestock/batches"] = "livestock.batches",
-            ["livestock/groups"] = "livestock.groups",
-            ["livestock/animals"] = "livestock.animals",
-            ["livestock/overview"] = "livestock.groups",
+            ["livestock/species"] = "~livestock.species",
+            ["livestock/pens"] = "~livestock.pens",
+            ["livestock/company"] = "~livestock.setup",   // 467, as water/company
+            ["livestock/batches"] = "~livestock.batches",
+            ["livestock/groups"] = "~livestock.groups",
+            ["livestock/animals"] = "~livestock.animals",
+            ["livestock/overview"] = "~livestock.groups",
             // 459
             ["livestock/items"] = "livestock.items",
-            ["livestock/stock"] = "livestock.stock",
+            ["livestock/stock"] = "livestock.animal-stock",
             ["livestock/production-records"] = "livestock.production-records",
             ["livestock/breeding"] = "livestock.breeding",
             ["livestock/weigh-ins"] = "livestock.weigh-ins",
@@ -269,11 +276,11 @@ namespace PoultryFarmAPIWeb.Filters
             ["livestock/health"] = "livestock.health",
             ["livestock/vaccination"] = "livestock.vaccination",
             ["livestock/treatments"] = "livestock.treatments",
-            ["livestock/feed-formulas"] = "livestock.feed-formulas",
+            ["livestock/feed-formulas"] = "~livestock.feed-formulas",
             ["livestock/feed-production"] = "livestock.feed-production",
             // Feeding many groups writes their daily records.
-            ["livestock/feed-distribution"] = "livestock.production-records",
-            ["livestock/feed-supply"] = "livestock.items",
+            ["livestock/feed-distribution"] = "livestock.feed-distribution",
+            ["livestock/feed-supply"] = "livestock.feed-supply",
             ["livestock/alerts"] = "livestock.alerts",
             // 461
             ["livestock/cash-accounts"] = "livestock.cash",
@@ -285,7 +292,7 @@ namespace PoultryFarmAPIWeb.Filters
             ["livestock/animal-stock"] = "livestock.animal-stock",
             // 462
             ["livestock/sales"] = "livestock.sales",
-            ["livestock/customer-payments"] = "livestock.customer-payments",
+            ["livestock/customer-payments"] = "livestock.payments",
             ["livestock/customer-balances"] = "livestock.customer-balances",
             ["livestock/expenses"] = "livestock.expenses",
             // 463
@@ -293,39 +300,39 @@ namespace PoultryFarmAPIWeb.Filters
             ["livestock/cash-reconciliation"] = "livestock.cash-reconciliation",
             ["livestock/staff"] = "livestock.staff",
             ["livestock/payroll"] = "livestock.payroll",
-            ["livestock/staff-loans"] = "livestock.staff-loans",
+            ["livestock/staff-loans"] = "livestock.payroll",
             ["livestock/owner-money"] = "livestock.owner-money",
             ["livestock/loans"] = "livestock.loans",
             ["livestock/assets"] = "livestock.assets",
             ["livestock/reports"] = "livestock.reports",
             // 464
             ["livestock/daily-closing"] = "livestock.daily-closing",
-            ["livestock/missing-records"] = "livestock.production-records",
-            ["livestock/drivers"] = "livestock.drivers",
-            ["livestock/vehicles"] = "livestock.vehicles",
-            ["livestock/routes"] = "livestock.routes",
+            ["livestock/missing-records"] = "livestock.missing-records",
+            ["livestock/drivers"] = "~livestock.drivers",
+            ["livestock/vehicles"] = "~livestock.drivers",
+            ["livestock/routes"] = "~livestock.drivers",
             ["livestock/deliveries"] = "livestock.deliveries",
-            ["livestock/driver-returns"] = "livestock.driver-returns",
+            ["livestock/driver-returns"] = "livestock.deliveries",
 
             // ---- Water --------------------------------------------------------
-            ["water/company"] = "office.settings",
-            ["water/farm-settings"] = "office.settings",
-            ["water/products"] = "water.products",
-            ["water/customers"] = "water.customers",
+            ["water/company"] = "~water.setup",
+            ["water/farm-settings"] = "~water.setup",
+            ["water/products"] = "~water.products",
+            ["water/customers"] = "~water.customers",
             ["water/stock"] = "water.stock",
             ["water/internal-usage"] = "water.internal-use",
             ["water/sales"] = "water.sales",
             ["water/payments"] = "water.payments",
-            ["water/suppliers"] = "water.suppliers",
-            ["water/dashboard"] = "water.reports",
+            ["water/suppliers"] = "~water.suppliers",
+            ["water/dashboard"] = "member",
             ["water/reports"] = "water.reports",
-            ["water/financial-activity"] = "water.reports",   // 461: read-only timeline
-            ["water/closing-report"] = "water.reports",   // 463: Closing by Category
-            ["water/alerts"] = "water.reports",   // 465: Alerts
-            ["water/drivers"] = "water.drivers",
-            ["water/vehicles"] = "water.vehicles",
-            ["water/routes"] = "water.routes",
-            ["water/vehicle-loadings"] = "water.deliveries",
+            ["water/financial-activity"] = "water.financial-activity",   // 461: read-only timeline
+            ["water/closing-report"] = "water.reports-financial",   // 463: Closing by Category
+            ["water/alerts"] = "water.alerts",   // 465: Alerts
+            ["water/drivers"] = "~water.drivers",
+            ["water/vehicles"] = "~water.vehicles",
+            ["water/routes"] = "~water.routes",
+            ["water/vehicle-loadings"] = "water.driver-returns",
             ["water/driver-returns"] = "water.driver-returns",
             ["water/driver-shortages"] = "water.driver-returns",
             ["water/expenses"] = "water.expenses",
@@ -346,7 +353,7 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/cash-transfers"] = "water.cash-transfers",
             ["water/owner-money"] = "water.owner-money",
             ["water/loans"] = "water.loans",
-            ["water/loan-payments"] = "water.loan-payments",
+            ["water/loan-payments"] = "water.loans",
             // 276. Its own resource rather than an action on office.settings,
             // where water/company and water/farm-settings sit: choosing when
             // inventory costs reach Profit & Loss is a finance decision, and the
@@ -358,7 +365,7 @@ namespace PoultryFarmAPIWeb.Filters
             // different people. The /reverse and /dispose segments resolve to
             // approve and delete through ResolveAction with no extra wiring here.
             ["water/assets"] = "water.assets",
-            ["water/asset-depreciation"] = "water.asset-depreciation",
+            ["water/asset-depreciation"] = "water.assets",
             // Migration 222. Its own resource rather than an action on
             // water.cash: *.cash has no `approve`, and widening a shared
             // resource would hand reconciliation rights to everyone who can
@@ -366,27 +373,27 @@ namespace PoultryFarmAPIWeb.Filters
             // `approve` action via ResolveAction with no extra wiring.
             ["water/cash-reconciliations"] = "water.cash-reconciliation",
             ["water/daily-closings"] = "water.daily-closing",
-            ["water/loss-records"] = "water.production-losses",
+            ["water/loss-records"] = "water.loss-records",
             ["water/production-batches"] = "water.production-batches",
             ["water/production-losses"] = "water.production-losses",
-            ["water/boreholes"] = "water.boreholes",
-            ["water/machines"] = "water.machines",
+            ["water/boreholes"] = "~water.boreholes",
+            ["water/machines"] = "~water.machines",
             ["water/maintenance-logs"] = "water.maintenance",
-            ["water/quality-tests"] = "water.quality-tests",
-            ["water/pumping-logs"] = "water.pumping-logs",
+            ["water/quality-tests"] = "water.production-batches",
+            ["water/pumping-logs"] = "water.production-batches",
             // Migrations 222/227 -- see the poultry note above, including the
             // reverse/approve mismatch.
             ["water/customer-balances"] = "water.customer-balances",
             ["water/supplier-balances"] = "water.supplier-balances",
-            ["water/customer-payments"] = "water.customer-payments",
+            ["water/customer-payments"] = "water.payments",
             ["water/supplier-payments"] = "water.supplier-payments",
             ["water/balances"] = "water.supplier-balances",
-            ["water/raw-material-items"] = "water.raw-materials",
-            ["water/raw-material-adjustments"] = "water.raw-materials",
-            ["water/raw-material-purchases"] = "water.raw-materials",
-            ["water/purchase-receipts"] = "water.raw-materials",   // 462: Receive Purchase
-            ["water/stock-supply"] = "water.raw-materials",   // 464: Restock Forecast
-            ["water/raw-material-usage"] = "water.raw-materials",
+            ["water/raw-material-items"] = "water.inventory",
+            ["water/raw-material-adjustments"] = "water.inventory",
+            ["water/raw-material-purchases"] = "water.supply-purchases",
+            ["water/purchase-receipts"] = "water.purchase-receipts",   // 462: Receive Purchase
+            ["water/stock-supply"] = "water.restock-forecast",   // 464: Restock Forecast
+            ["water/raw-material-usage"] = "water.inventory",
             ["water/staff"] = "water.staff",
             ["water/staff-attendance"] = "water.staff",
             ["water/payroll-runs"] = "water.payroll",
@@ -394,19 +401,19 @@ namespace PoultryFarmAPIWeb.Filters
             // ---- Generic company ---------------------------------------------
             // The route carries the farm id ("api/generic-company/{farmId}/sales"),
             // which Normalize strips before matching.
-            ["generic-company"] = "office.companies",
-            ["generic-company/products"] = "generic.products",
-            ["generic-company/service-catalog"] = "generic.products",
+            // bare "generic-company" removed by the page-access upgrade: every sub-route is mapped explicitly.
+            ["generic-company/products"] = "~generic.products",
+            ["generic-company/service-catalog"] = "~generic.products",
             ["generic-company/inventory"] = "generic.inventory",
             ["generic-company/internal-usage"] = "generic.internal-use",
-            ["generic-company/suppliers"] = "generic.suppliers",
-            ["generic-company/purchases"] = "generic.purchases",
+            ["generic-company/suppliers"] = "~generic.suppliers",
+            ["generic-company/purchases"] = "generic.inventory",
             ["generic-company/expenses"] = "generic.expenses",
             ["generic-company/cash"] = "generic.cash",
             ["generic-company/cash-transfers"] = "generic.cash-transfers",
             ["generic-company/daily-closings"] = "generic.daily-closing",
             ["generic-company/reports"] = "generic.reports",
-            ["generic-company/customers"] = "generic.customers",
+            ["generic-company/customers"] = "~generic.customers",
             ["generic-company/sales"] = "generic.sales",
             ["generic-company/staff"] = "generic.staff",
             ["generic-company/staff-attendance"] = "generic.attendance",
@@ -416,22 +423,22 @@ namespace PoultryFarmAPIWeb.Filters
             ["generic-company/billing-runs"] = "generic.billing-runs",
             ["generic-company/invoices"] = "generic.invoices",
             ["generic-company/recurring-expenses"] = "generic.recurring-expenses",
-            ["generic-company/staff-payments"] = "generic.staff-payments",
-            ["generic-company/owner-entries"] = "generic.owner-entries",
+            ["generic-company/staff-payments"] = "generic.payroll",
+            ["generic-company/owner-entries"] = "generic.owner-money",
             // 482: Projects & Contracts. Longest prefix wins, so the sub-routes
             // below beat the bare register entry.
             ["generic-company/projects"] = "generic.projects",
             ["generic-company/projects/options"] = "generic.project-allocations",
             ["generic-company/projects/financials"] = "generic.project-financials",
-            ["generic-company/projects/budget"] = "generic.project-budgets",
-            ["generic-company/projects/budget-categories"] = "generic.project-budgets",
-            ["generic-company/projects/milestones"] = "generic.project-milestones",
-            ["generic-company/projects/reservations"] = "generic.project-reservations",
-            ["generic-company/project-reservations"] = "generic.project-reservations",
+            ["generic-company/projects/budget"] = "generic.projects",
+            ["generic-company/projects/budget-categories"] = "generic.projects",
+            ["generic-company/projects/milestones"] = "generic.projects",
+            ["generic-company/projects/reservations"] = "generic.projects",
+            ["generic-company/project-reservations"] = "generic.projects",
             ["generic-company/project-allocations"] = "generic.project-allocations",
-            ["generic-company/module-settings"] = "office.organization",
-            ["generic-company/business-settings"] = "office.organization",
-            ["generic-company/business-template"] = "office.organization",
+            ["generic-company/module-settings"] = "~generic.setup",
+            ["generic-company/business-settings"] = "~generic.setup",
+            ["generic-company/business-template"] = "~generic.setup",
             // The balance endpoints sit one segment down from the older
             // customer-payments document routes, which already exist and mean
             // something else. Both prefixes are mapped so neither lands in the
@@ -439,24 +446,251 @@ namespace PoultryFarmAPIWeb.Filters
             // otherwise catch them and call them office.companies.
             ["generic-company/balances"] = "generic.customer-balances",
             ["generic-company/balances/customer-balances"] = "generic.customer-balances",
-            ["generic-company/balances/customer-payments"] = "generic.customer-payments",
-            ["generic-company/balances/customers"] = "generic.customer-statements",
+            ["generic-company/balances/customer-payments"] = "generic.payments",
+            ["generic-company/balances/customers"] = "generic.customer-balances",
             ["generic-company/balances/supplier-balances"] = "generic.supplier-balances",
             ["generic-company/balances/supplier-payments"] = "generic.supplier-payments",
-            ["generic-company/balances/suppliers"] = "generic.supplier-statements",
-            ["generic-company/customer-payments"] = "generic.customer-payments",
-            ["business-categories"] = "office.organization",
+            ["generic-company/balances/suppliers"] = "generic.supplier-balances",
+            ["generic-company/customer-payments"] = "generic.payments",
+            ["business-categories"] = "member",
 
             // ---- Business office ----------------------------------------------
             ["businessoffice"] = "office.organization",
             ["auditlogs"] = "office.audit-log",
+
+            // ---- Page access upgrade: every remaining route, keyed to its page ----
+            ["companytime"] = "member",
+            ["userquicklinks"] = "member",
+            ["poultry/cash-flow"] = "poultry.cash-flow",
+            ["poultry/financial-activity"] = "poultry.financial-activity",
+            ["poultry/company"] = "~poultry.setup",
+            ["poultry/customer-debts"] = "poultry.customer-balances",
+            ["poultry/customers"] = "~poultry.customers",
+            ["poultry/suppliers"] = "~poultry.suppliers",
+            ["poultry/deferred-inventory-costs"] = "poultry.deferred-costs",
+            ["poultry/employee-credit"] = "poultry.employee-credit",
+            ["poultry/employee-loans"] = "poultry.employee-loans",
+            ["poultry/payroll-deductions"] = "poultry.payroll",
+            ["poultry/payroll-templates"] = "poultry.payroll",
+            ["poultry/supplier-credits"] = "poultry.supplier-credits",
+            ["poultry/supplier-debts"] = "poultry.supplier-balances",
+            ["livestock/cash-flow"] = "livestock.cash-flow",
+            ["livestock/profit-loss"] = "livestock.profit-loss",
+            ["livestock/customers"] = "~livestock.customers",
+            ["livestock/suppliers"] = "~livestock.suppliers",
+            ["water/cash-flow"] = "water.cash-flow",
+            ["water/profit-loss"] = "water.profit-loss",
+            ["water/customer-debts"] = "water.customer-balances",
+            ["water/daily-productions"] = "water.daily-production",
+            ["water/deferred-inventory-costs"] = "water.deferred-costs",
+            ["water/delivery-expenses"] = "water.driver-returns",
+            ["water/employee-credit"] = "water.employee-credit",
+            ["water/employee-loans"] = "water.employee-loans",
+            ["water/payroll-deductions"] = "water.payroll",
+            ["water/supplier-credits"] = "water.supplier-credits",
+            ["water/supplier-debts"] = "water.supplier-balances",
+            ["waterproductionlines"] = "water.production-batches",
+            ["generic/asset-depreciation"] = "generic.assets",
+            ["generic/assets"] = "generic.assets",
+            ["generic/deferred-inventory-costs"] = "generic.deferred-costs",
+            ["generic/employee-credit"] = "generic.employee-credit",
+            ["generic/employee-loans"] = "generic.employee-loans",
+            ["generic/payroll-deductions"] = "generic.payroll",
+            ["generic/payroll-runs"] = "generic.payroll",
+            ["generic/payroll-templates"] = "generic.payroll",
+            ["generic/supplier-credits"] = "generic.supplier-credits",
+            ["generic/supplier-debts"] = "generic.supplier-balances",
+            ["hotel/asset-depreciation"] = "hotel.assets",
+            ["hotel/assets"] = "hotel.assets",
+            ["hotel/availability"] = "hotel.availability",
+            ["hotel/balances"] = "hotel.customer-balances",
+            ["hotel/balances/audit"] = "hotel.customer-balances",
+            ["hotel/balances/customer-balances"] = "hotel.customer-balances",
+            ["hotel/balances/customer-payments"] = "hotel.payments",
+            ["hotel/balances/customers"] = "hotel.customer-balances",
+            ["hotel/balances/supplier-balances"] = "hotel.supplier-balances",
+            ["hotel/balances/supplier-payments"] = "hotel.supplier-payments",
+            ["hotel/balances/suppliers"] = "hotel.supplier-balances",
+            ["hotel/billing"] = "hotel.billing",
+            ["hotel/bookings"] = "hotel.bookings",
+            ["hotel/cash-flow"] = "hotel.cash-flow",
+            ["hotel/cash-reconciliations"] = "hotel.cash-reconciliation",
+            ["hotel/cash-transfers"] = "hotel.cash-transfers",
+            ["hotel/checkin-history"] = "hotel.check-in",
+            ["hotel/checkout-history"] = "hotel.check-in",
+            ["hotel/communications"] = "hotel.guest-services",
+            ["hotel/customer-payments"] = "hotel.payments",
+            ["hotel/customers"] = "~hotel.customers",
+            ["hotel/custom-options"] = "member",
+            ["hotel/dashboard"] = "member",
+            ["hotel/deferred-inventory-costs"] = "hotel.deferred-costs",
+            ["hotel/deposits"] = "hotel.billing",
+            ["hotel/employee-loan-repayments"] = "hotel.employee-loans",
+            ["hotel/employee-loans"] = "hotel.employee-loans",
+            ["hotel/finance/cash-accounts"] = "hotel.cash",
+            ["hotel/finance/cash-adjustments"] = "hotel.cash",
+            ["hotel/finance/cash-transactions"] = "hotel.cash",
+            ["hotel/finance/expense-categories"] = "hotel.expenses",
+            ["hotel/finance/expenses"] = "hotel.expenses",
+            ["hotel/financial-activity"] = "hotel.financial-activity",
+            ["hotel/folio"] = "hotel.guest-folio",
+            ["hotel/front-desk"] = "hotel.check-in",
+            ["hotel/guest-requests"] = "hotel.guest-services",
+            ["hotel/guests"] = "hotel.guests",
+            ["hotel/housekeeping"] = "hotel.housekeeping",
+            ["hotel/housekeeping-schedule"] = "hotel.housekeeping-schedule",
+            ["hotel/internal-usage"] = "hotel.internal-use",
+            ["hotel/inventory"] = "hotel.inventory",
+            ["hotel/loan-payments"] = "hotel.loans",
+            ["hotel/loans"] = "hotel.loans",
+            ["hotel/lost-and-found"] = "hotel.guest-services",
+            ["hotel/loyalty"] = "hotel.guests",
+            ["hotel/maintenance"] = "hotel.maintenance",
+            ["hotel/night-audit"] = "hotel.night-audit",
+            ["hotel/owner-money"] = "hotel.owner-money",
+            ["hotel/payroll-diag"] = "hotel.payroll",
+            ["hotel/payroll-runs"] = "hotel.payroll",
+            ["hotel/profit-loss"] = "hotel.profit-loss",
+            ["hotel/reports"] = "hotel.reports",
+            ["hotel/reports/daily-closings"] = "hotel.daily-closing",
+            ["hotel/restaurant"] = "hotel.restaurant",
+            ["hotel/room-rates"] = "~hotel.rooms",
+            ["hotel/rooms"] = "~hotel.rooms",
+            ["hotel/sales"] = "hotel.sales",
+            ["hotel/setup"] = "~hotel.setup",
+            ["hotel/shift-handovers"] = "hotel.availability",
+            ["hotel/staff"] = "hotel.staff",
+            ["hotel/stay-history"] = "hotel.stay-history",
+            ["hotel/supplier-payments"] = "hotel.supplier-payments",
+            ["hotel/suppliers"] = "~hotel.suppliers",
+            ["hotel/supplies"] = "hotel.inventory",
+            ["restaurant/asset-depreciation"] = "restaurant.assets",
+            ["restaurant/assets"] = "restaurant.assets",
+            ["restaurant/balances"] = "restaurant.customer-balances",
+            ["restaurant/cash-flow"] = "restaurant.cash-flow",
+            ["restaurant/crm"] = "restaurant.crm",
+            ["restaurant/customer-balances"] = "restaurant.customer-balances",
+            ["restaurant/customer-payments"] = "restaurant.payments",
+            ["restaurant/customers"] = "~restaurant.crm",
+            ["restaurant/custom-options"] = "member",
+            ["restaurant/deferred-inventory-costs"] = "restaurant.deferred-costs",
+            ["restaurant/delivery"] = "restaurant.delivery",
+            ["restaurant/events"] = "restaurant.extras",
+            ["restaurant/expenses"] = "restaurant.expenses",
+            ["restaurant/finance/accounts"] = "restaurant.cash",
+            ["restaurant/finance/counts"] = "restaurant.cash-reconciliation",
+            ["restaurant/finance/daily-closing"] = "restaurant.daily-closing",
+            ["restaurant/finance/ledger"] = "restaurant.financial-activity",
+            ["restaurant/finance/loans"] = "restaurant.loans",
+            ["restaurant/finance/owner-money"] = "restaurant.owner-money",
+            ["restaurant/finance/pnl-lines"] = "restaurant.profit-loss",
+            ["restaurant/finance/reports"] = "restaurant.reports",
+            ["restaurant/finance/shifts"] = "restaurant.tills",
+            ["restaurant/finance/transfers"] = "restaurant.cash-transfers",
+            ["restaurant/financial-activity"] = "restaurant.financial-activity",
+            ["restaurant/floor"] = "~restaurant.floor-plan",
+            ["restaurant/gift-cards"] = "restaurant.extras",
+            ["restaurant/internal-usage"] = "restaurant.internal-use",
+            ["restaurant/inventory"] = "restaurant.inventory",
+            ["restaurant/kds"] = "restaurant.kitchen",
+            ["restaurant/loyalty"] = "restaurant.crm",
+            ["restaurant/menu"] = "~restaurant.menu",
+            ["restaurant/notifications"] = "restaurant.extras",
+            ["restaurant/online"] = "restaurant.online-orders",
+            ["restaurant/orders"] = "restaurant.pos",
+            ["restaurant/payroll"] = "restaurant.payroll",
+            ["restaurant/purchases"] = "restaurant.inventory",
+            ["restaurant/reports"] = "restaurant.reports",
+            ["restaurant/reservations"] = "restaurant.reservations",
+            ["restaurant/setup"] = "~restaurant.setup",
+            ["restaurant/staff"] = "restaurant.staff",
+            ["restaurant/staff-loans"] = "restaurant.employee-loans",
+            ["restaurant/supplier-balances"] = "restaurant.supplier-balances",
+            ["restaurant/supplier-payments"] = "restaurant.supplier-payments",
+            ["restaurant/suppliers"] = "~restaurant.suppliers",
+            ["generic-company"] = "~generic.setup",
+            ["generic-company/setup"] = "~generic.setup",
+            ["generic-company/academic-terms"] = "~generic.school",
+            ["generic-company/classes"] = "~generic.school",
+            ["generic-company/customer-attendance"] = "generic.school",
+            ["generic-company/assets"] = "generic.assets",
+            ["generic-company/bulk-payments"] = "generic.payments",
+            ["generic-company/cash-accounts"] = "~generic.cash",
+            ["generic-company/cash-flow"] = "generic.cash-flow",
+            ["generic-company/financial-activity"] = "generic.financial-activity",
+            ["generic-company/coupons"] = "~generic.coupons",
+            ["generic-company/credit-applications"] = "generic.customer-credits",
+            ["generic-company/credit-refunds"] = "generic.customer-credits",
+            ["generic-company/customer-credits"] = "generic.customer-credits",
+            ["generic-company/supplier-credits"] = "generic.supplier-credits",
+            ["generic-company/supplier-payments"] = "generic.supplier-payments",
+            ["generic-company/deferred-costs"] = "generic.deferred-costs",
+            ["generic-company/deliveries"] = "generic.deliveries",
+            ["generic-company/drivers"] = "~generic.drivers",
+            ["generic-company/routes"] = "~generic.drivers",
+            ["generic-company/invoice-documents"] = "generic.invoices",
+            ["generic-company/late-fees"] = "generic.invoices",
+            ["generic-company/loans"] = "generic.loans",
+            ["generic-company/customer-types"] = "member",
+            ["generic-company/supplier-types"] = "member",
+            ["generic-company/payment-methods"] = "member",
+            ["generic-company/expense-categories"] = "~generic.expenses",
+            ["generic-company/product-categories"] = "~generic.products",
+            ["generic-company/service-categories"] = "~generic.products",
+            ["generic-company/services"] = "~generic.products",
+            ["generic-company/units"] = "~generic.products",
+            ["generic-company/uom-conversions"] = "~generic.products",
+            ["generic-company/production-records"] = "generic.products",
         };
 
         /// <summary>Route segments that mean "approve", whatever the HTTP verb.</summary>
         private static readonly string[] ApproveSegments =
         {
-            "approve", "unapprove", "post", "unpost", "reverse", "confirm", "authorize", "release",
+            "approve", "unapprove", "post", "unpost", "confirm", "authorize", "release",
         };
+
+        /// <summary>
+        /// Route segments that undo a posted record. Their own action since the
+        /// page-access upgrade, so "may approve" and "may reverse" can differ;
+        /// a page without a .reverse key falls back to .approve (see
+        /// <see cref="FallbackActions"/>).
+        /// </summary>
+        private static readonly string[] ReverseSegments = { "reverse", "void", "unwind" };
+
+        /// <summary>
+        /// When the catalog has no key for the resolved action, the next action
+        /// that must be held instead — always an equal-or-stronger one, never a
+        /// weaker one, so a missing key can never turn "approve" into "view".
+        /// </summary>
+        public static readonly IReadOnlyDictionary<string, string[]> FallbackActions = new Dictionary<string, string[]>
+        {
+            ["view"] = Array.Empty<string>(),
+            ["create"] = new[] { "edit" },
+            ["edit"] = Array.Empty<string>(),
+            ["delete"] = new[] { "edit" },
+            ["approve"] = new[] { "edit" },
+            ["reverse"] = new[] { "approve", "delete", "edit" },
+            ["export"] = new[] { "view" },
+        };
+
+        /// <summary>
+        /// Writes every member makes as a side effect of using the app, whatever
+        /// pages they hold: the browser recording an activity-log entry.
+        /// </summary>
+        private static readonly HashSet<string> MemberWrites = new(StringComparer.OrdinalIgnoreCase) { "POST auditlogs" };
+
+        private static readonly HashSet<string> ExactOnly = new(StringComparer.OrdinalIgnoreCase) { "generic-company" };
+
+        /// <summary>The resource value for routes any active member may call (dashboards, settings lookups).</summary>
+        public const string MemberResource = "member";
+
+        /// <summary>
+        /// Prefix on a resource meaning "reads are member-level": reference lists
+        /// (customers, products, routes, room types…) that operational pages
+        /// need even when the person cannot open the list's own page. Changes
+        /// still need the resource's create/edit/delete key.
+        /// </summary>
+        public const string MemberReadPrefix = "~";
 
         private static readonly Regex RouteParam = new(@"\{[^}]*\}", RegexOptions.Compiled);
 
@@ -511,6 +745,10 @@ namespace PoultryFarmAPIWeb.Filters
             foreach (var (prefix, resource) in Map)
             {
                 if (prefix.Length <= bestLength) continue;
+                // Bare controller roots match only themselves, never as a
+                // catch-all prefix — an unmapped sub-route must surface in the
+                // route-map test instead of silently inheriting the root's key.
+                if (ExactOnly.Contains(prefix) && !normalizedRoute.Equals(prefix, StringComparison.OrdinalIgnoreCase)) continue;
                 if (!normalizedRoute.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
                 // Only match on a segment boundary, so "water/stock" cannot be
                 // matched by a route like "water/stocktake".
@@ -546,6 +784,9 @@ namespace PoultryFarmAPIWeb.Filters
             if (segments.Any(s => s.Contains("export", StringComparison.OrdinalIgnoreCase)))
                 return "export";
 
+            if (segments.Any(s => ReverseSegments.Contains(s, StringComparer.OrdinalIgnoreCase)))
+                return "reverse";
+
             if (segments.Any(s => ApproveSegments.Contains(s, StringComparer.OrdinalIgnoreCase)))
                 return "approve";
 
@@ -563,10 +804,46 @@ namespace PoultryFarmAPIWeb.Filters
         /// Build the key for a request, substituting the module for a "*" resource.
         /// Returns null when the route is unmapped or the module is unknown.
         /// </summary>
-        public static string? BuildKey(string normalizedRoute, string httpMethod, string? moduleForFarm)
+        /// <summary>
+        /// What a request needs: nothing beyond membership (<c>MemberOnly</c>),
+        /// a permission key, or nothing resolvable (<c>Key</c> null).
+        /// </summary>
+        public sealed record Requirement(bool MemberOnly, string? Key);
+
+        public static Requirement? Resolve(string normalizedRoute, string httpMethod, string? moduleForFarm)
         {
             var resource = ResolveResource(normalizedRoute);
             if (resource is null) return null;
+            if (resource == MemberResource) return new Requirement(true, null);
+
+            var action = ResolveAction(httpMethod, normalizedRoute);
+            if (MemberWrites.Contains($"{httpMethod.ToUpperInvariant()} {normalizedRoute}")) return new Requirement(true, null);
+            if (resource.StartsWith(MemberReadPrefix, StringComparison.Ordinal))
+            {
+                if (action == "view") return new Requirement(true, null);
+                resource = resource[MemberReadPrefix.Length..];
+            }
+
+            if (resource.StartsWith("*.", StringComparison.Ordinal))
+            {
+                if (string.IsNullOrWhiteSpace(moduleForFarm)) return new Requirement(false, null);
+                resource = string.Concat(moduleForFarm, resource.AsSpan(1));
+            }
+
+            return new Requirement(false, $"{resource}.{action}");
+        }
+
+        /// <summary>Strip the member-read marker, for callers that only want the resource.</summary>
+        public static string? ResourceOf(string normalizedRoute)
+        {
+            var r = ResolveResource(normalizedRoute);
+            return r is not null && r.StartsWith(MemberReadPrefix, StringComparison.Ordinal) ? r[MemberReadPrefix.Length..] : r;
+        }
+
+        public static string? BuildKey(string normalizedRoute, string httpMethod, string? moduleForFarm)
+        {
+            var resource = ResourceOf(normalizedRoute);
+            if (resource is null || resource == MemberResource) return null;
 
             if (resource.StartsWith("*.", StringComparison.Ordinal))
             {

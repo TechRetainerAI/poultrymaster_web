@@ -18,6 +18,48 @@ namespace PoultryFarmAPIWeb.Models
         public string? CompanyType { get; set; }
         public bool IsDangerous { get; set; }
         public int SortOrder { get; set; }
+
+        // ---- page access (migration 506) ----
+        /// <summary>Menu section the page lives in (Sales, Money, Operations...). Null for finer action keys.</summary>
+        public string? NavSection { get; set; }
+        /// <summary>The page's main address.</summary>
+        public string? Route { get; set; }
+        /// <summary>"ordinary" (ticked by default for a new employee) or "sensitive".</summary>
+        public string DefaultGrant { get; set; } = "ordinary";
+        /// <summary>Another page's view key that must also be held.</summary>
+        public string? DependsOn { get; set; }
+        public bool IsDeprecated { get; set; }
+    }
+
+    /// <summary>The Staff Page Access save: the complete set of keys ticked for one person in one company.</summary>
+    public class IamPageAccessRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public List<string> PermissionKeys { get; set; } = new();
+        public string? Reason { get; set; }
+    }
+
+    public class IamPageAccessResult
+    {
+        public int Changed { get; set; }
+    }
+
+    public class IamMembershipStatusRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        /// <summary>active | suspended | terminated</summary>
+        public string Status { get; set; } = "active";
+        public string? Reason { get; set; }
+    }
+
+    public class IamMembershipModel
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string? FarmName { get; set; }
+        public string? FarmType { get; set; }
+        public string Status { get; set; } = "active";
+        public DateTime? StatusChangedAt { get; set; }
+        public string? StatusReason { get; set; }
     }
 
     /// <summary>A single resolved grant, with the role (or override) that produced it.</summary>
