@@ -95,7 +95,7 @@ function GenericCashReconciliationPageInner() {
     void loadAccounts().then((accs) => {
       setAccountId((current) => {
         if (current != null) return current
-        // Arriving from a specific account (Cash & Accounts' Reconcile) keeps its context.
+        // Arriving from a specific account (Cash Accounts' Reconcile) keeps its context.
         const wanted = Number(searchParams.get("accountId"))
         if (wanted && accs.some((a) => a.genericCashAccountId === wanted)) return wanted
         return accs.find((a) => a.isActive)?.genericCashAccountId ?? accs[0]?.genericCashAccountId ?? null
@@ -196,7 +196,7 @@ function GenericCashReconciliationPageInner() {
         <main className="flex-1 overflow-auto p-3 md:p-4">
           <div className="mb-2">
             <Button asChild variant="ghost" size="sm" className="-ml-2 text-slate-600">
-              <Link href="/generic-cash"><ArrowLeft className="h-4 w-4 mr-1" /> Back to Cash &amp; Accounts</Link>
+              <Link href="/generic-cash"><ArrowLeft className="h-4 w-4 mr-1" /> Back to Cash Accounts</Link>
             </Button>
 
             <div className="mt-0.5">

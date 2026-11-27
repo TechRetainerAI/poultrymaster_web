@@ -418,7 +418,7 @@ export function MobileBottomNav() {
           { title: "Expenses", items: fromMegaMenu(
               buildGenericNavConfig(genericModules, permissions).expenses).flatMap((g) => g.items) },
           { title: "Money", items: [
-            { href: "/generic-cash",              label: "Cash & Accounts",   icon: Wallet },
+            { href: "/generic-cash",              label: "Cash Accounts",   icon: Wallet },
             { href: "/generic-cash-transfers",    label: "Cash transfers",    icon: Activity },
             { href: "/generic-daily-closings",    label: "Daily Closing",     icon: FileText },
           ] as NavItem[] },

@@ -18,7 +18,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle, Drumstick, ClipboardList, Compass,
+  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle, Drumstick, ClipboardList, Compass, LifeBuoy,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -543,6 +543,7 @@ export function buildPoultryNavConfig(
           { id: "billing",     title: "Billing",             icon: CreditCard, href: "/business-office/billing", visible: money("/billing") },
           { id: "audit-logs",  title: "Activity Log",        icon: Activity,   href: "/audit-logs", visible: featureAccess.canViewActivityLog },
           { id: "resources",   title: "Resources",           icon: BookOpen,   href: "/resources" },
+          { id: "support",     title: "Support",             icon: LifeBuoy,   href: "/support" },
           { id: "setup-guide", title: "Setup Guide",         icon: Compass,    href: "/poultry-setup-guide" },
           { id: "help",        title: "Help Center",         icon: HelpCircle, href: "/help" },
           { id: "videos",      title: "Support Videos",      icon: PlayCircle, href: "/poultry-videos" },

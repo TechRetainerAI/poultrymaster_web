@@ -1,6 +1,6 @@
 "use client"
 
-// Generic Cash & Accounts — deep copy of poultry-cash-accounts page structure.
+// Generic Cash Accounts — deep copy of poultry-cash-accounts page structure.
 // Full CRUD for accounts, transfer dialog, transactions quick-view, recalculate,
 // delete confirmation, and the same stat cards / table / mobile layout as poultry.
 

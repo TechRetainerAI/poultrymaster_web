@@ -172,7 +172,7 @@ You need one product, one customer, one supplier and a cash account. Do these on
 
 ### C4. Make sure you have a cash account
 
-1. Top menu **Money** → click **Cash & Accounts**.
+1. Top menu **Money** → click **Cash Accounts**.
 2. If you see an account in the list (e.g. "Cash" or "Bank"), you are fine. Remember its name.
 3. If the list is empty:
    - click **New account**;

@@ -31,8 +31,11 @@ import { ReasonSelect } from "@/components/ui/reason-select"
 import {
   Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle,
   History, Check, Package, ArrowUpCircle, ArrowDownCircle,
-  Boxes, ExternalLink, ArrowLeft,
+  Boxes, ExternalLink, ArrowLeft, Undo2,
 } from "lucide-react"
+import { ReversePurchaseDialog } from "@/components/purchases/reverse-purchase-dialog"
+import { getUserContext } from "@/lib/api/config"
+import { getSelectedCurrency } from "@/lib/utils/currency"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -85,25 +88,6 @@ function Kpi({ icon, label, value, sub, tone, onClick, title }: {
   return onClick
     ? <button type="button" title={title} onClick={onClick} className={cn(cls, "transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500")}>{body}</button>
     : <div title={title} className={cls}>{body}</div>
-}
-
-function Chip({ active, onClick, count, tone, children }: {
-  active: boolean; onClick: () => void; count?: number; tone?: "warn" | "bad"; children: React.ReactNode
-}) {
-  return (
-    <button type="button" onClick={onClick} aria-pressed={active}
-      className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-        active ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50")}>
-      {children}
-      {count != null && (
-        <span className={cn("rounded-full px-1.5 text-[10px] font-bold tabular-nums",
-          active ? "bg-white/20 text-white"
-            : tone === "warn" && count > 0 ? "bg-amber-100 text-amber-800"
-            : tone === "bad" && count > 0 ? "bg-red-100 text-red-700"
-            : "bg-slate-100 text-slate-600")}>{count.toLocaleString()}</span>
-      )}
-    </button>
-  )
 }
 
 function FieldCard({ title, badge, fields, actions }: { title: React.ReactNode; badge?: React.ReactNode; fields: [string, React.ReactNode][]; actions?: React.ReactNode }) {
@@ -176,7 +160,8 @@ function PaymentStatusBadge({ status }: { status: string }) {
   return <Badge className="bg-red-50 text-red-700 hover:bg-red-50">Unpaid</Badge>
 }
 
-function PurchaseStatusBadge({ status }: { status: string }) {
+function PurchaseStatusBadge({ status , reversed }: { status: string; reversed?: boolean }) {
+  if (reversed) return <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-600">Reversed</Badge>
   if (status === "Approved") return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Approved</Badge>
   if (status === "Cancelled") return <Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100">Cancelled</Badge>
   return <Badge className="bg-slate-100 text-slate-800 hover:bg-slate-100">Draft</Badge>
@@ -199,6 +184,16 @@ function ExpiryBadge({ product }: { product: GenericProduct }) {
   if (daysUntil < 0) return <Badge className="bg-rose-100 text-rose-700 ml-1">Expired {Math.abs(daysUntil)}d ago</Badge>
   if (daysUntil <= 30) return <Badge className="bg-amber-100 text-amber-700 ml-1">Expires in {daysUntil}d</Badge>
   return null
+}
+
+// Item purpose, same rules as the Products page (old rows without the 441 flags
+// fall back to itemType).
+type ItemPurpose = "sell" | "production" | "internal"
+const PURPOSE_KEYS: ItemPurpose[] = ["sell", "production", "internal"]
+const PURPOSES: Record<ItemPurpose, { label: string; match: (p: GenericProduct) => boolean }> = {
+  sell: { label: "Sell to Customers", match: (p) => p.canSell === true || (p.canSell == null && p.itemType !== "SupplyItem") },
+  production: { label: "Use in Production", match: (p) => p.canUseInProduction === true },
+  internal: { label: "Use Internally", match: (p) => p.canUseInternally === true || (p.canUseInternally == null && p.itemType === "SupplyItem") },
 }
 
 // URL-reflected tabs
@@ -234,8 +229,8 @@ function GenericInventoryPageInner() {
   const [dateTo, setDateTo] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [unitFilter, setUnitFilter] = useState("all")
-  const [stockFilter, setStockFilter] = useState<"all" | "low" | "out" | "inactive">("all")
-  const [itemTypeFilter, setItemTypeFilter] = useState<"all" | "Product" | "SupplyItem">("all")
+  const [stockFilter, setStockFilter] = useState<"all" | "low" | "out" | "inactive" | "in">("all")
+  const [itemTypeFilter, setItemTypeFilter] = useState<"all" | ItemPurpose>("all")
   const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all")
   const [purchaseStatusFilter, setPurchaseStatusFilter] = useState<"all" | "Draft" | "Approved" | "Cancelled">("all")
   const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
@@ -247,6 +242,7 @@ function GenericInventoryPageInner() {
 
   // ---- Dialogs ----
   const [deleteTarget, setDeleteTarget] = useState<GenericProduct | null>(null)
+  const [reverseTarget, setReverseTarget] = useState<GenericPurchase | null>(null)
 
   // Adjustment dialog
   const [adjOpen, setAdjOpen] = useState(false)
@@ -350,18 +346,23 @@ function GenericInventoryPageInner() {
   // ---- Filtered items ----
   const filteredItems = useMemo(() => {
     let rows = filterByDateAndSearch(products, { search, searchKeys: ["productName", "sku", "barcode", "categoryName"] })
-    if (itemTypeFilter !== "all") rows = rows.filter((p) => (p.itemType ?? "Product") === itemTypeFilter)
+    if (itemTypeFilter !== "all") rows = rows.filter(PURPOSES[itemTypeFilter].match)
     if (categoryFilter !== "all") rows = rows.filter((p) => p.categoryName === categoryFilter)
     if (unitFilter !== "all") rows = rows.filter((p) => p.unitOfMeasure === unitFilter)
     if (stockFilter === "low") rows = rows.filter((p) => stockStatus(p) === "low")
     else if (stockFilter === "out") rows = rows.filter((p) => stockStatus(p) === "out")
     else if (stockFilter === "inactive") rows = rows.filter((p) => !p.isActive)
+    else if (stockFilter === "in") rows = rows.filter((p) => p.isActive && stockStatus(p) === "ok")
     return rows
   }, [products, search, itemTypeFilter, categoryFilter, unitFilter, stockFilter])
 
-  // Counts for item type chips
-  const productCount = useMemo(() => products.filter((p) => (p.itemType ?? "Product") === "Product").length, [products])
-  const supplyCount = useMemo(() => products.filter((p) => p.itemType === "SupplyItem").length, [products])
+  // Counts shown in the Item Purpose / Stock Status dropdowns
+  const purposeCounts = useMemo(() => {
+    const c = { sell: 0, production: 0, internal: 0 }
+    for (const p of products) for (const k of PURPOSE_KEYS) if (PURPOSES[k].match(p)) c[k]++
+    return c
+  }, [products])
+  const inStockCount = useMemo(() => products.filter((p) => p.isActive && stockStatus(p) === "ok").length, [products])
 
   // ---- Filtered purchases ----
   const filteredPurchases = useMemo(() => {
@@ -570,17 +571,24 @@ function GenericInventoryPageInner() {
                 {/* ===== ITEMS TAB ===== */}
                 <TabsContent value="items">
                   <Card><CardContent className="space-y-3 p-3 sm:p-4">
-                    {/* All filters in one row */}
-                    <div className="flex flex-wrap gap-1.5">
-                      <Chip active={itemTypeFilter === "all" && stockFilter === "all"} onClick={() => { setItemTypeFilter("all"); setStockFilter("all") }} count={products.length}>All Items</Chip>
-                      <Chip active={itemTypeFilter === "Product"} onClick={() => { setItemTypeFilter("Product"); setStockFilter("all") }} count={productCount}>Products (for sale)</Chip>
-                      <Chip active={itemTypeFilter === "SupplyItem"} onClick={() => { setItemTypeFilter("SupplyItem"); setStockFilter("all") }} count={supplyCount}>Supply Items (internal use)</Chip>
-                      <span className="w-px bg-slate-200 mx-0.5 self-stretch" />
-                      <Chip active={stockFilter === "low"} onClick={() => { setStockFilter("low"); setItemTypeFilter("all") }} count={stats.low} tone="warn">Low stock</Chip>
-                      <Chip active={stockFilter === "out"} onClick={() => { setStockFilter("out"); setItemTypeFilter("all") }} count={stats.out} tone="bad">Out of stock</Chip>
-                      <Chip active={stockFilter === "inactive"} onClick={() => { setStockFilter("inactive"); setItemTypeFilter("all") }} count={stats.inactive}>Inactive</Chip>
-                    </div>
                     <ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search product, SKU, or category" extras={<>
+                      <Select value={itemTypeFilter} onValueChange={(v) => setItemTypeFilter(v as typeof itemTypeFilter)}>
+                        <SelectTrigger className="w-full sm:w-[200px]" aria-label="Item purpose"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Items ({products.length})</SelectItem>
+                          {PURPOSE_KEYS.map((k) => <SelectItem key={k} value={k}>{PURPOSES[k].label} ({purposeCounts[k]})</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Select value={stockFilter} onValueChange={(v) => setStockFilter(v as typeof stockFilter)}>
+                        <SelectTrigger className="w-full sm:w-[170px]" aria-label="Stock status"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="low">Low Stock ({stats.low})</SelectItem>
+                          <SelectItem value="out">Out of Stock ({stats.out})</SelectItem>
+                          <SelectItem value="inactive">Inactive ({stats.inactive})</SelectItem>
+                          <SelectItem value="in">In Stock ({inStockCount})</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                         <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="All categories" /></SelectTrigger>
                         <SelectContent>
@@ -665,18 +673,27 @@ function GenericInventoryPageInner() {
                 {/* ===== PURCHASES TAB ===== */}
                 <TabsContent value="purchases">
                   <Card><CardContent className="space-y-3 p-3 sm:p-4">
-                    <div className="flex flex-wrap gap-1.5">
-                      <Chip active={payFilter === "all"} onClick={() => setPayFilter("all")} count={purchases.length}>All</Chip>
-                      <Chip active={payFilter === "unpaid"} onClick={() => setPayFilter("unpaid")} count={unpaidCount} tone="bad">Unpaid</Chip>
-                      <Chip active={payFilter === "paid"} onClick={() => setPayFilter("paid")} count={purchases.length - unpaidCount}>Paid</Chip>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mb-1">
-                      {(["all", "Draft", "Approved", "Cancelled"] as const).map((s) => (
-                        <Button key={s} size="sm" variant={s === purchaseStatusFilter ? "default" : "outline"}
-                          onClick={() => setPurchaseStatusFilter(s)}>{s === "all" ? "All status" : s}</Button>
-                      ))}
-                    </div>
-                    <ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search supplier, invoice or notes" />
+                    <ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}
+                      searchPlaceholder="Search supplier, invoice or notes" searchWidthClassName="sm:w-[220px]"
+                      leading={<>
+                        <Select value={payFilter} onValueChange={(v) => setPayFilter(v as typeof payFilter)}>
+                          <SelectTrigger className="w-full sm:w-[150px]" aria-label="Payment state"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All ({purchases.length})</SelectItem>
+                            <SelectItem value="unpaid">Unpaid ({unpaidCount})</SelectItem>
+                            <SelectItem value="paid">Paid ({purchases.length - unpaidCount})</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select value={purchaseStatusFilter} onValueChange={(v) => setPurchaseStatusFilter(v as typeof purchaseStatusFilter)}>
+                          <SelectTrigger className="w-full sm:w-[150px]" aria-label="Record status"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All status</SelectItem>
+                            <SelectItem value="Draft">Draft</SelectItem>
+                            <SelectItem value="Approved">Approved</SelectItem>
+                            <SelectItem value="Cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </>} />
 
                     {/* Desktop table */}
                     <div className="hidden md:block overflow-x-auto"><Table>
@@ -711,7 +728,7 @@ function GenericInventoryPageInner() {
                             <TableCell className="text-right whitespace-nowrap">{gh(p.amountPaid)}</TableCell>
                             <TableCell className={cn("text-right whitespace-nowrap", p.balance > 0 && "text-red-600 font-semibold")}>{gh(p.balance)}</TableCell>
                             <TableCell><PaymentStatusBadge status={p.paymentStatus} /></TableCell>
-                            <TableCell><PurchaseStatusBadge status={p.status} /></TableCell>
+                            <TableCell><PurchaseStatusBadge status={p.status} reversed={!!p.purchaseReversalId} /></TableCell>
                             <TableCell className="whitespace-nowrap text-right">
                               {p.status === "Draft" && (
                                 <>
@@ -740,6 +757,11 @@ function GenericInventoryPageInner() {
                                   </IconAction>
                                 </>
                               )}
+                              {p.status === "Approved" && (
+                                <IconAction label="Reverse purchase" onClick={() => setReverseTarget(p)}>
+                                  <Undo2 className="w-4 h-4 text-red-500" />
+                                </IconAction>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -753,7 +775,7 @@ function GenericInventoryPageInner() {
                         : pgPurchases.pageItems.map((p) => (
                           <FieldCard key={p.genericPurchaseId}
                             title={`#${p.genericPurchaseId} · ${displaySupplier(p)}`}
-                            badge={<PurchaseStatusBadge status={p.status} />}
+                            badge={<PurchaseStatusBadge status={p.status} reversed={!!p.purchaseReversalId} />}
                             fields={[
                               ["Date", fmtDateTime(p.purchaseDate, p)],
                               ["Invoice", p.invoiceNumber ?? "—"],
@@ -775,6 +797,10 @@ function GenericInventoryPageInner() {
                                   Cancel
                                 </Button>
                               </>
+                            ) : p.status === "Approved" ? (
+                              <Button size="sm" variant="outline" className="text-red-600" onClick={() => setReverseTarget(p)}>
+                                <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                              </Button>
                             ) : undefined}
                           />
                         ))}
@@ -931,6 +957,30 @@ function GenericInventoryPageInner() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Reverse an approved purchase (500) */}
+      <ReversePurchaseDialog
+        open={!!reverseTarget}
+        module="generic"
+        purchaseId={reverseTarget?.genericPurchaseId ?? null}
+        purchaseLabel={reverseTarget ? `#${reverseTarget.genericPurchaseId}` : ""}
+        farmId={getUserContext().farmId ?? ""}
+        userId={getUserContext().userId ?? undefined}
+        currencyCode={getSelectedCurrency()}
+        onOpenChange={(o) => { if (!o) setReverseTarget(null) }}
+        onReversed={async ({ reversal }) => {
+          setReverseTarget(null)
+          toast({
+            title: `Purchase reversed${reversal?.reversalNumber ? ` (${reversal.reversalNumber})` : ""}`,
+            description: reversal
+              ? [reversal.refunded > 0 ? `${gh(reversal.refunded)} refunded` : "",
+                 reversal.creditCreated > 0 ? `${gh(reversal.creditCreated)} kept as supplier credit` : ""]
+                  .filter(Boolean).join(" · ") || "Stock taken back out; nothing was paid."
+              : undefined,
+          })
+          await load()
+        }}
+      />
 
       {/* Delete confirmation */}
       <ConfirmDeleteDialog

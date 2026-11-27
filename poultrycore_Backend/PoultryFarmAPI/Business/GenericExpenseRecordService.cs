@@ -167,6 +167,68 @@ namespace PoultryFarmAPIWeb.Business
             SourceType               = r.IsDBNull(r.GetOrdinal("SourceType")) ? null : r.GetString(r.GetOrdinal("SourceType")),
             CashAccountName          = r.IsDBNull(r.GetOrdinal("CashAccountName")) ? null : r.GetString(r.GetOrdinal("CashAccountName")),
             PaymentsApplied          = r.IsDBNull(r.GetOrdinal("PaymentsApplied")) ? 0 : r.GetDecimal(r.GetOrdinal("PaymentsApplied")),
+            // 505: list only, read when present.
+            ExpenseReversalId        = Optional(r, "ExpenseReversalId") is int rid ? rid : null,
+            ReversalNumber           = Optional(r, "ReversalNumber") as string,
         };
+
+        private static object? Optional(NpgsqlDataReader r, string name)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
+                    return r.IsDBNull(i) ? null : r.GetValue(i);
+            return null;
+        }
+
+        // ====================================================================
+        // 504: an approved expense is reversed, never edited. Same JSON shape as
+        // the purchase reversal, so the shared dialog serves it.
+        // ====================================================================
+        public Task<string> GetReversalPreviewAsync(int id, string farmId)
+            => ScalarJsonAsync("SELECT spgenericexpense_reversalpreview(p_farmid => @FarmId::text, p_expenseid => @Id::int)::text", farmId, id);
+
+        public async Task<string?> GetReversalAsync(int id, string farmId)
+        {
+            var json = await ScalarJsonAsync("SELECT spgenericexpense_reversalget(p_farmid => @FarmId::text, p_expenseid => @Id::int)::text", farmId, id);
+            return string.IsNullOrEmpty(json) || json == "null" ? null : json;
+        }
+
+        public async Task<int> ReverseAsync(int id, string farmId, GenericPurchaseReverseRequest req, string? reversedBy)
+        {
+            try
+            {
+                await using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                await using var cmd = new NpgsqlCommand(
+                    "SELECT spgenericexpense_reverse(p_farmid => @FarmId::text, p_expenseid => @Id::int, p_reasoncode => @Code::text, " +
+                    "p_reason => @Reason::text, p_handling => @Handling::jsonb, p_expectedfingerprint => @Fp::text, " +
+                    "p_idempotencykey => @Key::text, p_reversedby => @By::text)", conn);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@Id", id);
+                cmd.Parameters.AddWithValue("@Code", (object?)req.ReasonCode ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Reason", req.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@Handling",
+                    System.Text.Json.JsonSerializer.Serialize(req.PaymentHandling ?? new Dictionary<string, string>()));
+                cmd.Parameters.AddWithValue("@Fp", (object?)req.ExpectedFingerprint ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Key", (object?)req.IdempotencyKey ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@By", (object?)reversedBy ?? DBNull.Value);
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex) { Stale = ex.Hint == "stale-preview" };
+            }
+        }
+
+        private async Task<string> ScalarJsonAsync(string sql, string farmId, int id)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Id", id);
+            var o = await cmd.ExecuteScalarAsync();
+            return o is null || o is DBNull ? "null" : (string)o;
+        }
     }
 }

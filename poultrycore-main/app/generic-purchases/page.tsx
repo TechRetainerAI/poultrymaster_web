@@ -10,6 +10,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -28,6 +29,11 @@ import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-mat
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Cancelled"] as const
 
+function StatusBadge({ p }: { p: GenericPurchase }) {
+  if (p.purchaseReversalId) return <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-600">Reversed</Badge>
+  return <Badge className={badgeClass(p.status)}>{p.status}</Badge>
+}
+
 function badgeClass(s: string) {
   switch (s) {
     case "Approved":  return "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
@@ -35,6 +41,9 @@ function badgeClass(s: string) {
     default:          return "bg-slate-100 text-slate-800 hover:bg-slate-100"
   }
 }
+
+// Same rule as the Purchases tab on Inventory: something still owed on a live purchase.
+const isUnpaid = (p: GenericPurchase) => p.status !== "Cancelled" && (p.balance ?? 0) > 0
 
 function GenericPurchasesPageInner() {
   const router = useRouter()
@@ -48,6 +57,7 @@ function GenericPurchasesPageInner() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [payFilter, setPayFilter] = useState<"all" | "unpaid" | "paid">("all")
   const [loading, setLoading] = useState(true)
 
   const load = async () => {
@@ -74,9 +84,13 @@ function GenericPurchasesPageInner() {
       search, dateFrom, dateTo,
       searchKeys: ["supplierName", "status", "notes"],
       dateKey: "purchaseDate",
-    }).filter((p) => projectLabels.matches(p.genericPurchaseId, projectFilter)),
-    [rows, search, dateFrom, dateTo, projectLabels, projectFilter],
+    })
+      .filter((p) => projectLabels.matches(p.genericPurchaseId, projectFilter))
+      .filter((p) => payFilter === "all" || (payFilter === "unpaid" ? isUnpaid(p) : !isUnpaid(p))),
+    [rows, search, dateFrom, dateTo, projectLabels, projectFilter, payFilter],
   )
+
+  const unpaidCount = useMemo(() => rows.filter(isUnpaid).length, [rows])
 
   const onApprove = async (id: number) => {
     try {
@@ -105,23 +119,30 @@ function GenericPurchasesPageInner() {
             <Button asChild className="w-full sm:w-auto h-11 sm:h-10"><Link href="/generic-purchases/new"><Plus className="h-4 w-4 mr-1" />New purchase</Link></Button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <div className="flex gap-1 flex-wrap">
-              {STATUS_FILTERS.map((s) => (
-                <Button key={s} size="sm" variant={s === status ? "default" : "outline"}
-                  onClick={() => router.replace(s === "All" ? "/generic-purchases" : `/generic-purchases?status=${s}`)}>{s}</Button>
-              ))}
-            </div>
-            <div className="flex-1 min-w-0">
-              <ListFilters
-                search={search} setSearch={setSearch}
-                dateFrom={dateFrom} setDateFrom={setDateFrom}
-                dateTo={dateTo} setDateTo={setDateTo}
-                searchPlaceholder="Search supplier, status or notes"
-                extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} />}
-              />
-            </div>
-          </div>
+          <ListFilters
+            search={search} setSearch={setSearch}
+            dateFrom={dateFrom} setDateFrom={setDateFrom}
+            dateTo={dateTo} setDateTo={setDateTo}
+            searchPlaceholder="Search supplier, status or notes" searchWidthClassName="sm:w-[220px]"
+            leading={<>
+              <Select value={payFilter} onValueChange={(v) => setPayFilter(v as typeof payFilter)}>
+                <SelectTrigger className="w-full sm:w-[150px]" aria-label="Payment state"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All ({rows.length})</SelectItem>
+                  <SelectItem value="unpaid">Unpaid ({unpaidCount})</SelectItem>
+                  <SelectItem value="paid">Paid ({rows.length - unpaidCount})</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={status}
+                onValueChange={(s) => router.replace(s === "All" ? "/generic-purchases" : `/generic-purchases?status=${s}`)}>
+                <SelectTrigger className="w-full sm:w-[150px]" aria-label="Record status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATUS_FILTERS.map((s) => <SelectItem key={s} value={s}>{s === "All" ? "All status" : s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </>}
+            extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} />}
+          />
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>
@@ -141,7 +162,7 @@ function GenericPurchasesPageInner() {
                       {p.invoiceNumber && <><span>·</span><span className="text-xs">Inv {p.invoiceNumber}</span></>}
                     </>
                   )}
-                  trailing={(p) => <Badge className={badgeClass(p.status)}>{p.status}</Badge>}
+                  trailing={(p) => <StatusBadge p={p} />}
                   details={(p) => [
                     { label: "Date", value: fmtDateTime(p.purchaseDate, p) },
                     { label: "Supplier", value: p.supplierName ?? "–" },
@@ -209,7 +230,7 @@ function GenericPurchasesPageInner() {
                             <TableCell className="text-right">{fmt(p.totalAmount)}</TableCell>
                             <TableCell className="text-right">{fmt(p.amountPaid)}</TableCell>
                             <TableCell className={`text-right ${p.balance > 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(p.balance)}</TableCell>
-                            <TableCell><Badge className={badgeClass(p.status)}>{p.status}</Badge></TableCell>
+                            <TableCell><StatusBadge p={p} /></TableCell>
                             <TableCell>
                               {p.status === "Draft" && (
                                 <Button asChild size="sm" variant="outline" className="mr-1.5">
