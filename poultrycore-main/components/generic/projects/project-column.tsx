@@ -19,19 +19,23 @@ export function ProjectHead({ className }: { className?: string }) {
 export function ProjectLabels({ labels }: { labels: string[] }) {
   if (labels.length === 0) return <span className="text-xs text-slate-400">General</span>
   return (
-    <div className="space-y-0.5">
+    <span className="flex flex-col gap-0.5">
       {labels.map((l) => (
-        <div key={l} className="max-w-[14rem] truncate text-xs font-medium text-indigo-700" title={l}>{l}</div>
+        <span key={l} className="block max-w-[14rem] truncate text-xs font-medium text-indigo-700" title={l}>{l}</span>
       ))}
-    </div>
+    </span>
   )
 }
 
+const projectNo = (label: string) => label.split(" — ")[0]
+const projectName = (label: string) => label.split(" — ").slice(1).join(" — ")
+const pctText = (s: number) => `${Math.round(s * 10000) / 100}%`
+
 /**
- * A split, readable at a glance: each project with its share and, when the
- * record's amount is given, its part of it ("PRJ-0001 — Name · 50% · 5,000").
- * Falls back to plain labels when no share is known (sales / purchases are
- * split per line). Whatever no project has is shown as General.
+ * A split in a table cell: one compact line per project -- number, share and
+ * amount ("PRJ-0001 · 50% · GHC 1,000.00"). Nothing is cut off; the full
+ * project name is on hover. Plain labels when no share is known (sales /
+ * purchases are split per line). Whatever no project has is General.
  */
 export function ProjectSplitLabels({ parts, amount, fmt }: {
   parts: { label: string; share: number | null }[]
@@ -41,21 +45,81 @@ export function ProjectSplitLabels({ parts, amount, fmt }: {
   if (parts.length === 0) return <span className="text-xs text-slate-400">General</span>
   const known = parts.every((p) => p.share != null)
   if (!known) return <ProjectLabels labels={parts.map((p) => p.label)} />
-  const total = parts.reduce((t, p) => t + (p.share ?? 0), 0)
-  const pct = (s: number) => `${Math.round(s * 10000) / 100}%`
-  const money = (s: number) => (amount != null && fmt ? ` · ${fmt(Math.round(amount * s * 100) / 100)}` : "")
-  const rest = 1 - total
+  const whole = parts.length === 1 && (parts[0].share ?? 0) >= 0.999999
+  if (whole) return <ProjectLabels labels={[parts[0].label]} />
+  const money = (s: number) => (amount != null && fmt ? fmt(Math.round(amount * s * 100) / 100) : null)
+  const rest = 1 - parts.reduce((t, p) => t + (p.share ?? 0), 0)
   return (
-    <div className="space-y-0.5">
+    <span className="flex flex-col gap-0.5">
       {parts.map((p) => (
-        <div key={p.label} className="max-w-[18rem] truncate text-xs font-medium text-indigo-700" title={p.label}>
-          {p.label}{parts.length > 1 || (p.share ?? 1) < 0.999999
-            ? <span className="font-normal text-slate-500"> · {pct(p.share ?? 0)}{money(p.share ?? 0)}</span> : null}
-        </div>
+        <span key={p.label} className="block whitespace-nowrap text-xs" title={p.label}>
+          <span className="font-medium text-indigo-700">{projectNo(p.label)}</span>
+          <span className="text-slate-500"> · {pctText(p.share ?? 0)}</span>
+          {money(p.share ?? 0) && <span className="tabular-nums text-slate-700"> · {money(p.share ?? 0)}</span>}
+        </span>
       ))}
       {rest > 0.000001 && (
-        <div className="text-[11px] text-slate-400">General · {pct(rest)}{money(rest)}</div>
+        <span className="block whitespace-nowrap text-[11px] text-slate-400">
+          General · {pctText(rest)}{money(rest) ? ` · ${money(rest)}` : ""}
+        </span>
       )}
+    </span>
+  )
+}
+
+/**
+ * The full split, for an opened row: a small table with each project's name,
+ * a share bar, its share and its amount, then General (if any) and the total.
+ */
+export function ProjectSplitTable({ parts, amount, fmt, title }: {
+  parts: { label: string; share: number | null }[]
+  amount: number
+  fmt: (n: number) => string
+  title?: string
+}) {
+  const rows = parts.filter((p) => p.share != null) as { label: string; share: number }[]
+  if (rows.length === 0) return null
+  const rest = Math.max(0, 1 - rows.reduce((t, p) => t + p.share, 0))
+  const part = (s: number) => Math.round(amount * s * 100) / 100
+  const line = (key: string, no: string, name: string, share: number, muted = false) => (
+    <tr key={key} className={muted ? "text-slate-500" : undefined}>
+      <td className="py-1.5 pr-4">
+        <span className={muted ? "" : "font-medium text-indigo-700"}>{no}</span>
+        {name && <span className="ml-1.5 text-slate-600">{name}</span>}
+      </td>
+      <td className="w-40 py-1.5 pr-4">
+        <span className="block h-1.5 w-full rounded-full bg-slate-200">
+          <span className={`block h-1.5 rounded-full ${muted ? "bg-slate-400" : "bg-indigo-500"}`} style={{ width: `${Math.min(100, share * 100)}%` }} />
+        </span>
+      </td>
+      <td className="py-1.5 pr-4 text-right tabular-nums">{pctText(share)}</td>
+      <td className="py-1.5 text-right tabular-nums">{fmt(part(share))}</td>
+    </tr>
+  )
+  return (
+    <div className="max-w-2xl">
+      {title && <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div>}
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-slate-500">
+            <th className="pb-1 pr-4 font-medium">Project / contract</th>
+            <th className="pb-1 pr-4 font-medium" />
+            <th className="pb-1 pr-4 text-right font-medium">Share</th>
+            <th className="pb-1 text-right font-medium">Amount</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((p) => line(p.label, projectNo(p.label), projectName(p.label), p.share))}
+          {rest > 0.000001 && line("general", "General", "company, no project", rest, true)}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-slate-300 font-semibold">
+            <td className="pt-1.5 pr-4">Total</td><td />
+            <td className="pt-1.5 pr-4 text-right tabular-nums">100%</td>
+            <td className="pt-1.5 text-right tabular-nums">{fmt(amount)}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   )
 }

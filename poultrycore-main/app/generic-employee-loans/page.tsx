@@ -234,10 +234,10 @@ export default function GenericEmployeeLoansPage() {
     const tagged = projectLabels.labelsOf(l.genericEmployeeLoanId)
     const onTeam = team.teamLabels(l.genericStaffId)
     return (
-      <div className="space-y-0.5">
+      <span className="flex flex-col gap-0.5">
         {tagged.length > 0 ? <ProjectLabels labels={tagged} /> : <span className="text-xs text-slate-400">Personal</span>}
-        {onTeam.length > 0 && <div className="text-[11px] text-slate-500">Team: {onTeam.map((x) => x.split(" — ")[0]).join(", ")}</div>}
-      </div>
+        {onTeam.length > 0 && <span className="block text-[11px] text-slate-500">Team: {onTeam.map((x) => x.split(" — ")[0]).join(", ")}</span>}
+      </span>
     )
   }
 
