@@ -56,6 +56,8 @@ export interface ListFiltersProps {
   searchOnly?: boolean
   /** Slot for extra controls (status select, currency dropdown, etc.). */
   extras?: ReactNode
+  /** Like extras, but placed right after Search, before Period/From/To. */
+  leading?: ReactNode
   /** Slot for action buttons (Export PDF, etc.). Rendered on the right. */
   actions?: ReactNode
   /**
@@ -72,6 +74,7 @@ export function ListFilters({
   dateTo, setDateTo,
   searchOnly,
   extras,
+  leading,
   actions,
   searchWidthClassName = "sm:w-[260px]",
 }: ListFiltersProps) {
@@ -103,6 +106,8 @@ export function ListFilters({
           />
         </div>
       </div>
+
+      {leading}
 
       {showDates && (
         <>

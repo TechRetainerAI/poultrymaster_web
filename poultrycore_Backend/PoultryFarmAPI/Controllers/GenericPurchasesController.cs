@@ -251,6 +251,58 @@ namespace PoultryFarmAPIWeb.Controllers
             await _purchases.CancelAsync(id, farmId, cancelledBy, body?.Reason);
             return NoContent();
         }
+
+        // ---------------------------------------------------------- 500: reversal
+        // GET {id}/reversal-preview -- what reversing the purchase would do.
+        [HttpGet("{id:int}/reversal-preview")]
+        public async Task<IActionResult> ReversalPreview(string farmId, int id)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Content(await _purchases.GetReversalPreviewAsync(id, farmId), "application/json");
+        }
+
+        // GET {id}/reversal -- the reversal of a reversed purchase.
+        [HttpGet("{id:int}/reversal")]
+        public async Task<IActionResult> Reversal(string farmId, int id)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            var json = await _purchases.GetReversalAsync(id, farmId);
+            return json is null ? NotFound(new { message = "This purchase has not been reversed." }) : Content(json, "application/json");
+        }
+
+        // POST {id}/reverse -- reason, what happens to each payment, the preview's
+        // fingerprint (409 + stale when the purchase changed), an idempotency key.
+        [HttpPost("{id:int}/reverse")]
+        public async Task<IActionResult> Reverse(string farmId, int id, [FromBody] GenericPurchaseReverseRequest body)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            if (body is null) return BadRequest(new { message = "Nothing to reverse." });
+            if (string.IsNullOrWhiteSpace(body.ReasonCode) && string.IsNullOrWhiteSpace(body.Reason))
+                return BadRequest(new { message = "Give a reason for reversing this purchase." });
+            // The person on the token, not whatever the body claims.
+            var by = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? body.UserId;
+            try
+            {
+                var reversalId = await _purchases.ReverseAsync(id, farmId, body, by);
+                var json = await _purchases.GetReversalAsync(id, farmId);
+                return Ok(new
+                {
+                    purchaseReversalId = reversalId,
+                    reversal = json is null ? (System.Text.Json.JsonElement?)null : System.Text.Json.JsonDocument.Parse(json).RootElement,
+                });
+            }
+            catch (SaleRuleException ex) when (ex.Stale)
+            {
+                return Conflict(new { message = ex.Message, stale = true });
+            }
+            catch (SaleRuleException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 
     // =========================================================================
@@ -351,6 +403,56 @@ namespace PoultryFarmAPIWeb.Controllers
             if (guard is not null) return guard;
             await _expenses.DeleteAsync(id, farmId, body?.Reason, deletedBy ?? User?.Identity?.Name);
             return NoContent();
+        }
+
+        // ---------------------------------------------------------- 504: reversal
+        [HttpGet("{id:int}/reversal-preview")]
+        public async Task<IActionResult> ReversalPreview(string farmId, int id)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Content(await _expenses.GetReversalPreviewAsync(id, farmId), "application/json");
+        }
+
+        [HttpGet("{id:int}/reversal")]
+        public async Task<IActionResult> Reversal(string farmId, int id)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            var json = await _expenses.GetReversalAsync(id, farmId);
+            return json is null ? NotFound(new { message = "This expense has not been reversed." }) : Content(json, "application/json");
+        }
+
+        // POST {id}/reverse -- reason, what happens to each payment, the preview's
+        // fingerprint (409 + stale when the expense changed), an idempotency key.
+        [HttpPost("{id:int}/reverse")]
+        public async Task<IActionResult> Reverse(string farmId, int id, [FromBody] GenericPurchaseReverseRequest body)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            if (body is null) return BadRequest(new { message = "Nothing to reverse." });
+            if (string.IsNullOrWhiteSpace(body.ReasonCode) && string.IsNullOrWhiteSpace(body.Reason))
+                return BadRequest(new { message = "Give a reason for reversing this expense." });
+            var by = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? body.UserId;
+            try
+            {
+                var reversalId = await _expenses.ReverseAsync(id, farmId, body, by);
+                var json = await _expenses.GetReversalAsync(id, farmId);
+                return Ok(new
+                {
+                    purchaseReversalId = reversalId,
+                    expenseReversalId = reversalId,
+                    reversal = json is null ? (System.Text.Json.JsonElement?)null : System.Text.Json.JsonDocument.Parse(json).RootElement,
+                });
+            }
+            catch (SaleRuleException ex) when (ex.Stale)
+            {
+                return Conflict(new { message = ex.Message, stale = true });
+            }
+            catch (SaleRuleException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 

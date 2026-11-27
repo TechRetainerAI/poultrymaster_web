@@ -1066,7 +1066,7 @@ function WaterRawMaterialsPageInner() {
                   <SelectTrigger><SelectValue placeholder={purchaseForm.paymentMethod === "Credit" ? "(not required for credit)" : "Pick account"} /></SelectTrigger>
                   <SelectContent>
                     {accounts.filter(a => a.isActive).length === 0
-                      ? <div className="px-2 py-1.5 text-sm text-slate-500">No cash accounts — add one on Cash &amp; Accounts.</div>
+                      ? <div className="px-2 py-1.5 text-sm text-slate-500">No cash accounts — add one on Cash Accounts.</div>
                       : accounts.filter(a => a.isActive).map(a => (
                           <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>{a.accountName} ({a.currentBalance.toFixed(2)})</SelectItem>
                         ))}

@@ -263,6 +263,9 @@ export interface GenericPurchase {
   status: "Draft" | "Approved" | "Cancelled" | string
   notes?: string | null
   createdAt: string
+  /** 500: set when the purchase was reversed (status is then Cancelled). */
+  purchaseReversalId?: number | null
+  reversalNumber?: string | null
 }
 
 export interface GenericExpense {
@@ -293,6 +296,9 @@ export interface GenericExpense {
   rejectionReason?: string | null
   approvedBy?: string | null
   approvedAt?: string | null
+  /** 504/505: set when an approved expense was reversed (status is then Cancelled). */
+  expenseReversalId?: number | null
+  reversalNumber?: string | null
 }
 
 export interface GenericDailyClosing {

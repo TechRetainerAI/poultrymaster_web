@@ -11,5 +11,10 @@ namespace PoultryFarmAPIWeb.Business
         Task UpdateAsync(int id, string farmId, GenericPurchaseCreateRequest req);
         Task ApproveAsync(int id, string farmId, string? approvedBy);
         Task CancelAsync(int id, string farmId, string? cancelledBy, string? reason);
+
+        // 500: reversal (preview -> reverse -> record)
+        Task<string> GetReversalPreviewAsync(int id, string farmId);
+        Task<string?> GetReversalAsync(int id, string farmId);
+        Task<int> ReverseAsync(int id, string farmId, GenericPurchaseReverseRequest req, string? reversedBy);
     }
 }

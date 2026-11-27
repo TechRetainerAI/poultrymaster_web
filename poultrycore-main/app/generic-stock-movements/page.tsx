@@ -46,6 +46,7 @@ const DEFAULT = defaultReportRange()
 
 const MOVE_COLORS: Record<string, string> = {
   Purchase: "bg-blue-100 text-blue-700",
+  PurchaseReversal: "bg-rose-100 text-rose-700",
   Sale: "bg-emerald-100 text-emerald-700",
   Adjustment: "bg-slate-100 text-slate-700",
   AdjustmentUp: "bg-green-100 text-green-700",

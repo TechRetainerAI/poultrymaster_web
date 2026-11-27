@@ -319,7 +319,7 @@ export default function GenericSetupPage() {
                       />
                       <p className="text-xs text-slate-500 mt-1">
                         {profile
-                          ? "Set once, at setup. Correct a balance from Cash & accounts."
+                          ? "Set once, at setup. Correct a balance from Cash accounts."
                           : "Seeds the \"Main Cash Box\" account."}
                       </p>
                     </div>

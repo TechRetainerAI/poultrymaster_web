@@ -170,7 +170,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       item("/generic-financial-activity",    "Financial Activity",     Activity, canSee("/generic-financial-activity")),
       item("/generic-profit-loss",           "Profit & Loss",          TrendingUp, canSee("/generic-profit-loss")),
       ...(showExisting("enableCashAccounts") ? [
-        item("/generic-cash",                "Cash & Accounts",    Wallet, canSee("/generic-cash")),
+        item("/generic-cash",                "Cash Accounts",    Wallet, canSee("/generic-cash")),
         item("/generic-cash-transfers",      "Cash transfers",     Activity, canSee("/generic-cash-transfers")),
         item("/generic-cash-reconciliation", "Reconciliation",     Scale, canSee("/generic-cash-reconciliation")),
       ] : []),

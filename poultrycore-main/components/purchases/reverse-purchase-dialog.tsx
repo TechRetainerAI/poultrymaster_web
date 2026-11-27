@@ -1,7 +1,7 @@
 "use client"
 
-// Reverse Purchase (migration 478) -- the Reverse Sale dialog, for inventory
-// purchases.
+// Reverse Purchase (migration 478; Generic 500) -- the Reverse Sale dialog, for
+// inventory purchases.
 //
 // A purchase is never deleted. This dialog shows, from the SERVER's preview,
 // exactly what reversing it will do -- the stock that comes back out, what is
@@ -87,6 +87,8 @@ export function ReversePurchaseDialog({
   const idemKey = useRef(newKey())
 
   const money = (n: number) => formatCurrency(Number(n) || 0, currencyCode)
+  // 504: the same dialog reverses a Generic expense
+  const noun = module === "generic-expense" ? "expense" : "purchase"
 
   const load = async (keepChoices = false) => {
     if (!purchaseId) return
@@ -94,7 +96,7 @@ export function ReversePurchaseDialog({
     setLoadError(null)
     const res = await getPurchaseReversalPreview(module, purchaseId, farmId)
     setLoading(false)
-    if (!res.success || !res.data) { setLoadError(res.message ?? "Could not load the purchase."); return }
+    if (!res.success || !res.data) { setLoadError(res.message ?? `Could not load the ${noun}.`); return }
     setPreview(res.data)
     setHandling((prev) => (keepChoices ? prev : {}))
   }
@@ -140,7 +142,7 @@ export function ReversePurchaseDialog({
       await load(true)
       return
     }
-    if (!res.success) { setError(res.message ?? "The purchase was not reversed."); return }
+    if (!res.success) { setError(res.message ?? `The ${noun} was not reversed.`); return }
     onReversed({ preview, reversal: res.data?.reversal ?? null })
   }
 
@@ -148,9 +150,9 @@ export function ReversePurchaseDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o) }}>
       <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-2xl")}>
         <DialogHeader>
-          <FormDialogTitle icon={Undo2} color="red">Reverse purchase {purchaseLabel}?</FormDialogTitle>
+          <FormDialogTitle icon={Undo2} color="red">Reverse {noun} {purchaseLabel}?</FormDialogTitle>
           <DialogDescription>
-            The purchase stays in the history, marked Reversed. Its stock comes back out and the supplier is no longer
+            The {noun} stays in the history, marked Reversed. {module === "generic-expense" ? "Its cost comes off Profit & Loss" : "Its stock comes back out"} and the supplier is no longer
             owed for it. Nothing is deleted.
           </DialogDescription>
         </DialogHeader>
@@ -164,18 +166,18 @@ export function ReversePurchaseDialog({
             {staleNotice && (
               <div className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                This purchase changed after the reversal preview was generated. Please review the updated impact before continuing.
+                This {noun} changed after the reversal preview was generated. Please review the updated impact before continuing.
               </div>
             )}
 
             {blocked && (
               <div className="space-y-1 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                <p className="font-semibold">This purchase cannot be reversed yet</p>
+                <p className="font-semibold">This {noun} cannot be reversed yet</p>
                 {preview.blockers.map((b) => <p key={b.code}>{b.message}</p>)}
               </div>
             )}
 
-            <FormSection title="The purchase" color="blue" tinted columns={4}>
+            <FormSection title={`The ${noun}`} color="blue" tinted columns={4}>
               <Figure label="Item" value={`${preview.itemName}`} />
               <Figure label="Supplier" value={preview.supplierName} />
               <Figure label="Total" value={money(preview.total)} />
@@ -184,15 +186,35 @@ export function ReversePurchaseDialog({
 
             <FormSection title="This reversal will" color="amber" tinted columns={1}>
               <ul className="space-y-1 text-sm text-slate-700">
-                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Take {qty(preview.stockToRemove)}{unit} of {preview.itemName} back out of stock — exactly what this purchase added</li>
-                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Remove its {money(preview.total)} cost from Profit &amp; Loss</li>
+                {preview.noStock ? null : preview.lines ? (
+                  // Generic: one row per product the purchase stocked
+                  preview.lines.length > 0 ? (
+                    <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>
+                        Take back out of stock exactly what this purchase added:
+                        <span className="mt-1 block space-y-0.5">
+                          {preview.lines.map((l) => (
+                            <span key={l.productId} className="block text-slate-600">· {qty(l.quantity)} {l.unit} of {l.name}</span>
+                          ))}
+                        </span>
+                      </span>
+                    </li>
+                  ) : (
+                    <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Nothing comes out of stock (its items are not stock-tracked)</li>
+                  )
+                ) : (
+                  <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Take {qty(preview.stockToRemove)}{unit} of {preview.itemName} back out of stock — exactly what this purchase added</li>
+                )}
+                {preview.costOnPl !== false && (
+                  <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Remove its {money(preview.total)} cost from Profit &amp; Loss</li>
+                )}
                 {preview.outstanding > 0 && (
                   <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Clear the {money(preview.outstanding)} still owed to the supplier for it</li>
                 )}
                 {preview.creditApplied > 0 && (
                   <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Give back the {money(preview.creditApplied)} of supplier credit used on it</li>
                 )}
-                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Keep the purchase and its payments in the history</li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Keep the {noun} and its payments in the history</li>
               </ul>
             </FormSection>
 
@@ -266,8 +288,8 @@ export function ReversePurchaseDialog({
             ) : (
               <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">
                 {preview.creditApplied > 0
-                  ? "No money was paid on this purchase; the supplier credit used on it goes back to the supplier."
-                  : "Nothing was paid on this purchase, so no money moves."}
+                  ? `No money was paid on this ${noun}; the supplier credit used on it goes back to the supplier.`
+                  : `Nothing was paid on this ${noun}, so no money moves.`}
               </p>
             )}
 
@@ -299,7 +321,7 @@ export function ReversePurchaseDialog({
         <FormDialogFooter onCancel={() => onOpenChange(false)} cancelDisabled={saving}>
           <Button onClick={confirm} disabled={!canConfirm} className={cn("px-6", FORM_DIALOG_PRIMARY.red)}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Reverse purchase{preview ? ` · ${money(preview.total)}` : ""}
+            Reverse {noun}{preview ? ` · ${money(preview.total)}` : ""}
           </Button>
         </FormDialogFooter>
       </DialogContent>
