@@ -47,7 +47,7 @@ import { ExistingFlockFields, FlockModeSelector, emptyExistingFlockDraft, existi
 import { getHouses, type House } from "@/lib/api/house"
 import { HousePicker } from "@/components/poultry/house-picker"
 import { getBatchBirdReconciliation, type BatchBirdReconciliationRow } from "@/lib/api/bird-reconciliation"
-import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
+import { getFlockBatches, getFlockBatchReversals, type FlockBatch, type FlockBatchReversalRow } from "@/lib/api/flock-batch"
 import { getFlockPositions, type FlockPositionRow } from "@/lib/api/flock-positions"
 import { flockLifetime, positionsById } from "@/lib/flocks/bird-position"
 import { farmBirdTotals, isBatchNotArrived } from "@/lib/flocks/farm-bird-totals"
@@ -63,6 +63,7 @@ import {
 import { clearFlocksCache } from "@/lib/utils/flock-utils"
 import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getUserContext } from "@/lib/utils/user-context"
+import { mergeNewestFirst } from "@/lib/utils/merge-by-date"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -90,6 +91,18 @@ export function FlocksPage() {
   const businessType = usePoultryBusinessType()
   const refreshEggFeatures = useRefreshPoultryEggFeatures()
   const [flocks, setFlocks] = useState<Flock[]>([])
+  // 508: flocks removed when their batch was reversed -- shown as Reversed, never counted
+  const [reversedFlocks, setReversedFlocks] = useState<(Flock & { reversal?: FlockBatchReversalRow })[]>([])
+  useEffect(() => {
+    const { farmId } = getUserContext()
+    if (!farmId) return
+    void getFlockBatchReversals(farmId).then((rows) => setReversedFlocks(rows.flatMap((r) => (r.flocks ?? []).map((f) => ({
+      flockId: f.flockId, name: f.name, breed: f.breed ?? "", startDate: f.startDate ?? r.startDate ?? "",
+      quantity: f.liveBirds ?? 0, active: false, hasArrived: true, houseId: f.houseId ?? null,
+      batchId: r.batchId, batchName: r.batchName ?? r.batchCode ?? "", flockType: f.flockType ?? undefined, reversal: r,
+    }) as unknown as Flock & { reversal?: FlockBatchReversalRow }))))
+  }, [])
+  const isReversedFlock = (f: Flock) => !!(f as { reversal?: FlockBatchReversalRow }).reversal
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
@@ -841,7 +854,8 @@ export function FlocksPage() {
   }
 
   const filteredFlocks = useMemo(() => {
-    let currentList = flocks
+    let currentList: Flock[] = selectedStatus === "reversed" ? reversedFlocks
+      : selectedStatus === "ALL" ? (mergeNewestFirst(flocks, reversedFlocks, (f) => f.startDate) as Flock[]) : flocks
 
     if (search) {
       const query = search.toLowerCase()
@@ -852,7 +866,7 @@ export function FlocksPage() {
       )
     }
 
-    if (selectedStatus !== "ALL") {
+    if (selectedStatus !== "ALL" && selectedStatus !== "reversed") {
       currentList = currentList.filter((flock) => {
         const life = getFlockLifecycleStatus(flock)
         if (selectedStatus === "active") return life === "active"
@@ -926,7 +940,7 @@ export function FlocksPage() {
     }
 
     return currentList
-  }, [flocks, search, selectedStatus, selectedHouseId, selectedBatchId, dateFrom, dateTo, quantityMin, quantityMax, sortField, sortDirection])
+  }, [flocks, reversedFlocks, search, selectedStatus, selectedHouseId, selectedBatchId, dateFrom, dateTo, quantityMin, quantityMax, sortField, sortDirection])
 
   // Pagination logic
   const totalPages = Math.ceil(filteredFlocks.length / itemsPerPage)
@@ -1121,6 +1135,10 @@ export function FlocksPage() {
   const accountedLosses = totalMortality + (birdsRemovedNotDied ?? 0)
 
   const flockLifecycleBadge = (flock: Flock) => {
+    if (isReversedFlock(flock)) {
+      const r = (flock as { reversal?: FlockBatchReversalRow }).reversal
+      return <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-600" title={`Batch ${r?.batchCode ?? ""} reversed (${r?.reversalNumber ?? ""}): ${r?.reason ?? ""}`}>Reversed</Badge>
+    }
     const life = getFlockLifecycleStatus(flock)
     if (life === "pending") {
       return (
@@ -1214,6 +1232,7 @@ export function FlocksPage() {
                               <SelectItem value="active">Active</SelectItem>
                               <SelectItem value="inactive">Inactive</SelectItem>
                               <SelectItem value="closed">Closed</SelectItem>
+                              <SelectItem value="reversed">Reversed</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1349,6 +1368,7 @@ export function FlocksPage() {
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
                     <SelectItem value="closed">Closed</SelectItem>
+                    <SelectItem value="reversed">Reversed</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -1586,6 +1606,7 @@ export function FlocksPage() {
                                   <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 col-span-2 border-blue-200 bg-blue-50"><span className="text-blue-700">Batch</span> <span className="truncate font-medium text-slate-900">{flock.batchName || "N/A"}</span></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
+                                  {!isReversedFlock(flock) && (<>
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => openEditDialog(flock.flockId)}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
                                   </Button>
@@ -1594,6 +1615,7 @@ export function FlocksPage() {
                                       <Trash2 className="h-4 w-4 mr-2" /> Delete
                                     </Button>
                                   )}
+                                  </>)}
                                 </div>
                               </div>
                             </CollapsibleContent>
@@ -1785,6 +1807,9 @@ export function FlocksPage() {
                             </TableCell>
                             <TableCell className={cn("text-center whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                               <div className="flex items-center justify-center gap-1 min-w-[90px]">
+                                {isReversedFlock(flock) ? (
+                                  <span className="text-xs text-slate-500">{(flock as { reversal?: FlockBatchReversalRow }).reversal?.reversalNumber}</span>
+                                ) : (<>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(flock.flockId)}>
                                   <Pencil className="w-4 h-4" />
                                 </Button>
@@ -1799,6 +1824,7 @@ export function FlocksPage() {
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
                                 )}
+                                </>)}
                               </div>
                             </TableCell>
                           </TableRow>

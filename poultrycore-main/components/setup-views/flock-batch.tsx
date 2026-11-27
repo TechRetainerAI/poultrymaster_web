@@ -17,12 +17,13 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet, Split, Boxes, ClipboardCheck } from "lucide-react"
+import { Plus, Pencil, Undo2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet, Split, Boxes, ClipboardCheck } from "lucide-react"
 import { BulkFlockBatchDialog } from "@/components/poultry/bulk-flock-batch-dialog"
 import { BatchReconcileDialog } from "@/components/poultry/batch-reconcile-dialog"
 import { getBatchBirdReconciliation, type BatchBirdReconciliationRow } from "@/lib/api/bird-reconciliation"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
-import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, deleteFlockBatch, payFlockBatchBalance, type FlockBatch, type FlockBatchInput } from "@/lib/api/flock-batch"
+import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, payFlockBatchBalance, getFlockBatchReversals, type FlockBatch, type FlockBatchInput, type FlockBatchReversalRow } from "@/lib/api/flock-batch"
+import { ReverseBatchDialog } from "@/components/poultry/reverse-batch-dialog"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultry-farm-setup"
 import { consumedByBatch, unallocatedForBatch } from "@/lib/flocks/allocation"
@@ -148,9 +149,22 @@ export function FlockBatchesPage() {
   const [error, setError] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  // 507: a batch is reversed (kept on record), never deleted
+  const [reverseBatchId, setReverseBatchId] = useState<number | null>(null)
+  const [reversedKey, setReversedKey] = useState(0)
+  const [reversedRows, setReversedRows] = useState<FlockBatchReversalRow[]>([])
+  useEffect(() => {
+    const { farmId } = getUserContext()
+    if (farmId) void getFlockBatchReversals(farmId).then(setReversedRows)
+  }, [reversedKey])
+  // 508: reversed batches stay in the list, marked Reversed (display only -- never in the totals)
+  const reversedAsBatches = useMemo<(FlockBatch & { reversal?: FlockBatchReversalRow })[]>(() => reversedRows.map((r) => ({
+    batchId: r.batchId, farmId: "", userId: "", batchCode: r.batchCode ?? "", batchName: r.batchName ?? "",
+    breed: r.breed ?? "", numberOfBirds: r.birds ?? 0, startDate: r.startDate ?? "", status: "reversed",
+    costPerChick: Number(r.costPerChick ?? 0), totalCost: Number(r.total ?? 0), amountPaid: Number(r.paid ?? 0),
+    supplierType: r.supplierType ?? "", supplierId: r.supplierId ?? null, supplierName: r.supplierName ?? "",
+    createdDate: r.occurredAt, reversal: r,
+  })).sort((a, b) => String(b.createdDate).localeCompare(String(a.createdDate))), [reversedRows])
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
   const handleSort = (key: string) => { const r = toggleSort(key, sortKey, sortDir); setSortKey(r.key); setSortDir(r.direction) }
@@ -437,32 +451,8 @@ export function FlockBatchesPage() {
     setIsEditDialogOpen(true)
   }
 
-  // Delete handlers
-  const openDeleteDialog = (id: number) => {
-    setDeletingId(id)
-    setDeleteDialogOpen(true)
-  }
-
-  const handleDelete = async () => {
-    if (!deletingId) return
-    const { farmId, userId } = getUserContext()
-    if (!farmId || !userId) {
-      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
-      return
-    }
-    setIsDeleting(true)
-    const result = await deleteFlockBatch(deletingId, userId, farmId)
-    if (result.success) {
-      toast({ title: "Batch deleted", description: "The flock batch has been successfully deleted." })
-      loadFlockBatches()
-      setCurrentPage(1)
-    } else {
-      toast({ title: "Delete failed", description: result.message || "Something went wrong. Please try again.", variant: "destructive" })
-    }
-    setIsDeleting(false)
-    setDeleteDialogOpen(false)
-    setDeletingId(null)
-  }
+  // 507: Reverse (the batch leaves the list and is kept under Reversed batches)
+  const openDeleteDialog = (id: number) => setReverseBatchId(id)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
@@ -490,7 +480,8 @@ export function FlockBatchesPage() {
   }, [flockBatches])
 
   const filteredFlockBatches = useMemo(() => {
-    let currentList = flockBatches
+    // 508: reversed batches first (latest reversal on top), then the batches as listed
+    let currentList: (FlockBatch & { reversal?: FlockBatchReversalRow })[] = [...reversedAsBatches, ...flockBatches]
 
     if (search) {
       const query = search.toLowerCase()
@@ -514,7 +505,7 @@ export function FlockBatchesPage() {
     }
 
     return currentList
-  }, [flockBatches, search, dateFrom, dateTo, selectedBreed, selectedStatus])
+  }, [flockBatches, reversedAsBatches, search, dateFrom, dateTo, selectedBreed, selectedStatus])
 
   // Score card totals
   const totalPurchasePrice = useMemo(() =>
@@ -878,6 +869,7 @@ export function FlockBatchesPage() {
                             <SelectItem value="active">Active</SelectItem>
                             <SelectItem value="inactive">Inactive</SelectItem>
                             <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="reversed">Reversed</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -906,6 +898,7 @@ export function FlockBatchesPage() {
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="reversed">Reversed</SelectItem>
                     </SelectContent>
                   </Select>
                   {embedded ? (
@@ -964,7 +957,7 @@ export function FlockBatchesPage() {
                         <Collapsible key={batch.batchId} defaultOpen className={cn("group overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md",
                           // Alternate cards, like Suppliers and Customers on a phone.
                           idx % 2 === 0 ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200")}>
-                          <div className="transition-colors active:bg-slate-50/80" onClick={() => handleViewFlocks(batch)}>
+                          <div className="transition-colors active:bg-slate-50/80" onClick={() => { if (statusLower !== "reversed") handleViewFlocks(batch) }}>
                             <CollapsibleTrigger asChild>
                               <div className="flex cursor-pointer items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
                                 <div className="flex min-w-0 items-center gap-2.5">
@@ -975,7 +968,9 @@ export function FlockBatchesPage() {
                                   </div>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-2">
-                                  {statusLower === "pending" ? (
+                                  {statusLower === "reversed" ? (
+                                    <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-600" title={(batch as { reversal?: FlockBatchReversalRow }).reversal?.reason}>Reversed</Badge>
+                                  ) : statusLower === "pending" ? (
                                     <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
                                   ) : statusLower === "active" ? (
                                     <Badge className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
@@ -1022,6 +1017,11 @@ export function FlockBatchesPage() {
                                     <span className="text-slate-400">—</span>
                                   )}
                                 </div>
+                                {statusLower === "reversed" ? (
+                                  <p className="pt-1 text-xs text-slate-500">
+                                    Reversed {(batch as { reversal?: FlockBatchReversalRow }).reversal?.reversalNumber}: {(batch as { reversal?: FlockBatchReversalRow }).reversal?.reason}
+                                  </p>
+                                ) : (
                                 <div className="flex flex-wrap gap-2 pt-1">
                                   {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
                                     <Button variant="outline" size="sm" className="flex-1 h-10 text-emerald-600 border-emerald-200 hover:bg-emerald-50" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>
@@ -1041,10 +1041,11 @@ export function FlockBatchesPage() {
                                   </Button>
                                   {permissions.canDelete && (
                                     <Button variant="outline" size="sm" className="flex-1 h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); openDeleteDialog(batch.batchId) }}>
-                                      <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                      <Undo2 className="h-4 w-4 mr-2" /> Reverse
                                     </Button>
                                   )}
                                 </div>
+                                )}
                               </div>
                             </CollapsibleContent>
                           </div>
@@ -1100,7 +1101,7 @@ export function FlockBatchesPage() {
                           <TableRow
                             key={batch.batchId}
                             className="hover:bg-slate-50 transition-colors cursor-pointer"
-                            onClick={() => handleViewFlocks(batch)}
+                            onClick={() => { if (statusLower !== "reversed") handleViewFlocks(batch) }}
                           >
                             <TableCell className={cn("font-medium text-slate-900 bg-white", isMobile && "sticky-col-date")}>
                               {batch.batchName}
@@ -1186,7 +1187,9 @@ export function FlockBatchesPage() {
                               )}
                             </TableCell>
                             <TableCell className={hideBelow("md")}>
-                              {statusLower === "pending" ? (
+                              {statusLower === "reversed" ? (
+                                    <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-600" title={(batch as { reversal?: FlockBatchReversalRow }).reversal?.reason}>Reversed</Badge>
+                                  ) : statusLower === "pending" ? (
                                 <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
                               ) : statusLower === "active" ? (
                                 <Badge variant="default" className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
@@ -1204,6 +1207,11 @@ export function FlockBatchesPage() {
                                 leave ~140px of a 390px screen for the eleven
                                 columns the reader opened this view to read. */}
                             <TableCell className="text-center bg-white">
+                              {statusLower === "reversed" ? (
+                                <span className="text-xs text-slate-500" title={(batch as { reversal?: FlockBatchReversalRow }).reversal?.reason}>
+                                  {(batch as { reversal?: FlockBatchReversalRow }).reversal?.reversalNumber}
+                                </span>
+                              ) : (
                               <div className="flex items-center justify-center gap-1">
                                 {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Pay balance" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>
@@ -1230,10 +1238,11 @@ export function FlockBatchesPage() {
                                     className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                                     onClick={(e) => { e.stopPropagation(); openDeleteDialog(batch.batchId) }}
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Undo2 className="w-4 h-4" />
                                   </Button>
                                 )}
                               </div>
+                              )}
                             </TableCell>
                           </TableRow>
                           )
@@ -1301,6 +1310,7 @@ export function FlockBatchesPage() {
                 </Pagination>
               </div>
             )}
+
 
             {/* Bird totals (page bottom; standalone page only) */}
             {!embedded && !loading && flockBatches.length > 0 && (
@@ -1681,23 +1691,26 @@ export function FlockBatchesPage() {
         }}
       />
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Flock Batch</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this flock batch? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 focus:ring-red-600">
-              {isDeleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Deleting...</> : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* 507: Reverse Flock Batch */}
+      <ReverseBatchDialog
+        open={reverseBatchId !== null}
+        batchId={reverseBatchId}
+        onOpenChange={(o) => { if (!o) setReverseBatchId(null) }}
+        onReversed={(r) => {
+          setReverseBatchId(null)
+          toast({
+            title: `Batch reversed${r.reversalNumber ? ` (${r.reversalNumber})` : ""}`,
+            description: [r.flocksRemoved > 0 ? `${r.flocksRemoved} flock(s) removed` : "",
+                          r.refunded > 0 ? `${fmtMoney(r.refunded)} refunded` : "",
+                          r.creditCreated > 0 ? `${fmtMoney(r.creditCreated)} kept as supplier credit` : ""]
+              .filter(Boolean).join(" · ") || "Kept under Reversed batches.",
+          })
+          loadAllFlocks()
+          loadFlockBatches()
+          setCurrentPage(1)
+          setReversedKey((k) => k + 1)
+        }}
+      />
 
       <BulkFlockBatchDialog
         open={isBulkOpen}
