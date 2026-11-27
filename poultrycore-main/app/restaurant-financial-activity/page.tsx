@@ -558,11 +558,6 @@ function FinancialActivityPageInner() {
             )}
           </CardContent></Card>
 
-          {!loading && filtered.length > 0 && (
-            <div className="hidden lg:block">
-              <DataPagination {...pg.paginationProps} variant="records" />
-            </div>
-          )}
 
           <p className="text-[11px] leading-relaxed text-slate-500">
             Money In and Money Out are the same figures Cash Flow reports, and exclude transfers between the

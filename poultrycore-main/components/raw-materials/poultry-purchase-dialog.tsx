@@ -154,6 +154,20 @@ export function PoultryPurchaseDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  // A new purchase pays from the Main Cash Account (else the first account)
+  // unless the caller chose one, the same as a new sale. Left on "None", a paid
+  // purchase reached the P&L but never left any cash account. Also runs when
+  // the accounts finish loading after the dialog opened.
+  const fallbackCashAccountId = useMemo(() => {
+    if (defaultCashAccountId) return defaultCashAccountId
+    const main = cashAccounts.find((a) => a.accountName.trim().toLowerCase() === "main cash account")
+    return (main ?? cashAccounts[0])?.poultryCashAccountId ?? null
+  }, [defaultCashAccountId, cashAccounts])
+  useEffect(() => {
+    if (!open || editing || fallbackCashAccountId == null) return
+    setF((prev) => (prev.poultryCashAccountId ? prev : { ...prev, poultryCashAccountId: fallbackCashAccountId }))
+  }, [open, editing, fallbackCashAccountId])
+
   const unitOptions = (current?: string | null) => {
     const set = [...UNITS]; const c = (current ?? "").trim()
     if (c && !set.includes(c)) set.unshift(c)

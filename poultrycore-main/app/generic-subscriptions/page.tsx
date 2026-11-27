@@ -618,7 +618,6 @@ export default function GenericSubscriptionsPage() {
                         ))}
                       </TableBody>
                     </Table>
-                    <div className="px-4 pb-4 pt-2"><DataPagination {...pg.paginationProps} /></div>
                   </div>
                 }
               />

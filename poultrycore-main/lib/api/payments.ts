@@ -190,7 +190,7 @@ export async function createFarmTierCheckoutSession(
   cancelUrl: string
 ): Promise<ApiResult<CreateCheckoutSessionResponse>> {
   try {
-    const url = buildAdminProxyUrl("Payments/initialize-paystack")
+    const url = buildAdminProxyUrl("Payments/create-checkout-session")
     const requestBody: CreateCheckoutSessionBody = {
       totalBirds: Math.max(0, Math.floor(totalBirds)),
       successUrl,
@@ -219,7 +219,7 @@ export async function createFarmTierCheckoutSession(
     const o = body as Record<string, unknown>
     const checkoutUrl = (o.checkoutUrl ?? o.authorizationUrl ?? o.CheckoutUrl ?? o.AuthorizationUrl) as string | undefined
     const reference = (o.reference ?? o.Reference) as string | undefined
-    if (!checkoutUrl) return { success: false, message: "Invalid Paystack response from server" }
+    if (!checkoutUrl) return { success: false, message: "Invalid response from checkout server" }
     return { success: true, data: { checkoutUrl, reference } }
   } catch (e) {
     return {
@@ -268,7 +268,7 @@ export async function createCheckoutSession(
     const o = body as Record<string, unknown>
     const checkoutUrl = (o.checkoutUrl ?? o.authorizationUrl ?? o.CheckoutUrl ?? o.AuthorizationUrl) as string | undefined
     const reference = (o.reference ?? o.Reference) as string | undefined
-    if (!checkoutUrl) return { success: false, message: "Invalid Paystack response from server" }
+    if (!checkoutUrl) return { success: false, message: "Invalid response from checkout server" }
     return { success: true, data: { checkoutUrl, reference } }
   } catch (e) {
     return {

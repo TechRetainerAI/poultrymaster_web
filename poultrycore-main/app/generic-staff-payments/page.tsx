@@ -407,7 +407,6 @@ export default function GenericStaffPaymentsPage() {
                             ))}
                           </TableBody>
                         </Table>
-                        <DataPagination {...pg.paginationProps} />
                       </div>
                     }
                   />

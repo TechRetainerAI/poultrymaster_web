@@ -224,6 +224,18 @@ export function FlockBatchesPage() {
     poultryCashAccountId: "" as string,
   })
 
+  // A new batch pays from the Main Cash Account (else the first account), the
+  // same as a new sale. Left on "None", a paid batch reached the P&L but never
+  // left any cash account. Also runs when the accounts load after opening.
+  const defaultCashAccountId = useMemo(() => {
+    const main = cashAccounts.find((a) => a.accountName.trim().toLowerCase() === "main cash account")
+    return (main ?? cashAccounts[0])?.poultryCashAccountId ?? null
+  }, [cashAccounts])
+  useEffect(() => {
+    if (!isCreateDialogOpen || defaultCashAccountId == null) return
+    setCreateForm((prev) => (prev.poultryCashAccountId ? prev : { ...prev, poultryCashAccountId: String(defaultCashAccountId) }))
+  }, [isCreateDialogOpen, defaultCashAccountId])
+
   // Edit dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingBatchId, setEditingBatchId] = useState<number | null>(null)

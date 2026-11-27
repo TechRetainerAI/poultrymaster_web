@@ -79,6 +79,18 @@ export function BulkFlockBatchDialog({ open, onOpenChange, existingCodes, suppli
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  // Pay from the Main Cash Account (else the first account) unless one is
+  // chosen, as a new sale does. Left on "None", paid batches reached the P&L
+  // but never left any cash account.
+  const defaultCashAccountId = useMemo(() => {
+    const main = cashAccounts.find((a) => a.accountName.trim().toLowerCase() === "main cash account")
+    return (main ?? cashAccounts[0])?.poultryCashAccountId ?? null
+  }, [cashAccounts])
+  useEffect(() => {
+    if (!open || defaultCashAccountId == null) return
+    setCashAccountId((prev) => prev || String(defaultCashAccountId))
+  }, [open, defaultCashAccountId])
+
   const errors = useMemo(() => validateRows(rows, existingCodes), [rows, existingCodes])
   const rowErrors = useMemo(() => errorsByRow(errors), [errors])
   const batchError = errors.find((e) => e.index < 0)
