@@ -16,6 +16,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getDashboard, type GenericDashboard } from "@/lib/api/generic"
+import { getBusinessTemplateFor } from "@/lib/api/generic-subscriptions"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { GenericSubscriptionDashboard } from "@/components/generic/subscription-dashboard"
 import { useDashboardMoney } from "@/hooks/use-dashboard-money"
@@ -41,6 +42,30 @@ export default function GenericDashboardPage() {
   // dashboard and then throwing it away is a wasted round trip on every visit.
   const modules = useGenericModules()
   const showSubscription = modules.isSubscriptionBusiness
+  const activeFarmId = useAuthStore((s) => s.activeFarmId)
+
+  // Signup template redirect: if the user just registered with a specific
+  // business type (e.g. Pharmacy), the registration only created a bare
+  // Generic company. On first dashboard visit, detect the missing template
+  // and auto-redirect to the setup wizard with the chosen industry.
+  useEffect(() => {
+    if (!activeFarmId || activeFarmType !== "Generic") return
+    const industry = localStorage.getItem("vc.signup.industryTemplate")
+    if (!industry) return
+    void getBusinessTemplateFor(activeFarmId).then((t) => {
+      if (t?.genericIndustryTemplate) {
+        localStorage.removeItem("vc.signup.industryTemplate")
+        localStorage.removeItem("vc.signup.businessTypeId")
+        return
+      }
+      localStorage.removeItem("vc.signup.industryTemplate")
+      localStorage.removeItem("vc.signup.businessTypeId")
+      router.push(`/generic-setup/wizard?industry=${encodeURIComponent(industry)}`)
+    }).catch(() => {
+      localStorage.removeItem("vc.signup.industryTemplate")
+      localStorage.removeItem("vc.signup.businessTypeId")
+    })
+  }, [activeFarmId, activeFarmType, router])
 
   useEffect(() => {
     // activeFarmType is null on first render before Zustand persist rehydrates.

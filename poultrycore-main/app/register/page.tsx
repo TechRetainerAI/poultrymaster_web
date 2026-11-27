@@ -6,8 +6,11 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Eye, EyeOff, ChevronLeft } from "lucide-react"
+import { Eye, EyeOff, ChevronLeft, ChevronsUpDown, Check } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { register, checkOrgCodeAvailable } from "@/lib/api/auth"
+import { BUSINESS_TYPES, findBusinessType, needsTemplate, groupedBusinessTypes, type CompanyType } from "@/lib/companies/business-types"
 import Link from "next/link"
 
 // Build the organization-code seed: first 3 letters of the owner's first name +
@@ -51,9 +54,104 @@ function flattenErrors(errors: unknown): string[] {
 
 const USERNAME_RE = /^[A-Za-z0-9._-]{3,30}$/
 const PHONE_RE = /^(\+?\d{7,15}|0\d{6,14})$/
-type CType = "" | "Poultry" | "Water" | "Generic" | "Hotel" | "Restaurant" | "Livestock"
 
 const inputCls = "h-10 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-orange-500 focus:ring-orange-500"
+
+// ---------------------------------------------------------------------------
+// Searchable, grouped business type selector for registration.
+// Same catalog as Business Office, styled for the dark registration form.
+// ---------------------------------------------------------------------------
+const groups = groupedBusinessTypes()
+
+function RegistrationBusinessTypeSelector({
+  value,
+  onSelect,
+  disabled,
+}: {
+  value: string
+  onSelect: (id: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = findBusinessType(value)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+          className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm h-10 ${
+            inputCls
+          } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+        >
+          <span className={selected ? "text-white" : "text-slate-400"}>
+            {selected?.label ?? "Select or search your business type..."}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="p-0 w-[var(--radix-popover-trigger-width)] bg-slate-800 border-slate-600"
+        align="start"
+        sideOffset={4}
+      >
+        <Command
+          className="bg-slate-800"
+          filter={(value, search) => {
+            const t = findBusinessType(value)
+            if (!t) return 0
+            const s = search.toLowerCase()
+            if (t.label.toLowerCase().includes(s)) return 1
+            if (t.description.toLowerCase().includes(s)) return 0.5
+            if (t.searchAliases?.some((a) => a.toLowerCase().includes(s))) return 0.5
+            return 0
+          }}
+        >
+          <CommandInput
+            placeholder="Search for your business type..."
+            className="text-white placeholder:text-slate-400 border-slate-600"
+          />
+          <CommandList className="max-h-[280px]">
+            <CommandEmpty className="text-slate-400">
+              No matching business type found. Try another search or choose General Business.
+            </CommandEmpty>
+            {groups.map((g) => (
+              <CommandGroup
+                key={g.id}
+                heading={g.label}
+                className="[&_[cmdk-group-heading]]:text-orange-400/80 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-semibold"
+              >
+                {g.items.map((t) => (
+                  <CommandItem
+                    key={t.id}
+                    value={t.id}
+                    onSelect={(v) => {
+                      onSelect(v)
+                      setOpen(false)
+                    }}
+                    className="items-start text-slate-200 data-[selected=true]:bg-slate-700 data-[selected=true]:text-white aria-selected:bg-slate-700"
+                  >
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-medium text-sm">{t.label}</span>
+                      <span className="text-xs text-slate-400">{t.description}</span>
+                    </span>
+                    {value === t.id && (
+                      <Check className="ml-auto h-4 w-4 shrink-0 text-orange-400" />
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -67,16 +165,21 @@ export default function RegisterPage() {
   const [f, setF] = useState({
     firstName: "", lastName: "", username: "", email: "", phoneNumber: "",
     password: "", confirmPassword: "",
-    companyType: "" as CType, companyName: "",
+    businessTypeId: "", companyName: "",
   })
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }))
-  // First company is opt-in: the type icons + company name field stay hidden
+
+  // Derive CompanyType from the selected business type.
+  const chosen = findBusinessType(f.businessTypeId)
+  const companyType: CompanyType | undefined = chosen?.companyType
+
+  // First company is opt-in: the selector + company name field stay hidden
   // until the owner ticks the box.
   const [createCompany, setCreateCompany] = useState(false)
   const toggleCreateCompany = () =>
     setCreateCompany((prev) => {
       const next = !prev
-      if (!next) setF((p) => ({ ...p, companyType: "", companyName: "" }))
+      if (!next) setF((p) => ({ ...p, businessTypeId: "", companyName: "" }))
       return next
     })
 
@@ -97,7 +200,7 @@ export default function RegisterPage() {
     if (f.password.length < 6) return "Password must be at least 6 characters."
     if (f.password !== f.confirmPassword) return "Passwords do not match."
     if (createCompany) {
-      if (!f.companyType) return "Please choose a company type, or uncheck \"Create my first company now\"."
+      if (!f.businessTypeId) return "Please select your business type."
       if (!f.companyName.trim()) return "Please enter the company name."
     }
     return null
@@ -122,7 +225,7 @@ export default function RegisterPage() {
       firstName: f.firstName.trim(),
       lastName: f.lastName.trim(),
       phoneNumber: f.phoneNumber.replace(/[\s()-]/g, ""),
-      companyType: createCompany ? (f.companyType || undefined) as Exclude<CType, ""> | undefined : undefined,
+      companyType: createCompany ? companyType : undefined,
       roles: ["Admin"], // the registrant is the Business Office owner/admin
       businessOfficeName,
       businessOfficeCurrency: "GHS",
@@ -132,6 +235,14 @@ export default function RegisterPage() {
 
     if (result.success) {
       try { localStorage.setItem("businessOfficeName", businessOfficeName) } catch {}
+      // Remember the selected business type so after first login, the setup
+      // wizard can auto-apply the correct industry template.
+      if (createCompany && chosen && needsTemplate(chosen)) {
+        try {
+          localStorage.setItem("vc.signup.industryTemplate", chosen.industryTemplate!)
+          localStorage.setItem("vc.signup.businessTypeId", chosen.id)
+        } catch {}
+      }
       setSuccess(true)
       setTimeout(() => router.push("/login"), 1800)
     } else {
@@ -214,7 +325,7 @@ export default function RegisterPage() {
             </div>
 
             {/* First company — fully optional and opt-in. Ticking the box reveals
-                the type icons and the company-name field together. */}
+                the business type selector and the company-name field. */}
             <div className="pt-1">
               <label className="flex items-start gap-2 cursor-pointer select-none">
                 <input type="checkbox" checked={createCompany} onChange={toggleCreateCompany} disabled={isLoading}
@@ -227,26 +338,13 @@ export default function RegisterPage() {
 
               {createCompany && (
                 <div className="mt-3 space-y-3">
-                  <p className="text-[11px] text-slate-400">Pick a company type and give it a name.</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {([
-                      { value: "Poultry", emoji: "🐔", title: "Poultry" },
-                      { value: "Water", emoji: "💧", title: "Water" },
-                      { value: "Generic", emoji: "🏪", title: "Generic" },
-                      { value: "Hotel", emoji: "🏨", title: "Hotel" },
-                      { value: "Restaurant", emoji: "🍽️", title: "Restaurant" },
-                      { value: "Livestock", emoji: "🐐", title: "Livestock" },
-                    ] as const).map((opt) => {
-                      const selected = f.companyType === opt.value
-                      // Clicking a selected type again clears it.
-                      return (
-                        <button key={opt.value} type="button" onClick={() => set("companyType", selected ? "" : opt.value)} disabled={isLoading} aria-pressed={selected}
-                          className={`p-3 rounded-lg border-2 text-center transition-all ${selected ? "border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/40" : "border-slate-600 bg-slate-700/30 hover:border-slate-500"} disabled:opacity-50`}>
-                          <div className="text-2xl mb-1">{opt.emoji}</div>
-                          <div className="text-xs font-semibold text-white">{opt.title}</div>
-                        </button>
-                      )
-                    })}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">Business type *</label>
+                    <RegistrationBusinessTypeSelector
+                      value={f.businessTypeId}
+                      onSelect={(id) => set("businessTypeId", id)}
+                      disabled={isLoading}
+                    />
                   </div>
                   <Input placeholder="Company name" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} className={inputCls} disabled={isLoading} />
                 </div>

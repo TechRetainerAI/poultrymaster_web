@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, Users, ArrowRight, Check,
   HelpCircle, X, Megaphone, ChevronRight, Trash2, AlertTriangle, Info,
-  ShieldAlert, Wrench, CreditCard, Sparkles, Briefcase, Coins,
+  ShieldAlert, Wrench, CreditCard, Sparkles, Briefcase, Coins, ChevronsUpDown,
 } from "lucide-react"
 
 // Page-local preference so it doesn't disturb the global vc.view.* prefs other
@@ -46,7 +46,9 @@ import {
 // own hardcoded five and set no template, so the Business Office could not
 // create a Gym, a School or a SaaS business -- and a Generic one arrived with
 // none of its menus or starter categories.
-import { BUSINESS_TYPES, findBusinessType, needsTemplate } from "@/lib/companies/business-types"
+import { BUSINESS_TYPES, findBusinessType, needsTemplate, groupedBusinessTypes } from "@/lib/companies/business-types"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import {
   listAnnouncements, setAnnouncementReceipt, createAnnouncement, deleteAnnouncement, type Announcement,
 } from "@/lib/api/announcements"
@@ -84,6 +86,61 @@ function annStyle(type: string): { tone: string; icon: any } {
   }
 }
 const ANN_TYPES = ["Info", "Success", "Warning", "Critical", "Maintenance", "FeatureUpdate", "Payment", "Security"]
+
+// ---------------------------------------------------------------------------
+// Searchable, grouped business type selector (Popover + Command / cmdk).
+// ---------------------------------------------------------------------------
+const boGroups = groupedBusinessTypes()
+
+function BusinessTypeSelector({ value, onSelect }: { value: string; onSelect: (id: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const selected = findBusinessType(value)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal h-auto min-h-9 py-1.5">
+          <span className="truncate text-left">{selected?.label ?? "Select business type…"}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
+        <Command filter={(value, search) => {
+          const t = findBusinessType(value)
+          if (!t) return 0
+          const s = search.toLowerCase()
+          if (t.label.toLowerCase().includes(s)) return 1
+          if (t.description.toLowerCase().includes(s)) return 0.5
+          if (t.searchAliases?.some((a) => a.toLowerCase().includes(s))) return 0.5
+          return 0
+        }}>
+          <CommandInput placeholder="Search for your business type…" />
+          <CommandList className="max-h-[320px]">
+            <CommandEmpty>No business type found.</CommandEmpty>
+            {boGroups.map((g) => (
+              <CommandGroup key={g.id} heading={g.label}>
+                {g.items.map((t) => (
+                  <CommandItem
+                    key={t.id}
+                    value={t.id}
+                    onSelect={(v) => { onSelect(v); setOpen(false) }}
+                    className="items-start"
+                  >
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-medium">{t.label}</span>
+                      <span className="text-xs text-muted-foreground">{t.description}</span>
+                    </span>
+                    {value === t.id && <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 export default function BusinessOfficePage() {
   const router = useRouter()
@@ -454,27 +511,11 @@ export default function BusinessOfficePage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Create new company</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            {/* The trigger carries the LABEL only. Label + description is ~78
-                characters, and SelectTrigger is whitespace-nowrap: inside this
-                grid dialog that string became the column's min-content width and
-                dragged the title, every input and the close button out past the
-                right edge of a phone. The description belongs in the list, where
-                there is room to wrap it. min-w-0 keeps the field shrinkable if a
-                future label ever gets long. */}
             <div className="min-w-0"><Label>Business type *</Label>
-              <Select value={form.businessTypeId} onValueChange={(v) => setForm({ ...form, businessTypeId: v })}>
-                <SelectTrigger className="w-full"><SelectValue>{chosen?.label}</SelectValue></SelectTrigger>
-                <SelectContent className="max-w-[calc(100vw-2rem)]">
-                  {BUSINESS_TYPES.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="items-start">
-                      <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="font-medium">{t.label}</span>
-                        <span className="text-xs text-muted-foreground">{t.description}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <BusinessTypeSelector
+                value={form.businessTypeId}
+                onSelect={(id) => setForm({ ...form, businessTypeId: id })}
+              />
               {needsTemplate(chosen) && (
                 <p className="text-xs text-slate-500 mt-1">
                   We&apos;ll set up the right menus and starter categories for this, and you can change any of it later.

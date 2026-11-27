@@ -304,7 +304,7 @@ function GenericSetupWizardContent() {
                   {filtered.length === 0 ? (
                     <p className="text-sm text-slate-500 text-center py-8">
                       No business types match &ldquo;{search}&rdquo;.
-                      Try a different search or pick &ldquo;Other business&rdquo;.
+                      Try a different search or pick &ldquo;General Business&rdquo;.
                     </p>
                   ) : (
                     <div className="grid gap-2 sm:grid-cols-2 max-h-[420px] overflow-y-auto pr-1">

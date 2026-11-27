@@ -12,12 +12,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Building2, Bird, Droplets, Loader2, Check, UtensilsCrossed, PawPrint } from "lucide-react"
+import { Plus, Building2, Bird, Droplets, Loader2, Check, UtensilsCrossed, PawPrint, ChevronsUpDown } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany, type Company, type CompanyType } from "@/lib/api/companies"
-import { BUSINESS_TYPES, findBusinessType, needsTemplate, businessTypeForIndustry } from "@/lib/companies/business-types"
+import { BUSINESS_TYPES, findBusinessType, needsTemplate, businessTypeForIndustry, groupedBusinessTypes } from "@/lib/companies/business-types"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useRouter } from "next/navigation"
 import { useCanCreateCompany } from "@/hooks/use-setup-access"
@@ -37,6 +39,61 @@ function CompanyIcon({ type }: { type: CompanyType }) {
     : type === "Livestock" ? "text-amber-700"
     : "text-orange-500"
   return <Icon className={`h-5 w-5 shrink-0 ${colour}`} />
+}
+
+// ---------------------------------------------------------------------------
+// Searchable, grouped business type selector (Popover + Command / cmdk).
+// ---------------------------------------------------------------------------
+const businessGroups = groupedBusinessTypes()
+
+function BusinessTypeSelector({ value, onSelect }: { value: string; onSelect: (id: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const selected = findBusinessType(value)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal h-auto min-h-9 py-1.5">
+          <span className="truncate text-left">{selected?.label ?? "Select business type…"}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
+        <Command filter={(value, search) => {
+          const t = findBusinessType(value)
+          if (!t) return 0
+          const s = search.toLowerCase()
+          if (t.label.toLowerCase().includes(s)) return 1
+          if (t.description.toLowerCase().includes(s)) return 0.5
+          if (t.searchAliases?.some((a) => a.toLowerCase().includes(s))) return 0.5
+          return 0
+        }}>
+          <CommandInput placeholder="Search for your business type…" />
+          <CommandList className="max-h-[320px]">
+            <CommandEmpty>No business type found.</CommandEmpty>
+            {businessGroups.map((g) => (
+              <CommandGroup key={g.id} heading={g.label}>
+                {g.items.map((t) => (
+                  <CommandItem
+                    key={t.id}
+                    value={t.id}
+                    onSelect={(v) => { onSelect(v); setOpen(false) }}
+                    className="items-start"
+                  >
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-medium">{t.label}</span>
+                      <span className="text-xs text-muted-foreground">{t.description}</span>
+                    </span>
+                    {value === t.id && <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 export default function CompaniesPage() {
@@ -250,20 +307,11 @@ export default function CompaniesPage() {
             {/* Label only in the trigger — see the note on the Business Office
                 copy of this dialog: the description made the nowrap trigger wider
                 than a phone and dragged the whole modal out with it. */}
-            <div className="min-w-0"><Label>Type</Label>
-              <Select value={form.businessTypeId} onValueChange={(v) => setForm({ ...form, businessTypeId: v })}>
-                <SelectTrigger className="w-full"><SelectValue>{chosen?.label}</SelectValue></SelectTrigger>
-                <SelectContent className="max-w-[calc(100vw-2rem)]">
-                  {BUSINESS_TYPES.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="items-start">
-                      <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="font-medium">{t.label}</span>
-                        <span className="text-xs text-muted-foreground">{t.description}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="min-w-0"><Label>Business type *</Label>
+              <BusinessTypeSelector
+                value={form.businessTypeId}
+                onSelect={(id) => setForm({ ...form, businessTypeId: id })}
+              />
               {needsTemplate(chosen) && (
                 <p className="text-xs text-slate-500 mt-1">
                   We&apos;ll set up the right menus and starter categories for this, and you can change any of it later.

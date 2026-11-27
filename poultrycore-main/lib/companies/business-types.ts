@@ -20,6 +20,35 @@ export type CompanyType = "Poultry" | "Water" | "Generic" | "Hotel" | "Restauran
 
 export type BusinessCategory = "retail" | "service" | "subscription" | "other"
 
+// ---------------------------------------------------------------------------
+// Discovery groups — customer-facing headings in the Create New Company
+// selector. These are NOT backend company families; every Generic template
+// stays Generic regardless of its group.
+// ---------------------------------------------------------------------------
+
+export interface BusinessTypeGroup {
+  id: string
+  label: string
+  /** Display order in the selector. */
+  order: number
+}
+
+export const BUSINESS_GROUPS: BusinessTypeGroup[] = [
+  { id: "specialized",   label: "Specialized Business Systems",           order: 1 },
+  { id: "retail",        label: "Retail, Trading & Distribution",         order: 2 },
+  { id: "services",      label: "Services & Professional Businesses",     order: 3 },
+  { id: "subscriptions", label: "Subscriptions, Memberships & Education", order: 4 },
+  { id: "general",       label: "General & Flexible",                     order: 5 },
+]
+
+export type BusinessGroupId = typeof BUSINESS_GROUPS[number]["id"]
+
+export function findBusinessGroup(id: string): BusinessTypeGroup | undefined {
+  return BUSINESS_GROUPS.find((g) => g.id === id)
+}
+
+// ---------------------------------------------------------------------------
+
 export interface BusinessType {
   /** Stable id used as the <SelectItem> value. */
   id: string
@@ -32,116 +61,51 @@ export interface BusinessType {
   industryTemplate?: IndustryTemplate
   /** Wizard grouping category for searchable display. */
   category?: BusinessCategory
+  /** Discovery group for the Create New Company selector. */
+  group: BusinessGroupId
+  /** Extra search terms that help the user find this type. */
+  searchAliases?: string[]
 }
 
 export const BUSINESS_TYPES: BusinessType[] = [
-  // ---- the five with their own module tree -------------------------------
+  // ---- GROUP 1: SPECIALIZED BUSINESS SYSTEMS --------------------------------
   {
     id: "water",
     label: "Water production",
     description: "Sachet or bottled water — production, distribution, drivers",
     companyType: "Water",
+    group: "specialized",
   },
   {
     id: "poultry",
     label: "Poultry farm",
     description: "Flocks, houses, egg production, feed",
     companyType: "Poultry",
+    group: "specialized",
   },
   {
     id: "livestock",
     label: "Livestock farm",
     description: "Ducks, guinea fowl, rabbits, goats, sheep, pigs, cattle and more",
     companyType: "Livestock",
+    group: "specialized",
   },
   {
     id: "hotel",
     label: "Hotel",
     description: "Rooms, bookings, front desk",
     companyType: "Hotel",
+    group: "specialized",
   },
   {
     id: "restaurant",
     label: "Restaurant",
     description: "POS, menu, kitchen, delivery",
     companyType: "Restaurant",
+    group: "specialized",
   },
 
-  // ---- subscription / recurring-billing businesses ------------------------
-  {
-    id: "saas",
-    label: "SaaS / software company",
-    description: "Customers on recurring plans",
-    companyType: "Generic",
-    businessTemplate: "SubscriptionServiceBusiness",
-    industryTemplate: "SaaS",
-    category: "subscription",
-  },
-  {
-    id: "gym",
-    label: "Gym / fitness centre",
-    description: "Members on monthly or annual memberships",
-    companyType: "Generic",
-    businessTemplate: "SubscriptionServiceBusiness",
-    industryTemplate: "Gym",
-    category: "subscription",
-  },
-  {
-    id: "school",
-    label: "School / training centre",
-    description: "Students, termly fees, fee notes",
-    companyType: "Generic",
-    businessTemplate: "SubscriptionServiceBusiness",
-    industryTemplate: "School",
-    category: "subscription",
-  },
-  {
-    id: "cleaning",
-    label: "Cleaning service",
-    description: "Clients on service contracts",
-    companyType: "Generic",
-    businessTemplate: "SubscriptionServiceBusiness",
-    industryTemplate: "CleaningService",
-    category: "subscription",
-  },
-  {
-    id: "security",
-    label: "Security service",
-    description: "Clients on service contracts",
-    companyType: "Generic",
-    businessTemplate: "SubscriptionServiceBusiness",
-    industryTemplate: "SecurityService",
-    category: "subscription",
-  },
-  {
-    id: "agency",
-    label: "Agency",
-    description: "Clients on monthly retainers",
-    companyType: "Generic",
-    businessTemplate: "SubscriptionServiceBusiness",
-    industryTemplate: "Agency",
-    category: "subscription",
-  },
-  {
-    id: "retainer",
-    label: "Retainer business",
-    description: "Any business billing a fixed amount each period",
-    companyType: "Generic",
-    businessTemplate: "SubscriptionServiceBusiness",
-    industryTemplate: "RetainerBusiness",
-    category: "subscription",
-  },
-  {
-    id: "membership",
-    label: "Membership organisation",
-    description: "Members paying dues",
-    companyType: "Generic",
-    businessTemplate: "SubscriptionServiceBusiness",
-    industryTemplate: "MembershipBusiness",
-    category: "subscription",
-  },
-
-  // ---- retail / stock businesses --------------------------------------------
+  // ---- GROUP 2: RETAIL, TRADING & DISTRIBUTION ------------------------------
   {
     id: "produce",
     label: "Yam & produce seller",
@@ -150,6 +114,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "ProduceSeller",
     category: "retail",
+    group: "retail",
   },
   {
     id: "grocery",
@@ -159,6 +124,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "Grocery",
     category: "retail",
+    group: "retail",
   },
   {
     id: "clothing",
@@ -168,6 +134,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "Retail", // shares Retail template — no unique seeding yet
     category: "retail",
+    group: "retail",
   },
   {
     id: "hardware",
@@ -177,6 +144,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "HardwareShop",
     category: "retail",
+    group: "retail",
   },
   {
     id: "electronics",
@@ -186,6 +154,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "ElectronicsShop",
     category: "retail",
+    group: "retail",
   },
   {
     id: "wholesaler",
@@ -195,6 +164,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "Wholesaler",
     category: "retail",
+    group: "retail",
   },
   {
     id: "bakery",
@@ -204,6 +174,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "Bakery",
     category: "retail",
+    group: "retail",
   },
   {
     id: "pharmacy",
@@ -213,6 +184,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "Pharmacy",
     category: "retail",
+    group: "retail",
   },
   {
     id: "car-dealership",
@@ -222,6 +194,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "CarDealership",
     category: "retail",
+    group: "retail",
   },
   {
     id: "retail",
@@ -231,9 +204,40 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "RetailBusiness",
     industryTemplate: "Retail",
     category: "retail",
+    group: "retail",
   },
 
-  // ---- service businesses --------------------------------------------------
+  // ---- GROUP 3: SERVICES & PROFESSIONAL BUSINESSES --------------------------
+  {
+    id: "cleaning",
+    label: "Cleaning service",
+    description: "Clients on service contracts",
+    companyType: "Generic",
+    businessTemplate: "SubscriptionServiceBusiness",
+    industryTemplate: "CleaningService",
+    category: "subscription",
+    group: "services",
+  },
+  {
+    id: "security",
+    label: "Security service",
+    description: "Clients on service contracts",
+    companyType: "Generic",
+    businessTemplate: "SubscriptionServiceBusiness",
+    industryTemplate: "SecurityService",
+    category: "subscription",
+    group: "services",
+  },
+  {
+    id: "agency",
+    label: "Agency",
+    description: "Clients on monthly retainers",
+    companyType: "Generic",
+    businessTemplate: "SubscriptionServiceBusiness",
+    industryTemplate: "Agency",
+    category: "subscription",
+    group: "services",
+  },
   {
     id: "barbershop",
     label: "Barbershop",
@@ -242,6 +246,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "GeneralBusiness",
     industryTemplate: "Barbershop",
     category: "service",
+    group: "services",
   },
   {
     id: "salon",
@@ -251,6 +256,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "GeneralBusiness",
     industryTemplate: "Salon",
     category: "service",
+    group: "services",
   },
   {
     id: "auto-repair",
@@ -260,6 +266,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "GeneralBusiness",
     industryTemplate: "AutoRepair",
     category: "service",
+    group: "services",
   },
   {
     id: "tailor",
@@ -269,6 +276,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "GeneralBusiness",
     industryTemplate: "Tailor",
     category: "service",
+    group: "services",
   },
   {
     id: "laundry",
@@ -278,6 +286,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "GeneralBusiness",
     industryTemplate: "Laundry",
     category: "service",
+    group: "services",
   },
   {
     id: "freelancer",
@@ -287,17 +296,72 @@ export const BUSINESS_TYPES: BusinessType[] = [
     businessTemplate: "SubscriptionServiceBusiness",
     industryTemplate: "Freelancer",
     category: "service",
+    group: "services",
   },
 
-  // ---- catch-all -----------------------------------------------------------
+  // ---- GROUP 4: SUBSCRIPTIONS, MEMBERSHIPS & EDUCATION ----------------------
+  {
+    id: "saas",
+    label: "SaaS / software company",
+    description: "Customers on recurring plans",
+    companyType: "Generic",
+    businessTemplate: "SubscriptionServiceBusiness",
+    industryTemplate: "SaaS",
+    category: "subscription",
+    group: "subscriptions",
+  },
+  {
+    id: "gym",
+    label: "Gym / fitness centre",
+    description: "Members on monthly or annual memberships",
+    companyType: "Generic",
+    businessTemplate: "SubscriptionServiceBusiness",
+    industryTemplate: "Gym",
+    category: "subscription",
+    group: "subscriptions",
+  },
+  {
+    id: "school",
+    label: "School / training centre",
+    description: "Students, termly fees, fee notes",
+    companyType: "Generic",
+    businessTemplate: "SubscriptionServiceBusiness",
+    industryTemplate: "School",
+    category: "subscription",
+    group: "subscriptions",
+  },
+  {
+    id: "retainer",
+    label: "Retainer business",
+    description: "Any business billing a fixed amount each period",
+    companyType: "Generic",
+    businessTemplate: "SubscriptionServiceBusiness",
+    industryTemplate: "RetainerBusiness",
+    category: "subscription",
+    group: "subscriptions",
+  },
+  {
+    id: "membership",
+    label: "Membership organisation",
+    description: "Members paying dues",
+    companyType: "Generic",
+    businessTemplate: "SubscriptionServiceBusiness",
+    industryTemplate: "MembershipBusiness",
+    category: "subscription",
+    group: "subscriptions",
+  },
+
+  // ---- GROUP 5: GENERAL & FLEXIBLE -----------------------------------------
   {
     id: "other",
-    label: "Other business",
-    description: "Any business not listed above",
+    label: "General Business",
+    description: "Flexible business management for products, services, purchases, sales, expenses and more.",
     companyType: "Generic",
     businessTemplate: "GeneralBusiness",
     industryTemplate: "Other",
     category: "other",
+    group: "general",
+    searchAliases: ["other business"],
   },
 ]
 
@@ -308,6 +372,49 @@ export function findBusinessType(id: string): BusinessType | undefined {
 /** True when creating this type should apply a template and open the wizard. */
 export function needsTemplate(t: BusinessType | undefined): boolean {
   return Boolean(t?.businessTemplate && t?.industryTemplate)
+}
+
+// ---------------------------------------------------------------------------
+// Grouped business types — used by the Create New Company selector.
+// ---------------------------------------------------------------------------
+
+export interface BusinessTypeGroupWithItems extends BusinessTypeGroup {
+  items: BusinessType[]
+}
+
+/** Business types grouped and ordered for the Create New Company selector. */
+export function groupedBusinessTypes(
+  types: BusinessType[] = BUSINESS_TYPES,
+): BusinessTypeGroupWithItems[] {
+  const map = new Map<string, BusinessType[]>()
+  for (const t of types) {
+    const list = map.get(t.group) ?? []
+    list.push(t)
+    map.set(t.group, list)
+  }
+  return BUSINESS_GROUPS
+    .filter((g) => map.has(g.id))
+    .map((g) => ({ ...g, items: map.get(g.id)! }))
+}
+
+/**
+ * Search business types by query. Case-insensitive, matches label,
+ * description, and searchAliases. Returns grouped results with empty
+ * groups filtered out.
+ */
+export function searchBusinessTypes(
+  query: string,
+  types: BusinessType[] = BUSINESS_TYPES,
+): BusinessTypeGroupWithItems[] {
+  if (!query.trim()) return groupedBusinessTypes(types)
+  const q = query.toLowerCase()
+  const matched = types.filter(
+    (t) =>
+      t.label.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q) ||
+      t.searchAliases?.some((a) => a.toLowerCase().includes(q)),
+  )
+  return groupedBusinessTypes(matched)
 }
 
 // -----------------------------------------------------------------------------

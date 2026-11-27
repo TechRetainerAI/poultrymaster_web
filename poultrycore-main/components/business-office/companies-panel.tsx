@@ -13,7 +13,9 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, ArrowRight, Pencil, Trash2, PawPrint } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, ArrowRight, Pencil, Trash2, PawPrint, Check, ChevronsUpDown } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -26,7 +28,7 @@ import {
 // three options and set no template, so a company created from the Business
 // Office could never be a Gym, a School or a SaaS business — and a Generic one
 // arrived with none of its menus or starter categories.
-import { BUSINESS_TYPES, findBusinessType, needsTemplate, businessTypeForIndustry } from "@/lib/companies/business-types"
+import { BUSINESS_TYPES, findBusinessType, needsTemplate, businessTypeForIndustry, groupedBusinessTypes } from "@/lib/companies/business-types"
 import { getBusinessTemplateFor } from "@/lib/api/generic-subscriptions"
 import { SetupProjectsCheckbox } from "@/components/generic/projects/setup-projects-checkbox"
 
@@ -38,6 +40,62 @@ const COMPANY_TYPES: CompanyType[] =
 function typeIcon(t: string) { return t === "Water" ? Droplets : t === "Poultry" ? Bird : t === "Generic" ? ShoppingBag : t === "Livestock" ? PawPrint : Building2 }
 function typeTone(t: string) { return t === "Water" ? "bg-sky-100 text-sky-700" : t === "Poultry" ? "bg-orange-100 text-orange-700" : t === "Generic" ? "bg-violet-100 text-violet-700" : t === "Livestock" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700" }
 function typeStrip(t: string) { return t === "Water" ? "bg-sky-400" : t === "Poultry" ? "bg-orange-400" : t === "Generic" ? "bg-violet-400" : t === "Livestock" ? "bg-amber-700" : "bg-slate-300" }
+
+// ---------------------------------------------------------------------------
+// Searchable, grouped business type selector (Popover + Command / cmdk).
+// Replaces the flat <Select> so owners can discover business types quickly.
+// ---------------------------------------------------------------------------
+const groups = groupedBusinessTypes()
+
+function BusinessTypeSelector({ value, onSelect }: { value: string; onSelect: (id: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const selected = findBusinessType(value)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal h-auto min-h-9 py-1.5">
+          <span className="truncate text-left">{selected?.label ?? "Select business type…"}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
+        <Command filter={(value, search) => {
+          const t = findBusinessType(value)
+          if (!t) return 0
+          const s = search.toLowerCase()
+          if (t.label.toLowerCase().includes(s)) return 1
+          if (t.description.toLowerCase().includes(s)) return 0.5
+          if (t.searchAliases?.some((a) => a.toLowerCase().includes(s))) return 0.5
+          return 0
+        }}>
+          <CommandInput placeholder="Search for your business type…" />
+          <CommandList className="max-h-[320px]">
+            <CommandEmpty>No business type found.</CommandEmpty>
+            {groups.map((g) => (
+              <CommandGroup key={g.id} heading={g.label}>
+                {g.items.map((t) => (
+                  <CommandItem
+                    key={t.id}
+                    value={t.id}
+                    onSelect={(v) => { onSelect(v); setOpen(false) }}
+                    className="items-start"
+                  >
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-medium">{t.label}</span>
+                      <span className="text-xs text-muted-foreground">{t.description}</span>
+                    </span>
+                    {value === t.id && <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }) {
   const router = useRouter()
@@ -255,27 +313,11 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
         <DialogContent>
           <DialogHeader><DialogTitle>Create new company</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            {/* The trigger carries the LABEL only. Label + description is ~78
-                characters, and SelectTrigger is whitespace-nowrap: inside this
-                grid dialog that string became the column's min-content width and
-                dragged the title, every input and the close button out past the
-                right edge of a phone. The description belongs in the list, where
-                there is room to wrap it. min-w-0 keeps the field shrinkable if a
-                future label ever gets long. */}
             <div className="min-w-0"><Label>Business type *</Label>
-              <Select value={form.businessTypeId} onValueChange={(v) => setForm({ ...form, businessTypeId: v })}>
-                <SelectTrigger className="w-full"><SelectValue>{chosen?.label}</SelectValue></SelectTrigger>
-                <SelectContent className="max-w-[calc(100vw-2rem)]">
-                  {BUSINESS_TYPES.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="items-start">
-                      <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="font-medium">{t.label}</span>
-                        <span className="text-xs text-muted-foreground">{t.description}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <BusinessTypeSelector
+                value={form.businessTypeId}
+                onSelect={(id) => setForm({ ...form, businessTypeId: id })}
+              />
               {needsTemplate(chosen) && (
                 <p className="text-xs text-slate-500 mt-1">
                   We&apos;ll automatically set up the recommended features, menus and starter categories for this business. You can customise them anytime in Setup → Business Features.
