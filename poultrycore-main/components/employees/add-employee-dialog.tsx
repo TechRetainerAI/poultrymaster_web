@@ -34,6 +34,11 @@ import {
   staffPermissionOptionsForCompanyType,
 } from "@/lib/employees/permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { usePermissions } from "@/hooks/use-permissions"
+import { PageAccessChecklist } from "@/components/employees/page-access-editor"
+import { pagesForCompanyType } from "@/lib/iam/page-catalog"
+import { defaultProfile } from "@/lib/iam/page-access-editor"
+import { setPageAccess } from "@/lib/api/iam"
 
 export interface EmployeePrefill { firstName: string; lastName: string; phoneNumber?: string | null; email?: string | null }
 
@@ -85,6 +90,10 @@ export function AddEmployeeDialog({
   const [boFarmId, setBoFarmId] = useState("")
   const [createForm, setCreateForm] = useState(blankForm())
   const [addToPayroll, setAddToPayroll] = useState(false)
+  // Per-company page access (506/507): the new person's ticks, saved right after the account is created.
+  const { pageAccess } = usePermissions()
+  const activeFarmTypeForPages = useAuthStore((s) => s.activeFarmType)
+  const [pageDraft, setPageDraft] = useState<Set<string>>(new Set())
   // Only the toggles that apply to the company this employee is being created
   // in. In Business Office mode that's whichever company is picked in the
   // selector above — the same rule Manage access uses, just with the one company
@@ -103,9 +112,16 @@ export function AddEmployeeDialog({
     setShowStaffPermissions(false)
     setAddToPayroll(payrollDefaultOn)
     setBoFarmId("")
+    setPageDraft(defaultProfile(pagesForCompanyType(activeFarmTypeForPages)))
     if (boMode) getMyCompanies().then(setBoCompanies).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps -- prefill is read once per opening
   }, [open, boMode])
+
+  // Business Office: the company is picked in the dialog, so the default ticks follow its type.
+  useEffect(() => {
+    if (!boMode || !boFarmId) return
+    setPageDraft(defaultProfile(pagesForCompanyType(boCompanies.find((c) => c.farmId === boFarmId)?.type)))
+  }, [boMode, boFarmId, boCompanies])
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -147,6 +163,11 @@ export function AddEmployeeDialog({
       featurePermissions: createForm.featurePermissions,
     }
     const result = await createEmployee(employeeData)
+    if (result.success && pageAccess && result.data?.id) {
+      // The account exists; now give it exactly the pages ticked in this dialog.
+      const pa = await setPageAccess(result.data.id, { farmId, permissionKeys: [...pageDraft], reason: "Set when the employee was added" })
+      if (!pa.success) toast({ title: "Employee created, but page access was not saved", description: pa.message, variant: "destructive" })
+    }
     if (result.success) {
       toast({ title: "Success!", description: "Employee created successfully." })
       const to = createForm.email.trim()
@@ -310,6 +331,20 @@ export function AddEmployeeDialog({
           </div>
           <div className="rounded-xl border border-slate-200 overflow-hidden">
             <div className="bg-slate-700 px-4 py-2 text-sm font-semibold text-white">Staff Page Access</div>
+            {pageAccess ? (
+              <div className="p-4 bg-white space-y-2">
+                <p className="text-xs text-slate-600">
+                  Common pages are ticked for you; sensitive ones (payroll, cash, profit &amp; loss, owner money…) are not.
+                  Untick anything this employee should not open.
+                </p>
+                <PageAccessChecklist
+                  pages={pagesForCompanyType(boMode ? boCompanies.find((c) => c.farmId === boFarmId)?.type : activeFarmTypeForPages)}
+                  draft={pageDraft}
+                  onDraftChange={setPageDraft}
+                  disabled={createLoading}
+                />
+              </div>
+            ) : (
             <div className="p-4 bg-white space-y-3">
               <p className="text-xs text-slate-600">Set exactly what employees can access.</p>
               <Button
@@ -347,6 +382,7 @@ export function AddEmployeeDialog({
                 </div>
               )}
             </div>
+            )}
           </div>
           {offerPayroll && !prefill && (
             <label className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 cursor-pointer">

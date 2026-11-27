@@ -86,7 +86,9 @@ export function useSearchPages(): SearchPage[] {
         ...gateReports(WATER_REPORT_NAV_GROUPS, gate),
       ])
     } else if (activeFarmType === "Generic") {
-      const g = buildGenericNavGroups(genericModules, isAdmin)
+      // Pass permissions: without them the generic builder skipped every gate,
+      // so search listed pages the menus hid.
+      const g = buildGenericNavGroups(genericModules, isAdmin, permissions)
       pages = flattenNavConfig({
         catalog: { label: "Operations", items: g.catalog },
         subscriptions: { label: "Subscriptions", items: g.subscriptions },
@@ -120,7 +122,8 @@ export function useSearchPages(): SearchPage[] {
       )
     }
     const home = homePage(activeFarmType)
-    return [home, ...pages.filter((p) => p.href !== home.href)]
+    // Page access: search never offers a page the person cannot open (same rule as the menus).
+    return [home, ...pages.filter((p) => p.href !== home.href && permissions.canOpen(p.href))]
   }, [permissions, activeFarmType, genericModules, quickLinkHrefs, showEggFeatures, showBroilerFeatures, livestockFeatures])
 }
 

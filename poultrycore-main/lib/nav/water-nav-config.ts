@@ -23,6 +23,7 @@ import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
 import type { MegaMenuGroup, NavGroup } from "./nav-model"
 import { resolveQuickLinks } from "./quick-links"
+import { applyPageAccess, legacyGate } from "@/lib/iam/nav-access"
 
 export interface WaterNavDeps {
   permissions: UserPermissions
@@ -56,7 +57,7 @@ export interface WaterNavConfig {
   system: MegaMenuGroup[]
 }
 
-export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, quickLinkHrefs }: WaterNavDeps): WaterNavConfig {
+function buildWaterNavConfigUnfiltered({ permissions, onOpenAlerts, alertCount, quickLinkHrefs }: WaterNavDeps): WaterNavConfig {
   // Same predicates the sidebar uses, so the two surfaces can't disagree about
   // who sees what. The top nav previously applied no gating at all.
   const canSeeStaff = permissions.isAdmin || permissions.featureAccess.canSeeEmployees
@@ -381,4 +382,13 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
     ...gated,
     quickLinks: { ...gated.quickLinks, items: resolveQuickLinks(gated, quickLinkHrefs) },
   }
+}
+
+/**
+ * Page access: the old flag rules stand aside (legacyGate) and every row is
+ * then kept only if the person may open it (applyPageAccess). No-ops until
+ * per-company page access is live. See lib/iam/nav-access.ts.
+ */
+export function buildWaterNavConfig(deps: WaterNavDeps): ReturnType<typeof buildWaterNavConfigUnfiltered> {
+  return applyPageAccess(buildWaterNavConfigUnfiltered({ ...deps, permissions: legacyGate(deps.permissions) }), deps.permissions)
 }

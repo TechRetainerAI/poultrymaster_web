@@ -75,9 +75,12 @@ export default function EmployeesPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null)
 
+  // Per-company page access: View Employees opens this page; before that, admins only.
+  const mayOpenEmployees = permissions.isAdmin || (permissions.pageAccess && permissions.can("office.employees.view"))
+
   useEffect(() => {
     if (permissions.isLoading) return
-    if (!permissions.isAdmin) { router.push("/dashboard"); return }
+    if (!mayOpenEmployees) { router.push("/dashboard"); return }
     loadEmployees()
 
     if (typeof window !== 'undefined') {
@@ -87,7 +90,7 @@ export default function EmployeesPage() {
       window.addEventListener('globalSearch', handleGlobalSearch as EventListener)
       return () => { window.removeEventListener('globalSearch', handleGlobalSearch as EventListener) }
     }
-  }, [permissions.isAdmin, permissions.isLoading])
+  }, [mayOpenEmployees, permissions.isLoading])
 
   const loadEmployees = async () => {
     try {
@@ -241,7 +244,7 @@ export default function EmployeesPage() {
     )
   }
 
-  if (!permissions.isAdmin && !loading) return null
+  if (!mayOpenEmployees && !loading) return null
 
   return (
     <PageShell boActive="users">

@@ -22,6 +22,7 @@ import {
 } from "@/lib/api/water"
 import { WaterIntelligenceSection } from "@/components/dashboard/water-intelligence"
 import { useFmt } from "@/lib/currency"
+import { useDashboardMoney } from "@/hooks/use-dashboard-money"
 
 function todayKey() {
   // YYYY-MM-DD in the user's local zone — matches the way ExpenseDate is rendered elsewhere
@@ -51,6 +52,7 @@ export default function WaterDashboardPage() {
   // Subscribes to currency settings so the toggle drives this page too.
   const fmtMoney = useFmt()
 
+  const showMoney = useDashboardMoney()
   const [summary, setSummary] = useState<WaterDashboardSummary | null>(null)
   const [expenses, setExpenses] = useState<WaterExpense[]>([])
   const [cashAccounts, setCashAccounts] = useState<WaterCashAccount[]>([])
@@ -180,6 +182,8 @@ export default function WaterDashboardPage() {
                 </Card>
               )}
 
+              {/* Page access: money tiles need "Dashboard money figures" (test 20). */}
+              {showMoney && (<>
               {/* Money row — the daily-question tiles from the Water spec §15 */}
               <section>
                 <div className="mb-2 text-xs uppercase tracking-wide text-slate-500 font-medium">Money today</div>
@@ -201,6 +205,7 @@ export default function WaterDashboardPage() {
                   <StatLink href="/water-payroll" icon={Banknote} title="Pending payroll" value={fmtMoney(unpaidPayrollNet)} accent={pendingPayroll.length > 0 ? "amber" : "sky"} subtitle={`${pendingPayroll.length} run${pendingPayroll.length === 1 ? "" : "s"} not paid`} />
                 </div>
               </section>
+              </>)}
 
               {/* Operations row — what existed before, slightly refactored */}
               <section>

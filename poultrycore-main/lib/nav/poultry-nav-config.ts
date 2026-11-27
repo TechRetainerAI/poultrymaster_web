@@ -25,6 +25,7 @@ import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import type { MegaMenuGroup, NavGroup, NavItem } from "./nav-model"
 import { resolveQuickLinks } from "./quick-links"
 import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
+import { applyPageAccess, legacyGate } from "@/lib/iam/nav-access"
 
 export interface PoultryNavDeps {
   permissions: UserPermissions
@@ -82,7 +83,7 @@ export interface PoultryNavConfig {
   system: MegaMenuGroup[]
 }
 
-export function buildPoultryNavConfig(
+function buildPoultryNavConfigUnfiltered(
   { permissions, onOpenAlerts, alertCount, quickLinkHrefs, showEggFeatures = true, showBroilerFeatures = true }: PoultryNavDeps,
 ): PoultryNavConfig {
   const { featureAccess, isAdmin } = permissions
@@ -586,4 +587,13 @@ export function buildPoultryNavConfig(
     ...config,
     quickLinks: { ...config.quickLinks, items: resolveQuickLinks(config, quickLinkHrefs) },
   }
+}
+
+/**
+ * Page access: the old flag rules stand aside (legacyGate) and every row is
+ * then kept only if the person may open it (applyPageAccess). No-ops until
+ * per-company page access is live. See lib/iam/nav-access.ts.
+ */
+export function buildPoultryNavConfig(deps: PoultryNavDeps): ReturnType<typeof buildPoultryNavConfigUnfiltered> {
+  return applyPageAccess(buildPoultryNavConfigUnfiltered({ ...deps, permissions: legacyGate(deps.permissions) }), deps.permissions)
 }

@@ -36,6 +36,8 @@ export function WaterAccessGuard() {
     // Wait for the flags: acting while they're still the loading defaults would
     // bounce people off pages they're allowed to see.
     if (permissions.isLoading) return
+    // Per-company page access (506/507) is decided by PageAccessGuard.
+    if (permissions.pageAccess) return
     if (activeFarmType !== "Water") return
     if (!localStorage.getItem("auth_token")) return
 
@@ -50,6 +52,7 @@ export function WaterAccessGuard() {
     router,
     activeFarmType,
     permissions.isLoading,
+    permissions.pageAccess,
     permissions.featureAccess,
     permissions.isAdmin,
   ])

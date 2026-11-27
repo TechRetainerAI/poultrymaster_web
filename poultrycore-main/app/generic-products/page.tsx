@@ -41,7 +41,7 @@ import {
   type GenericItemCostReconciliation,
 } from "@/lib/api/generic"
 import { getProductionRecords, type GenericProductionRecord } from "@/lib/api/generic-production"
-import { DEFAULT_UNITS } from "@/lib/generic/default-units"
+import { RAW_MATERIAL_UNITS, unitOptions } from "@/lib/units"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { filterByDateAndSearch } from "@/components/ui/list-filters"
 import { GenericServicesTab } from "@/components/generic/services-tab"
@@ -802,9 +802,8 @@ export default function GenericProductsPage() {
                   <SelectTrigger><SelectValue placeholder="e.g. kg, piece, litre" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— None —</SelectItem>
-                    {units.map((u) => (
-                      <SelectItem key={u.genericUnitOfMeasureId} value={u.unitName}>{u.unitName}</SelectItem>
-                    ))}
+                    {/* The same unit list as the poultry side (lib/units.ts). */}
+                    {unitOptions(form.unitOfMeasure).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <div className="flex gap-2 mt-1.5">
@@ -825,7 +824,7 @@ export default function GenericProductsPage() {
                     </Button>
                   )}
                 </div>
-                {form.unitOfMeasure && !units.some((u) => u.unitName.toLowerCase() === form.unitOfMeasure.toLowerCase()) && (
+                {form.unitOfMeasure && !RAW_MATERIAL_UNITS.some((u) => u.toLowerCase() === form.unitOfMeasure.toLowerCase()) && (
                   <p className="text-[11px] text-blue-600 mt-1">Custom unit &quot;{form.unitOfMeasure}&quot; will be added automatically when you save.</p>
                 )}
               </FormField>
@@ -838,26 +837,14 @@ export default function GenericProductsPage() {
                   <NumberInput step="0.01" min="0" value={form.sellingPrice} onChange={(e) => setForm((f) => ({ ...f, sellingPrice: e.target.value }))} />
                 </FormField>
                 <FormField label="Sales unit" hint="Unit used when selling (optional, defaults to base unit)">
-                  <Select value={form.salesUnit || "__none__"} onValueChange={async (v) => {
-                    const name = v === "__none__" ? "" : v.startsWith(DEFAULT_OPTION_PREFIX) ? v.slice(DEFAULT_OPTION_PREFIX.length) : v
-                    setForm((f) => ({ ...f, salesUnit: name }))
-                    if (v.startsWith(DEFAULT_OPTION_PREFIX)) await addSalesUnitToList(name)
+                  <Select value={form.salesUnit || "__none__"} onValueChange={(v) => {
+                    setForm((f) => ({ ...f, salesUnit: v === "__none__" ? "" : v }))
                   }}>
                     <SelectTrigger><SelectValue placeholder="e.g. piece" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">— Same as base unit —</SelectItem>
-                      {units.map((u) => (
-                        <SelectItem key={u.genericUnitOfMeasureId} value={u.unitName}>{u.unitName}</SelectItem>
-                      ))}
-                      {DEFAULT_UNITS
-                        .filter((name) => !units.some((u) => u.unitName.trim().toLowerCase() === name.toLowerCase()))
-                        .map((name) => (
-                          <SelectItem key={`default-${name}`} value={`${DEFAULT_OPTION_PREFIX}${name}`}>{name}</SelectItem>
-                        ))}
-                      {form.salesUnit && !units.some((u) => u.unitName.toLowerCase() === form.salesUnit.toLowerCase())
-                        && !DEFAULT_UNITS.some((n) => n.toLowerCase() === form.salesUnit.toLowerCase()) && (
-                        <SelectItem value={form.salesUnit}>{form.salesUnit}</SelectItem>
-                      )}
+                      {/* The same unit list as the poultry side (lib/units.ts). */}
+                      {unitOptions(form.salesUnit).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <div className="flex gap-1.5 mt-1.5">

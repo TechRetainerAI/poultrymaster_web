@@ -28,7 +28,12 @@ namespace User.Management.Service.Services
 
         public async Task<ApiResponse<List<CompanyResponse>>> GetMineAsync(string userId)
         {
-            var list = await _dal.GetByUserIdAsync(userId);
+            var all = await _dal.GetByUserIdAsync(userId);
+            // Page access upgrade: a company where this person is suspended or
+            // terminated is not offered in the company list (Business Office).
+            var list = new List<CompanyResponse>();
+            foreach (var c in all)
+                if (await _dal.GetMembershipStatusAsync(userId, c.FarmId) is null or "owner" or "active") list.Add(c);
             return new ApiResponse<List<CompanyResponse>>
             {
                 IsSuccess = true,
@@ -147,7 +152,8 @@ namespace User.Management.Service.Services
                 };
             }
 
-            var isMember = await _dal.IsMemberAsync(userId, targetFarmId);
+            var isMember = await _dal.IsMemberAsync(userId, targetFarmId)
+                && await _dal.GetMembershipStatusAsync(userId, targetFarmId) is not ("suspended" or "terminated");
             if (!isMember)
             {
                 return new ApiResponse<LoginResponse>

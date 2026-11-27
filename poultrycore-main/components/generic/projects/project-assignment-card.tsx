@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useProjectsEnabled } from "@/hooks/use-generic-projects"
 import { usePermissions } from "@/hooks/use-permissions"
 import {
-  getAllocations, reassignDocument, setSplit, type AllocationView, type CostClass, type ProjectSplit,
+  getAllocations, reassignDocument, setSplit, splitFromAllocation, type AllocationView, type CostClass, type ProjectSplit,
 } from "@/lib/api/generic-projects"
 import { ProjectPicker, GENERAL_LABEL } from "./project-picker"
 import { ProjectSplitEditor } from "./project-split-editor"
@@ -173,14 +173,14 @@ export function ProjectAssignmentCard({
       {splitLine && (
         <ProjectSplitEditor open={!!splitLine} onOpenChange={(v) => !v && setSplitLine(null)}
           title={`Split: ${splitLine.description}`} wholeQuantity={splitLine.quantity} wholeAmount={splitLine.amount} unit={splitLine.unit}
-          initial={activeFor(splitLine.lineId).map((a) => ({ projectId: a.projectId, share: a.share, costClass: a.costClass }))}
+          initial={activeFor(splitLine.lineId).map(splitFromAllocation)}
           onSave={(s) => saveSplit(splitLine.lineId, s)} />
       )}
       {splitDoc && (
         <ProjectSplitEditor open={splitDoc} onOpenChange={setSplitDoc} title="Split between projects"
           wholeAmount={amount ?? 0} showCostClass={documentType === "Expense"}
           initialCostClass={(activeFor(null)[0]?.costClass as CostClass) ?? "Direct"}
-          initial={activeFor(null).map((a) => ({ projectId: a.projectId, share: a.share, costClass: a.costClass }))}
+          initial={activeFor(null).map(splitFromAllocation)}
           onSave={(s) => saveSplit(null, s)} />
       )}
     </Card>

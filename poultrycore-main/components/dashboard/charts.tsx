@@ -12,6 +12,7 @@ import { getSales } from "@/lib/api/sale"
 import { getExpenses } from "@/lib/api/expense"
 import { getHealthRecords } from "@/lib/api/health"
 import { getUserContext } from "@/lib/utils/user-context"
+import { usePermissions } from "@/hooks/use-permissions"
 
 interface ActivityItem {
   id: string
@@ -28,12 +29,16 @@ export function DashboardCharts() {
   const closeAlerts = useAlertsStore(s => s.close)
   const alerts = useAlertsStore(s => s.alerts)
 
+  // Page access: recent sales/expenses only for people who may open those pages.
+  const { can, pageAccess } = usePermissions()
+  const seeSales = !pageAccess || can("poultry.sales.view")
+  const seeExpenses = !pageAccess || can("poultry.expenses.view")
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [loadingActivities, setLoadingActivities] = useState(true)
 
   useEffect(() => {
     loadRecentActivity()
-  }, [])
+  }, [seeSales, seeExpenses])
 
   const loadRecentActivity = async () => {
     const { userId, farmId } = getUserContext()
@@ -45,8 +50,8 @@ export function DashboardCharts() {
     try {
       const [prodRes, salesRes, expRes, healthRes] = await Promise.all([
         getProductionRecords(userId, farmId).catch(() => ({ success: false, data: [] })),
-        getSales(userId, farmId).catch(() => ({ success: false, data: [] })),
-        getExpenses(userId, farmId).catch(() => ({ success: false, data: [] })),
+        seeSales ? getSales(userId, farmId).catch(() => ({ success: false, data: [] })) : Promise.resolve({ success: false, data: [] }),
+        seeExpenses ? getExpenses(userId, farmId).catch(() => ({ success: false, data: [] })) : Promise.resolve({ success: false, data: [] }),
         getHealthRecords(userId, farmId).catch(() => ({ success: false, data: [] })),
       ])
 

@@ -21,6 +21,7 @@ import { quickLinkCatalogue, resolveQuickLinks, type CustomisableNav } from "./q
 import type { GenericModulesResult } from "@/hooks/use-generic-modules"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
+import { applyPageAccess, legacyGate } from "@/lib/iam/nav-access"
 
 export interface GenericNavConfig {
   billing: MegaMenuGroup[]
@@ -45,7 +46,7 @@ function gated(items: MegaMenuItem[]): MegaMenuItem[] {
   return items.filter((i) => i.visible !== false)
 }
 
-export function buildGenericNavConfig(modules: GenericModulesResult, permissions?: UserPermissions): GenericNavConfig {
+function buildGenericNavConfigUnfiltered(modules: GenericModulesResult, permissions?: UserPermissions): GenericNavConfig {
   const { showNew, showExisting, labels, isSubscriptionBusiness: isSub, industry } = modules
   const isSchool = industry === "School"
   const { featureAccess, isAdmin } = permissions ?? { featureAccess: {} as any, isAdmin: true }
@@ -387,8 +388,9 @@ function flattenGroup(groups: MegaMenuGroup[]): NavItem[] {
 export function buildGenericNavGroups(
   modules: Pick<GenericModulesResult, "showNew" | "showExisting" | "labels">,
   isAdmin: boolean,
+  permissions?: UserPermissions,
 ): GenericNavGroups {
-  const full = buildGenericNavConfig(modules as GenericModulesResult)
+  const full = buildGenericNavConfig(modules as GenericModulesResult, permissions)
   return {
     catalog: flattenGroup(full.catalog),
     subscriptions: flattenGroup(full.billing),
@@ -400,4 +402,13 @@ export function buildGenericNavGroups(
     setup: flattenGroup(full.setup),
     admin: flattenGroup(full.admin),
   }
+}
+
+/**
+ * Page access: the old flag rules stand aside (legacyGate) and every row is
+ * then kept only if the person may open it (applyPageAccess). No-ops until
+ * per-company page access is live. See lib/iam/nav-access.ts.
+ */
+export function buildGenericNavConfig(modules: GenericModulesResult, permissions?: UserPermissions): GenericNavConfig {
+  return applyPageAccess(buildGenericNavConfigUnfiltered(modules, legacyGate(permissions)), permissions)
 }

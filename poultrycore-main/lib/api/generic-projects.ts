@@ -212,13 +212,27 @@ export interface ProjectMilestone {
   amount?: number | null; billingReference?: string | null; notes?: string | null
 }
 
-/** One project's part of a transaction (or line). Give ONE of share / amount / quantity. */
+/** One project's part of a transaction (or line). Give one of share / amount / quantity; when a share is given the server uses it. */
 export interface ProjectSplit {
   projectId: number
   share?: number
   amount?: number
   quantity?: number
   costClass?: CostClass
+}
+
+/**
+ * A saved allocation as a split. The share is what gets saved again; the amount
+ * or quantity the user typed comes along so the split editor can show it as
+ * typed instead of share x whole (which showed 664,815 as 664815.22816).
+ */
+export function splitFromAllocation(a: { projectId: number; share: number; basis?: string | null; enteredValue?: number | null; costClass?: CostClass }): ProjectSplit {
+  const typed = a.enteredValue != null && a.enteredValue > 0 ? a.enteredValue : undefined
+  return {
+    projectId: a.projectId, share: a.share, costClass: a.costClass,
+    ...(a.basis === "Amount" && typed != null ? { amount: typed } : {}),
+    ...(a.basis === "Quantity" && typed != null ? { quantity: typed } : {}),
+  }
 }
 
 /**

@@ -13,8 +13,11 @@
 // account or pay more principal than is owed, a loan with posted repayments
 // cannot be cancelled, and reversing or cancelling needs a reason.
 //
-// Beyond Poultry's page: Edit (terms only — the money is never edited) and
-// Cancel, which Poultry has on its API but not on its page.
+// 509: Draft -> Approve, like Poultry's employee advances. A Draft has posted
+// nothing and edits everything. Approve posts the money; after that only a
+// light edit (lender, account number, due dates, notes). Reverse takes an
+// approved loan back to Draft (money out again) so it can be corrected and
+// approved again. Cancel discards a Draft.
 
 import { CANCEL_REASONS, LOAN_REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { ReasonSelect } from "@/components/ui/reason-select"
@@ -36,7 +39,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
-import { Ban, Banknote, ChevronDown, ChevronRight, HandCoins, Loader2, Pencil, Plus, Undo2 } from "lucide-react"
+import { Ban, Banknote, CheckCircle2, ChevronDown, ChevronRight, HandCoins, Loader2, Pencil, Plus, Undo2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -47,13 +50,12 @@ import {
 } from "@/components/cash/loan-repayment-dialog"
 import {
   getCashAccounts, getLoans, getAllLoanPayments, createLoan, updateLoan, cancelLoan,
-  repayLoan, reverseLoanPayment,
+  approveLoan, reverseLoan, repayLoan, reverseLoanPayment,
   type GenericCashAccount, type GenericLoan, type GenericLoanPayment,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
 import { ProjectHead, ProjectSplitLabels, ProjectSplitTable, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, loadSingleProject, type SingleProjectValue,
 } from "@/components/generic/projects/form-project-field"
@@ -62,8 +64,7 @@ import { useProjectsEnabled } from "@/hooks/use-generic-projects"
 const LENDER_TYPES = ["Bank", "FinancialInstitution", "Individual", "Owner", "FamilyFriend", "Supplier", "Other"]
 const INTEREST_TYPES = ["Simple", "ReducingBalance", "Flat", "Unknown"]
 const FREQUENCIES = ["Weekly", "BiWeekly", "Monthly", "Quarterly", "Custom"]
-// Generic loans have no Draft state (Poultry's list has one).
-const STATUS_FILTERS = ["All", "Active", "PaidOff", "Cancelled"] as const
+const STATUS_FILTERS = ["All", "Draft", "Active", "PaidOff", "Cancelled"] as const
 
 function today() { return new Date().toISOString().slice(0, 10) }
 const dateOnly = (d?: string | null) => (d ? d.slice(0, 10) : "")
@@ -86,15 +87,20 @@ const toLoanOption = (l: GenericLoan): RepayableLoanOption => ({
 function statusClass(l: GenericLoan) {
   if (l.status === "PaidOff") return "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
   if (l.status === "Cancelled") return "bg-slate-100 text-slate-700 hover:bg-slate-100"
+  if (l.status === "Draft") return "bg-sky-100 text-sky-800 hover:bg-sky-100"
   if (l.isOverdue) return "bg-rose-100 text-rose-800 hover:bg-rose-100"
   return "bg-amber-100 text-amber-800 hover:bg-amber-100"
 }
 
-const canEdit = (l: GenericLoan) => l.status !== "Cancelled"
-// Same rule as the SP: reverse every repayment first.
-// Reverse (the SP's cancel) is offered on every live loan; repayments must be
+const isDraft = (l: GenericLoan) => l.status === "Draft"
+/** Approved = the money has posted (Active / PaidOff). */
+const isApproved = (l: GenericLoan) => l.status === "Active" || l.status === "PaidOff"
+// A Draft edits everything; an approved loan gets the light edit.
+const canEdit = (l: GenericLoan) => isDraft(l) || isApproved(l)
+// Reverse (back to Draft) is offered on every approved loan; repayments must be
 // reversed first, and the dialog says so rather than hiding the action.
-const canCancel = (l: GenericLoan) => l.status !== "Cancelled"
+const canReverse = isApproved
+const canCancel = isDraft
 
 const blankForm = () => ({
   lenderName: "", lenderType: "Bank", accountNumber: "",
@@ -256,10 +262,12 @@ export default function GenericLoansPage() {
 
   const [repaying, setRepaying] = useState<GenericLoan | null>(null)
   const [reversing, setReversing] = useState<GenericLoanPayment | null>(null)
+  /** Reverse (approved -> Draft) or Cancel (Draft -> Cancelled); which one follows the loan's status. */
   const [cancelling, setCancelling] = useState<GenericLoan | null>(null)
-  /** After reversing, open a new loan with the same details so the amounts can be corrected. */
-  const [reEnter, setReEnter] = useState(true)
+  const [approving, setApproving] = useState<GenericLoan | null>(null)
   const [reason, setReason] = useState("")
+  /** Editing an approved loan: only the light fields are open. */
+  const lightEdit = !!editing && !isDraft(editing)
 
   const paymentsByLoan = useMemo(() => {
     const m = new Map<number, GenericLoanPayment[]>()
@@ -318,13 +326,15 @@ export default function GenericLoansPage() {
   // Poultry reads these from sppoultryloan_summary; the same sums, over the list.
   const summary = useMemo(() => {
     const loans = projectLoans
-    const live = loans.filter((l) => l.status !== "Cancelled")
+    // A Draft has posted nothing, so it is not borrowed money yet.
+    const live = loans.filter(isApproved)
     const due = loans
       .filter((l) => l.status === "Active" && l.outstandingBalance > 0 && l.nextPaymentDate)
       .map((l) => l.nextPaymentDate as string)
       .sort()
     return {
       activeLoans: loans.filter((l) => l.status === "Active").length,
+      draftLoans: loans.filter(isDraft).length,
       totalBorrowed: live.reduce((s, l) => s + l.originalPrincipal, 0),
       totalReceived: live.reduce((s, l) => s + l.amountReceived, 0),
       outstandingPrincipal: loans.reduce((s, l) => s + l.outstandingBalance, 0),
@@ -375,15 +385,40 @@ export default function GenericLoansPage() {
     setNewOpen(true)
   }
 
-  const saveLoan = async () => {
+  /** approve = also post the money (Save & Approve). A light edit never approves. */
+  const saveLoan = async (approve: boolean) => {
     if (!form.lenderName.trim()) { toast({ title: "Who lent the money?", variant: "destructive" }); return }
+    const princ = Number(form.originalPrincipal) || 0
+    const recv = Number(form.amountReceived) || 0
+    if (!lightEdit) {
+      if (princ <= 0) { toast({ title: "Enter the loan amount", variant: "destructive" }); return }
+      if (recv > princ) { toast({ title: "Received cannot exceed the principal", variant: "destructive" }); return }
+      if (approve && recv > 0 && !form.genericCashAccountId) {
+        toast({ title: "Choose the cash account", variant: "destructive" }); return
+      }
+    }
     setSaving(true)
     try {
-      if (editing) {
+      if (editing && lightEdit) {
+        // Approved: the light fields only.
         await updateLoan(editing.genericLoanId, {
           lenderName: form.lenderName.trim(),
           lenderType: form.lenderType,
           accountNumber: form.accountNumber.trim() || null,
+          nextPaymentDate: form.nextPaymentDate || null,
+          notes: form.notes.trim() || null,
+        })
+        toast({ title: "Loan updated" })
+      } else if (editing) {
+        // Draft: everything.
+        await updateLoan(editing.genericLoanId, {
+          lenderName: form.lenderName.trim(),
+          lenderType: form.lenderType,
+          accountNumber: form.accountNumber.trim() || null,
+          originalPrincipal: princ,
+          amountReceived: recv,
+          genericCashAccountId: form.genericCashAccountId ? Number(form.genericCashAccountId) : null,
+          loanDate: form.startDate || null,
           interestRate: form.interestRate ? Number(form.interestRate) : null,
           interestType: form.interestType || null,
           termMonths: form.termMonths ? Number(form.termMonths) : null,
@@ -392,22 +427,21 @@ export default function GenericLoansPage() {
           notes: form.notes.trim() || null,
           projects: projectsEnabled && projectChanged ? singleAssignment({ ...project, costClass: "Financing" }) : undefined,
         })
-        toast({ title: "Loan updated" })
-      } else {
-        const princ = Number(form.originalPrincipal) || 0
-        const recv = Number(form.amountReceived) || 0
-        if (princ <= 0) { toast({ title: "Enter the loan amount", variant: "destructive" }); return }
-        if (recv > princ) { toast({ title: "Received cannot exceed the principal", variant: "destructive" }); return }
-        if (recv > 0 && !form.genericCashAccountId) {
-          toast({ title: "Which account received it?", variant: "destructive" }); return
+        if (approve) {
+          await approveLoan(editing.genericLoanId)
+          toast({ title: "Loan approved", description: recv > 0 ? `${fmt(recv)} in. It is money in, not revenue.` : "Nothing was received, so no cash moved." })
+        } else {
+          toast({ title: "Draft saved", description: "Nothing has posted. Approve it when the details are right." })
         }
+      } else {
         await createLoan({
+          approve,
           lenderName: form.lenderName.trim(),
           lenderType: form.lenderType,
           accountNumber: form.accountNumber.trim() || null,
           originalPrincipal: princ,
           amountReceived: recv,
-          genericCashAccountId: recv > 0 ? Number(form.genericCashAccountId) : null,
+          genericCashAccountId: form.genericCashAccountId ? Number(form.genericCashAccountId) : null,
           loanDate: form.startDate,
           startDate: form.startDate,
           interestRate: form.interestRate ? Number(form.interestRate) : null,
@@ -419,18 +453,40 @@ export default function GenericLoansPage() {
           projects: projectsEnabled && (project.projectId != null || project.splits?.length)
             ? singleAssignment({ ...project, costClass: "Financing" }) : undefined,
         })
-        toast({
-          title: "Loan recorded",
-          description: recv > 0
-            ? `${fmt(recv)} in. It is money in, not revenue — the business borrowed it.`
-            : "No money recorded as received yet.",
-        })
+        toast(approve
+          ? {
+              title: "Loan recorded and approved",
+              description: recv > 0
+                ? `${fmt(recv)} in. It is money in, not revenue — the business borrowed it.`
+                : "No money recorded as received yet.",
+            }
+          : { title: "Saved as Draft", description: "Nothing has posted. Approve it when the details are right." })
       }
       setNewOpen(false); setEditing(null)
       await load()
     } catch (e: any) {
       toast({ title: editing ? "Could not update the loan" : "Could not record the loan",
               description: e?.message ?? String(e), variant: "destructive" })
+      // A Draft saved but refused on approval: show it as it now is.
+      if (editing && approve) void load()
+    } finally { setSaving(false) }
+  }
+
+  const doApprove = async () => {
+    if (!approving) return
+    setSaving(true)
+    try {
+      await approveLoan(approving.genericLoanId)
+      toast({
+        title: "Loan approved",
+        description: approving.amountReceived > 0
+          ? `${fmt(approving.amountReceived)} into ${approving.accountName ?? "the account"}. From now on only a light edit is allowed.`
+          : "Nothing was received, so no cash moved. From now on only a light edit is allowed.",
+      })
+      setApproving(null)
+      await load()
+    } catch (e: any) {
+      toast({ title: "Could not approve the loan", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setSaving(false) }
   }
 
@@ -458,37 +514,30 @@ export default function GenericLoansPage() {
       return
     }
     setSaving(true)
+    const draft = isDraft(cancelling)
     try {
-      const reversed = cancelling
-      // Read its project split BEFORE reversing, to carry it to the new loan.
-      const split = reEnter && projectsEnabled ? await loadSingleProject("Loan", reversed.genericLoanId) : null
-      await cancelLoan(cancelling.genericLoanId, reason.trim())
-      toast({
-        title: "Loan reversed",
-        description: cancelling.amountReceived > 0
-          ? `${fmt(cancelling.amountReceived)} taken back out of ${cancelling.accountName ?? "the account"}.`
-          : "Nothing was received, so no cash moved.",
-      })
-      setCancelling(null); setReason("")
-      await load()
-      if (reEnter) {
-        // A NEW loan with the reversed one's details; change the amounts and save.
-        setEditing(null)
-        setForm({
-          lenderName: reversed.lenderName ?? "", lenderType: reversed.lenderType || "Other", accountNumber: reversed.accountNumber ?? "",
-          originalPrincipal: String(reversed.originalPrincipal), amountReceived: String(reversed.amountReceived),
-          genericCashAccountId: reversed.genericCashAccountId ? String(reversed.genericCashAccountId) : "",
-          startDate: dateOnly(reversed.startDate ?? reversed.loanDate),
-          interestRate: reversed.interestRate ? String(reversed.interestRate) : "", interestType: reversed.interestType || "Unknown",
-          termMonths: reversed.termMonths != null ? String(reversed.termMonths) : "", paymentFrequency: reversed.paymentFrequency || "Monthly",
-          nextPaymentDate: dateOnly(reversed.nextPaymentDate), notes: reversed.notes ?? "",
+      if (draft) {
+        await cancelLoan(cancelling.genericLoanId, reason.trim())
+        toast({ title: "Draft cancelled", description: "Nothing had posted, so no cash moved." })
+        setCancelling(null); setReason("")
+        await load()
+      } else {
+        // Back to Draft: the money comes back out, then the loan opens for a full edit.
+        const reversed = cancelling
+        await reverseLoan(reversed.genericLoanId, reason.trim())
+        toast({
+          title: "Loan back to Draft",
+          description: reversed.amountReceived > 0
+            ? `${fmt(reversed.amountReceived)} taken back out of ${reversed.accountName ?? "the account"}. Correct it and approve it again.`
+            : "Nothing was received, so no cash moved. Correct it and approve it again.",
         })
-        setProject(split ? { ...split, costClass: "Financing" } : { ...EMPTY_SINGLE_PROJECT, costClass: "Financing" })
-        setProjectChanged(false)
-        setNewOpen(true)
+        setCancelling(null); setReason("")
+        await load()
+        openEdit({ ...reversed, status: "Draft" })
       }
     } catch (e: any) {
-      toast({ title: "Could not reverse the loan", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: draft ? "Could not cancel the draft" : "Could not reverse the loan",
+              description: e?.message ?? String(e), variant: "destructive" })
     } finally { setSaving(false) }
   }
 
@@ -518,7 +567,7 @@ export default function GenericLoansPage() {
 
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
             <Stat label="Still owed" value={fmt(summary.outstandingPrincipal)}
-                  hint={`${summary.activeLoans} active loan(s)`} accent="violet" />
+                  hint={`${summary.activeLoans} active loan(s)${summary.draftLoans ? ` · ${summary.draftLoans} draft` : ""}`} accent="violet" />
             <Stat label="Borrowed" value={fmt(summary.totalBorrowed)}
                   hint={`${fmt(summary.totalReceived)} received`} />
             <Stat label="Principal repaid" value={fmt(summary.totalPrincipalRepaid)} accent="emerald" />
@@ -594,15 +643,26 @@ export default function GenericLoansPage() {
                       <HandCoins className="h-4 w-4 mr-1" /> Repay
                     </Button>
                   )}
+                  {isDraft(l) && (
+                    <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700" onClick={() => setApproving(l)}>
+                      <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                    </Button>
+                  )}
                   {canEdit(l) && (
                     <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(l)}>
                       <Pencil className="h-4 w-4 mr-1" /> Edit
                     </Button>
                   )}
-                  {canCancel(l) && (
+                  {canReverse(l) && (
                     <Button size="sm" variant="outline" className="flex-1 h-10 text-rose-700"
                             onClick={() => { setCancelling(l); setReason("") }}>
                       <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                    </Button>
+                  )}
+                  {canCancel(l) && (
+                    <Button size="sm" variant="outline" className="flex-1 h-10 text-rose-700"
+                            onClick={() => { setCancelling(l); setReason("") }}>
+                      <Ban className="h-4 w-4 mr-1" /> Cancel
                     </Button>
                   )}
                 </>
@@ -614,6 +674,7 @@ export default function GenericLoansPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-8" />
+                        <TableHead>Date</TableHead>
                         <TableHead>Loan #</TableHead>
                         <TableHead>Lender</TableHead>
                         {projectLabels.enabled && <ProjectHead />}
@@ -639,6 +700,7 @@ export default function GenericLoansPage() {
                             {open ? <ChevronDown className="w-4 h-4 text-slate-400" />
                                   : <ChevronRight className="w-4 h-4 text-slate-400" />}
                           </TableCell>
+                          <TableCell className="whitespace-nowrap">{fmtDateTime(l.startDate ?? l.loanDate, l)}</TableCell>
                           <TableCell className="font-medium">
                             {l.loanNumber ?? `#${l.genericLoanId}`}
                             <div className="text-xs text-slate-500">
@@ -671,16 +733,29 @@ export default function GenericLoansPage() {
                                   <HandCoins className="h-3 w-3 mr-1" /> Repay
                                 </Button>
                               )}
+                              {isDraft(l) && (
+                                <Button size="sm" variant="outline" className="text-emerald-700"
+                                        onClick={(e) => { e.stopPropagation(); setApproving(l) }}>
+                                  <CheckCircle2 className="h-3 w-3 mr-1" /> Approve
+                                </Button>
+                              )}
                               {canEdit(l) && (
-                                <Button size="sm" variant="outline" title="Edit the loan's terms"
+                                <Button size="sm" variant="outline"
+                                        title={isDraft(l) ? "Edit the draft" : "Light edit: lender, account number, due date, notes"}
                                         onClick={(e) => { e.stopPropagation(); openEdit(l) }}>
                                   <Pencil className="h-3 w-3" />
                                 </Button>
                               )}
-                              {canCancel(l) && (
-                                <Button size="sm" variant="outline" className="text-rose-700" title="Reverse the loan (to correct its amounts, reverse and re-enter it)"
+                              {canReverse(l) && (
+                                <Button size="sm" variant="outline" className="text-rose-700" title="Reverse the loan back to Draft (to correct it)"
                                         onClick={(e) => { e.stopPropagation(); setCancelling(l); setReason("") }}>
                                   <Undo2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                              {canCancel(l) && (
+                                <Button size="sm" variant="outline" className="text-rose-700" title="Cancel the draft"
+                                        onClick={(e) => { e.stopPropagation(); setCancelling(l); setReason("") }}>
+                                  <Ban className="h-3 w-3" />
                                 </Button>
                               )}
                             </div>
@@ -688,7 +763,7 @@ export default function GenericLoansPage() {
                         </TableRow>
                         {open && (
                           <TableRow>
-                            <TableCell colSpan={projectLabels.enabled ? 13 : 12} className="bg-slate-50 p-0">
+                            <TableCell colSpan={projectLabels.enabled ? 14 : 13} className="bg-slate-50 p-0">
                               {projectLabels.enabled && projectLabels.partsOf(l.genericLoanId).length > 0 && (
                                 <div className="border-b border-slate-200 px-4 py-3">
                                   <ProjectSplitTable title={`Project split of ${fmt(l.originalPrincipal)} borrowed`}
@@ -721,12 +796,14 @@ export default function GenericLoansPage() {
         <DialogContent className="max-w-2xl sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Banknote className="w-5 h-5 text-violet-600" /> {editing ? "Edit Loan" : "Record a Loan"}
+              <Banknote className="w-5 h-5 text-violet-600" /> {!editing ? "Record a Loan" : lightEdit ? "Edit Approved Loan" : "Edit Draft Loan"}
             </DialogTitle>
             <DialogDescription>
-              {editing
-                ? "Terms only. The amounts and the account cannot change — cancel the loan and record it again if they were wrong."
-                : "The money arriving is cash in, but it is not revenue — the business borrowed it and still owes it."}
+              {lightEdit
+                ? "This loan is approved, so only a light edit is allowed: lender, account number, next payment date and notes. To change the amounts or terms, reverse it back to Draft."
+                : editing
+                  ? "A Draft has posted nothing — everything can change. Approve it when the details are right; the money posts then."
+                  : "Save it as a Draft to check it first, or approve it now. The money arriving is cash in, but it is not revenue — the business borrowed it and still owes it."}
             </DialogDescription>
           </DialogHeader>
 
@@ -751,16 +828,16 @@ export default function GenericLoansPage() {
             <FormSection title="The money" color="green">
               <FormField label="Amount borrowed *"
                          info="What the business OWES. This is what the debt starts at.">
-                <NumberInput value={form.originalPrincipal} min={0} disabled={!!editing}
+                <NumberInput value={form.originalPrincipal} min={0} disabled={lightEdit}
                              onChange={(e) => setForm((f) => ({ ...f, originalPrincipal: e.target.value }))} />
               </FormField>
               <FormField label="Amount received"
                          info="What actually ARRIVED. Less than the principal when the lender withheld a fee.">
-                <NumberInput value={form.amountReceived} min={0} disabled={!!editing}
+                <NumberInput value={form.amountReceived} min={0} disabled={lightEdit}
                              onChange={(e) => setForm((f) => ({ ...f, amountReceived: e.target.value }))} />
               </FormField>
-              <FormField label="Account that received it" full>
-                <Select value={form.genericCashAccountId} disabled={!!editing}
+              <FormField label="Cash account" full>
+                <Select value={form.genericCashAccountId} disabled={lightEdit}
                         onValueChange={(v) => setForm((f) => ({ ...f, genericCashAccountId: v }))}>
                   <SelectTrigger><SelectValue placeholder="Where did the money land?" /></SelectTrigger>
                   <SelectContent>
@@ -772,7 +849,7 @@ export default function GenericLoansPage() {
                   </SelectContent>
                 </Select>
               </FormField>
-              {!editing && Number(form.originalPrincipal) > Number(form.amountReceived) && Number(form.amountReceived) > 0 && (
+              {!lightEdit && Number(form.originalPrincipal) > Number(form.amountReceived) && Number(form.amountReceived) > 0 && (
                 <div className="col-span-full text-xs text-slate-500">
                   {fmt(Number(form.originalPrincipal) - Number(form.amountReceived))} less than the
                   principal — usually a fee the lender withheld. You will still owe the full{" "}
@@ -784,7 +861,7 @@ export default function GenericLoansPage() {
 
             <FormSection title="Terms" color="blue">
               <FormField label="Start date *">
-                <Input type="date" value={form.startDate} disabled={!!editing}
+                <Input type="date" value={form.startDate} disabled={lightEdit}
                        onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
               </FormField>
               <FormField label="Next payment due">
@@ -792,28 +869,28 @@ export default function GenericLoansPage() {
                        onChange={(e) => setForm((f) => ({ ...f, nextPaymentDate: e.target.value }))} />
               </FormField>
               <FormField label="Interest rate (%)">
-                <NumberInput value={form.interestRate} min={0}
+                <NumberInput value={form.interestRate} min={0} disabled={lightEdit}
                              onChange={(e) => setForm((f) => ({ ...f, interestRate: e.target.value }))} />
               </FormField>
               <FormField label="Interest type">
-                <Select value={form.interestType} onValueChange={(v) => setForm((f) => ({ ...f, interestType: v }))}>
+                <Select value={form.interestType} disabled={lightEdit} onValueChange={(v) => setForm((f) => ({ ...f, interestType: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{INTEREST_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                 </Select>
               </FormField>
               <FormField label="Term (months)">
-                <NumberInput value={form.termMonths} min={0}
+                <NumberInput value={form.termMonths} min={0} disabled={lightEdit}
                              onChange={(e) => setForm((f) => ({ ...f, termMonths: e.target.value }))} />
               </FormField>
               <FormField label="Repayment frequency">
-                <Select value={form.paymentFrequency} onValueChange={(v) => setForm((f) => ({ ...f, paymentFrequency: v }))}>
+                <Select value={form.paymentFrequency} disabled={lightEdit} onValueChange={(v) => setForm((f) => ({ ...f, paymentFrequency: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{FREQUENCIES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                 </Select>
               </FormField>
             </FormSection>
 
-            {projectsEnabled && (
+            {projectsEnabled && !lightEdit && (
               <FormSection title="Project / contract" color="slate" columns={1}>
                 <FormField label="Project / contract">
                   <SingleProjectField value={project} onChange={changeProject} amount={Number(form.amountReceived) || 0}
@@ -834,10 +911,24 @@ export default function GenericLoansPage() {
           <div className="flex gap-3 justify-end pt-2">
             <Button type="button" onClick={() => { setNewOpen(false); setEditing(null) }}
                     className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
-            <Button onClick={saveLoan} disabled={saving}>
-              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{editing ? "Saving..." : "Recording..."}</>
-                      : <><Banknote className="w-4 h-4 mr-2" />{editing ? "Save Changes" : "Record Loan"}</>}
-            </Button>
+            {lightEdit ? (
+              <Button onClick={() => saveLoan(false)} disabled={saving}>
+                {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                        : <><Pencil className="w-4 h-4 mr-2" />Save Changes</>}
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => saveLoan(false)} disabled={saving}>
+                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Banknote className="w-4 h-4 mr-2" />}
+                  {editing ? "Save Draft" : "Save as Draft"}
+                </Button>
+                <Button onClick={() => saveLoan(true)} disabled={saving}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                  Save &amp; Approve
+                </Button>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -914,23 +1005,25 @@ export default function GenericLoansPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ---- cancel loan ------------------------------------------------ */}
+      {/* ---- reverse to Draft (approved) / cancel (Draft) --------------- */}
       <Dialog open={!!cancelling} onOpenChange={(o) => { if (!o) { setCancelling(null); setReason("") } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Undo2 className="w-5 h-5 text-rose-600" /> Reverse loan
+              {cancelling && isDraft(cancelling)
+                ? <><Ban className="w-5 h-5 text-rose-600" /> Cancel draft loan</>
+                : <><Undo2 className="w-5 h-5 text-rose-600" /> Reverse loan to Draft</>}
             </DialogTitle>
             <DialogDescription>
-              The loan is reversed: the debt comes off the books and the money received is taken back out of the
-              account it landed in. It stays on the record as Cancelled. To correct a loan&apos;s amounts, reverse it
-              and record it again.
+              {cancelling && isDraft(cancelling)
+                ? "Nothing has posted on a Draft, so no cash moves. It stays on the record as Cancelled."
+                : "The money received is taken back out of the account it landed in and the debt comes off the books. The loan goes back to Draft, where everything can be corrected and approved again."}
             </DialogDescription>
           </DialogHeader>
 
           {cancelling && (
             <div className="space-y-4">
-              <FormSection title="Loan being reversed" color="slate" columns={1}>
+              <FormSection title={isDraft(cancelling) ? "Draft being cancelled" : "Loan being reversed"} color="slate" columns={1}>
                 <div className="text-sm">
                   <div className="font-medium">{cancelling.loanNumber ?? "#" + cancelling.genericLoanId} · {cancelling.lenderName}</div>
                   <div className="mt-1">
@@ -947,17 +1040,11 @@ export default function GenericLoansPage() {
                   repayment), then reverse the loan.
                 </div>
               ) : (
-                <>
-                  <FormSection title="Why" color="amber" columns={1}>
-                    <FormField label="Reason *" hint="Written to the audit trail.">
-                      <ReasonSelect options={CANCEL_REASONS} value={reason} onChange={setReason} />
-                    </FormField>
-                  </FormSection>
-                  <label className="flex items-start gap-2 text-sm text-slate-700">
-                    <Checkbox checked={reEnter} onCheckedChange={(v) => setReEnter(v === true)} className="mt-0.5" />
-                    <span>Then record it again with the same details{projectsEnabled ? " and project split" : ""}, so I can correct the amounts</span>
-                  </label>
-                </>
+                <FormSection title="Why" color="amber" columns={1}>
+                  <FormField label="Reason *" hint="Written to the audit trail.">
+                    <ReasonSelect options={isDraft(cancelling) ? CANCEL_REASONS : LOAN_REVERSAL_REASONS} value={reason} onChange={setReason} />
+                  </FormField>
+                </FormSection>
               )}
             </div>
           )}
@@ -966,8 +1053,47 @@ export default function GenericLoansPage() {
             <Button type="button" onClick={() => { setCancelling(null); setReason("") }}
                     className="bg-red-600 hover:bg-red-700 text-white">Keep loan</Button>
             <Button variant="destructive" onClick={doCancel} disabled={saving || (cancelling?.paymentCount ?? 0) > 0}>
-              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Reversing...</>
-                      : <><Undo2 className="w-4 h-4 mr-2" />Reverse loan</>}
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      : cancelling && isDraft(cancelling) ? <Ban className="w-4 h-4 mr-2" /> : <Undo2 className="w-4 h-4 mr-2" />}
+              {cancelling && isDraft(cancelling) ? "Cancel draft" : "Reverse to Draft"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---- approve a Draft ---------------------------------------------- */}
+      <Dialog open={!!approving} onOpenChange={(o) => { if (!o) setApproving(null) }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" /> Approve loan
+            </DialogTitle>
+            <DialogDescription>
+              Approving posts the loan: the money received goes into the account and the debt starts. After this only a
+              light edit is allowed (lender, account number, next payment date, notes). To change anything else, reverse it
+              back to Draft.
+            </DialogDescription>
+          </DialogHeader>
+
+          {approving && (
+            <FormSection title="Loan being approved" color="slate" columns={1}>
+              <div className="text-sm">
+                <div className="font-medium">{approving.loanNumber ?? "#" + approving.genericLoanId} · {approving.lenderName}</div>
+                <div className="mt-1">
+                  {fmt(approving.originalPrincipal)} borrowed · {fmt(approving.amountReceived)} received
+                  {approving.amountReceived > 0 ? ` into ${approving.accountName ?? "— no account chosen"}` : ""}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">{fmtDateTime(approving.startDate ?? approving.loanDate, approving)}</div>
+              </div>
+            </FormSection>
+          )}
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button type="button" onClick={() => setApproving(null)}
+                    className="bg-red-600 hover:bg-red-700 text-white">Not yet</Button>
+            <Button onClick={doApprove} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Approving...</>
+                      : <><CheckCircle2 className="w-4 h-4 mr-2" />Approve</>}
             </Button>
           </div>
         </DialogContent>

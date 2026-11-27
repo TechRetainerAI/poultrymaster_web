@@ -45,6 +45,22 @@ namespace PoultryFarmAPIWeb.Controllers
             catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(ex.MessageText); }
         }
 
+        // 509: Draft -> Active (the money posts).
+        [HttpPost("{loanId:int}/approve")]
+        public async Task<IActionResult> Approve(string farmId, int loanId, [FromBody] GenericLoanReasonRequest? req)
+        {
+            try { await _svc.ApproveAsync(loanId, farmId, req?.By); return NoContent(); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(ex.MessageText); }
+        }
+
+        // 509: an approved loan goes back to Draft (the money received comes back out).
+        [HttpPost("{loanId:int}/reverse")]
+        public async Task<IActionResult> Reverse(string farmId, int loanId, [FromBody] GenericLoanReasonRequest req)
+        {
+            try { await _svc.ReverseAsync(loanId, farmId, req.Reason, req.By); return NoContent(); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(ex.MessageText); }
+        }
+
         /// <summary>Every repayment of the company, newest first, reversed ones included.</summary>
         [HttpGet("payments")]
         public async Task<ActionResult<IEnumerable<GenericLoanPaymentModel>>> AllPayments(string farmId)

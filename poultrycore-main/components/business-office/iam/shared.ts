@@ -12,11 +12,14 @@ export const ACTION_LABEL: Record<string, string> = {
 }
 
 export const MODULE_LABEL: Record<string, string> = {
-  poultry: "Poultry", water: "Water", generic: "Company", office: "Business Office",
+  poultry: "Poultry", water: "Water", generic: "Company", hotel: "Hotel", restaurant: "Restaurant",
+  livestock: "Livestock", office: "Business Office",
 }
 
 export const MODULE_FOR_COMPANY_TYPE: Record<string, string> = {
   Poultry: "poultry", Water: "water", Generic: "generic",
+  // Page access upgrade: these had no catalog module, so the matrix showed them poultry's.
+  Hotel: "hotel", Restaurant: "restaurant", Livestock: "livestock",
 }
 
 export function moduleForCompanyType(type: string | null | undefined): string {

@@ -97,7 +97,8 @@ export default function GenericMoneyMovementPage() {
 
   const contributions = sum(omLive.filter((r) => r.entryType === "Contribution"), (r) => r.amount)
   const draws = sum(omLive.filter((r) => r.entryType === "Draw"), (r) => r.amount)
-  const liveLoans = loans.filter((l) => l.status !== "Cancelled")
+  // 509: a Draft loan has posted nothing, so only approved loans count.
+  const liveLoans = loans.filter((l) => l.status !== "Cancelled" && l.status !== "Draft")
 
   return (
     <div className="flex h-screen bg-slate-50">

@@ -14,6 +14,7 @@ import { Droplets, ShoppingBag, PackageMinus, PawPrint,
 import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
 import { NAV_SURFACE } from "./nav/nav-surface"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, HOTEL_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { applyPageAccess } from "@/lib/iam/nav-access"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { usePoultryBroilerFeatures, usePoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
@@ -307,7 +308,7 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           blurb="Quickly access Business, Sales, Inventory, Production and Delivery reports."
           viewAll={{ href: "/water-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/water-reports"]}
-          groups={WATER_REPORT_NAV_GROUPS}
+          groups={applyPageAccess(WATER_REPORT_NAV_GROUPS, permissions)}
           columns={4} widthRem={58}
         />
 
@@ -509,7 +510,7 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           blurb="Revenue, occupancy, operations and audit reports."
           viewAll={{ href: "/hotel-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/hotel-reports"]}
-          groups={HOTEL_REPORT_NAV_GROUPS}
+          groups={applyPageAccess(HOTEL_REPORT_NAV_GROUPS, permissions)}
           layout="grid" columns={3} widthRem={46} accent="violet"
         />
 
@@ -587,7 +588,7 @@ function RestaurantTopNav({ permissions }: { permissions: ReturnType<typeof useP
           blurb="Money, sales, menu, operations, guests and channels."
           viewAll={{ href: "/restaurant-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/restaurant-reports"]}
-          groups={RESTAURANT_REPORT_NAV_GROUPS}
+          groups={applyPageAccess(RESTAURANT_REPORT_NAV_GROUPS, permissions)}
           layout="grid" columns={3} widthRem={46} accent="rose"
         />
 
@@ -812,7 +813,7 @@ export function TopNavigation() {
               blurb="Money, production, feed, birds, health and dashboards."
               viewAll={{ href: "/poultry/reports", label: "View all reports →" }}
               triggerActiveHrefs={["/reports", "/poultry/reports"]}
-              groups={POULTRY_REPORT_NAV_GROUPS}
+              groups={applyPageAccess(POULTRY_REPORT_NAV_GROUPS, permissions)}
               /* Four groups of 8/6/9/6 over four columns — one group per
                  column, with Overview & Dashboards last. */
               columns={4} widthRem={58} accent="orange"

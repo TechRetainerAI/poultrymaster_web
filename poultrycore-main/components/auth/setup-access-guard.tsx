@@ -25,13 +25,15 @@ export function SetupAccessGuard() {
     if (typeof window === "undefined") return
     // Wait for the flags: acting on the loading defaults would bounce admins.
     if (permissions.isLoading) return
+    // Per-company page access (506/507) is decided by PageAccessGuard.
+    if (permissions.pageAccess) return
     if (!localStorage.getItem("auth_token")) return
     if (permissions.isAdmin) return
     if (!isSetupAdminRoute(pathname)) return
 
     toast({ title: "Setup is for admins", description: "Ask the account owner or an admin to make this change." })
     router.replace(dashboardHomeForType(activeFarmType))
-  }, [pathname, router, toast, activeFarmType, permissions.isLoading, permissions.isAdmin])
+  }, [pathname, router, toast, activeFarmType, permissions.isLoading, permissions.isAdmin, permissions.pageAccess])
 
   return null
 }

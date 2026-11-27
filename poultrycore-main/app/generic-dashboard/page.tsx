@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast"
 import { getDashboard, type GenericDashboard } from "@/lib/api/generic"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { GenericSubscriptionDashboard } from "@/components/generic/subscription-dashboard"
+import { useDashboardMoney } from "@/hooks/use-dashboard-money"
 
 function fmtMoney(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -29,6 +30,8 @@ export default function GenericDashboardPage() {
   const activeFarmName = useAuthStore((s) => s.activeFarmName)
   const logout = useLogout()
   const { toast } = useToast()
+  // Page access: sales, profit, cash and debt figures need "Dashboard money figures" (test 20).
+  const showMoney = useDashboardMoney()
   const [data, setData] = useState<GenericDashboard | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -105,7 +108,7 @@ export default function GenericDashboardPage() {
           ) : (
             <>
               {/* Headline cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              {showMoney && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                 <MetricCard
                   title="Today's sales"
                   value={fmtMoney(today!.todaySales)}
@@ -120,12 +123,12 @@ export default function GenericDashboardPage() {
                 <MetricCard title="Today's expenses"   value={fmtMoney(today!.todayExpenses)}      hint={`Purchases paid: ${fmtMoney(today!.todayPurchasesPaid)}`} accent="amber" />
                 <MetricCard title="Today's profit"      value={fmtMoney(today!.todayGrossProfit)}   hint="Sales − expenses (gross)" accent="sky" />
                 <MetricCard title="Cash at hand"        value={fmtMoney(today!.cashAtHand)}         hint={`${cash.filter((a) => a.isActive).length} active account(s)`} accent="slate" />
-              </div>
+              </div>}
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                <MetricCard title="Inventory value" value={fmtMoney(today!.inventoryValue)} hint="At cost price" accent="cyan" icon={Boxes} />
-                <MetricCard title="Customer debt"   value={fmtMoney(today!.customerDebt)}   hint={`${alerts!.customersOwingCount} customer(s) owing`} accent="rose"  icon={Users}  />
-                <MetricCard title="Supplier debt"   value={fmtMoney(today!.supplierDebt)}   hint={`${alerts!.suppliersOwedCount} supplier(s) owed`}  accent="orange" icon={Truck}  />
+                {showMoney && <MetricCard title="Inventory value" value={fmtMoney(today!.inventoryValue)} hint="At cost price" accent="cyan" icon={Boxes} />}
+                {showMoney && <MetricCard title="Customer debt"   value={fmtMoney(today!.customerDebt)}   hint={`${alerts!.customersOwingCount} customer(s) owing`} accent="rose"  icon={Users}  />}
+                {showMoney && <MetricCard title="Supplier debt"   value={fmtMoney(today!.supplierDebt)}   hint={`${alerts!.suppliersOwedCount} supplier(s) owed`}  accent="orange" icon={Truck}  />}
                 <MetricCard
                   title="Low stock"
                   value={`${alerts!.lowStockCount}`}

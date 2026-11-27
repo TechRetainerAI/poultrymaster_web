@@ -483,6 +483,18 @@ namespace User.Management.Service.Services
                         }
                     }
                     
+                    // Page access upgrade: a staff member suspended or terminated at
+                    // every company they belong to cannot sign in at all.
+                    if (user.IsStaff && !await _companyDal.HasUsableMembershipAsync(user.Id))
+                    {
+                        return new ApiResponse<LoginOtpResponse>
+                        {
+                            IsSuccess = false,
+                            StatusCode = 403,
+                            Message = "Your access has been suspended. Please contact your company administrator."
+                        };
+                    }
+
                     // Update last login time (commented out until database column is added)
                     // user.LastLoginTime = DateTime.UtcNow;
                     // await _userManager.UpdateAsync(user);
@@ -569,6 +581,9 @@ namespace User.Management.Service.Services
                 new Claim(ClaimTypes.NameIdentifier, user.Id),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                // Issued-at: lets the Farm API reject tokens issued before
+                // "sign out everywhere" or a suspension (IamUserSecurity.TokensValidFrom).
+                new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
                 new Claim("isSubscriber", isSubscriber.ToString()),
                 new Claim("IsStaff", user.IsStaff.ToString().ToLower()),
                 // Claim(type, value) throws on a null value. An owner who registered with
@@ -699,7 +714,15 @@ namespace User.Management.Service.Services
             var refreshToken = tokens.RefreshToken;
             var principal= GetClaimsPrincipal(accessToken.Token);
             var user =await _userManager.FindByNameAsync(principal.Identity.Name);
-            if (refreshToken.Token!=user.RefreshToken && refreshToken.ExpiryTokenDate<=DateTime.Now )
+            // Reject when the refresh token does not match the stored one OR the
+            // STORED expiry has passed (was &&, and trusted the client's date).
+            // Revocation clears the stored token, so a signed-out or suspended
+            // person cannot renew either.
+            if (user is null
+                || string.IsNullOrEmpty(user.RefreshToken)
+                || refreshToken?.Token != user.RefreshToken
+                || (user.RefreshTokenExpiry is { } stored && stored <= DateTime.UtcNow)
+                || (user.IsStaff && !await _companyDal.HasUsableMembershipAsync(user.Id)))
             {
                 return new ApiResponse<LoginResponse>
                 {

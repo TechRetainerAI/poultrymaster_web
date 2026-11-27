@@ -332,13 +332,22 @@ namespace PoultryFarmAPIWeb.Controllers
     public class WaterDashboardController : ControllerBase
     {
         private readonly IWaterDashboardService _svc;
-        public WaterDashboardController(IWaterDashboardService svc) => _svc = svc;
+        private readonly IIamDataGuard _guard;
+        public WaterDashboardController(IWaterDashboardService svc, IIamDataGuard guard) { _svc = svc; _guard = guard; }
 
+        /// <summary>Counts for every member; money figures need water.dashboard-financials.view.</summary>
         [HttpGet("summary")]
         public async Task<ActionResult<WaterDashboardSummaryModel>> Summary([FromQuery] string farmId)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
-            return Ok(await _svc.GetSummary(farmId));
+            var summary = await _svc.GetSummary(farmId);
+            if (summary is not null && !await _guard.AllowsAsync(User, farmId, "water.dashboard-financials.view"))
+            {
+                summary.SalesToday = 0;
+                summary.SalesThisMonth = 0;
+                summary.OutstandingReceivables = 0;
+            }
+            return Ok(summary);
         }
     }
 }
