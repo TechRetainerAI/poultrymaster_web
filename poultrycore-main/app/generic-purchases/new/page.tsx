@@ -22,9 +22,10 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
-  approvePurchase, createPurchase, getCashAccounts, getProducts, getPurchase, getSuppliers, getUomConversions, updatePurchase,
+  approvePurchase, createPurchase, getCashAccounts, getProducts, getPurchase, getSuppliers, getUnitsOfMeasure, getUomConversions, updatePurchase,
   type GenericCashAccount, type GenericProduct, type GenericSupplier, type GenericUomConversion,
 } from "@/lib/api/generic"
+import { DEFAULT_UNITS } from "@/lib/generic/default-units"
 
 const PAY_METHODS = ["Cash", "MoMo", "Bank", "Card", "Credit", "Mixed"]
 
@@ -61,8 +62,10 @@ function baseUnitOf(p?: GenericProduct | null) {
  * Units a product can be bought in, from its setup: the base unit, its purchase and
  * sales units, and every conversion to or from the base unit (product-specific first,
  * then farm-wide). factor = base units in one of that unit; null = not known yet.
+ * After those come every other unit (the company's saved units, then the general
+ * list) so the buyer can switch unit at the point of purchase.
  */
-function unitOptionsFor(p: GenericProduct | undefined, conversions: GenericUomConversion[]) {
+function unitOptionsFor(p: GenericProduct | undefined, conversions: GenericUomConversion[], allUnits: string[] = []) {
   const base = baseUnitOf(p)
   const out: { unit: string; factor: number | null }[] = [{ unit: base, factor: 1 }]
   const add = (unit: string | null | undefined, factor: number | null) => {
@@ -82,6 +85,8 @@ function unitOptionsFor(p: GenericProduct | undefined, conversions: GenericUomCo
   }
   add(p?.purchaseUnit, null)
   add(p?.salesUnit, null)
+  for (const u of allUnits) add(u, null)
+  for (const u of DEFAULT_UNITS) add(u, null)
   return out
 }
 
@@ -97,6 +102,8 @@ export default function NewGenericPurchasePage() {
   const [products, setProducts] = useState<GenericProduct[]>([])
   const [cashAccounts, setCashAccounts] = useState<GenericCashAccount[]>([])
   const [conversions, setConversions] = useState<GenericUomConversion[]>([])
+  /** The company's saved units of measure (names). */
+  const [companyUnits, setCompanyUnits] = useState<string[]>([])
   /** Set when the page edits an existing Draft (?edit=<id>). */
   const [editId, setEditId] = useState<number | null>(null)
   /** Once the user types their own "Amount paid now", it stops following the total. */
@@ -140,6 +147,9 @@ export default function NewGenericPurchasePage() {
           editParam ? getPurchase(editParam) : Promise.resolve(null),
         ])
         if (cancelled) return
+        getUnitsOfMeasure()
+          .then((us) => { if (!cancelled) setCompanyUnits(us.filter((u) => u.isActive !== false).map((u) => u.unitName)) })
+          .catch(() => {})
         setSuppliers(ss); setProducts(ps); setCashAccounts(as); setConversions(cs ?? [])
         if (editParam) {
           if (!existing) throw new Error(`Purchase #${editParam} was not found.`)
@@ -223,9 +233,10 @@ export default function NewGenericPurchasePage() {
   const onPickProduct = (idx: number, productId: string) => {
     const p = products.find((x) => x.genericProductId === Number(productId))
     if (!p) { updateRow(idx, { genericProductId: undefined, description: "", purchaseUnit: "", unitFactor: 1 }); return }
-    // Start on the product's purchase unit when setup knows how many base units it holds.
-    const opts = unitOptionsFor(p, conversions)
-    const pick = opts.find((o) => p.purchaseUnit && same(o.unit, p.purchaseUnit) && o.factor != null) ?? opts[0]
+    // Start on the unit chosen in product setup: the purchase unit, else the base unit.
+    // The buyer can switch to any other unit on the line.
+    const opts = unitOptionsFor(p, conversions, companyUnits)
+    const pick = opts.find((o) => p.purchaseUnit && same(o.unit, p.purchaseUnit)) ?? opts[0]
     const factor = pick.factor ?? 1
     updateRow(idx, {
       genericProductId: p.genericProductId,
@@ -240,10 +251,10 @@ export default function NewGenericPurchasePage() {
   const onPickUnit = (idx: number, unit: string) => {
     const r = rows[idx]
     const p = productOf(r)
-    const opts = unitOptionsFor(p, conversions)
+    const opts = unitOptionsFor(p, conversions, companyUnits)
     const o = opts.find((x) => x.unit === unit) ?? opts[0]
     const isBase = o.unit === opts[0].unit
-    const factor = o.factor ?? (isBase ? 1 : r.unitFactor > 0 && r.unitFactor !== 1 ? r.unitFactor : 1)
+    const factor = o.factor ?? 1
     updateRow(idx, {
       purchaseUnit: isBase ? "" : o.unit,
       unitFactor: factor,
@@ -253,7 +264,7 @@ export default function NewGenericPurchasePage() {
 
   const unitCell = (r: Row, idx: number, h: string) => {
     const p = productOf(r)
-    const opts = unitOptionsFor(p, conversions)
+    const opts = unitOptionsFor(p, conversions, companyUnits)
     const base = opts[0].unit
     const current = r.purchaseUnit || base
     const isBase = !r.purchaseUnit || same(r.purchaseUnit, base)
@@ -272,7 +283,8 @@ export default function NewGenericPurchasePage() {
           </SelectContent>
         </Select>
         {p && !isBase && (
-          <div className="flex items-center gap-1 text-[11px] text-slate-500 whitespace-nowrap">
+          <div className={`flex items-center gap-1 text-[11px] whitespace-nowrap ${opts.find((o) => o.unit === current)?.factor == null ? "text-amber-700" : "text-slate-500"}`}
+            title={opts.find((o) => o.unit === current)?.factor == null ? `Setup does not say how many ${base} are in one ${current}. Enter it so stock goes up by the right amount.` : undefined}>
             1 {current} =
             <NumberInput className="h-6 w-16 px-1 text-right text-[11px]" step="0.001" min="0" value={r.unitFactor}
               onChange={(e) => updateRow(idx, { unitFactor: Number(e.target.value) || 0 })} />
@@ -481,7 +493,7 @@ export default function NewGenericPurchasePage() {
                           const line = r.quantity * r.unitCost - r.discountAmount
                           return (
                             <TableRow key={idx}>
-                              <TableCell>
+                              <TableCell className="align-top">
                                 <Select value={r.genericProductId ? String(r.genericProductId) : ""} onValueChange={(v) => onPickProduct(idx, v)}>
                                   <SelectTrigger className="h-8"><SelectValue placeholder="— select —" /></SelectTrigger>
                                   <SelectContent>
@@ -500,10 +512,10 @@ export default function NewGenericPurchasePage() {
                               </TableCell>
                               <TableCell className="align-top"><NumberInput className="h-8 text-right"  step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} /></TableCell>
                               <TableCell className="align-top">{unitCell(r, idx, "h-8")}</TableCell>
-                              <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.unitCost} onChange={(e) => updateRow(idx, { unitCost: Number(e.target.value) || 0 })} /></TableCell>
-                              <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.discountAmount} onChange={(e) => updateRow(idx, { discountAmount: Number(e.target.value) || 0 })} /></TableCell>
-                              <TableCell className="text-right font-semibold">{fmt(line)}</TableCell>
-                              <TableCell><Button size="icon" variant="ghost" onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}><X className="h-4 w-4 text-rose-600" /></Button></TableCell>
+                              <TableCell className="align-top"><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.unitCost} onChange={(e) => updateRow(idx, { unitCost: Number(e.target.value) || 0 })} /></TableCell>
+                              <TableCell className="align-top"><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.discountAmount} onChange={(e) => updateRow(idx, { discountAmount: Number(e.target.value) || 0 })} /></TableCell>
+                              <TableCell className="align-top text-right font-semibold leading-8">{fmt(line)}</TableCell>
+                              <TableCell className="align-top"><Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}><X className="h-4 w-4 text-rose-600" /></Button></TableCell>
                             </TableRow>
                           )
                         })}

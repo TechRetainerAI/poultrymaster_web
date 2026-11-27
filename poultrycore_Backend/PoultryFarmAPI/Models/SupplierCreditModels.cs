@@ -58,6 +58,8 @@ namespace PoultryFarmAPIWeb.Models
     public class SupplierCreditCreateRequest
     {
         public string FarmId { get; set; } = string.Empty;
+        /// <summary>Generic Projects & Contracts (501): { projectId } or { splits }. Ignored by Poultry and Water.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
         public int SupplierId { get; set; }
         public string Kind { get; set; } = string.Empty;
         public decimal Amount { get; set; }

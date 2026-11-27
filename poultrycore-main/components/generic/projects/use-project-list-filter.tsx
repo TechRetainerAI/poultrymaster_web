@@ -9,6 +9,7 @@ import { useMemo, useState } from "react"
 import { Label } from "@/components/ui/label"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectLabels, type LabelSourceType } from "@/hooks/use-project-labels"
+import { PROJECT_COLUMN_TITLE, ProjectSplitLabels } from "@/components/generic/projects/project-column"
 import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 export function useProjectListFilter<T>(
@@ -29,6 +30,12 @@ export function useProjectListFilter<T>(
           <ProjectFilter value={filter} onChange={setFilter} className="h-9 w-full sm:w-64" />
         </div>
       ),
+      /** The Project / contract column, for shared tables that accept one. */
+      column: {
+        title: PROJECT_COLUMN_TITLE,
+        // 502: with each project's share when it is known.
+        cell: (row: T) => <ProjectSplitLabels parts={labels.partsOf(idOf(row))} />,
+      },
       matches: (row: T) => {
         if (filter.kind === "all") return true
         const id = idOf(row)

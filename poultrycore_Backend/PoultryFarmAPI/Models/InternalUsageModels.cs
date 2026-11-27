@@ -204,6 +204,9 @@ namespace PoultryFarmAPIWeb.Models
     {
         public int      GenericInternalUsageId { get; set; }
 
+        /// <summary>Projects & Contracts (501): { projectId, costClass } or { splits: [...] }. Saved with the usage in one statement.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
+
         public string   FarmId    { get; set; } = string.Empty;
         public string?  UserId    { get; set; }
         public string?  CreatedBy { get; set; }

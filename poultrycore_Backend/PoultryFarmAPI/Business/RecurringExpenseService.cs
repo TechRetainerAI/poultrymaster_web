@@ -87,14 +87,19 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> SaveTemplateAsync(int? templateId, RecurringExpenseTemplateRequest q, string? actor)
         {
             using var conn = await OpenAsync();
-            using var cmd = new NpgsqlCommand(@"
-                SELECT sprecurringexpense_savetemplate(
+            // 501: a Generic template's project split is saved in the same statement.
+            var withProject = GenericProjectAttach.Has(q.Projects);
+            const string saveCall = @"sprecurringexpense_savetemplate(
                     p_farmid => @F::text, p_templateid => @Id::int, p_name => @Name::text,
                     p_categoryid => @CatId::int, p_categoryname => @Cat::text, p_supplierid => @Sup::int,
                     p_payeename => @Payee::text, p_amount => @Amount::numeric, p_isvariable => @Var::boolean,
                     p_frequency => @Freq::text, p_startdate => @Start::date, p_enddate => @End::date,
                     p_paymentmethod => @Method::text, p_cashaccountid => @Cash::int, p_description => @Desc::text,
-                    p_approvalmode => @Mode::text, p_actor => @Actor::text)", conn);
+                    p_approvalmode => @Mode::text, p_actor => @Actor::text)";
+            using var cmd = new NpgsqlCommand(withProject
+                ? GenericProjectAttach.WrapInsert(saveCall, "RecurringTemplate")
+                : "SELECT " + saveCall, conn);
+            if (withProject) GenericProjectAttach.AddParams(cmd, q.FarmId, q.Projects, actor);
             cmd.Parameters.AddWithValue("@F", q.FarmId);
             cmd.Parameters.AddWithValue("@Id", (object?)templateId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Name", q.Name);

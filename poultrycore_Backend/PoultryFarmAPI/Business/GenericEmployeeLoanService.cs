@@ -247,8 +247,9 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> CreateAsync(GenericEmployeeLoanCreateRequest q)
         {
             using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand(
-                "SELECT * FROM spgenericemployeeloan_create(" +
+            // 501: the project split (if any) is saved in the same statement.
+            var withProject = GenericProjectAttach.Has(q.Projects);
+            const string createCall = "spgenericemployeeloan_create(" +
                 "p_farmid => @FarmId::text, p_genericstaffid => @StaffId::int, " +
                 "p_principalamount => @Principal::numeric, p_disbursementdate => @DisbDate::date, " +
                 "p_loantype => @LoanType::text, p_interestenabled => @IntOn::boolean, " +
@@ -259,7 +260,11 @@ namespace PoultryFarmAPIWeb.Business
                 "p_purpose => @Purpose::text, p_description => @Description::text, " +
                 "p_notes => @Notes::text, p_disbursenow => @DisburseNow::boolean, " +
                 "p_genericcashaccountid => @CashAccountId::int, p_paymentmethod => @PayMethod::text, " +
-                "p_referencenumber => @Reference::text, p_createdby => @CreatedBy::text)", c);
+                "p_referencenumber => @Reference::text, p_createdby => @CreatedBy::text)";
+            using var cmd = new NpgsqlCommand(withProject
+                ? GenericProjectAttach.WrapInsert(createCall, "EmployeeLoan")
+                : "SELECT * FROM " + createCall, c);
+            if (withProject) GenericProjectAttach.AddParams(cmd, q.FarmId, q.Projects, q.CreatedBy);
             cmd.Parameters.AddWithValue("@FarmId", q.FarmId);
             cmd.Parameters.AddWithValue("@StaffId", q.GenericStaffId);
             cmd.Parameters.AddWithValue("@Principal", q.PrincipalAmount);
@@ -288,8 +293,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateAsync(int id, GenericEmployeeLoanUpdateRequest q)
         {
             using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand(
-                "SELECT spgenericemployeeloan_update(" +
+            var withProject = GenericProjectAttach.Has(q.Projects);
+            const string updateCall = "spgenericemployeeloan_update(" +
                 "p_farmid => @FarmId::text, p_genericemployeeloanid => @Id::int, " +
                 "p_principalamount => @Principal::numeric, p_disbursementdate => @DisbDate::date, " +
                 "p_loantype => @LoanType::text, p_interestenabled => @IntOn::boolean, " +
@@ -298,7 +303,11 @@ namespace PoultryFarmAPIWeb.Business
                 "p_defaultpayrolldeduction => @DefaultDed::numeric, " +
                 "p_expectedstartdate => @ExpStart::date, p_expectedenddate => @ExpEnd::date, " +
                 "p_purpose => @Purpose::text, p_description => @Description::text, " +
-                "p_notes => @Notes::text, p_updatedby => @UpdatedBy::text)", c);
+                "p_notes => @Notes::text, p_updatedby => @UpdatedBy::text)";
+            using var cmd = new NpgsqlCommand(withProject
+                ? GenericProjectAttach.WrapUpdate(updateCall, "EmployeeLoan")
+                : "SELECT " + updateCall, c);
+            if (withProject) GenericProjectAttach.AddParams(cmd, q.FarmId, q.Projects, q.UpdatedBy, id);
             cmd.Parameters.AddWithValue("@FarmId", q.FarmId);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@Principal", Db(q.PrincipalAmount));

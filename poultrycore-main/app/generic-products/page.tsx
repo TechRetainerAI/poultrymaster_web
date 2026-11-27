@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Loader2, Package, Plus, Pencil, Trash2, ArrowLeft, ShoppingCart,
   Factory, Users, Eye, ChevronDown, ChevronUp, X, ImageIcon, Upload,
-  Wrench,
+  Wrench, Search,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -41,8 +41,9 @@ import {
   type GenericItemCostReconciliation,
 } from "@/lib/api/generic"
 import { getProductionRecords, type GenericProductionRecord } from "@/lib/api/generic-production"
+import { DEFAULT_UNITS } from "@/lib/generic/default-units"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { filterByDateAndSearch } from "@/components/ui/list-filters"
 import { GenericServicesTab } from "@/components/generic/services-tab"
 
 // =============================================================================
@@ -94,7 +95,7 @@ type TabKey = "all" | "sellable" | "production" | "internal"
 const TABS: { key: TabKey; label: string; icon: React.ElementType; filter: (p: GenericProduct) => boolean }[] = [
   { key: "all", label: "All Items", icon: Package, filter: () => true },
   { key: "sellable", label: "Products for Sale", icon: ShoppingCart, filter: (p) => p.canSell === true || (p.canSell == null && p.itemType !== "SupplyItem") },
-  { key: "production", label: "Raw Materials", icon: Factory, filter: (p) => p.canUseInProduction === true },
+  { key: "production", label: "Raw Materials (used in Production)", icon: Factory, filter: (p) => p.canUseInProduction === true },
   { key: "internal", label: "Internal Use", icon: Users, filter: (p) => p.canUseInternally === true || (p.canUseInternally == null && p.itemType === "SupplyItem") },
 ]
 
@@ -128,6 +129,18 @@ const EMPTY_FORM = {
   imageUrl: "" as string,
 }
 
+// General categories offered in the Category picker. One is saved to the
+// company's own list the first time it is picked; companies add their own too.
+const DEFAULT_PRODUCT_CATEGORIES = [
+  "Groceries", "Beverages", "Household Items", "Personal Care", "Cleaning Supplies",
+  "Health & Pharmacy", "Cosmetics & Beauty", "Baby Products", "Clothing & Apparel",
+  "Electronics", "Stationery & Office Supplies", "Hardware & Tools", "Building Materials",
+  "Kitchenware", "Furniture", "Auto Parts", "Agricultural Inputs", "Raw Materials",
+  "Packaging", "Spare Parts", "Other",
+]
+const DEFAULT_OPTION_PREFIX = "__default__:"
+
+
 // =============================================================================
 // Page component
 // =============================================================================
@@ -138,6 +151,8 @@ export default function GenericProductsPage() {
   const logout = useLogout()
   const { toast } = useToast()
   const [topTab, setTopTab] = useState<"physical" | "services">("physical")
+  /** Bumped by "New service": the Services tab opens its form (switching to it first if needed). */
+  const [serviceRequest, setServiceRequest] = useState(0)
   const [rows, setRows] = useState<GenericProduct[]>([])
   const [search, setSearch] = useState("")
   useGlobalSearchPrefill(setSearch)
@@ -171,12 +186,22 @@ export default function GenericProductsPage() {
   const [units, setUnits] = useState<GenericUnitOfMeasure[]>([])
   const [unitSearch, setUnitSearch] = useState("")
   const [unitDropdownOpen, setUnitDropdownOpen] = useState(false)
+  const [newSalesUnit, setNewSalesUnit] = useState("")
 
   // Dialog tab (two-tab form)
   const [formTab, setFormTab] = useState<"details" | "image">("details")
 
   // Category filter
   const [filterCategory, setFilterCategory] = useState<string>("")
+
+  // Save a sales unit to the company's unit list (if not already there) so it is offered next time.
+  const addSalesUnitToList = async (name: string) => {
+    if (!name || units.some((u) => u.unitName.trim().toLowerCase() === name.toLowerCase())) return
+    try {
+      await upsertUnitOfMeasure({ unitName: name })
+      setUnits(await getUnitsOfMeasure())
+    } catch (e: any) { toast({ title: "Could not add unit", description: e?.message, variant: "destructive" }) }
+  }
 
   const openNew = () => {
     setEditingId(null)
@@ -399,11 +424,17 @@ export default function GenericProductsPage() {
               </h1>
               <p className="text-sm text-slate-500">Manage the products, materials, supplies, and services your business sells or uses.</p>
             </div>
-            {topTab === "physical" && (
-              <Button onClick={openNew} className="w-full sm:w-auto h-11 sm:h-10">
+            {/* Both "new" buttons sit together and show on either tab: a service
+                can be added without switching to Services first. */}
+            <div className="flex w-full gap-2 sm:w-auto">
+              <Button onClick={() => { setTopTab("physical"); openNew() }} className="flex-1 sm:flex-none h-11 sm:h-10">
                 <Plus className="h-4 w-4 mr-1" /> New item
               </Button>
-            )}
+              <Button variant="outline" onClick={() => { setTopTab("services"); setServiceRequest((n) => n + 1) }}
+                className="flex-1 sm:flex-none h-11 sm:h-10">
+                <Wrench className="h-4 w-4 mr-1" /> New service
+              </Button>
+            </div>
           </div>
 
           {/* Top-level tabs: Physical Items | Services */}
@@ -431,11 +462,14 @@ export default function GenericProductsPage() {
           </div>
 
           {topTab === "services" ? (
-            <GenericServicesTab />
+            <GenericServicesTab hideNewButton newRequest={serviceRequest} onNewHandled={() => setServiceRequest(0)} />
           ) : (
           <>
-          {/* Physical Item sub-tabs */}
-          <div className="flex flex-wrap gap-1.5 mb-4">
+          {/* Physical Item sub-tabs, search and category: one strip, one background. */}
+          {/* Two parts on one line from lg up: the filter buttons (which wrap among
+              themselves if space runs out) and the search + category beside them. */}
+          <div className="mb-4 flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm lg:flex-row lg:items-center">
+            <div className="flex flex-wrap items-center gap-1.5 lg:shrink-0 lg:flex-nowrap">
             {TABS.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.key
@@ -459,21 +493,17 @@ export default function GenericProductsPage() {
                 </button>
               )
             })}
-          </div>
-
-          {/* Filters */}
+            </div>
           {!loading && rows.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              <div className="flex-1 min-w-[200px] max-w-md">
-                <ListFilters
-                  search={search} setSearch={setSearch}
-                  searchOnly
-                  searchPlaceholder="Search by name, SKU, category or description"
-                />
+            <div className="flex w-full items-center gap-1.5 lg:min-w-0 lg:flex-1">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search items" title="Search by name, SKU, category or description" className="h-9 bg-white pl-8" />
               </div>
               {categories.length > 0 && (
                 <Select value={filterCategory || "__all__"} onValueChange={(v) => setFilterCategory(v === "__all__" ? "" : v)}>
-                  <SelectTrigger className="w-auto min-w-[160px] h-10">
+                  <SelectTrigger className="h-9 w-36 shrink-0 bg-white">
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
                   <SelectContent>
@@ -488,6 +518,7 @@ export default function GenericProductsPage() {
               )}
             </div>
           )}
+          </div>
 
           {/* Content */}
           {loading ? (
@@ -694,7 +725,7 @@ export default function GenericProductsPage() {
                 </label>
                 <label className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors ${form.canUseInProduction ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
                   <input type="checkbox" checked={form.canUseInProduction} onChange={(e) => setForm((f) => ({ ...f, canUseInProduction: e.target.checked }))} className="h-3 w-3 rounded border-slate-300 text-amber-600" />
-                  <Factory className="h-3 w-3" /> Use in Production
+                  <Factory className="h-3 w-3" /> Raw Materials (used in Production)
                 </label>
                 <label className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors ${form.canUseInternally ? "border-purple-300 bg-purple-50 text-purple-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
                   <input type="checkbox" checked={form.canUseInternally} onChange={(e) => setForm((f) => ({ ...f, canUseInternally: e.target.checked }))} className="h-3 w-3 rounded border-slate-300 text-purple-600" />
@@ -721,13 +752,32 @@ export default function GenericProductsPage() {
                 <Textarea rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Describe this item (optional)" />
               </FormField>
               <FormField label="Category">
-                <Select value={form.categoryId || "__none__"} onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v === "__none__" ? "" : v }))}>
+                <Select value={form.categoryId || "__none__"} onValueChange={async (v) => {
+                  if (!v.startsWith(DEFAULT_OPTION_PREFIX)) {
+                    setForm((f) => ({ ...f, categoryId: v === "__none__" ? "" : v }))
+                    return
+                  }
+                  // A general category not yet in this company's list: save it, then select it.
+                  const name = v.slice(DEFAULT_OPTION_PREFIX.length)
+                  try {
+                    const created = await createProductCategory({ name })
+                    if (created) {
+                      setCategories((prev) => [...prev, created])
+                      setForm((f) => ({ ...f, categoryId: String(created.genericProductCategoryId) }))
+                    }
+                  } catch (e: any) { toast({ title: "Could not add category", description: e?.message, variant: "destructive" }) }
+                }}>
                   <SelectTrigger><SelectValue placeholder="-- none --" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">-- No category --</SelectItem>
                     {categories.filter((c) => c.isActive).map((c) => (
                       <SelectItem key={c.genericProductCategoryId} value={String(c.genericProductCategoryId)}>{c.name}</SelectItem>
                     ))}
+                    {DEFAULT_PRODUCT_CATEGORIES
+                      .filter((name) => !categories.some((c) => c.name.trim().toLowerCase() === name.toLowerCase()))
+                      .map((name) => (
+                        <SelectItem key={`default-${name}`} value={`${DEFAULT_OPTION_PREFIX}${name}`}>{name}</SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
                 <div className="flex gap-1.5 mt-1.5">
@@ -788,7 +838,39 @@ export default function GenericProductsPage() {
                   <NumberInput step="0.01" min="0" value={form.sellingPrice} onChange={(e) => setForm((f) => ({ ...f, sellingPrice: e.target.value }))} />
                 </FormField>
                 <FormField label="Sales unit" hint="Unit used when selling (optional, defaults to base unit)">
-                  <Input value={form.salesUnit} onChange={(e) => setForm((f) => ({ ...f, salesUnit: e.target.value }))} maxLength={50} placeholder="e.g. piece" />
+                  <Select value={form.salesUnit || "__none__"} onValueChange={async (v) => {
+                    const name = v === "__none__" ? "" : v.startsWith(DEFAULT_OPTION_PREFIX) ? v.slice(DEFAULT_OPTION_PREFIX.length) : v
+                    setForm((f) => ({ ...f, salesUnit: name }))
+                    if (v.startsWith(DEFAULT_OPTION_PREFIX)) await addSalesUnitToList(name)
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="e.g. piece" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Same as base unit —</SelectItem>
+                      {units.map((u) => (
+                        <SelectItem key={u.genericUnitOfMeasureId} value={u.unitName}>{u.unitName}</SelectItem>
+                      ))}
+                      {DEFAULT_UNITS
+                        .filter((name) => !units.some((u) => u.unitName.trim().toLowerCase() === name.toLowerCase()))
+                        .map((name) => (
+                          <SelectItem key={`default-${name}`} value={`${DEFAULT_OPTION_PREFIX}${name}`}>{name}</SelectItem>
+                        ))}
+                      {form.salesUnit && !units.some((u) => u.unitName.toLowerCase() === form.salesUnit.toLowerCase())
+                        && !DEFAULT_UNITS.some((n) => n.toLowerCase() === form.salesUnit.toLowerCase()) && (
+                        <SelectItem value={form.salesUnit}>{form.salesUnit}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex gap-1.5 mt-1.5">
+                    <Input className="h-8 text-xs" placeholder="New sales unit" maxLength={50} value={newSalesUnit} onChange={(e) => setNewSalesUnit(e.target.value)} />
+                    <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 text-xs" disabled={!newSalesUnit.trim()} onClick={async () => {
+                      const name = newSalesUnit.trim()
+                      setForm((f) => ({ ...f, salesUnit: name }))
+                      setNewSalesUnit("")
+                      await addSalesUnitToList(name)
+                    }}>
+                      <Plus className="h-3 w-3 mr-1" /> Add
+                    </Button>
+                  </div>
                 </FormField>
                 <FormField label="Wholesale price (optional)">
                   <NumberInput step="0.01" min="0" value={form.wholesalePrice} onChange={(e) => setForm((f) => ({ ...f, wholesalePrice: e.target.value }))} />

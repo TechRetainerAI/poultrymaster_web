@@ -174,12 +174,21 @@ namespace PoultryFarmAPIWeb.Business
                 ReversalReason = Str(r, "reversalreason"),
             });
 
-        public Task<int> CreateSupplierCredit(SupplierCreditCreateRequest r) => ScalarInt(
-            "SELECT spgenericsuppliercredit_createmanual(p_farmid => @FarmId::text, p_supplierid => @SupplierId::int, " +
+        // 501: a supplier credit IS a supplier payment row, so its project is the
+        // payment's designated advance split ("SupplierPayment"), saved in the
+        // same statement as the credit.
+        private const string CreateManualCall =
+            "spgenericsuppliercredit_createmanual(p_farmid => @FarmId::text, p_supplierid => @SupplierId::int, " +
             "p_kind => @Kind::text, p_amount => @Amount::numeric, p_date => @Date::timestamp, " +
-            "p_reference => @Reference::text, p_reason => @Reason::text, p_by => @By::text)",
+            "p_reference => @Reference::text, p_reason => @Reason::text, p_by => @By::text)";
+
+        public Task<int> CreateSupplierCredit(SupplierCreditCreateRequest r) => ScalarInt(
+            GenericProjectAttach.Has(r.Projects)
+                ? GenericProjectAttach.WrapInsert(CreateManualCall, "SupplierPayment")
+                : "SELECT " + CreateManualCall,
             cmd =>
             {
+                if (GenericProjectAttach.Has(r.Projects)) GenericProjectAttach.AddParams(cmd, r.FarmId, r.Projects, r.CreatedBy);
                 cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
                 cmd.Parameters.AddWithValue("@SupplierId", r.SupplierId);
                 cmd.Parameters.AddWithValue("@Kind", r.Kind ?? string.Empty);

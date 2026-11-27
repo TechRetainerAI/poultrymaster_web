@@ -31,6 +31,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
 import {
   listGenericPayrollRuns, createGenericPayrollRun, getGenericPayrollRun,
   listGenericPayrollDeductionsForRun, type GenericPayrollDeductionRunRow,
@@ -95,7 +96,7 @@ export default function GenericPayrollPage() {
   const [templatesRefresh, setTemplatesRefresh] = useState(0)
 
   // 493: Project / Contract filter -- payroll runs given to a project (Link older transactions).
-  const { extraFilter: projectFilter } = useProjectListFilter<GenericPayrollRun>("PayrollRun", (r) => r.genericPayrollRunId)
+  const { extraFilter: projectFilter, labels: projectLabels } = useProjectListFilter<GenericPayrollRun>("PayrollRun", (r) => r.genericPayrollRunId)
   const visible = useMemo(
     () => runs.filter(r => (statusFilter === "all" || r.status === statusFilter) && (!projectFilter || projectFilter.matches(r))),
     [runs, statusFilter, projectFilter],
@@ -576,6 +577,7 @@ export default function GenericPayrollPage() {
                     { label: "Gross", value: gh(r.totalGrossPay) },
                     { label: "Cash account", value: r.cashAccountName ?? "—" },
                     { label: "Status", value: r.status },
+                    ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectLabels.labelsOf(r.genericPayrollRunId)} /> }] : []),
                   ]}
                   actions={(r) => renderActions(r, true)}
                   desktopTable={
@@ -584,6 +586,7 @@ export default function GenericPayrollPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Period</TableHead>
+                            {projectLabels.enabled && <ProjectHead />}
                             <TableHead className="text-right">Gross</TableHead>
                             <TableHead className="text-right">Deductions</TableHead>
                             <TableHead className="text-right">Net</TableHead>
@@ -596,6 +599,7 @@ export default function GenericPayrollPage() {
                           {pg.pageItems.map((r) => (
                             <TableRow key={r.genericPayrollRunId}>
                               <TableCell className="whitespace-nowrap font-medium">{fmtDateTime(r.periodStart, r)} → {fmtDateTime(r.periodEnd, r)}</TableCell>
+                              {projectLabels.enabled && <ProjectCell labels={projectLabels.labelsOf(r.genericPayrollRunId)} />}
                               <TableCell className="text-right tabular-nums">{gh(r.totalGrossPay)}</TableCell>
                               <TableCell className="text-right tabular-nums">{gh(r.totalDeductions)}</TableCell>
                               <TableCell className="text-right tabular-nums font-semibold">{gh(r.totalNetPay)}</TableCell>

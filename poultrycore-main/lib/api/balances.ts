@@ -143,7 +143,7 @@ export interface RecordPaymentRequest {
    * advance for this project. Payments applied to a sale or purchase follow
    * that document's project automatically and need nothing here.
    */
-  projects?: { projectId: number | null }
+  projects?: { projectId: number | null } | { splits: unknown[] } | { projectId: number | null; costClass?: string }
   farmId: string
   partyId: number | null
   amount: number

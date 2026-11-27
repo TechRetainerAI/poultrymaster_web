@@ -10,6 +10,9 @@ namespace PoultryFarmAPIWeb.Models
         public decimal Amount { get; set; }
         public decimal RemainingBalance { get; set; }
         public DateTime CreditDate { get; set; }
+        /// <summary>What made the credit, e.g. "CustomerPayment" + the payment id. Null for a credit added by hand.</summary>
+        public string? ReferenceType { get; set; }
+        public int? ReferenceId { get; set; }
         public string? Notes { get; set; }
         public string Status { get; set; } = "Active";
         public DateTime CreatedAt { get; set; }
@@ -17,6 +20,8 @@ namespace PoultryFarmAPIWeb.Models
 
     public class GenericCustomerCreditCreateRequest
     {
+        /// <summary>Projects & Contracts (501): { projectId } or { splits }. Saved with the credit in one statement.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
         public string FarmId { get; set; } = string.Empty;
         public int GenericCustomerId { get; set; }
         public string CreditType { get; set; } = "Overpayment";

@@ -44,6 +44,10 @@ import {
   type GenericDeferredRecognition, type GenericDeferredCostScope,
 } from "@/lib/api/generic-deferred-costs"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 // The stored category codes, spelled the way the raw-materials page spells
 // them. Anything the server sends that is not in this map falls through as-is,
@@ -162,10 +166,18 @@ function GenericDeferredCostsInner() {
     return Array.from(s).sort()
   }, [data])
 
+  // 501: Project / contract. A purchase lot belongs to its purchase lines'
+  // projects for that item; opening stock, adjustments and production are
+  // General. Nothing is re-costed: cost reaches a project's P&L only as cost of
+  // the goods its sales use, exactly as before.
+  const lotTags = useProjectLabels("DeferredLot", data)
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+
   const rows = useMemo(() => {
     const all = data?.purchases ?? []
-    return supplier === "all" ? all : all.filter((p) => p.supplierName === supplier)
-  }, [data, supplier])
+    return (supplier === "all" ? all : all.filter((p) => p.supplierName === supplier))
+      .filter((p) => lotTags.matches(p.lotId, projectFilter))
+  }, [data, supplier, lotTags, projectFilter])
 
   const pg = usePagination(rows)
 
@@ -307,6 +319,12 @@ function GenericDeferredCostsInner() {
                   </SelectContent>
                 </Select>
               </div>
+              {lotTags.enabled && (
+                <div className="min-w-[200px]">
+                  <Label className="text-xs">Project / contract</Label>
+                  <ProjectFilter value={projectFilter} onChange={setProjectFilter} className="h-9 w-full sm:w-60" />
+                </div>
+              )}
               <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} />
               <div className="min-w-[180px] flex-1">
                 <Label className="text-xs">Search</Label>
@@ -462,6 +480,7 @@ function GenericDeferredCostsInner() {
                     ]}
                     details={(p) => [
                       { label: "Supplier", value: p.supplierName ?? "—" },
+                      ...(lotTags.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={lotTags.labelsOf(p.lotId)} /> }] : []),
                       { label: "Purchased", value: qtyFmt(p.purchasedQuantity, p.productionUnit) },
                       { label: "Remaining", value: qtyFmt(p.remainingQuantity, p.productionUnit) },
                       { label: "Progress", value: `${p.recognitionPercent.toFixed(1)}% expensed` },
@@ -484,6 +503,7 @@ function GenericDeferredCostsInner() {
                             <TableHead>Purchase</TableHead>
                             <TableHead>Item</TableHead>
                             <TableHead>Supplier</TableHead>
+                            {lotTags.enabled && <ProjectHead />}
                             <TableHead className="text-right">Purchased</TableHead>
                             <TableHead className="text-right">Remaining</TableHead>
                             <TableHead className="text-right">Original cost</TableHead>
@@ -521,6 +541,7 @@ function GenericDeferredCostsInner() {
                                     <div className="text-[11px] text-slate-500">{categoryLabel(p.category)}</div>
                                   </TableCell>
                                   <TableCell>{p.supplierName ?? "—"}</TableCell>
+                                  {lotTags.enabled && <ProjectCell labels={lotTags.labelsOf(p.lotId)} />}
                                   <TableCell className="text-right whitespace-nowrap">
                                     {qtyFmt(p.purchasedQuantity, p.productionUnit)}
                                   </TableCell>
@@ -577,7 +598,7 @@ function GenericDeferredCostsInner() {
 
                                 {open && (
                                   <TableRow>
-                                    <TableCell colSpan={11} className="bg-slate-50 p-0">
+                                    <TableCell colSpan={lotTags.enabled ? 12 : 11} className="bg-slate-50 p-0">
                                       <HistoryPanel
                                         purchase={p}
                                         rows={history[id]}

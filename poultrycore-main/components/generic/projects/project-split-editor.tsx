@@ -6,14 +6,14 @@
 // to more. Nothing is posted: this only labels the line.
 
 import { useEffect, useState } from "react"
-import { Plus, Trash2 } from "lucide-react"
+import { Equal, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ProjectPicker } from "./project-picker"
-import { checkSplit, toSplits, type SplitBasis, type SplitRow } from "@/lib/generic/project-math"
+import { checkSplit, splitEvenly, toSplits, type SplitBasis, type SplitRow } from "@/lib/generic/project-math"
 import type { CostClass, ProjectSplit } from "@/lib/api/generic-projects"
 
 const COST_CLASSES: { value: CostClass; label: string }[] = [
@@ -128,9 +128,18 @@ export function ProjectSplitEditor({
                   onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
-            <Button type="button" variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, { projectId: null, value: 0 }])}>
-              <Plus className="mr-1 h-4 w-4" /> Add project
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, { projectId: null, value: 0 }])}>
+                <Plus className="mr-1 h-4 w-4" /> Add project
+              </Button>
+              {/* Shares the whole equally between the chosen projects; the last
+                  one takes the rounding so it always adds up exactly. */}
+              <Button type="button" variant="outline" size="sm" disabled={rows.length < 1 || !(whole > 0)}
+                title="Give each chosen project an equal part of the whole"
+                onClick={() => setRows((rs) => splitEvenly(rs, basis, whole))}>
+                <Equal className="mr-1 h-4 w-4" /> Split evenly
+              </Button>
+            </div>
           </div>
 
           {showCostClass && (

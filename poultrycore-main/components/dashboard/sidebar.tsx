@@ -81,7 +81,7 @@ import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
-import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
+import { buildGenericNavConfig, genericQuickLinksNav } from "@/lib/nav/generic-nav-config"
 import { buildLivestockNavConfig, navSectionHasRows } from "@/lib/nav/livestock-nav-config"
 import { useLivestockFeatures } from "@/hooks/use-livestock-species"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
@@ -317,6 +317,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // Generic sidebar: built from the shared nav config so the sidebar and
   // top-nav always agree on labels and visibility.
   const genericNav = useMemo(() => buildGenericNavConfig(genericModules, permissions), [genericModules, permissions])
+  const genericQuickNav = useMemo(
+    () => (isGeneric ? genericQuickLinksNav(genericNav, quickLinkHrefs, genericModules.industry === "School") : null),
+    [isGeneric, genericNav, quickLinkHrefs, genericModules.industry],
+  )
   const isSchool = genericModules.industry === "School"
   const isSub = genericModules.isSubscriptionBusiness
 
@@ -900,6 +904,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {/* Generic Company — same flyout-menu pattern as Water/Hotel/Restaurant.
                 Groups come from buildGenericNavConfig, accent is emerald. */}
             <div className="space-y-1">
+              {/* Setup first, right after the Dashboard. */}
+              {genericNav.setup.length > 0 && renderMenu(
+                "Setup", Settings, genericNav.setup, "menu:genericSetup", {
+                  blurb: "Company profile, finance, delivery and your team.",
+                  columns: 2,
+                })}
               {genericNav.catalog.length > 0 && renderMenu(
                 "Operations", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
                   blurb: genericNav.catalog.length > 2
@@ -944,11 +954,16 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                   blurb: "Profit & loss, cash flow, expense, sales, inventory and balance reports.",
                   columns: 2,
                 })}
-              {genericNav.setup.length > 0 && renderMenu(
-                "Setup", Settings, genericNav.setup, "menu:genericSetup", {
-                  blurb: "Company profile, finance, delivery and your team.",
-                  columns: 2,
-                })}
+              {renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: [
+                  ...genericQuickNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+                  { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
+                ],
+              }], "menu:genericQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
+              })}
               {genericNav.admin.length > 0 && renderMenu(
                 permissions.isStaff ? "Staff" : "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
                   blurb: "Account settings.",
@@ -1160,11 +1175,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       {/* ONE dialog for the rail. sidebarContent is rendered twice -- the
           mobile drawer and the desktop rail -- so a dialog inside it would be
           mounted twice over one piece of open state. */}
-      {(poultryNav || waterNav) && (
+      {(poultryNav || waterNav || genericQuickNav) && (
         <QuickLinksDialog
           open={customiseOpen}
           onOpenChange={setCustomiseOpen}
-          nav={(poultryNav ?? waterNav)!}
+          nav={(poultryNav ?? waterNav ?? genericQuickNav)!}
         />
       )}
     </>

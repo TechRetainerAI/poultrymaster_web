@@ -29,6 +29,11 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { getCustomerCredits, createCustomerCredit, getCustomers, type GenericCustomerCredit, type GenericCustomer } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { SingleProjectField, EMPTY_SINGLE_PROJECT, singleAssignment, type SingleProjectValue } from "@/components/generic/projects/form-project-field"
+import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 
 const CREDIT_TYPES = ["Overpayment", "Advance", "CreditNote", "Refund"]
@@ -77,15 +82,37 @@ export default function GenericCustomerCreditsPage() {
     finally { setLoading(false) }
   }
 
+  // 501: Project / contract. A credit added by hand carries its own tag; a
+  // credit left over from a payment follows that payment's project.
+  const creditTags = useProjectLabels("CustomerCredit", rows)
+  const paymentTags = useProjectLabels("CustomerPayment", rows)
+  const projectsOn = creditTags.enabled
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
+  const [project, setProject] = useState<SingleProjectValue>(EMPTY_SINGLE_PROJECT)
+  const projectsOf = (c: GenericCustomerCredit) => {
+    const own = creditTags.map.get(c.genericCustomerCreditId) ?? []
+    if (own.length) return own
+    return c.referenceType === "CustomerPayment" && c.referenceId ? (paymentTags.map.get(c.referenceId) ?? []) : []
+  }
+  const labelsOf = (c: GenericCustomerCredit) => projectsOf(c).map((p) => p.label)
+  const projectRows = useMemo(() => {
+    if (!projectsOn || projectFilter.kind === "all") return rows
+    return rows.filter((c) => {
+      const ps = projectsOf(c)
+      return projectFilter.kind === "general" ? ps.length === 0 : ps.some((p) => projectFilter.ids.includes(p.projectId))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, projectsOn, projectFilter, creditTags, paymentTags])
+
   const totals = useMemo(() => {
     let total = 0, active = 0, used = 0
-    for (const c of rows) { total += c.amount; if (c.status === "Active") active += c.remainingBalance; else used += c.amount - c.remainingBalance }
-    return { total, active, used, count: rows.length }
-  }, [rows])
+    for (const c of projectRows) { total += c.amount; if (c.status === "Active") active += c.remainingBalance; else used += c.amount - c.remainingBalance }
+    return { total, active, used, count: projectRows.length }
+  }, [projectRows])
 
   const customerSummary = useMemo(() => {
     const map = new Map<string, { name: string; total: number; active: number; count: number }>()
-    for (const c of rows) {
+    for (const c of projectRows) {
       const key = c.customerName ?? "Unknown"
       const existing = map.get(key) ?? { name: key, total: 0, active: 0, count: 0 }
       existing.total += c.amount
@@ -94,13 +121,13 @@ export default function GenericCustomerCreditsPage() {
       map.set(key, existing)
     }
     return Array.from(map.values()).sort((a, b) => b.active - a.active)
-  }, [rows])
+  }, [projectRows])
 
   const filteredRows = useMemo(() => {
-    if (!search) return rows
+    if (!search) return projectRows
     const q = search.toLowerCase()
-    return rows.filter((c) => (c.customerName ?? "").toLowerCase().includes(q) || c.creditType.toLowerCase().includes(q) || (c.notes ?? "").toLowerCase().includes(q))
-  }, [rows, search])
+    return projectRows.filter((c) => (c.customerName ?? "").toLowerCase().includes(q) || c.creditType.toLowerCase().includes(q) || (c.notes ?? "").toLowerCase().includes(q))
+  }, [projectRows, search])
 
   const pg = usePagination(filteredRows)
   const summaryPg = usePagination(customerSummary)
@@ -110,10 +137,11 @@ export default function GenericCustomerCreditsPage() {
     if (form.amount <= 0) { toast({ title: "Amount must be > 0", variant: "destructive" }); return }
     setSaving(true)
     try {
-      await createCustomerCredit(form)
+      await createCustomerCredit({ ...form, projects: projectsOn ? singleAssignment(project) : undefined })
       toast({ title: "Credit recorded" })
       setCreateOpen(false)
       setForm({ genericCustomerId: 0, creditType: "Overpayment", amount: 0, creditDate: new Date().toISOString().split("T")[0], notes: "" })
+      setProject(EMPTY_SINGLE_PROJECT)
       await load()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -183,6 +211,7 @@ export default function GenericCustomerCreditsPage() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customer" className="h-10 pl-9" />
               </div>
+              {projectsOn && <ProjectFilter value={projectFilter} onChange={setProjectFilter} className="h-10 w-full sm:w-64" />}
             </div>
 
             <TabsContent value="credits">
@@ -202,6 +231,7 @@ export default function GenericCustomerCreditsPage() {
                     ]}
                     details={(c: any) => [
                       { label: "Type", value: c.creditType },
+                      ...(projectsOn ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={labelsOf(c)} /> }] : []),
                       { label: "Notes", value: c.notes ?? "—" },
                     ]}
                     emptyState={
@@ -212,16 +242,17 @@ export default function GenericCustomerCreditsPage() {
                     desktopTable={
                       <div className="overflow-x-auto"><Table>
                         <TableHeader><TableRow>
-                          <TableHead>Date</TableHead><TableHead>Customer</TableHead><TableHead>Type</TableHead>
+                          <TableHead>Date</TableHead><TableHead>Customer</TableHead>{projectsOn && <ProjectHead />}<TableHead>Type</TableHead>
                           <TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Remaining</TableHead>
                           <TableHead>Status</TableHead><TableHead>Notes</TableHead>
                         </TableRow></TableHeader>
                         <TableBody>
-                          {filteredRows.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">{search ? "No customer matches." : "No credits."}</TableCell></TableRow>
+                          {filteredRows.length === 0 ? <TableRow><TableCell colSpan={projectsOn ? 8 : 7} className="text-center text-slate-500 py-6">{search ? "No customer matches." : "No credits."}</TableCell></TableRow>
                           : pg.pageItems.map((c: any) => (
                             <TableRow key={c.genericCustomerCreditId}>
                               <TableCell className="whitespace-nowrap">{fmtDateTime(c.creditDate, c)}</TableCell>
                               <TableCell className="font-medium">{c.customerName ?? "—"}</TableCell>
+                              {projectsOn && <ProjectCell labels={labelsOf(c)} />}
                               <TableCell><Badge variant="outline" className={TYPE_COLORS[c.creditType] ?? ""}>{c.creditType}</Badge></TableCell>
                               <TableCell className="text-right tabular-nums">{gh(c.amount)}</TableCell>
                               <TableCell className="text-right tabular-nums font-semibold">{gh(c.remainingBalance)}</TableCell>
@@ -306,6 +337,8 @@ export default function GenericCustomerCreditsPage() {
             <FormField label="Amount *"><NumberInput min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) || 0 })} /></FormField>
             <FormField label="Date"><Input type="date" value={form.creditDate} onChange={(e) => setForm({ ...form, creditDate: e.target.value })} /></FormField>
             <FormField label="Notes"><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>
+            <SingleProjectField value={project} onChange={setProject} amount={form.amount} showCostClass={false}
+              hint="For filtering only: a credit moves no money. A sale it is used on keeps that sale's own project." />
           </FormSection>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>

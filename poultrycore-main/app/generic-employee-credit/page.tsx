@@ -45,6 +45,10 @@ import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
 import { cn } from "@/lib/utils"
+import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectLabels } from "@/components/generic/projects/project-column"
+import { useProjectTeam } from "@/components/generic/projects/use-project-team"
+import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 import {
   listGenericCashAccounts, listGenericStaff,
   listGenericEmployeeCreditBalances, listGenericEmployeeCreditEntries,
@@ -170,9 +174,14 @@ export default function GenericEmployeeCreditPage() {
   const holding = balances.filter((b) => b.balance > 0).length
   const totalIn = balances.reduce((s, b) => s + b.totalIn, 0)
   const totalOut = balances.reduce((s, b) => s + b.totalPaidOut, 0)
+  // 500: Project / contract -- the staff on the project's team. Balances are
+  // each person's own, company-wide; nothing is split or charged to a project.
+  const team = useProjectTeam()
+  const [projectFilter, setProjectFilter] = useState<ProjectFilterValue>(ALL_PROJECTS)
   const rows = useMemo(
-    () => (showZero ? balances : balances.filter((b) => b.balance !== 0)),
-    [balances, showZero])
+    () => (showZero ? balances : balances.filter((b) => b.balance !== 0))
+      .filter((b) => !team.enabled || team.staffMatches(b.genericStaffId, projectFilter)),
+    [balances, showZero, team, projectFilter])
   const cashOnHand = accounts.reduce((s, a) => s + a.currentBalance, 0)
 
   const afterChange = async () => {
@@ -261,7 +270,18 @@ export default function GenericEmployeeCreditPage() {
             <Button size="sm" variant={showZero ? "default" : "outline"} onClick={() => setShowZero(true)}>
               All
             </Button>
+            {team.enabled && (
+              <ProjectFilter value={projectFilter} onChange={setProjectFilter} className="h-9 w-full sm:w-64" />
+            )}
           </div>
+          {team.enabled && projectFilter.kind !== "all" && (
+            <p className="-mt-2 mb-4 text-xs text-slate-500">
+              {projectFilter.kind === "general"
+                ? "Staff who are on no project team."
+                : "Staff on this project's team (set on the project's Team tab)."} Each balance is the person&apos;s whole
+              balance with the company &mdash; it is not split between projects.
+            </p>
+          )}
 
           {error && (
             <Card className="border-red-200 bg-red-50 mb-4">
@@ -301,6 +321,7 @@ export default function GenericEmployeeCreditPage() {
                 { label: "Holding", value: fmt(b.balance), accent: "blue" as const, wide: true },
                 { label: "Kept", value: fmt(b.totalIn), accent: "emerald" as const },
                 { label: "Paid out", value: fmt(b.totalPaidOut), accent: "rose" as const },
+                ...(team.enabled ? [{ label: "Project team", value: <ProjectLabels labels={team.teamLabels(b.genericStaffId)} /> }] : []),
               ]}
               actions={(b: GenericEmployeeCreditBalance) => (
                 <div className="flex gap-2">
@@ -320,6 +341,7 @@ export default function GenericEmployeeCreditPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Staff</TableHead>
+                        {team.enabled && <TableHead>Project team</TableHead>}
                         <TableHead>Last entry</TableHead>
                         <TableHead className="text-right">Kept</TableHead>
                         <TableHead className="text-right">Paid out</TableHead>
@@ -336,6 +358,9 @@ export default function GenericEmployeeCreditPage() {
                               {b.staffRole || "Staff"}{!b.isActive && " · inactive"}
                             </div>
                           </TableCell>
+                          {team.enabled && (
+                            <TableCell><ProjectLabels labels={team.teamLabels(b.genericStaffId)} /></TableCell>
+                          )}
                           <TableCell>{fmtDate(b.lastEntryDate)}</TableCell>
                           <TableCell className="text-right tabular-nums text-emerald-700">{fmt(b.totalIn)}</TableCell>
                           <TableCell className="text-right tabular-nums text-rose-600">{fmt(b.totalPaidOut)}</TableCell>

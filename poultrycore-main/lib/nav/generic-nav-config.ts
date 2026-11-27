@@ -16,7 +16,8 @@ import {
   PieChart, ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
   Briefcase, Columns3, Link2, FolderPlus, Tag,
 } from "lucide-react"
-import type { MegaMenuGroup, MegaMenuItem } from "./nav-model"
+import type { MegaMenuGroup, MegaMenuItem, NavItem as RailItem } from "./nav-model"
+import { quickLinkCatalogue, resolveQuickLinks, type CustomisableNav } from "./quick-links"
 import type { GenericModulesResult } from "@/hooks/use-generic-modules"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -77,7 +78,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       ...(showNew("enableInvoices") && !isSub
         ? [item("/generic-invoices", labels.invoicePlural, FileText, canSee("/generic-invoices"))]
         : []),
-      item("/generic-customers",         labels.customerPlural, Users, canSee("/generic-customers")),
+      // Customers live under Setup > Finance only.
       item("/generic-customer-payments", labels.paymentPlural,  CreditCard, canSee("/generic-customer-payments")),
       ...(showNew("enableCustomerBalances")
         ? [item("/generic-customer-balances", labels.customerBalance, Scale, canSee("/generic-customer-balances"))]
@@ -335,6 +336,42 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
   ]
 
   return { billing, salesOrStudents, catalog, expenses, money, people, school, reports, setup, admin }
+}
+
+/**
+ * Generic's Quick Links (migration 318), built from an ALREADY GATED config so a
+ * pinned page the user may not open is dropped, never shown (lib/nav/quick-links.ts).
+ *
+ * Kept apart from GenericNavConfig so that config stays "menu name -> groups".
+ */
+const GENERIC_DEFAULT_QUICK_LINKS = [
+  "/generic-sales", "/generic-purchases/new", "/generic-expenses",
+  "/generic-customer-payments", "/generic-cash", "/generic-daily-closings",
+]
+
+export function genericQuickLinksNav(
+  config: GenericNavConfig,
+  quickLinkHrefs?: string[] | null,
+  isSchool = false,
+): CustomisableNav {
+  const menus: [string, MegaMenuGroup[]][] = [
+    ["Setup", config.setup],
+    ["Operations", config.catalog],
+    ["Sales, Expenses & Money", [...config.salesOrStudents, ...config.expenses, ...config.money]],
+    ...(config.billing.length ? [[config.billing[0]?.label ?? "Billing", config.billing] as [string, MegaMenuGroup[]]] : []),
+    ...(config.school.length ? [["School", config.school] as [string, MegaMenuGroup[]]] : []),
+    ...(config.people.length ? [[isSchool ? "Staff & Teachers" : "Employees", config.people] as [string, MegaMenuGroup[]]] : []),
+    ["Reports", config.reports],
+  ]
+  // Defaults are looked up in the gated menus, so a default the user may not
+  // see (or a module the company turned off) simply is not there.
+  const all = quickLinkCatalogue({ quickLinks: { label: "Quick Links", items: [] }, menus })
+  const defaults: RailItem[] = GENERIC_DEFAULT_QUICK_LINKS
+    .map((h) => all.find((c) => c.href === h))
+    .filter((c): c is NonNullable<typeof c> => !!c)
+    .map(({ group, ...i }) => i)
+  const nav: CustomisableNav = { quickLinks: { label: "Quick Links", items: defaults }, menus }
+  return { ...nav, quickLinks: { ...nav.quickLinks, items: resolveQuickLinks(nav, quickLinkHrefs) } }
 }
 
 // Compatibility export for use-global-search.ts which expects flat NavItem arrays.

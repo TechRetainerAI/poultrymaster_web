@@ -33,10 +33,15 @@ import type { MegaMenuGroup, NavGroup, NavItem } from "./nav-model"
  */
 export interface CustomisableNav {
   quickLinks: NavGroup
-  operations: MegaMenuGroup[]
-  salesMoney: MegaMenuGroup[]
-  analytics: MegaMenuGroup[]
-  setup: MegaMenuGroup[]
+  operations?: MegaMenuGroup[]
+  salesMoney?: MegaMenuGroup[]
+  analytics?: MegaMenuGroup[]
+  setup?: MegaMenuGroup[]
+  /**
+   * The picker's menus, named, in rail order. When given it replaces the four
+   * above -- Generic's rail has different menus (Reports, Employees, School...).
+   */
+  menus?: [string, MegaMenuGroup[]][]
 }
 
 /** One row the user may pin, with the menu it normally lives in. */
@@ -77,11 +82,11 @@ export function quickLinkCatalogue(nav: CustomisableNav): QuickLinkChoice[] {
 
   for (const i of nav.quickLinks.items) push(i, "Shortcuts")
 
-  const menus: [string, MegaMenuGroup[]][] = [
-    ["Operations", nav.operations],
-    ["Sales, Expenses & Money", nav.salesMoney],
-    ["Trackers", nav.analytics],
-    ["Setup", nav.setup],
+  const menus: [string, MegaMenuGroup[]][] = nav.menus ?? [
+    ["Operations", nav.operations ?? []],
+    ["Sales, Expenses & Money", nav.salesMoney ?? []],
+    ["Trackers", nav.analytics ?? []],
+    ["Setup", nav.setup ?? []],
   ]
   for (const [menu, groups] of menus) {
     for (const g of groups) {

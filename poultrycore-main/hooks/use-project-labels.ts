@@ -13,10 +13,13 @@ export type LabelSourceType =
   | "Sale" | "Purchase" | "Expense" | "OwnerEntry" | "CustomerPayment" | "SupplierPayment"
   // 493: tagged from Link older transactions; the payroll, loans and assets pages filter by them.
   | "PayrollRun" | "Loan" | "CapitalAsset"
+  // 501: more record types, and deferred-cost lots (keyed by stock movement id).
+  | "InternalUsage" | "EmployeeLoan" | "CustomerCredit" | "RecurringTemplate" | "DeferredLot"
 
 export function useProjectLabels(sourceType: LabelSourceType, reloadKey?: unknown) {
   const { enabled } = useProjectsEnabled()
-  const [map, setMap] = useState<Map<number, { projectId: number; label: string }[]>>(new Map())
+  // 502: share = how much of the record the project has (0..1); null for sales / purchases split per line.
+  const [map, setMap] = useState<Map<number, { projectId: number; label: string; share?: number | null }[]>>(new Map())
 
   const load = useCallback(async () => {
     if (!enabled) { setMap(new Map()); return }
@@ -40,5 +43,13 @@ export function useProjectLabels(sourceType: LabelSourceType, reloadKey?: unknow
 
   const labelOf = useCallback((id: number) => (map.get(id) ?? []).map((p) => p.label.split(" — ")[0]).join(", "), [map])
 
-  return useMemo(() => ({ enabled, map, matches, labelOf, reload: load }), [enabled, map, matches, labelOf, load])
+  /** Full labels ("PRJ-0003 — Name") for the Project / contract column; [] = General. */
+  const labelsOf = useCallback((id: number | null | undefined) =>
+    id == null ? [] : (map.get(id) ?? []).map((p) => p.label), [map])
+
+  /** Labels with each project's share (502), for showing a split. */
+  const partsOf = useCallback((id: number | null | undefined) =>
+    id == null ? [] : (map.get(id) ?? []).map((p) => ({ label: p.label, share: p.share ?? null })), [map])
+
+  return useMemo(() => ({ enabled, map, matches, labelOf, labelsOf, partsOf, reload: load }), [enabled, map, matches, labelOf, labelsOf, partsOf, load])
 }

@@ -27,6 +27,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
 import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 // "Reversed" (484) = reversed sales; "Cancelled" = cancelled drafts, not reversals.
@@ -206,6 +207,7 @@ function GenericSalesPageInner() {
                   details={(s) => [
                     { label: "Date", value: fmtDateTime(s.saleDate, s) },
                     { label: "Customer", value: displayCustomer(s) },
+                    ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectLabels.labelsOf(s.genericSaleId)} /> }] : []),
                     { label: "Type", value: s.salesType },
                     { label: "Total", value: fmt(s.totalAmount) },
                     { label: "Paid", value: fmt(s.amountPaid) },
@@ -242,6 +244,7 @@ function GenericSalesPageInner() {
                           <TableHead>#</TableHead>
                           <TableHead>Date</TableHead>
                           <TableHead>Customer</TableHead>
+                          {projectLabels.enabled && <ProjectHead />}
                           <TableHead>Type</TableHead>
                           <TableHead className="text-right">Total</TableHead>
                           <TableHead className="text-right">Paid</TableHead>
@@ -254,9 +257,10 @@ function GenericSalesPageInner() {
                       <TableBody>
                         {visibleRows.map((s) => (
                           <TableRow key={s.genericSaleId}>
-                            <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link>{projectLabels.labelOf(s.genericSaleId) && <div className="text-[11px] text-indigo-700">{projectLabels.labelOf(s.genericSaleId)}</div>}</TableCell>
+                            <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link></TableCell>
                             <TableCell>{fmtDateTime(s.saleDate, s)}</TableCell>
                             <TableCell>{s.customerName ? s.customerName : <span className="text-slate-500">{displayCustomer(s)}</span>}</TableCell>
+                            {projectLabels.enabled && <ProjectCell labels={projectLabels.labelsOf(s.genericSaleId)} />}
                             <TableCell className="text-xs text-slate-500">{s.salesType}</TableCell>
                             <TableCell className="text-right">{fmt(s.totalAmount)}</TableCell>
                             <TableCell className="text-right">{fmt(s.amountPaid)}</TableCell>

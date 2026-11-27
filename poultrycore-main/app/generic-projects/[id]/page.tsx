@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { invalidateProjectOptions, useProjectsEnabled } from "@/hooks/use-generic-projects"
 import { useFmt } from "@/lib/currency"
+import { TeamTab } from "@/components/generic/projects/team-tab"
 import {
   archiveProject, getProject, getProjectSummary, getProjectTransactions, restoreProject, setProjectStatus,
   PROJECT_STATUSES, type GenericProject, type ProjectSummary, type ProjectTransactions,
@@ -36,7 +37,7 @@ import {
 const TABS = [
   ["overview", "Overview"], ["transactions", "Transactions"], ["inventory", "Purchases & Inventory"],
   ["sales", "Sales & Receivables"], ["costs", "Expenses & Costs"], ["cash", "Cash Flow & Funding"],
-  ["pnl", "Profit & Loss"], ["budget", "Budget"], ["milestones", "Milestones"],
+  ["pnl", "Profit & Loss"], ["budget", "Budget"], ["milestones", "Milestones"], ["team", "Team"],
 ] as const
 
 function Workspace() {
@@ -170,6 +171,7 @@ function Workspace() {
         <TabsContent value="pnl"><PnlStatement rows={tx.pnl} projectId={projectId} /></TabsContent>
         <TabsContent value="budget">{tab === "budget" && <BudgetTab projectId={projectId} />}</TabsContent>
         <TabsContent value="milestones">{tab === "milestones" && <MilestonesTab projectId={projectId} openNew={newMilestone} />}</TabsContent>
+        <TabsContent value="team">{tab === "team" && <TeamTab projectId={projectId} />}</TabsContent>
       </Tabs>
 
       <Dialog open={statusOpen} onOpenChange={setStatusOpen}>

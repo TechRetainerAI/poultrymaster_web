@@ -23,6 +23,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectLabels } from "@/hooks/use-project-labels"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
 import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Cancelled"] as const
@@ -144,6 +145,7 @@ function GenericPurchasesPageInner() {
                   details={(p) => [
                     { label: "Date", value: fmtDateTime(p.purchaseDate, p) },
                     { label: "Supplier", value: p.supplierName ?? "–" },
+                    ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectLabels.labelsOf(p.genericPurchaseId)} /> }] : []),
                     { label: "Invoice", value: p.invoiceNumber ?? "–" },
                     { label: "Total", value: fmt(p.totalAmount) },
                     { label: "Paid", value: fmt(p.amountPaid) },
@@ -185,6 +187,7 @@ function GenericPurchasesPageInner() {
                           <TableHead>#</TableHead>
                           <TableHead>Date</TableHead>
                           <TableHead>Supplier</TableHead>
+                          {projectLabels.enabled && <ProjectHead />}
                           <TableHead>Invoice</TableHead>
                           <TableHead className="text-right">Total</TableHead>
                           <TableHead className="text-right">Paid</TableHead>
@@ -198,10 +201,10 @@ function GenericPurchasesPageInner() {
                           <TableRow key={p.genericPurchaseId}>
                             <TableCell>
                               <Link href={`/generic-purchases/${p.genericPurchaseId}`} className="text-emerald-700 underline">#{p.genericPurchaseId}</Link>
-                              {projectLabels.labelOf(p.genericPurchaseId) && <div className="text-[11px] text-indigo-700">{projectLabels.labelOf(p.genericPurchaseId)}</div>}
                             </TableCell>
                             <TableCell>{fmtDateTime(p.purchaseDate, p)}</TableCell>
                             <TableCell>{p.supplierName ?? "–"}</TableCell>
+                            {projectLabels.enabled && <ProjectCell labels={projectLabels.labelsOf(p.genericPurchaseId)} />}
                             <TableCell>{p.invoiceNumber ?? "–"}</TableCell>
                             <TableCell className="text-right">{fmt(p.totalAmount)}</TableCell>
                             <TableCell className="text-right">{fmt(p.amountPaid)}</TableCell>

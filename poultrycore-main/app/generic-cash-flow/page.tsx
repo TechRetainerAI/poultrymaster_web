@@ -73,6 +73,8 @@ import {
 import { CashFlowInsightsDialog } from "@/components/cash/cash-flow-insights-dialog"
 import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { useCashRowProjects } from "@/components/generic/projects/use-cash-row-projects"
 import { ScopedCashPanel } from "@/components/generic/projects/project-tabs"
 import { ALL_PROJECTS, filterToParam, type ProjectFilterValue } from "@/lib/generic/project-math"
 
@@ -109,6 +111,8 @@ export default function GenericCashFlowPage() {
   const [sortDir, setSortDir] = useState<SortDirection>("desc")
 
   const [rows, setRows] = useState<CashFlowRow[]>([])
+  // The Project / contract column (only while the company has the module on).
+  const cashProjects = useCashRowProjects(rows)
   const [summary, setSummary] = useState<CashFlowSummary>(EMPTY_SUMMARY)
   const [prevSummary, setPrevSummary] = useState<CashFlowSummary>(EMPTY_SUMMARY)
   const [allTime, setAllTime] = useState<CashFlowSummary>(EMPTY_SUMMARY)
@@ -519,6 +523,7 @@ export default function GenericCashFlowPage() {
                         { label: "Category", value: flowGroupLabel(r.flowGroup) },
                         { label: "Recorded as", value: sourceTypeLabel(r.sourceType) },
                         { label: "Description", value: r.description ?? "\u2014" },
+                        ...(cashProjects.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={cashProjects.labelsOf(r)} /> }] : []),
                       ]}
                       desktopTable={
                         <div className="overflow-x-auto">
@@ -547,6 +552,7 @@ export default function GenericCashFlowPage() {
                                     className={cls}
                                   />
                                 ))}
+                                {cashProjects.enabled && <ProjectHead />}
                                 <TableHead className="text-right">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -580,6 +586,7 @@ export default function GenericCashFlowPage() {
                                     <TableCell className="text-right tabular-nums font-medium">
                                       {gh(r.running)}
                                     </TableCell>
+                                    {cashProjects.enabled && <ProjectCell labels={cashProjects.labelsOf(r)} />}
                                     <TableCell className="text-right whitespace-nowrap">
                                       <div className="inline-flex items-center gap-1">
                                         <Button size="icon" variant="ghost" disabled={!canManage}

@@ -73,6 +73,7 @@ import {
 import { DateTimeCell } from "@/components/ui/date-time-cell"
 import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
 import { useProjectListFilter } from "@/components/generic/projects/use-project-list-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
 
 const STATUSES = ["Draft", "Active", "FullyDepreciated", "Disposed", "Reversed"] as const
 
@@ -231,7 +232,7 @@ export default function GenericAssetsPage() {
   }, [load, expanded, loadDetail])
 
   // 493: Project / Contract filter -- assets given to a project (costs + depreciation follow it).
-  const { extraFilter: projectFilter } = useProjectListFilter<GenericCapitalAsset>("CapitalAsset", (a) => a.genericCapitalAssetId)
+  const { extraFilter: projectFilter, labels: projectLabels } = useProjectListFilter<GenericCapitalAsset>("CapitalAsset", (a) => a.genericCapitalAssetId)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -383,6 +384,7 @@ export default function GenericAssetsPage() {
                   ]}
                   details={(a) => [
                     { label: "Acquired", value: fmtDateTime(a.acquisitionDate, a) || "—" },
+                    ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectLabels.labelsOf(a.genericCapitalAssetId)} /> }] : []),
                     // The split, said on the card too: the whole point is that
                     // one number is not allowed to stand for two ideas.
                     { label: "Original acquisition", value: gh(a.acquisitionCost) },
@@ -480,6 +482,7 @@ export default function GenericAssetsPage() {
                         <SortableHeader label="Investment #" sortKey="assetNumber" currentSort={cs} currentDirection={cd} onSort={onSort} />
                         <SortableHeader label="Investment" sortKey="assetName" currentSort={cs} currentDirection={cd} onSort={onSort} />
                         <SortableHeader label="Category" sortKey="categoryName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                        {projectLabels.enabled && <ProjectHead />}
                         <SortableHeader label="Acquired" sortKey="acquisitionDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
                         {/* §5. "Cost" was the TOTAL wearing the acquisition's
                             name. Expanding the row says which is which. */}
@@ -493,7 +496,7 @@ export default function GenericAssetsPage() {
                   </TableRow></TableHeader>
                   <TableBody>
                     {sorted.length === 0 ? (
-                      <TableRow><TableCell colSpan={11} className="text-center text-slate-500 py-8">
+                      <TableRow><TableCell colSpan={projectLabels.enabled ? 12 : 11} className="text-center text-slate-500 py-8">
                         No capital investments recorded. A building, a vehicle or a machine belongs here rather than on the Expenses page.
                       </TableCell></TableRow>
                     ) : pg.pageItems.map((a) => {
@@ -521,6 +524,7 @@ export default function GenericAssetsPage() {
                           {a.location && <div className="text-[11px] text-slate-500">{a.location}</div>}
                         </TableCell>
                         <TableCell className="text-sm">{a.categoryName ?? "—"}</TableCell>
+                        {projectLabels.enabled && <ProjectCell labels={projectLabels.labelsOf(a.genericCapitalAssetId)} />}
                         <TableCell className="align-top text-sm">
                           <DateTimeCell value={a.acquisitionDate} row={a} />
                         </TableCell>
@@ -590,7 +594,7 @@ export default function GenericAssetsPage() {
                       </TableRow>
                       {open && (
                         <TableRow>
-                          <TableCell colSpan={11} className="bg-slate-50 p-0">
+                          <TableCell colSpan={projectLabels.enabled ? 12 : 11} className="bg-slate-50 p-0">
                             <AssetDetailsPanel
                               view={details[a.genericCapitalAssetId]
                                 ? toDetailsView(details[a.genericCapitalAssetId])

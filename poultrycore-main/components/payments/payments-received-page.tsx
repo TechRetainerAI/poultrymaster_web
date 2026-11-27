@@ -123,7 +123,12 @@ export interface PaymentsReceivedPageProps {
    * 493 (Generic): one more filter in the strip (the Project / Contract filter)
    * and the test it applies to each payment. Absent = unchanged.
    */
-  extraFilter?: { control: React.ReactNode; matches: (row: PaymentHistoryRow) => boolean }
+  extraFilter?: {
+    control: React.ReactNode
+    matches: (row: PaymentHistoryRow) => boolean
+    /** An extra column (Generic: Project / contract), shown only when given. */
+    column?: { title: string; cell: (row: PaymentHistoryRow) => React.ReactNode }
+  }
 }
 
 export function PaymentsReceivedPage({
@@ -788,6 +793,7 @@ export function PaymentsReceivedPage({
                                 {(module === "poultry" || module === "water") && <PaymentPLBadge row={row} side="customer" />}
                               </div>
                               <div className="mt-0.5 truncate text-sm text-slate-600">{row.partyName ?? "Walk-in"}</div>
+                              {extraFilter?.column && <div className="mt-0.5">{extraFilter.column.cell(row)}</div>}
                               <div className="mt-1 text-xs text-slate-500">
                                 {dateOf(row.paymentDate, row)} · {row.paymentMethod ?? "—"} ·{" "}
                                 {multi ? `${row.allocationCount} sales` : "1 sale"}
@@ -952,6 +958,7 @@ export function PaymentsReceivedPage({
                           <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
                           <SortableHeader label="Payment" sortKey="payment" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
                           <SortableHeader label="Customer" sortKey="customer" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
+                          {extraFilter?.column && <TableHead>{extraFilter.column.title}</TableHead>}
                           <SortableHeader label="Amount" sortKey="amount" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
                           {/* The allocation, for the payment that settled one
                               sale. A payment across several shows the count
@@ -1002,6 +1009,7 @@ export function PaymentsReceivedPage({
                                   {paymentRef(row)}
                                 </TableCell>
                                 <TableCell className="font-medium">{row.partyName ?? "Walk-in"}</TableCell>
+                                {extraFilter?.column && <TableCell>{extraFilter.column.cell(row)}</TableCell>}
                                 <TableCell className={cn("whitespace-nowrap! text-right font-semibold tabular-nums", isReversed && "line-through")}>
                                   {fmt(row.totalAmount)}
                                 </TableCell>
@@ -1086,7 +1094,7 @@ export function PaymentsReceivedPage({
                               {isReversed && row.reversalReason && (
                                 <TableRow>
                                   <TableCell />
-                                  <TableCell colSpan={10} className="py-1 text-xs text-slate-500">
+                                  <TableCell colSpan={extraFilter?.column ? 11 : 10} className="py-1 text-xs text-slate-500">
                                     Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
                                     {row.reversedAt ? ` on ${fmtInstant(row.reversedAt)}` : ""}: {row.reversalReason}
                                   </TableCell>
@@ -1096,7 +1104,7 @@ export function PaymentsReceivedPage({
                               {isOpen && (
                                 <TableRow>
                                   <TableCell />
-                                  <TableCell colSpan={10} className="py-2">
+                                  <TableCell colSpan={extraFilter?.column ? 11 : 10} className="py-2">
                                     {multi
                                       ? (!allocations[row.paymentId] ? (
                                           <span className="flex items-center gap-2 text-sm text-slate-500">

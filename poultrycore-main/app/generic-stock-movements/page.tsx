@@ -40,6 +40,8 @@ import {
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { exportTableToPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
+import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
+import { useProjectLabels } from "@/hooks/use-project-labels"
 import { ALL_PROJECTS, type ProjectFilterValue } from "@/lib/generic/project-math"
 
 const DEFAULT = defaultReportRange()
@@ -75,6 +77,15 @@ export default function GenericStockMovementsPage() {
   const gh = useFmt()
 
   const [rows, setRows] = useState<GenericStockMovement[]>([])
+  // The Project / contract column: a movement belongs to the project of the
+  // sale or purchase that made it; anything else (opening, adjustments) is General.
+  const saleProjects = useProjectLabels("Sale", rows)
+  const purchaseProjects = useProjectLabels("Purchase", rows)
+  const showProject = saleProjects.enabled
+  const projectsOfMove = (r: GenericStockMovement) =>
+    r.referenceType === "Sale" ? saleProjects.labelsOf(r.referenceId)
+      : r.referenceType === "Purchase" ? purchaseProjects.labelsOf(r.referenceId)
+      : []
   const [products, setProducts] = useState<GenericProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [dateFrom, setDateFrom] = useState(DEFAULT.from)
@@ -355,6 +366,7 @@ export default function GenericStockMovementsPage() {
                     { label: "Unit cost", value: r.unitCost != null ? gh(r.unitCost) : "—" },
                     { label: "Total value", value: r.totalCostValue != null ? gh(Math.abs(r.totalCostValue)) : "—" },
                     { label: "Reason", value: r.reason ?? "—" },
+                    ...(showProject ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectsOfMove(r)} /> }] : []),
                     { label: "Notes", value: r.notes ?? "—" },
                     { label: "Status", value: r.status ?? "—" },
                   ]}
@@ -383,6 +395,7 @@ export default function GenericStockMovementsPage() {
                                 className={cls}
                               />
                             ))}
+                            {showProject && <ProjectHead />}
                             <TableHead>Reason / Notes</TableHead>
                             <TableHead>Status</TableHead>
                           </TableRow>
@@ -403,6 +416,7 @@ export default function GenericStockMovementsPage() {
                               <TableCell className="text-right tabular-nums">
                                 {r.totalCostValue != null ? gh(Math.abs(r.totalCostValue)) : "—"}
                               </TableCell>
+                              {showProject && <ProjectCell labels={projectsOfMove(r)} />}
                               <TableCell className="max-w-xs whitespace-normal break-words text-sm text-slate-600">
                                 {r.reason ?? r.notes ?? "—"}
                               </TableCell>

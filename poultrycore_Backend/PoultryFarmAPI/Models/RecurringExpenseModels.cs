@@ -11,6 +11,9 @@ namespace PoultryFarmAPIWeb.Models
     public class RecurringExpenseTemplateRequest
     {
         [Required] public string FarmId { get; set; } = string.Empty;
+        /// <summary>Generic Projects & Contracts (501): { projectId } or { splits }, saved with the template. Every expense
+        /// the template creates carries the same split. Only Generic companies send it.</summary>
+        public System.Text.Json.JsonElement? Projects { get; set; }
         [Required, StringLength(150)] public string Name { get; set; } = string.Empty;
         /// <summary>The module's category id (Water/Generic/Hotel/Restaurant).</summary>
         public int? CategoryId { get; set; }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
-  buildAssignment, checkSplit, filterToParam, paramToFilter, projectIdFromQuery, projectPart, reconciles, toSplits,
+  buildAssignment, checkSplit, filterToParam, paramToFilter, projectIdFromQuery, projectPart, reconciles, splitEvenly, toSplits,
 } from "./project-math"
 
 describe("project filter value", () => {
@@ -87,5 +87,33 @@ describe("projectPart (493)", () => {
   it("a record with no projects is all General", () => {
     expect(projectPart(50, [], { kind: "general" })).toBe(50)
     expect(projectPart(50, undefined, { kind: "projects", ids: [1] })).toBe(0)
+  })
+})
+
+describe("splitEvenly", () => {
+  const sum = (rs: { value: number }[]) => Math.round(rs.reduce((t, r) => t + r.value, 0) * 1000) / 1000
+  it("shares an amount between the chosen projects and adds up exactly", () => {
+    const out = splitEvenly([{ projectId: 1, value: 0 }, { projectId: 2, value: 0 }, { projectId: 3, value: 0 }], "amount", 100)
+    expect(out.map((r) => r.value)).toEqual([33.33, 33.33, 33.34])
+    expect(sum(out)).toBe(100)
+  })
+  it("percent always totals 100", () => {
+    const out = splitEvenly([{ projectId: 1, value: 0 }, { projectId: 2, value: 0 }], "percent", 5000)
+    expect(out.map((r) => r.value)).toEqual([50, 50])
+  })
+  it("quantity keeps three decimals", () => {
+    const out = splitEvenly([{ projectId: 1, value: 0 }, { projectId: 2, value: 0 }, { projectId: 3, value: 0 }], "quantity", 10)
+    expect(out.map((r) => r.value)).toEqual([3.333, 3.333, 3.334])
+  })
+  it("leaves rows without a project alone once some have one", () => {
+    const out = splitEvenly([{ projectId: 1, value: 0 }, { projectId: null, value: 7 }, { projectId: 2, value: 0 }], "amount", 10)
+    expect(out.map((r) => r.value)).toEqual([5, 7, 5])
+  })
+  it("uses every row when none has a project yet", () => {
+    expect(splitEvenly([{ projectId: null, value: 0 }, { projectId: null, value: 0 }], "amount", 9).map((r) => r.value)).toEqual([4.5, 4.5])
+  })
+  it("passes a split that checks out", () => {
+    const out = splitEvenly([{ projectId: 1, value: 0 }, { projectId: 2, value: 0 }, { projectId: 3, value: 0 }], "amount", 1000)
+    expect(checkSplit(out, "amount", 1000).ok).toBe(true)
   })
 })
