@@ -449,9 +449,10 @@ export async function getSalesByFlock(flockId: number, userId?: string, farmId?:
 }
 
 // Create new sale
-export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
+export async function createSale(sale: SaleInput, opts?: { pendingSaleId?: number | null }): Promise<ApiResponse<Sale>> {
   try {
-    const url = farmApiUrl("Sale")
+    // 527: editing a sale that waits for approval sends the same body to it.
+    const url = opts?.pendingSaleId ? farmApiUrl(`Sale/pending/${opts.pendingSaleId}/single`) : farmApiUrl("Sale")
     console.log("[v0] Creating sale:", url)
     console.log("[v0] Sale input:", sale)
 
@@ -518,7 +519,7 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
     console.log("[v0] Sale request body:", requestBody)
 
     const response = await fetch(url, {
-      method: "POST",
+      method: opts?.pendingSaleId ? "PUT" : "POST",
       headers: {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
@@ -555,6 +556,10 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
       }
     }
     
+
+    // 527: not posted -- it waits for approval. No sale id, nothing to follow up.
+    if (data?.pending) return { success: true, data: data as any }
+
     // If no data returned but successful, create sale object from request
     if (!data && response.ok) {
       console.log("[v0] Create successful (empty response)")
@@ -796,6 +801,10 @@ export interface SaleGroupInput {
 }
 
 export interface SaleGroupResult {
+  /** 527: true when the sale was NOT posted but waits for approval (no sale id). */
+  pending?: boolean
+  pendingSaleId?: number
+  message?: string
   saleGroupNo: string
   /** The ONE sale created (358), whatever the number of lines. */
   saleId: number
@@ -814,10 +823,11 @@ export interface SaleGroupResult {
  * class, one stock movement per line and -- paid now by a known customer --
  * ONE payment allocated to the sale. All or nothing.
  */
-export async function createSaleGroup(input: SaleGroupInput): Promise<ApiResponse<SaleGroupResult>> {
+export async function createSaleGroup(input: SaleGroupInput, opts?: { pendingSaleId?: number | null }): Promise<ApiResponse<SaleGroupResult>> {
   try {
-    const response = await fetch(farmApiUrl("Sale/group"), {
-      method: "POST",
+    // 527: editing a sale that waits for approval sends the same body to it.
+    const response = await fetch(opts?.pendingSaleId ? farmApiUrl(`Sale/pending/${opts.pendingSaleId}/group`) : farmApiUrl("Sale/group"), {
+      method: opts?.pendingSaleId ? "PUT" : "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify(input),
     })
@@ -1019,3 +1029,81 @@ export async function getMeatWithdrawal(date: string): Promise<MeatWithdrawal[]>
   if (!res.ok) return []        // a warning that cannot load must not block selling
   return (await res.json().catch(() => [])) as MeatWithdrawal[]
 }
+
+// =============================================================================
+// 527: poultry sales waiting for approval.
+//
+// A sale recorded by someone who may not approve sales is not posted: the API
+// answers 202 { pending: true, pendingSaleId } and keeps the request. Approving
+// it posts it exactly as an ordinary sale, as the person who entered it.
+// =============================================================================
+
+export interface SaleApprovalInfo {
+  /** The company's switch, "Sales by staff need approval". */
+  needApproval: boolean
+  /** The switch applies (it is on and per-company page access is live). */
+  active: boolean
+  isApprover: boolean
+  isOwner: boolean
+  /** A sale this person records will wait for approval. */
+  mySalesWait: boolean
+  waitingCount: number
+}
+
+export type PendingSaleStatus = "Waiting" | "Approving" | "Approved" | "Rejected" | "Withdrawn"
+
+export interface PendingSale {
+  pendingSaleId: number
+  kind: "single" | "group"
+  /** The request exactly as it will be posted (SaleInput or SaleGroupInput). */
+  payload: any
+  saleDate: string | null
+  customerName: string | null
+  summary: string | null
+  totalAmount: number
+  lineCount: number
+  status: PendingSaleStatus
+  submittedBy: string
+  submittedByName: string | null
+  submittedAt: string
+  updatedAt: string | null
+  decidedBy: string | null
+  decidedByName: string | null
+  decidedAt: string | null
+  rejectionReason: string | null
+  /** Why the last approval attempt did not post. */
+  lastError: string | null
+  postedSaleId: number | null
+  postedSaleLabel: string | null
+}
+
+async function approvalCall<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(farmApiUrl(path), {
+    ...init,
+    headers: { ...getAuthHeaders(), "Content-Type": "application/json", Accept: "application/json", ...(init?.headers ?? {}) },
+  })
+  const text = await res.text()
+  let data: any = null
+  try { data = text ? JSON.parse(text) : null } catch { /* not JSON */ }
+  if (!res.ok) throw new Error(data?.message || (typeof data === "string" ? data : "") || `Request failed (${res.status}).`)
+  return data as T
+}
+
+export const getSaleApproval = (farmId: string) =>
+  approvalCall<SaleApprovalInfo>(`Sale/approval?farmId=${encodeURIComponent(farmId)}`)
+
+export const setSaleApproval = (farmId: string, needApproval: boolean) =>
+  approvalCall<SaleApprovalInfo>("Sale/approval", { method: "PUT", body: JSON.stringify({ farmId, needApproval }) })
+
+export const listPendingSales = (farmId: string, status?: PendingSaleStatus | null) =>
+  approvalCall<PendingSale[]>(`Sale/pending?farmId=${encodeURIComponent(farmId)}${status ? `&status=${status}` : ""}`)
+
+export const approvePendingSale = (farmId: string, pendingSaleId: number) =>
+  approvalCall<{ pendingSaleId: number; saleId: number; saleLabel: string }>(
+    `Sale/pending/${pendingSaleId}/approve`, { method: "POST", body: JSON.stringify({ farmId }) })
+
+export const rejectPendingSale = (farmId: string, pendingSaleId: number, reason: string) =>
+  approvalCall<void>(`Sale/pending/${pendingSaleId}/reject`, { method: "POST", body: JSON.stringify({ farmId, reason }) })
+
+export const withdrawPendingSale = (farmId: string, pendingSaleId: number) =>
+  approvalCall<void>(`Sale/pending/${pendingSaleId}/withdraw`, { method: "POST", body: JSON.stringify({ farmId }) })

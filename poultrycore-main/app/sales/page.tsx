@@ -1,7 +1,7 @@
 "use client"
 
 import { isBroilerBatch, isBroilerFlock, shouldSwitchToChicken, BROILER_SALE_PRODUCT } from "@/lib/poultry/flock-type"
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,7 +25,8 @@ import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listPoultryProducts, getPoultryByproductSettings, type PoultryProduct, type PoultryByproductSettings } from "@/lib/api/poultry-inventory"
-import { createSaleGroup, getMeatWithdrawal, getSaleReversal, type MeatWithdrawal } from "@/lib/api/sale"
+import { createSaleGroup, getMeatWithdrawal, getSaleReversal, getSaleApproval, listPendingSales, type MeatWithdrawal, type PendingSale, type SaleApprovalInfo } from "@/lib/api/sale"
+import { PendingSaleActions, PendingStatusBadge, SaleApprovalSwitch, pendingField } from "@/components/sales/pending-sales-panel"
 import { ReverseSaleDialog, type ReverseSaleResult } from "@/components/sales/reverse-sale-dialog"
 import { SaleDetailsDialog } from "@/components/sales/sale-details-dialog"
 import { HistoricalSalesPanel } from "@/components/sales/historical-sales-panel"
@@ -364,6 +365,47 @@ export default function SalesPage() {
   const isMobile = useIsMobile()
   // 436: "Sales" or "Before tracking" (historical sales).
   const [salesView, setSalesView] = useState<"sales" | "history">("sales")
+  // 527: sales waiting for approval. `editingPending` = the form is open on one.
+  const [approvalInfo, setApprovalInfo] = useState<SaleApprovalInfo | null>(null)
+  const [editingPending, setEditingPending] = useState<PendingSale | null>(null)
+  const [pendingRefresh, setPendingRefresh] = useState(0)
+  const loadApprovalInfo = useCallback(() => {
+    const { farmId } = getUserContext()
+    if (!farmId) return
+    getSaleApproval(farmId).then(setApprovalInfo).catch(() => setApprovalInfo(null))
+  }, [])
+  useEffect(() => { loadApprovalInfo() }, [loadApprovalInfo, pendingRefresh])
+  // Sales sent for approval and not decided yet (Waiting) or sent back
+  // (Rejected). Approved ones are ordinary sales; withdrawn ones are gone.
+  const [pendingRows, setPendingRows] = useState<PendingSale[]>([])
+  // The approval tabs above the filters. "All" is the Sales list as always,
+  // with waiting and rejected sales on top.
+  const [approvalTab, setApprovalTab] = useState<"All" | "Waiting" | "Rejected" | "Approved" | "Withdrawn">("All")
+  useEffect(() => {
+    const { farmId } = getUserContext()
+    if (!farmId) return
+    let live = true
+    listPendingSales(farmId)
+      .then((rows) => { if (live) setPendingRows(rows) })
+      .catch(() => { if (live) setPendingRows([]) })
+    return () => { live = false }
+  }, [pendingRefresh])
+  const onPendingChanged = (posted: boolean) => {
+    setPendingRefresh((n) => n + 1)
+    if (posted) { loadSales(); loadPoultryProducts() }
+  }
+  /** The sale was kept for approval, not posted: say so and leave the form. */
+  const afterSentForApproval = (message?: string) => {
+    toast({
+      title: editingPending ? "Waiting sale updated" : "Sent for approval",
+      description: message || "It will be posted once someone who can approve sales approves it.",
+    })
+    setIsCreateDialogOpen(false)
+    setEditingPending(null)
+    setCorrecting(null)
+    resetForm()
+    setPendingRefresh((n) => n + 1)
+  }
   const [historyCount, setHistoryCount] = useState(0)
   // The tab shows its count before it is opened, so a farm whose only sales
   // are historical sees there is something there.
@@ -870,11 +912,12 @@ export default function SalesPage() {
             const totals = scaleLineTotals(lines.map((l) => l.totalAmount), hasOverride ? overrideAmount! : null)
             return lines.map((l, i) => ({ ...l, totalAmount: totals[i] }))
           })(),
-        })
+        }, { pendingSaleId: editingPending?.pendingSaleId })
         if (!res.success) {
           toast({ title: "Sale not saved", description: res.message || "Failed to create sale", variant: "destructive" })
           return
         }
+        if (res.data?.pending) { afterSentForApproval(res.data.message); return }
         const saleCount = res.data?.saleCount ?? 1
         const groupTotal = Number(res.data?.totalAmount ?? 0)
         const cashNow = partPayment ? Number(partPaidAmount) || 0 : restPaidNow
@@ -920,7 +963,8 @@ export default function SalesPage() {
         correctsSaleId: correcting?.saleId ?? null,
       }
 
-      const response = await createSale(saleData)
+      const response = await createSale(saleData, { pendingSaleId: editingPending?.pendingSaleId })
+      if (response.success && (response.data as any)?.pending) { afterSentForApproval((response.data as any).message); return }
       if (response.success) {
         // "Paid now" → actually settle the sale, matching the Water flow.
         // The create already posted the cash-in, but the backend leaves
@@ -1127,6 +1171,77 @@ export default function SalesPage() {
     setCorrecting({ saleId: sale.saleId, label: row.lines ? (row.saleGroupNo ?? `#${sale.saleId}`) : `#${sale.saleId}`, creditKept })
     // The money kept at the reversal pays the corrected sale, from the form.
     if (creditKept > 0) { setUseCredit(true); setCreditAmount(creditKept) }
+    setIsCreateDialogOpen(true)
+  }
+
+  // 527: open the form on a sale waiting for approval, filled in from the
+  // request exactly as it was sent. Saving sends the changes back to it.
+  const openPendingForm = (p: PendingSale) => {
+    const body = p.payload ?? {}
+    const pick = (k: string) => body[k] ?? body[k.charAt(0).toUpperCase() + k.slice(1)]
+    const rawLines: any[] = p.kind === "group" ? (pick("lines") ?? []) : []
+    const L = (l: any, k: string) => l?.[k] ?? l?.[k.charAt(0).toUpperCase() + k.slice(1)]
+    const lines = rawLines.map((l, i) => ({
+      saleLineId: -(i + 1),
+      lineNo: i + 1,
+      product: L(l, "product") ?? "",
+      eggProductId: L(l, "eggProductId") ?? null,
+      size: null,
+      quantity: Number(L(l, "quantity")) || 0,
+      unitPrice: Number(L(l, "unitPrice")) || 0,
+      totalAmount: Number(L(l, "totalAmount")) || 0,
+      boxes: L(l, "boxes") ?? null,
+      crates: L(l, "crates") ?? null,
+      pieces: L(l, "pieces") ?? null,
+      pricePerBox: L(l, "pricePerBox") ?? null,
+      pricePerPiece: L(l, "pricePerPiece") ?? null,
+      // Entered with today's packaging, so the boxes / crates come back as typed.
+      eggsPerCrate: L(l, "crates") != null ? packaging.eggsPerCrate : null,
+      cratesPerBox: L(l, "boxes") ? packaging.cratesPerBox : null,
+      pricingBasis: L(l, "pricingBasis") ?? null,
+      liveWeightKg: L(l, "liveWeightKg") ?? null,
+      pricePerKg: L(l, "pricePerKg") ?? null,
+    })) as unknown as SaleLine[]
+    const first: any = lines[0]
+    const row = {
+      saleId: 0,
+      saleDate: String(pick("saleDate") ?? new Date().toISOString()),
+      product: first?.product ?? pick("product") ?? "",
+      quantity: first?.quantity ?? Number(pick("quantity")) ?? 0,
+      unitPrice: first?.unitPrice ?? Number(pick("unitPrice")) ?? 0,
+      totalAmount: first?.totalAmount ?? Number(pick("totalAmount")) ?? 0,
+      paymentMethod: pick("paymentMethod") ?? "",
+      customerName: pick("customerName") ?? "",
+      flockId: pick("flockId") ?? 0,
+      batchId: pick("batchId") ?? null,
+      saleDescription: pick("saleDescription") ?? "",
+      paid: pick("paid") ?? true,
+      size: pick("size") ?? null,
+      poultryCashAccountId: pick("poultryCashAccountId") ?? null,
+      eggProductId: first ? first.eggProductId : pick("eggProductId") ?? null,
+      lines: lines.length ? lines : undefined,
+    } as unknown as SaleRow
+    const correctsSaleId = Number(pick("correctsSaleId")) || 0
+    // Reuses the Correct Sale fill, then puts back what only a request carries.
+    openCorrectionForm(row, 0)
+    setCorrecting(correctsSaleId ? { saleId: correctsSaleId, label: `#${correctsSaleId}`, creditKept: 0 } : null)
+    const credit = Number(pick("customerCreditAmount")) || 0
+    const paidNow = Number(pick("amountPaidNow")) || 0
+    if (credit > 0) {
+      setUseCredit(true); setCreditAmount(credit)
+      setFormData((f) => ({ ...f, paid: paidNow > 0 }))
+    } else if (p.kind === "group" && pick("paid") === false && paidNow > 0) {
+      setPartPayment(true); setPartPaidAmount(paidNow)
+    }
+    // A total typed over the calculated one comes back as the override.
+    if (lines.length) {
+      const typed = lines.reduce((a, l: any) => a + (Number(l.totalAmount) || 0), 0)
+      const natural = lines.reduce((a, l: any) => a + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0), 0)
+      if (Math.abs(typed - natural) > Math.max(0.5, natural * 0.01)) setOverrideAmount(Math.round(typed * 100) / 100)
+    }
+    const key = pick("requestKey")
+    if (key) saleRequestKeyRef.current = String(key)
+    setEditingPending(p)
     setIsCreateDialogOpen(true)
   }
 
@@ -1592,9 +1707,17 @@ export default function SalesPage() {
 
   const groupedSales = useMemo(() => toSaleRows(sales), [sales])
 
+  // Approved tab: the sales that came through approval.
+  const approvedSaleIds = useMemo(
+    () => new Set(pendingRows.filter((r) => r.status === "Approved" && r.postedSaleId).map((r) => r.postedSaleId as number)),
+    [pendingRows])
+
   const filteredSales = useMemo(() => {
     const query = searchCustomer.trim().toLowerCase()
+    // Waiting / Rejected / Withdrawn are not sales: those tabs list no sales.
+    if (approvalTab === "Waiting" || approvalTab === "Rejected" || approvalTab === "Withdrawn") return []
     return groupedSales.filter((sale) => {
+      if (approvalTab === "Approved" && !approvedSaleIds.has(sale.saleId)) return false
       // Deep link from Customer Balances -> Open sale. Narrowing to the single
       // sale is the point of the link, so it wins over the other filters (the
       // banner below offers the way back out).
@@ -1609,7 +1732,7 @@ export default function SalesPage() {
       if (!matchesStatusFilter(sale, paymentStatusOf(sale), statusFilter)) return false
       return true
     })
-  }, [groupedSales, searchCustomer, dateFrom, dateTo, focusSaleId, statusFilter])
+  }, [groupedSales, searchCustomer, dateFrom, dateTo, focusSaleId, statusFilter, approvalTab, approvedSaleIds])
 
   const sortedSales = useMemo(() => sortData(filteredSales, sortKey, sortDir, (item: any, key: string) => {
     switch (key) {
@@ -1632,6 +1755,33 @@ export default function SalesPage() {
     () => sortedSales.slice(startIndex, endIndex),
     [sortedSales, startIndex, endIndex]
   )
+
+  // 527: sales sent for approval, filtered like the sales. They sit above the
+  // sales on the first page and are never part of the totals or the export.
+  const visiblePending = useMemo(() => {
+    if (focusSaleId !== null || approvalTab === "Approved") return []
+    // On "All" they ride along with the sales, so a payment-status filter hides them.
+    if (approvalTab === "All" && statusFilter !== "All" && statusFilter !== "Active") return []
+    const query = searchCustomer.trim().toLowerCase()
+    return pendingRows.filter((r) => {
+      const waiting = r.status === "Waiting" || r.status === "Approving"
+      if (approvalTab === "All" && !(waiting || r.status === "Rejected")) return false
+      if (approvalTab === "Waiting" && !waiting) return false
+      if (approvalTab === "Rejected" && r.status !== "Rejected") return false
+      if (approvalTab === "Withdrawn" && r.status !== "Withdrawn") return false
+      if (query && !(r.customerName ?? "").toLowerCase().includes(query) && !(r.summary ?? "").toLowerCase().includes(query)) return false
+      const d = r.saleDate ? toLocalDateKey(r.saleDate) : null
+      if (d && dateFrom && d < dateFrom) return false
+      if (d && dateTo && d > dateTo) return false
+      return true
+    })
+  }, [pendingRows, focusSaleId, statusFilter, searchCustomer, dateFrom, dateTo, approvalTab])
+  useEffect(() => { setCurrentPage(1) }, [approvalTab])
+  const approvalCounts = useMemo(() => ({
+    Waiting: pendingRows.filter((r) => r.status === "Waiting" || r.status === "Approving").length,
+    Rejected: pendingRows.filter((r) => r.status === "Rejected").length,
+  }), [pendingRows])
+  const showApprovalTabs = !!(approvalInfo?.active || approvalInfo?.isOwner || pendingRows.length > 0)
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -1723,7 +1873,7 @@ export default function SalesPage() {
                   resetForm()
                   // Closing a Correct Sale form without saving leaves the original
                   // reversed; it can be re-entered with Add Sale.
-                  if (!open) setCorrecting(null)
+                  if (!open) { setCorrecting(null); setEditingPending(null) }
                 }}
               >
                 <DialogTrigger asChild>
@@ -1738,13 +1888,22 @@ export default function SalesPage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
                   <ShoppingCart className="h-5 w-5" />
                 </span>
-                {correcting ? `Corrected sale (replaces ${correcting.label})` : "New sale"}
+                {editingPending
+                  ? `Waiting sale #${editingPending.pendingSaleId}`
+                  : correcting ? `Corrected sale (replaces ${correcting.label})` : "New sale"}
               </DialogTitle>
               <DialogDescription>
-                {correcting
+                {editingPending
+                  ? "Not posted yet. Change what is wrong and save: it stays waiting for approval until someone approves it."
+                  : correcting
                   ? "Filled in from the reversed sale. Fix what was wrong and save: this becomes a new sale linked to it."
                   : "Add a line for each product or egg size sold. Several lines are saved as one sale."}
               </DialogDescription>
+              {!editingPending && approvalInfo?.mySalesWait && (
+                <p className="rounded-md bg-amber-50 p-2 text-sm text-amber-900">
+                  Your sales need approval. This sale will wait until someone who can approve sales approves it; nothing is posted until then.
+                </p>
+              )}
               {correcting && correcting.creditKept > 0 && (
                 <p className="rounded-md bg-blue-50 p-2 text-sm text-blue-800">
                   {formatCurrency(correcting.creditKept, currencyCode)} from the reversed sale is held as customer credit.
@@ -2285,7 +2444,10 @@ export default function SalesPage() {
               </Button>
               <Button onClick={handleCreateSale} disabled={savingSale}
                 className="w-full bg-blue-600 px-6 text-white hover:bg-blue-700 sm:w-auto">
-                {savingSale ? "Saving…" : `Record sale · ${formatCurrency(allLinesAmount, currencyCode)}`}
+                {savingSale ? "Saving…"
+                  : editingPending ? `Save changes · ${formatCurrency(allLinesAmount, currencyCode)}`
+                  : approvalInfo?.mySalesWait ? `Send for approval · ${formatCurrency(allLinesAmount, currencyCode)}`
+                  : `Record sale · ${formatCurrency(allLinesAmount, currencyCode)}`}
               </Button>
             </div>
           </DialogContent>
@@ -2314,6 +2476,26 @@ export default function SalesPage() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
                 <span>Showing sale <strong>S{focusSaleId}</strong> only.</span>
                 <Button variant="ghost" size="sm" onClick={() => setFocusSaleId(null)}>Show all sales</Button>
+              </div>
+            )}
+
+            {/* 527: approval tabs, right above the filters. */}
+            {showApprovalTabs && (
+              <div className="mb-3 flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 w-full sm:w-fit">
+                {([
+                  ["All", "All"],
+                  ["Waiting", `Waiting${approvalCounts.Waiting ? ` (${approvalCounts.Waiting})` : ""}`],
+                  ["Rejected", `Rejected${approvalCounts.Rejected ? ` (${approvalCounts.Rejected})` : ""}`],
+                  ["Approved", "Approved"],
+                  ["Withdrawn", "Withdrawn"],
+                ] as const).map(([k, label]) => (
+                  <button key={k} type="button" onClick={() => setApprovalTab(k)}
+                    className={cn("flex-1 sm:flex-none rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      approvalTab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900",
+                      k === "Waiting" && approvalCounts.Waiting > 0 && approvalTab !== k && "text-amber-700")}>
+                    {label}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -2535,7 +2717,7 @@ export default function SalesPage() {
                   <p className="text-slate-600">Loading sales...</p>
                 </CardContent>
               </Card>
-            ) : sales.length === 0 ? (
+            ) : sales.length === 0 && visiblePending.length === 0 ? (
               <Card className="bg-white">
                 <CardContent className="py-12 text-center">
                   <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -2553,24 +2735,54 @@ export default function SalesPage() {
                   </Dialog>
                 </CardContent>
               </Card>
-            ) : filteredSales.length === 0 ? (
+            ) : filteredSales.length === 0 && visiblePending.length === 0 ? (
               <Card className="bg-white">
                 <CardContent className="py-12 text-center space-y-3">
-                  <p className="text-slate-600">No sales match the current filters.</p>
+                  <p className="text-slate-600">
+                    {approvalTab === "Waiting" ? "No sales are waiting for approval."
+                      : approvalTab === "Rejected" ? "No rejected sales."
+                      : approvalTab === "Withdrawn" ? "No withdrawn sales."
+                      : approvalTab === "Approved" ? "No sales have been approved yet."
+                      : "No sales match the current filters."}
+                  </p>
                   <Button variant="outline" onClick={clearFilters}>Reset filters</Button>
                 </CardContent>
               </Card>
             ) : (
               <Card className="bg-white overflow-hidden">
                 <CardHeader>
-                  <CardTitle>Recent Sales</CardTitle>
-                  <CardDescription>
-                    View and manage your sales transactions
-                  </CardDescription>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <CardTitle>Recent Sales</CardTitle>
+                      <CardDescription>
+                        View and manage your sales transactions
+                        {visiblePending.length > 0 && " · sales waiting for approval are at the top and are not counted until approved"}
+                      </CardDescription>
+                    </div>
+                    <SaleApprovalSwitch info={approvalInfo} onInfoChanged={setApprovalInfo} />
+                  </div>
                 </CardHeader>
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
+                      {safePage === 1 && visiblePending.map((p) => (
+                        <div key={`w-${p.pendingSaleId}`} className={cn("rounded-xl border p-4 shadow-sm", p.status === "Rejected" ? "border-red-200 bg-red-50/40" : "border-amber-300 bg-amber-50/60")}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs tabular-nums text-slate-500">W{p.pendingSaleId}</span>
+                            <span className="font-semibold text-slate-900">{p.saleDate ? formatDateShort(p.saleDate) : "—"}</span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-slate-600 truncate">{p.customerName || "Walk-in"}</span>
+                          </div>
+                          <div className="mt-1 flex items-baseline gap-3">
+                            <span className="text-lg font-bold text-slate-700">{formatCurrency(p.totalAmount, currencyCode)}</span>
+                            <span className="text-xs text-slate-500 truncate">{p.summary}</span>
+                          </div>
+                          <div className="mt-2"><PendingStatusBadge row={p} /></div>
+                          <div className="mt-3">
+                            <PendingSaleActions row={p} info={approvalInfo} onEdit={openPendingForm} onChanged={onPendingChanged} labelled />
+                          </div>
+                        </div>
+                      ))}
                       {paginatedSales.map((sale, idx) => (
                         <Collapsible key={sale.saleId} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
                           <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")}>
@@ -2678,6 +2890,30 @@ export default function SalesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {safePage === 1 && visiblePending.map((p) => (
+                        <TableRow key={`w-${p.pendingSaleId}`} className={p.status === "Rejected" ? "bg-red-50/40" : "bg-amber-50/60"}>
+                          <TableCell className="whitespace-nowrap tabular-nums">
+                            <span className="font-medium text-slate-700">W{p.pendingSaleId}</span>
+                            {p.lineCount > 1 && <span className="block text-xs text-slate-500">{p.lineCount} lines</span>}
+                          </TableCell>
+                          <TableCell className={cn(isMobile && "sticky-col-date")}>{p.saleDate ? (isMobile ? formatDateShort(p.saleDate) : formatDateShort(p.saleDate)) : "—"}</TableCell>
+                          <TableCell className="max-w-[260px]"><span className="line-clamp-2">{p.summary}</span></TableCell>
+                          <TableCell>{p.customerName || <span className="text-slate-400">Walk-in</span>}</TableCell>
+                          <TableCell>{pendingField(p, "flockId") ? getFlockLabel(Number(pendingField(p, "flockId"))) : "—"}</TableCell>
+                          <TableCell className="text-slate-400">—</TableCell>
+                          <TableCell className="text-slate-400">—</TableCell>
+                          <TableCell className="font-medium">{formatCurrency(p.totalAmount, currencyCode)}</TableCell>
+                          <TableCell className="text-slate-400">—</TableCell>
+                          <TableCell className="text-slate-400">—</TableCell>
+                          <TableCell>
+                            {pendingField(p, "paymentMethod") ? <Badge variant="outline" className="w-fit">{pendingField(p, "paymentMethod")}</Badge> : "—"}
+                          </TableCell>
+                          <TableCell><PendingStatusBadge row={p} /></TableCell>
+                          <TableCell className={cn("whitespace-nowrap", isMobile && "sticky-col-actions")}>
+                            <PendingSaleActions row={p} info={approvalInfo} onEdit={openPendingForm} onChanged={onPendingChanged} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
                       {paginatedSales.map((sale) => (
                         <TableRow key={sale.saleId} className={cn(sale.status === "Reversed" && "bg-slate-50 text-slate-400 [&_td]:line-through [&_td:last-child]:no-underline [&_td:nth-last-child(2)]:no-underline")}>
                           <TableCell className="whitespace-nowrap tabular-nums text-slate-500">
@@ -2871,6 +3107,7 @@ export default function SalesPage() {
                 </CardContent>
               </Card>
             )}
+
             </>)}
 
             {/* Invoice Dialog */}

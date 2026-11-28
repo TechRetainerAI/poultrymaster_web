@@ -21,6 +21,7 @@ import { usePermissions, PERMISSIONS_STALE_EVENT } from "@/hooks/use-permissions
 import { useAuthStore } from "@/lib/store/auth-store"
 import { resolvePathAccess } from "@/lib/iam/page-registry"
 import { AccessRestricted } from "@/components/auth/access-restricted"
+import { announceRefusal } from "@/lib/iam/announce-refusal"
 
 const DASHBOARD_BY_TYPE: Record<string, string> = {
   Poultry: "/dashboard",
@@ -49,7 +50,11 @@ function useForbiddenSignal() {
       const res = await original(...args)
       if (res.status === 403) {
         const url = typeof args[0] === "string" ? args[0] : args[0] instanceof URL ? args[0].href : args[0].url
-        if (url.includes("/api/proxy/") && !url.includes("/Iam/")) window.dispatchEvent(new Event(PERMISSIONS_STALE_EVENT))
+        if (url.includes("/api/proxy/") && !url.includes("/Iam/")) {
+          window.dispatchEvent(new Event(PERMISSIONS_STALE_EVENT))
+          const method = (args[1]?.method ?? (args[0] instanceof Request ? args[0].method : "GET")).toUpperCase()
+          if (method !== "GET" && method !== "HEAD") res.clone().json().then(announceRefusal, () => {})
+        }
       }
       return res
     }

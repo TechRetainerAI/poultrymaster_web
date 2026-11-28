@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios'
+import { announceRefusal } from "@/lib/iam/announce-refusal"
 import { DEFAULT_FARM_API_ORIGIN } from '@/lib/api/default-api-hosts'
 
 export class ApiError extends Error {
@@ -83,6 +84,8 @@ class ApiClient {
         // disappears from the menus straight away.
         if (error.response?.status === 403 && typeof window !== "undefined") {
           window.dispatchEvent(new Event("iam:permissions-stale"))
+          const m = (originalRequest?.method ?? "get").toLowerCase()
+          if (m !== "get" && m !== "head") announceRefusal(error.response.data)
         }
 
         // If 401 and not already retrying

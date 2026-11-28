@@ -21,11 +21,16 @@ namespace PoultryFarmAPIWeb.Controllers
     public class SaleController : ControllerBase
     {
         private readonly ISaleService _saleService;
+        private readonly IPoultrySaleApprovalService _approval;
 
-        public SaleController(ISaleService saleService)
+        public SaleController(ISaleService saleService, IPoultrySaleApprovalService approval)
         {
             _saleService = saleService;
+            _approval = approval;
         }
+
+        /// <summary>The signed-in person (the token, not whatever a body claims).</summary>
+        private string? CallerId => User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         // GET: api/Sale/meat-withdrawal?farmId=xxx&date=yyyy-MM-dd
         // 401: flocks still inside a meat withdrawal period on the sale date.
@@ -77,6 +82,15 @@ namespace PoultryFarmAPIWeb.Controllers
             if (string.IsNullOrEmpty(model.UserId) || string.IsNullOrEmpty(model.FarmId))
                 return BadRequest("UserId and FarmId are required in the model.");
 
+            // 527: a poultry sale by someone who may not approve sales waits.
+            var caller = CallerId ?? model.UserId;
+            if (await _approval.MustWaitAsync(caller, model.FarmId))
+            {
+                model.UserId = caller;
+                var pendingId = await _approval.SubmitSingleAsync(model, caller);
+                return Accepted(new PoultrySaleSubmitted { PendingSaleId = pendingId });
+            }
+
             try
             {
                 var newId = await _saleService.Insert(model);
@@ -100,6 +114,14 @@ namespace PoultryFarmAPIWeb.Controllers
                 return BadRequest("UserId and FarmId are required.");
             if (request.Lines is null || request.Lines.Count == 0)
                 return BadRequest(new { message = "Add at least one line to the sale." });
+            // 527: as Create -- waits for approval when the caller may not approve.
+            var caller = CallerId ?? request.UserId;
+            if (await _approval.MustWaitAsync(caller, request.FarmId))
+            {
+                request.UserId = caller;
+                var pendingId = await _approval.SubmitGroupAsync(request, caller);
+                return Accepted(new PoultrySaleSubmitted { PendingSaleId = pendingId });
+            }
             try
             {
                 return Ok(await _saleService.CreateGroup(request));
@@ -114,6 +136,115 @@ namespace PoultryFarmAPIWeb.Controllers
             }
         }
 
+
+        // ================================================================ 527
+        // Sales waiting for approval. Every decision is checked HERE as well as
+        // by IamEnforcementFilter, so it holds whatever mode IAM is running in.
+
+        // GET: api/Sale/approval?farmId=  -- the switch, and what the caller may do.
+        [HttpGet("approval")]
+        public async Task<IActionResult> GetApproval([FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            if (CallerId is not string me) return Unauthorized();
+            return Ok(await _approval.GetInfoAsync(me, farmId));
+        }
+
+        // PUT: api/Sale/approval  -- owner only.
+        [HttpPut("approval")]
+        public async Task<IActionResult> SetApproval([FromBody] PoultrySaleApprovalSetting body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (CallerId is not string me) return Unauthorized();
+            if (!await _approval.IsOwnerAsync(me, body.FarmId))
+                return StatusCode(403, new { message = "Only the company owner can change whether sales need approval." });
+            await _approval.SetNeedApprovalAsync(body.FarmId, body.NeedApproval, me);
+            return Ok(await _approval.GetInfoAsync(me, body.FarmId));
+        }
+
+        // GET: api/Sale/pending?farmId=&status=Waiting
+        [HttpGet("pending")]
+        public async Task<IActionResult> ListPending([FromQuery] string farmId, [FromQuery] string? status)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _approval.ListAsync(farmId, status));
+        }
+
+        /// <summary>The person who entered it, or an approver, may change or withdraw a waiting sale.</summary>
+        private async Task<IActionResult?> MayChange(int id, string farmId, string me)
+        {
+            var row = await _approval.GetAsync(id, farmId);
+            if (row is null) return NotFound(new { message = "This waiting sale was not found." });
+            if (row.SubmittedBy != me && !await _approval.IsApproverAsync(me, farmId))
+                return StatusCode(403, new { message = "Only the person who entered this sale, or someone who can approve sales, can change it." });
+            return null;
+        }
+
+        // PUT: api/Sale/pending/5/single  -- body as POST api/Sale
+        [HttpPut("pending/{id:int}/single")]
+        public async Task<IActionResult> UpdatePendingSingle(int id, [FromBody] SaleModel model)
+        {
+            if (model is null || string.IsNullOrWhiteSpace(model.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (CallerId is not string me) return Unauthorized();
+            if (await MayChange(id, model.FarmId, me) is IActionResult refused) return refused;
+            var row = await _approval.GetAsync(id, model.FarmId);
+            model.UserId = row!.SubmittedBy;
+            try { await _approval.UpdateSingleAsync(id, model, me); }
+            catch (SaleRuleException ex) { return BadRequest(new { message = ex.Message }); }
+            return Ok(new PoultrySaleSubmitted { PendingSaleId = id, Message = "Changes saved. The sale is waiting for approval." });
+        }
+
+        // PUT: api/Sale/pending/5/group  -- body as POST api/Sale/group
+        [HttpPut("pending/{id:int}/group")]
+        public async Task<IActionResult> UpdatePendingGroup(int id, [FromBody] SaleGroupRequest request)
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (request.Lines is null || request.Lines.Count == 0) return BadRequest(new { message = "Add at least one line to the sale." });
+            if (CallerId is not string me) return Unauthorized();
+            if (await MayChange(id, request.FarmId, me) is IActionResult refused) return refused;
+            var row = await _approval.GetAsync(id, request.FarmId);
+            request.UserId = row!.SubmittedBy;
+            try { await _approval.UpdateGroupAsync(id, request, me); }
+            catch (SaleRuleException ex) { return BadRequest(new { message = ex.Message }); }
+            return Ok(new PoultrySaleSubmitted { PendingSaleId = id, Message = "Changes saved. The sale is waiting for approval." });
+        }
+
+        // POST: api/Sale/pending/5/approve  -- posts it, exactly as an ordinary sale.
+        [HttpPost("pending/{id:int}/approve")]
+        public async Task<IActionResult> ApprovePending(int id, [FromBody] PoultryPendingSaleDecision body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (CallerId is not string me) return Unauthorized();
+            if (!await _approval.IsApproverAsync(me, body.FarmId))
+                return StatusCode(403, new { code = "forbidden", message = "You do not have permission to approve sales.", requiredPermission = PoultrySaleApprovalService.ApproveKey });
+            try { return Ok(await _approval.ApproveAsync(id, body.FarmId, me)); }
+            catch (SaleRuleException ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
+        // POST: api/Sale/pending/5/reject  { farmId, reason }
+        [HttpPost("pending/{id:int}/reject")]
+        public async Task<IActionResult> RejectPending(int id, [FromBody] PoultryPendingSaleDecision body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (CallerId is not string me) return Unauthorized();
+            if (!await _approval.IsApproverAsync(me, body.FarmId))
+                return StatusCode(403, new { code = "forbidden", message = "You do not have permission to approve sales.", requiredPermission = PoultrySaleApprovalService.ApproveKey });
+            try { await _approval.RejectAsync(id, body.FarmId, body.Reason ?? "", me); }
+            catch (SaleRuleException ex) { return BadRequest(new { message = ex.Message }); }
+            return NoContent();
+        }
+
+        // POST: api/Sale/pending/5/withdraw  { farmId }
+        [HttpPost("pending/{id:int}/withdraw")]
+        public async Task<IActionResult> WithdrawPending(int id, [FromBody] PoultryPendingSaleDecision body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (CallerId is not string me) return Unauthorized();
+            if (await MayChange(id, body.FarmId, me) is IActionResult refused) return refused;
+            try { await _approval.WithdrawAsync(id, body.FarmId, me); }
+            catch (SaleRuleException ex) { return BadRequest(new { message = ex.Message }); }
+            return NoContent();
+        }
 
         // PUT: api/Sale/5
         [HttpPut("{id}")]
