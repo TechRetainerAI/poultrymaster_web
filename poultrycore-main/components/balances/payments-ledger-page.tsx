@@ -186,6 +186,9 @@ export function PaymentsLedgerPage({
 
   const canView = can(permissions.view)
   const canReverse = can(permissions.reverse)
+  // 521: a Generic payment made with a purchase is reversed with the purchase,
+  // on Inventory & Purchases only (the database refuses it here too).
+  const reversedElsewhere = (r: PaymentHistoryRow) => module === "generic" && r.sourceType === "PurchaseEntry"
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -545,10 +548,15 @@ export function PaymentsLedgerPage({
                     {(module === "poultry" || module === "water") && (
                       <PaymentPLToggle row={row} side="supplier" onChanged={() => { void load() }} className="mr-1" />
                     )}
-                    {canReverse && !isReversed && (
+                    {canReverse && !isReversed && !reversedElsewhere(row) && (
                       <Button variant="ghost" size="sm" onClick={() => openReverse(row)}>
                         <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
                       </Button>
+                    )}
+                    {!isReversed && reversedElsewhere(row) && (
+                      <span className="text-xs italic text-slate-400" title="Reverse the purchase on Inventory & Purchases">
+                        Reverse via purchase
+                      </span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -904,7 +912,7 @@ export function PaymentsLedgerPage({
                   }}
                   actions={(r) => (
                     <>
-                      {canReverse && r.status === "Posted" && (
+                      {canReverse && r.status === "Posted" && !reversedElsewhere(r) && (
                         <Button
                           size="sm" variant="outline" className="h-10 flex-1"
                           onClick={() => openReverse(r)}

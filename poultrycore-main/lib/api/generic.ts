@@ -266,6 +266,10 @@ export interface GenericPurchase {
   /** 500: set when the purchase was reversed (status is then Cancelled). */
   purchaseReversalId?: number | null
   reversalNumber?: string | null
+  /** 520: Edit & repost -- the reversed purchase this one replaces. */
+  correctsPurchaseId?: number | null
+  /** 520: on a reversed purchase, the live purchase that reposts it; null = it can still be reposted. */
+  correctedByPurchaseId?: number | null
 }
 
 export interface GenericExpense {
@@ -299,6 +303,10 @@ export interface GenericExpense {
   /** 504/505: set when an approved expense was reversed (status is then Cancelled). */
   expenseReversalId?: number | null
   reversalNumber?: string | null
+  /** 520: Edit & repost -- the reversed expense this one replaces. */
+  correctsExpenseId?: number | null
+  /** 520: on a reversed expense, the live expense that reposts it; null = it can still be reposted. */
+  correctedByExpenseId?: number | null
 }
 
 export interface GenericDailyClosing {
@@ -1132,6 +1140,8 @@ export interface GenericPurchaseCreateInput {
   invoiceNumber?: string | null
   notes?: string | null
   items: GenericPurchaseItem[]
+  /** 520: Edit & repost -- the reversed purchase this new one replaces. */
+  correctsPurchaseId?: number | null
 }
 
 export interface GenericExpenseCreateInput {
@@ -1153,6 +1163,8 @@ export interface GenericExpenseCreateInput {
   receiptUrl?: string | null
   /** 448: null = paid in full, 0 = not paid (owed to the supplier), between = partly paid. */
   amountPaid?: number | null
+  /** 520: Edit & repost -- the reversed expense this new one replaces (create only). */
+  correctsExpenseId?: number | null
   dueDate?: string | null
 }
 

@@ -31,7 +31,7 @@ import { ReasonSelect } from "@/components/ui/reason-select"
 import {
   Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle,
   History, Check, Package, ArrowUpCircle, ArrowDownCircle,
-  Boxes, ExternalLink, ArrowLeft, Undo2, Eye,
+  Boxes, ExternalLink, ArrowLeft, Undo2, Eye, RotateCcw,
 } from "lucide-react"
 import { ReversePurchaseDialog } from "@/components/purchases/reverse-purchase-dialog"
 import { getUserContext } from "@/lib/api/config"
@@ -769,6 +769,12 @@ function GenericInventoryPageInner() {
                                   <Undo2 className="w-4 h-4 text-red-500" />
                                 </IconAction>
                               )}
+                              {/* 520: Edit & repost a reversed purchase, until a live repost exists */}
+                              {!!p.purchaseReversalId && !p.correctedByPurchaseId && (
+                                <Button asChild size="sm" variant="outline" className="h-8 ml-1" title="Enter this purchase again, corrected">
+                                  <Link href={`/generic-purchases/new?corrects=${p.genericPurchaseId}`}><RotateCcw className="h-4 w-4 mr-1" />Edit &amp; repost</Link>
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -812,6 +818,11 @@ function GenericInventoryPageInner() {
                               {p.status === "Approved" && (
                                 <Button size="sm" variant="outline" className="text-red-600" onClick={() => setReverseTarget(p)}>
                                   <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                                </Button>
+                              )}
+                              {!!p.purchaseReversalId && !p.correctedByPurchaseId && (
+                                <Button asChild size="sm" variant="outline">
+                                  <Link href={`/generic-purchases/new?corrects=${p.genericPurchaseId}`}><RotateCcw className="h-4 w-4 mr-1" /> Edit &amp; repost</Link>
                                 </Button>
                               )}
                             </>}
@@ -1043,6 +1054,9 @@ function GenericInventoryPageInner() {
               <hr />
               <div className="space-y-1 text-xs text-slate-400">
                 <div>Created: {fmtDateTime(viewPurchase.createdAt, viewPurchase)}</div>
+                {viewPurchase.reversalNumber && <div>Reversed ({viewPurchase.reversalNumber})</div>}
+                {viewPurchase.correctedByPurchaseId && <div>Reposted as purchase #{viewPurchase.correctedByPurchaseId}</div>}
+                {viewPurchase.correctsPurchaseId && <div>Reposts reversed purchase #{viewPurchase.correctsPurchaseId}</div>}
               </div>
             </div>
           </>)}

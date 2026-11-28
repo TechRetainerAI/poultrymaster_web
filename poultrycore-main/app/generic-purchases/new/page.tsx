@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, CheckCircle2, Loader2, Package, Plus, X } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Loader2, Package, Plus, RotateCcw, X } from "lucide-react"
 import { RelatedProjectField, LineProjectButton, loadDocumentProjects } from "@/components/generic/projects/form-project-field"
 import { useProjectsEnabled } from "@/hooks/use-generic-projects"
 import { buildAssignment, projectIdFromQuery } from "@/lib/generic/project-math"
@@ -112,6 +112,9 @@ export default function NewGenericPurchasePage() {
   const [companyUnits, setCompanyUnits] = useState<string[]>([])
   /** Set when the page edits an existing Draft (?edit=<id>). */
   const [editId, setEditId] = useState<number | null>(null)
+  /** 520: Edit & repost (?corrects=<reversed purchase>) -- the new purchase is linked to it on save. */
+  const [correctsId, setCorrectsId] = useState<number | null>(null)
+  const [correctsNumber, setCorrectsNumber] = useState<string | null>(null)
   /** Once the user types their own "Amount paid now", it stops following the total. */
   const [paidTouched, setPaidTouched] = useState(false)
 
@@ -146,25 +149,34 @@ export default function NewGenericPurchasePage() {
     ;(async () => {
       try {
         const editParam = Number(new URLSearchParams(window.location.search).get("edit")) || null
+        const correctsParam = editParam ? null : (Number(new URLSearchParams(window.location.search).get("corrects")) || null)
+        const loadId = editParam ?? correctsParam
         setProjectId(projectIdFromQuery(window.location.search))
         const [ss, ps, as, cs, existing] = await Promise.all([
           getSuppliers(), getProducts(), getCashAccounts(),
           getUomConversions().catch(() => [] as GenericUomConversion[]),
-          editParam ? getPurchase(editParam) : Promise.resolve(null),
+          loadId ? getPurchase(loadId) : Promise.resolve(null),
         ])
         if (cancelled) return
         getUnitsOfMeasure()
           .then((us) => { if (!cancelled) setCompanyUnits(us.filter((u) => u.isActive !== false).map((u) => u.unitName)) })
           .catch(() => {})
         setSuppliers(ss); setProducts(ps); setCashAccounts(as); setConversions(cs ?? [])
-        if (editParam) {
-          if (!existing) throw new Error(`Purchase #${editParam} was not found.`)
-          if (existing.status !== "Draft") {
+        if (loadId) {
+          if (!existing) throw new Error(`Purchase #${loadId} was not found.`)
+          if (editParam && existing.status !== "Draft") {
             toast({ title: `Purchase #${editParam} is ${existing.status}`, description: "Only a Draft purchase can be edited.", variant: "destructive" })
             router.replace("/generic-inventory?tab=purchases")
             return
           }
-          setEditId(editParam)
+          // 520: only a reversed purchase (status Cancelled once reversed) is reposted.
+          if (correctsParam && existing.status !== "Cancelled") {
+            toast({ title: `Purchase #${correctsParam} is ${existing.status}`, description: "Only a reversed purchase can be reposted. Reverse it first.", variant: "destructive" })
+            router.replace("/generic-inventory?tab=purchases")
+            return
+          }
+          if (editParam) setEditId(editParam)
+          if (correctsParam) { setCorrectsId(correctsParam); setCorrectsNumber((existing as any).reversalNumber ?? null) }
           setHeader({
             purchaseDate: String(existing.purchaseDate ?? "").slice(0, 10),
             genericSupplierId: existing.genericSupplierId ? String(existing.genericSupplierId) : "",
@@ -191,13 +203,13 @@ export default function NewGenericPurchasePage() {
             expiryDate: "",
           })))
           // 515: batch details saved on the Draft's lines (same order).
-          getPurchaseBatches(editParam)
+          getPurchaseBatches(loadId)
             .then((bs) => { if (!cancelled) setRows((rs) => rs.map((r, k) => ({ ...r, batchNumber: bs[k]?.batchNumber ?? "", expiryDate: bs[k]?.expiryDate ? String(bs[k].expiryDate).slice(0, 10) : "" }))) })
             .catch(() => {})
           // The saved project split, line by line.
           const lineIds = (existing.items ?? []).map((i) => i.genericPurchaseItemId).filter((x): x is number => !!x)
           if (lineIds.length === (existing.items ?? []).length) {
-            const pr = await loadDocumentProjects("Purchase", editParam, lineIds)
+            const pr = await loadDocumentProjects("Purchase", loadId, lineIds)
             if (!cancelled) {
               setProjectId(pr.projectId)
               setRows((rs) => rs.map((r, k) => ({ ...r, projects: pr.lines[k] ?? null })))
@@ -395,7 +407,7 @@ export default function NewGenericPurchasePage() {
       if (editId) {
         await updatePurchase(editId, input)
       } else {
-        const created = await createPurchase(input)
+        const created = await createPurchase({ ...input, correctsPurchaseId: correctsId })
         savedId = created?.genericPurchaseId ?? null
       }
       // 515: batch no. / expiry per line, saved on the Draft before it is approved
@@ -453,9 +465,21 @@ export default function NewGenericPurchasePage() {
             <ArrowLeft className="h-3 w-3 mr-1" /> Back to purchases
           </Link>
           <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2 mb-4">
-            <Package className="h-6 w-6 text-orange-600" /> {editId ? `Edit purchase #${editId}` : "New purchase"}
+            {correctsId && !editId
+              ? <><RotateCcw className="h-6 w-6 text-blue-600" /> Edit &amp; repost purchase #{correctsId}</>
+              : <><Package className="h-6 w-6 text-orange-600" /> {editId ? `Edit purchase #${editId}` : "New purchase"}</>}
             {editId && <span className="text-xs font-medium rounded bg-slate-100 text-slate-600 px-2 py-0.5">Draft</span>}
           </h1>
+          {correctsId && !editId && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+              <span>
+                Purchase #{correctsId}{correctsNumber ? ` (${correctsNumber})` : ""} was reversed. It is filled in below: fix what was wrong and save.
+                The new purchase is a Draft linked to it. If the money paid was kept as supplier credit, set Amount paid now to 0
+                and apply the credit from Supplier Payments.
+              </span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setCorrectsId(null)}>Save as an unlinked purchase</Button>
+            </div>
+          )}
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
