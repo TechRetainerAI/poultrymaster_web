@@ -76,9 +76,8 @@ type DrillRow = { left: string; mid?: string; right?: string; amount: number; no
 function drillKindFor(line: Line): DrillKind {
   if (line.section === "revenue") return "revenue"
   if (line.section === "capital") return "capital"
-  if (line.section === "cogsmemo") return "cogs"
   if (line.section === "owner" || line.section === "borrowing") return "financing"
-  if (line.section === "direct") return "inventory"
+  if (line.section === "direct") return line.lineKey === "Cost of goods sold" ? "cogs" : "inventory"
   if (line.section === "other") return line.lineKey === "Depreciation" ? "depreciation" : "financing"
   return "expenses"
 }
@@ -244,12 +243,6 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
   const netOwnerFunding = totalOf("owner")
   const netBorrowing = totalOf("borrowing")
   const totalCapitalInvestments = totalOf("capital")
-  // Reference only: cost of stock sold. EXCLUDED from every profit figure (no
-  // profit total reads "cogsmemo"); on cash-basis the cost is already charged
-  // through Inventory purchases, so COGS is shown under Direct Production Costs
-  // as a reference line that is NOT added to that total.
-  const totalCogsMemo = totalOf("cogsmemo")
-  const cogsRefLine = bySection("cogsmemo")[0]
   const subscriptionIncome = bySection("revenue").find((l) => l.lineKey === "Subscription income")?.amount ?? 0
 
   // -------------------------------------------------------------- drilldown --
@@ -301,9 +294,6 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
     push("CAPITAL INVESTMENTS (excluded from profit)", null, "Excluded")
     bySection("capital").forEach((l) => push(l.lineLabel, l.amount, "Excluded"))
     push("Total Capital Investments", totalCapitalInvestments, "Excluded")
-    push("COST OF GOODS SOLD (reference only, not in profit)", null, "Excluded")
-    bySection("cogsmemo").forEach((l) => push(l.lineLabel, l.amount, "Excluded"))
-    push("Cost of Goods Sold", totalCogsMemo, "Excluded")
 
     return {
       title: "Profit & Loss",
@@ -325,7 +315,7 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
     }
   }, [entries, bySection, farmName, filter.fromDate, filter.toDate, gh, currencyLabel,
       totalRevenue, totalDirectCosts, grossProfit, totalOperatingExpenses, operatingProfit,
-      totalOtherCosts, netProfit, totalCapitalInvestments, totalCogsMemo])
+      totalOtherCosts, netProfit, totalCapitalInvestments])
 
   const onCsv = () => {
     const o = exportOpts(); if (!o) return
@@ -492,9 +482,7 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
                     <SectionCard className="h-full" tone="emerald" title="Revenue" lines={bySection("revenue")}
                       totalLabel="Total Revenue" totalAmount={totalRevenue} onOpen={openDrill} gh={gh} />
                     <SectionCard className="h-full" tone="rose" negative title="Direct Production Costs" lines={bySection("direct")}
-                      totalLabel="Total Direct Production Costs" totalAmount={totalDirectCosts} onOpen={openDrill} gh={gh}
-                      refLine={cogsRefLine}
-                      refNote="Cost of goods sold — reference only, not added above (the stock's cost is already in Inventory purchases)." />
+                      totalLabel="Total Direct Production Costs" totalAmount={totalDirectCosts} onOpen={openDrill} gh={gh} />
                     <SectionCard className="h-full" tone="amber" negative title="Operating Expenses" lines={bySection("operating")}
                       totalLabel="Total Operating Expenses" totalAmount={totalOperatingExpenses} onOpen={openDrill} gh={gh} />
                     <SectionCard className="h-full" tone="violet" negative title="Depreciation & Financing Costs" lines={bySection("other")}
