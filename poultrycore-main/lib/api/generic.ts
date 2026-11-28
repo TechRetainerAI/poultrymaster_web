@@ -1964,7 +1964,9 @@ export async function getSupplierLedger(supplierId: number): Promise<GenericSupp
 // =============================================================================
 
 export interface GenericProfitLossEntry {
-  section: "revenue" | "direct" | "operating" | "other" | "owner" | "borrowing" | "capital"
+  // "cogsmemo" is an informational, excluded-from-profit section: Cost of Goods
+  // Sold shown for reference (profit is cash-basis, driven by purchases).
+  section: "revenue" | "direct" | "operating" | "other" | "owner" | "borrowing" | "capital" | "cogsmemo"
   line: string
   date: string
   reference: string

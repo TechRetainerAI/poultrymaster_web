@@ -69,13 +69,14 @@ type Section = Entry["section"]
 /** One statement line: every entry of one section + line, summed. */
 type Line = { section: Section; lineKey: string; lineLabel: string; amount: number; entryCount: number; entries: Entry[] }
 
-type DrillKind = "revenue" | "inventory" | "depreciation" | "financing" | "capital" | "expenses"
+type DrillKind = "revenue" | "inventory" | "depreciation" | "financing" | "capital" | "expenses" | "cogs"
 type DrillRow = { left: string; mid?: string; right?: string; amount: number; note?: string }
 
 /** The same kinds and colours Poultry's drilldown uses. */
 function drillKindFor(line: Line): DrillKind {
   if (line.section === "revenue") return "revenue"
   if (line.section === "capital") return "capital"
+  if (line.section === "cogsmemo") return "cogs"
   if (line.section === "owner" || line.section === "borrowing") return "financing"
   if (line.section === "direct") return "inventory"
   if (line.section === "other") return line.lineKey === "Depreciation" ? "depreciation" : "financing"
@@ -90,6 +91,7 @@ const DRILL_COLUMNS: Record<DrillKind, { mid: string; right: string; blurb: stri
   financing: { mid: "Detail", right: "Reference", blurb: "Every entry behind this figure. None of it is profit." },
   capital: { mid: "Asset", right: "Reference", blurb: "What was bought. It is an asset, not an expense." },
   expenses: { mid: "Description", right: "Reference", blurb: "Every expense behind this figure." },
+  cogs: { mid: "Customer", right: "Reference", blurb: "The recorded cost of the stock you SOLD this period. Shown for reference only — it is NOT deducted from profit, because your purchases already are (cash-basis)." },
 }
 
 const DRILL_TONES: Record<DrillKind, {
@@ -113,6 +115,9 @@ const DRILL_TONES: Record<DrillKind, {
   capital:      { band: "bg-sky-50 text-sky-900", border: "border-sky-200",
                   amount: "text-sky-700", rail: "border-l-sky-400",
                   divide: "divide-sky-200", row: "border-sky-200", label: "Not an expense" },
+  cogs:         { band: "bg-slate-50 text-slate-900", border: "border-slate-200",
+                  amount: "text-slate-700", rail: "border-l-slate-400",
+                  divide: "divide-slate-200", row: "border-slate-200", label: "Reference only" },
 }
 
 /** Interest and fees are a financing COST, so "other" holds them beside depreciation (as on Poultry). */
@@ -124,6 +129,7 @@ const LINE_ORDER: Partial<Record<Section, string[]>> = {
   owner: ["Owner contributions", "Owner draws"],
   borrowing: ["Loan proceeds", "Principal repaid"],
   capital: ["Asset purchases"],
+  cogsmemo: ["Cost of goods sold"],
 }
 
 function drillDate(v: string) {
@@ -238,6 +244,10 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
   const netOwnerFunding = totalOf("owner")
   const netBorrowing = totalOf("borrowing")
   const totalCapitalInvestments = totalOf("capital")
+  // Reference only: cost of stock sold. EXCLUDED from every profit figure (no
+  // profit total reads "cogsmemo"); on cash-basis the cost is already charged
+  // through Inventory purchases, so COGS is shown here just to see the number.
+  const totalCogsMemo = totalOf("cogsmemo")
   const subscriptionIncome = bySection("revenue").find((l) => l.lineKey === "Subscription income")?.amount ?? 0
 
   // -------------------------------------------------------------- drilldown --
@@ -289,6 +299,9 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
     push("CAPITAL INVESTMENTS (excluded from profit)", null, "Excluded")
     bySection("capital").forEach((l) => push(l.lineLabel, l.amount, "Excluded"))
     push("Total Capital Investments", totalCapitalInvestments, "Excluded")
+    push("COST OF GOODS SOLD (reference only, not in profit)", null, "Excluded")
+    bySection("cogsmemo").forEach((l) => push(l.lineLabel, l.amount, "Excluded"))
+    push("Cost of Goods Sold", totalCogsMemo, "Excluded")
 
     return {
       title: "Profit & Loss",
@@ -310,7 +323,7 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
     }
   }, [entries, bySection, farmName, filter.fromDate, filter.toDate, gh, currencyLabel,
       totalRevenue, totalDirectCosts, grossProfit, totalOperatingExpenses, operatingProfit,
-      totalOtherCosts, netProfit, totalCapitalInvestments])
+      totalOtherCosts, netProfit, totalCapitalInvestments, totalCogsMemo])
 
   const onCsv = () => {
     const o = exportOpts(); if (!o) return
@@ -523,6 +536,20 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
                       gh={gh}
                       footer={<div className="text-xs text-slate-600">Total capital investments <strong>{gh(totalCapitalInvestments)}</strong></div>}
                       links={[{ href: "/generic-assets", label: "View Capital Investments/Assets" }]}
+                    />
+                    <InfoSection
+                      icon={<Info className="w-4 h-4" />}
+                      title="Cost of Goods Sold"
+                      subtitle="Reference only — not in profit"
+                      note="The recorded cost of the stock you SOLD this period. It is shown for reference and is NOT deducted from profit: this P&L is cash-basis, so the cost of stock is already charged under Inventory purchases when you buy it. Deducting COGS as well would count the same stock twice."
+                      lines={bySection("cogsmemo")}
+                      onOpen={openDrill}
+                      gh={gh}
+                      footer={<div className="text-xs text-slate-600">Cost of goods sold this period <strong>{gh(totalCogsMemo)}</strong></div>}
+                      links={[
+                        { href: "/generic-sales", label: "View Sales" },
+                        { href: "/generic-inventory", label: "View Inventory" },
+                      ]}
                     />
                   </div>
 
