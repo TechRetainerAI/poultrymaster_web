@@ -1964,9 +1964,7 @@ export async function getSupplierLedger(supplierId: number): Promise<GenericSupp
 // =============================================================================
 
 export interface GenericProfitLossEntry {
-  // "inventory" is an informational, excluded-from-profit section (stock bought
-  // this period). It never enters the profit totals; see profit-loss-view.tsx.
-  section: "revenue" | "direct" | "operating" | "other" | "owner" | "borrowing" | "capital" | "inventory"
+  section: "revenue" | "direct" | "operating" | "other" | "owner" | "borrowing" | "capital"
   line: string
   date: string
   reference: string

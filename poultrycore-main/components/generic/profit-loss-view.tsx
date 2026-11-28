@@ -40,7 +40,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, Info, Loader2, ChevronRight, TrendingUp, Wallet, Building2, Banknote, Package, Search, X } from "lucide-react"
+import { ArrowLeft, Info, Loader2, ChevronRight, TrendingUp, Wallet, Building2, Banknote, Search, X } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt, useFarmSettingsStore } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
@@ -69,14 +69,13 @@ type Section = Entry["section"]
 /** One statement line: every entry of one section + line, summed. */
 type Line = { section: Section; lineKey: string; lineLabel: string; amount: number; entryCount: number; entries: Entry[] }
 
-type DrillKind = "revenue" | "inventory" | "depreciation" | "financing" | "capital" | "expenses" | "stockbuy"
+type DrillKind = "revenue" | "inventory" | "depreciation" | "financing" | "capital" | "expenses"
 type DrillRow = { left: string; mid?: string; right?: string; amount: number; note?: string }
 
 /** The same kinds and colours Poultry's drilldown uses. */
 function drillKindFor(line: Line): DrillKind {
   if (line.section === "revenue") return "revenue"
   if (line.section === "capital") return "capital"
-  if (line.section === "inventory") return "stockbuy"
   if (line.section === "owner" || line.section === "borrowing") return "financing"
   if (line.section === "direct") return "inventory"
   if (line.section === "other") return line.lineKey === "Depreciation" ? "depreciation" : "financing"
@@ -86,12 +85,11 @@ function drillKindFor(line: Line): DrillKind {
 /** Generic's entries carry a description and a reference, so those are the two text columns. */
 const DRILL_COLUMNS: Record<DrillKind, { mid: string; right: string; blurb: string }> = {
   revenue: { mid: "Customer", right: "Reference", blurb: "Every sale behind this figure." },
-  inventory: { mid: "Detail", right: "Reference", blurb: "Every sale or stock write-off behind this figure, at its recorded cost." },
+  inventory: { mid: "Detail", right: "Reference", blurb: "Stock bought in this period. On cash-basis it is a direct cost the day it is purchased." },
   depreciation: { mid: "Description", right: "Reference", blurb: "Each depreciation charge for the period." },
   financing: { mid: "Detail", right: "Reference", blurb: "Every entry behind this figure. None of it is profit." },
   capital: { mid: "Asset", right: "Reference", blurb: "What was bought. It is an asset, not an expense." },
   expenses: { mid: "Description", right: "Reference", blurb: "Every expense behind this figure." },
-  stockbuy: { mid: "Detail", right: "Reference", blurb: "Stock you bought this period. It is inventory you own, not a cost yet — it becomes Cost of goods sold when you sell it." },
 }
 
 const DRILL_TONES: Record<DrillKind, {
@@ -115,21 +113,17 @@ const DRILL_TONES: Record<DrillKind, {
   capital:      { band: "bg-sky-50 text-sky-900", border: "border-sky-200",
                   amount: "text-sky-700", rail: "border-l-sky-400",
                   divide: "divide-sky-200", row: "border-sky-200", label: "Not an expense" },
-  stockbuy:     { band: "bg-sky-50 text-sky-900", border: "border-sky-200",
-                  amount: "text-sky-700", rail: "border-l-sky-400",
-                  divide: "divide-sky-200", row: "border-sky-200", label: "Not a cost yet" },
 }
 
 /** Interest and fees are a financing COST, so "other" holds them beside depreciation (as on Poultry). */
 const LINE_ORDER: Partial<Record<Section, string[]>> = {
   revenue: ["Sales", "Subscription income"],
-  direct: ["Cost of goods sold", "Stock losses"],
+  direct: ["Inventory purchases", "Cost of goods sold", "Stock losses"],
   operating: ["Payroll"],
   other: ["Depreciation", "Loan interest", "Loan fees"],
   owner: ["Owner contributions", "Owner draws"],
   borrowing: ["Loan proceeds", "Principal repaid"],
   capital: ["Asset purchases"],
-  inventory: ["Inventory purchases"],
 }
 
 function drillDate(v: string) {
@@ -244,10 +238,6 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
   const netOwnerFunding = totalOf("owner")
   const netBorrowing = totalOf("borrowing")
   const totalCapitalInvestments = totalOf("capital")
-  // Memo only: inventory bought this period. EXCLUDED from every profit figure
-  // above (none of the profit totals read the "inventory" section); its cost
-  // reaches profit as Cost of goods sold when the stock is sold.
-  const totalInventoryPurchases = totalOf("inventory")
   const subscriptionIncome = bySection("revenue").find((l) => l.lineKey === "Subscription income")?.amount ?? 0
 
   // -------------------------------------------------------------- drilldown --
@@ -299,9 +289,6 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
     push("CAPITAL INVESTMENTS (excluded from profit)", null, "Excluded")
     bySection("capital").forEach((l) => push(l.lineLabel, l.amount, "Excluded"))
     push("Total Capital Investments", totalCapitalInvestments, "Excluded")
-    push("INVENTORY PURCHASES (excluded from profit)", null, "Excluded")
-    bySection("inventory").forEach((l) => push(l.lineLabel, l.amount, "Excluded"))
-    push("Total Inventory Purchased", totalInventoryPurchases, "Excluded")
 
     return {
       title: "Profit & Loss",
@@ -323,7 +310,7 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
     }
   }, [entries, bySection, farmName, filter.fromDate, filter.toDate, gh, currencyLabel,
       totalRevenue, totalDirectCosts, grossProfit, totalOperatingExpenses, operatingProfit,
-      totalOtherCosts, netProfit, totalCapitalInvestments, totalInventoryPurchases])
+      totalOtherCosts, netProfit, totalCapitalInvestments])
 
   const onCsv = () => {
     const o = exportOpts(); if (!o) return
@@ -536,20 +523,6 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
                       gh={gh}
                       footer={<div className="text-xs text-slate-600">Total capital investments <strong>{gh(totalCapitalInvestments)}</strong></div>}
                       links={[{ href: "/generic-assets", label: "View Capital Investments/Assets" }]}
-                    />
-                    <InfoSection
-                      icon={<Package className="w-4 h-4" />}
-                      title="Inventory Purchases"
-                      subtitle="Excluded from profit"
-                      note="Stock you bought this period. It is inventory you own, not a cost yet — the money turned into goods of equal value. Its cost reaches profit as Cost of goods sold on the day you sell the stock, so it is shown here only so you can see what was bought."
-                      lines={bySection("inventory")}
-                      onOpen={openDrill}
-                      gh={gh}
-                      footer={<div className="text-xs text-slate-600">Total inventory purchased <strong>{gh(totalInventoryPurchases)}</strong></div>}
-                      links={[
-                        { href: "/generic-purchases", label: "View Purchases" },
-                        { href: "/generic-inventory", label: "View Inventory" },
-                      ]}
                     />
                   </div>
 
