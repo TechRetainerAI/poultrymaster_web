@@ -14,7 +14,7 @@ import {
   CheckCircle2, ClipboardCheck, CreditCard, DollarSign, Factory, FileText, Gift, GraduationCap, HandCoins, History, Landmark,
   Hourglass, MapPin, PiggyBank, Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
   PieChart, ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
-  Briefcase, Columns3, Link2, FolderPlus, Tag,
+  Briefcase, Columns3, Link2, FolderPlus, Tag, Pill, ClipboardList,
 } from "lucide-react"
 import type { MegaMenuGroup, MegaMenuItem, NavItem as RailItem } from "./nav-model"
 import { quickLinkCatalogue, resolveQuickLinks, type CustomisableNav } from "./quick-links"
@@ -92,6 +92,21 @@ function buildGenericNavConfigUnfiltered(modules: GenericModulesResult, permissi
   // Split into two groups so the mega-menu renders as two columns with headers,
   // matching the poultry Operations panel pattern.
   const catalog: MegaMenuGroup[] = []
+  // ---- Pharmacy (511) ----
+  // Only for a business whose industry template is Pharmacy, first in Operations.
+  if (industry === "Pharmacy") {
+    catalog.push({
+      key: "catalog-pharmacy",
+      label: "Pharmacy",
+      items: [
+        item("/generic-pharmacy-pos",     "Pharmacy till",    ShoppingCart),
+        item("/generic-medicines",        "Medicines",        Pill),
+        item("/generic-batches",          "Batches & expiry", Boxes),
+        item("/generic-prescriptions",    "Prescriptions",    ClipboardList),
+        item("/generic-pharmacy-reports", "Pharmacy reports", BarChart3),
+      ],
+    })
+  }
   const catalogStockItems: MegaMenuItem[] = [
     ...(showExisting("enableProducts")
       ? [item("/generic-products", "Products & Services", ShoppingBag)] : []),
