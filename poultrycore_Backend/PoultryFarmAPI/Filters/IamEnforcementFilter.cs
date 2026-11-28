@@ -35,6 +35,7 @@ namespace PoultryFarmAPIWeb.Filters
         private readonly ILogger<IamEnforcementFilter> _logger;
         private readonly bool _enforced;
         private readonly bool _denyUnmapped;
+        private readonly bool _enforceWrites;
 
         public IamEnforcementFilter(IIamService iam, ILogger<IamEnforcementFilter> logger, IConfiguration config)
         {
@@ -45,6 +46,13 @@ namespace PoultryFarmAPIWeb.Filters
             // attack. Defaulting this to false means adding a controller cannot
             // accidentally take the API down; the log line is how it gets noticed.
             _denyUnmapped = config.GetValue("Iam:DenyUnmapped", false);
+            // Writes only: a staff member missing the create / edit / delete /
+            // approve / reverse key is refused, while reads stay in shadow. The
+            // shadow logs show reads still need map work (pages pull lookup lists
+            // they have no page key for); writes are what "view only" and "enter
+            // but not approve" are about, and they map cleanly. Enforced=true
+            // covers this too.
+            _enforceWrites = config.GetValue("Iam:EnforceWrites", false);
         }
 
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
@@ -111,6 +119,17 @@ namespace PoultryFarmAPIWeb.Filters
                 // Owners are never restricted.
                 if (membership == "owner") return;
             }
+            else if (!string.IsNullOrWhiteSpace(farmId)
+                     && await _iam.GetMembershipAsync(userId, farmId) == "owner")
+            {
+                // Most poultry routes carry the farm in the BODY, not the query or
+                // route, so the check above never ran for them and an owner fell
+                // through to the grant lookup -- which owners do not have rows in.
+                // The shadow logs had every poultry write by an owner as "would
+                // block". The token's farm is the owner's own company here; an
+                // owner of it is unrestricted in it.
+                return;
+            }
 
             // Only the shared controllers need the farm's type; skip the lookup
             // for the ~80% of routes that name their module in the path.
@@ -136,7 +155,7 @@ namespace PoultryFarmAPIWeb.Filters
 
             if (!await _iam.HasPermissionAsync(userId, farmId, key))
             {
-                Report(context, route, method, userId, $"missing {key}", deny: _enforced,
+                Report(context, route, method, userId, $"missing {key}", deny: _enforced || (_enforceWrites && IsWrite(method)),
                     result: Forbidden("You do not have permission to do this.", key));
                 return;
             }
@@ -295,6 +314,9 @@ namespace PoultryFarmAPIWeb.Filters
 
             return template;
         }
+
+        private static bool IsWrite(string method) =>
+            !(HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method));
 
         /// <summary>
         /// One place that decides whether a finding blocks the request or is only

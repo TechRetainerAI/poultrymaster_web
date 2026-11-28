@@ -71,6 +71,9 @@ builder.Services.AddScoped<IExpenseService>(sp => new ExpenseService(connectionS
 
 // Register SaleService with DI
 builder.Services.AddScoped<ISaleService>(sp => new SaleService(connectionString));
+// 522: poultry sales waiting for approval.
+builder.Services.AddScoped<IPoultrySaleApprovalService>(sp => new PoultrySaleApprovalService(
+    connectionString, sp.GetRequiredService<IIamService>(), sp.GetRequiredService<ISaleService>()));
 
 // Register CashAdjustmentService
 builder.Services.AddScoped<ICashAdjustmentService>(sp => new CashAdjustmentService(connectionString));
