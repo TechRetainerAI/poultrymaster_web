@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -139,9 +140,14 @@ export default function GenericCashAccountDetailPage() {
     return { inn, out, net: inn - out }
   }, [filterOn, visibleLedger, cashShares, projectFilter])
 
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<SortDirection>(null)
+  const handleSort = (key: string) => { const n = toggleSort(key, sortKey, sortDir); setSortKey(n.key); setSortDir(n.direction) }
+  const sortedLedger = useMemo(() => sortData(visibleLedger as any[], sortKey, sortDir) as typeof visibleLedger, [visibleLedger, sortKey, sortDir])
+
   // Client-side paging: the whole list is already in memory, so this is a
   // slice. Feed the SAME slice to the cards and the desktop table.
-  const pg = usePagination(visibleLedger)
+  const pg = usePagination(sortedLedger)
 
   async function performDelete() {
     try {
@@ -272,14 +278,14 @@ export default function GenericCashAccountDetailPage() {
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Source</TableHead>
-                                <TableHead className="text-right">Money in</TableHead>
+                                <SortableHeader label="Date" sortKey="transactionDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                                <SortableHeader label="Type" sortKey="transactionType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                                <SortableHeader label="Source" sortKey="sourceType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                                <SortableHeader label="Money in" sortKey="amount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />
                                 <TableHead className="text-right">Money out</TableHead>
-                                {!filterOn && <TableHead className="text-right">Running balance</TableHead>}
+                                {!filterOn && <SortableHeader label="Running balance" sortKey="balanceAfterTransaction" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />}
                                 {cashShares.enabled && <ProjectHead />}
-                                <TableHead>Description</TableHead>
+                                <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                               </TableRow>
                             </TableHeader>
                             <TableBody>

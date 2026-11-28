@@ -90,7 +90,10 @@ export default function GenericPayrollPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
   // 419. Payroll templates.
-  const { canEdit } = usePermissions()
+  const permissions = usePermissions()
+  const { canEdit } = permissions
+  const canCreate = permissions.can("generic.payroll.create" as any)
+  const canApprove = permissions.can("generic.payroll.approve" as any)
   const [tab, setTab] = useState<"runs" | "templates">("runs")
   const [templates, setTemplates] = useState<GenericPayrollTemplate[]>([])
   const [templatesRefresh, setTemplatesRefresh] = useState(0)
@@ -516,7 +519,7 @@ export default function GenericPayrollPage() {
                   <PiggyBank className="h-4 w-4 mr-1" /> Employee Credit
                 </Link>
               </Button>
-              <Button onClick={() => { setForm(blankForm()); setOpen(true) }}><Plus className="h-4 w-4 mr-1" /> New payroll run</Button>
+              {canCreate && <Button onClick={() => { setForm(blankForm()); setOpen(true) }}><Plus className="h-4 w-4 mr-1" /> New payroll run</Button>}
             </div>
           </div>
 
@@ -1047,8 +1050,8 @@ export default function GenericPayrollPage() {
         <Button size="sm" variant={v} className={cls} onClick={() => router.push(`/generic-payroll/${r.genericPayrollRunId}`)} title="Details"><Eye className="h-4 w-4 mr-1" />{label("Details")}</Button>
         {r.status === "Draft" && <Button size="sm" variant={v} className={cls} onClick={() => openItems(r)} title="Edit lines"><Users className="h-4 w-4 mr-1" />{label("Lines")}</Button>}
         {r.status !== "Draft" && <Button size="sm" variant={v} className={cls} onClick={() => openItems(r)} title="View lines"><Users className="h-4 w-4 mr-1" />{label("Lines")}</Button>}
-        {(r.status === "Draft" || r.status === "Reopened") && <Button size="sm" variant={v} className={`${cls} text-blue-700`} onClick={() => approve(r)} title="Approve"><CheckCircle2 className="h-4 w-4 mr-1" />{label("Approve")}</Button>}
-        {r.status === "Approved" && <Button size="sm" variant={v} className={`${cls} text-green-700`} onClick={() => { setPaidRun(r); setPayDate(today()) }} title="Mark paid"><Banknote className="h-4 w-4 mr-1" />{label("Mark paid")}</Button>}
+        {canApprove && (r.status === "Draft" || r.status === "Reopened") && <Button size="sm" variant={v} className={`${cls} text-blue-700`} onClick={() => approve(r)} title="Approve"><CheckCircle2 className="h-4 w-4 mr-1" />{label("Approve")}</Button>}
+        {canApprove && r.status === "Approved" && <Button size="sm" variant={v} className={`${cls} text-green-700`} onClick={() => { setPaidRun(r); setPayDate(today()) }} title="Mark paid"><Banknote className="h-4 w-4 mr-1" />{label("Mark paid")}</Button>}
         {(r.status === "Approved" || r.status === "Paid") && <Button size="sm" variant={v} className={`${cls} text-amber-700`} onClick={() => { setReasonDlg({ open: true, run: r, kind: "unapprove" }); setReason("") }} title="Reopen"><RotateCcw className="h-4 w-4 mr-1" />{label("Reopen")}</Button>}
         {(r.status === "Draft" || r.status === "Approved") && <Button size="sm" variant={v} className={`${cls} text-rose-600`} onClick={() => { setReasonDlg({ open: true, run: r, kind: "cancel" }); setReason("") }} title="Cancel"><XCircle className="h-4 w-4 mr-1" />{label("Cancel")}</Button>}
         {(r.status === "Draft" || r.status === "Reopened" || r.status === "Cancelled") && <Button size="sm" variant={v} className={`${cls} text-red-600`} onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 className="h-4 w-4 mr-1" />{label("Delete")}</Button>}

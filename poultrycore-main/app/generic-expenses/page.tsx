@@ -193,8 +193,13 @@ function GenericExpensesPageInner() {
   const { toast } = useToast()
   const isMobile = useIsMobile()
   const { can } = usePermissions()
+  const canCreate = can("generic.expenses.create" as any)
+  const canEdit = can("generic.expenses.edit" as any)
+  const canDelete = can("generic.expenses.delete" as any)
+  const canApprove = can("generic.expenses.approve" as any)
+  const canReverse = can("generic.expenses.reverse" as any)
+  const canExport = can("generic.expenses.export" as any)
   const canPay = can("generic.supplier-payments.create")
-  const canReverse = can("generic.supplier-payments.reverse")
 
   const [rows, setRows] = useState<GenericExpense[]>([])
   const [loading, setLoading] = useState(true)
@@ -571,19 +576,19 @@ function GenericExpensesPageInner() {
     const btn = mobile ? "flex-1 h-10" : "h-8 w-8 p-0"
     return (
       <>
-        {draft && (
+        {canApprove && draft && (
           <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-emerald-700 hover:bg-emerald-50")}
             title="Approve: take the money from the cash account and put any unpaid part on the supplier" onClick={() => onApprove(e)}>
             <Check className="w-4 h-4" />{mobile && <span className="ml-2">Approve</span>}
           </Button>
         )}
-        {draft && (
+        {canApprove && draft && (
           <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-rose-700 hover:bg-rose-50")}
             title="Reject this expense" onClick={() => { setRejectFor(e); setRejectReason("") }}>
             <X className="w-4 h-4" />{mobile && <span className="ml-2">Reject</span>}
           </Button>
         )}
-        {editable && (
+        {canEdit && editable && (
           <Button variant={mobile ? "outline" : "ghost"} size="sm" className={btn} title="Edit" onClick={() => openEditDialog(e)}>
             <Pencil className="w-4 h-4" />{mobile && <span className="ml-2">Edit</span>}
           </Button>
@@ -606,13 +611,13 @@ function GenericExpensesPageInner() {
             <Truck className="w-4 h-4" />{mobile && <span className="ml-2">Supplier</span>}
           </Button>
         )}
-        {own && e.status === "Approved" && (
+        {canReverse && own && e.status === "Approved" && (
           <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-red-600 hover:text-red-700 hover:bg-red-50")}
             title="Reverse: undo this approved expense (with a reason)" onClick={() => setReverseFor(e)}>
             <Undo2 className="w-4 h-4" />{mobile && <span className="ml-2">Reverse</span>}
           </Button>
         )}
-        {editable && (
+        {canDelete && editable && (
           <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-red-600 hover:text-red-700 hover:bg-red-50")}
             title="Delete" onClick={() => setPendingDelete(e)}>
             <Trash2 className="w-4 h-4" />{mobile && <span className="ml-2">Delete</span>}
@@ -836,9 +841,11 @@ function GenericExpensesPageInner() {
                     …incl. amount
                   </Button>
                 )}
-                <Button className="gap-2 flex-1 sm:flex-none h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
-                  <Plus className="w-4 h-4" /> Add Expense
-                </Button>
+                {canCreate && (
+                  <Button className="gap-2 flex-1 sm:flex-none h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                    <Plus className="w-4 h-4" /> Add Expense
+                  </Button>
+                )}
               </div>
             </div>
             {focusExpenseId && (
@@ -913,10 +920,12 @@ function GenericExpensesPageInner() {
                       </MobileFilterSheetBody>
                       <MobileFilterSheetFooter>
                         <div className="flex flex-col gap-3">
-                          <div className="flex gap-2">
-                            <Button variant="outline" className="h-11 flex-1" onClick={handleExportPDF}><FileTextIcon className="w-4 h-4 mr-2" />PDF</Button>
-                            <Button variant="outline" className="h-11 flex-1" onClick={handleExportCSV}><Download className="w-4 h-4 mr-2" />CSV</Button>
-                          </div>
+                          {canExport && (
+                            <div className="flex gap-2">
+                              <Button variant="outline" className="h-11 flex-1" onClick={handleExportPDF}><FileTextIcon className="w-4 h-4 mr-2" />PDF</Button>
+                              <Button variant="outline" className="h-11 flex-1" onClick={handleExportCSV}><Download className="w-4 h-4 mr-2" />CSV</Button>
+                            </div>
+                          )}
                           <div className="flex gap-3">
                             <Button type="button" variant="outline" className="h-12 flex-1"
                               onClick={() => { clearAllFilters(); setFiltersOpen(false); toast({ title: "Filters cleared" }) }}>
@@ -985,10 +994,12 @@ function GenericExpensesPageInner() {
                 {activeFilterCount > 0 && (
                   <Button variant="ghost" size="sm" onClick={clearAllFilters}>Clear ({activeFilterCount})</Button>
                 )}
-                <div className="ml-auto flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleExportPDF}><FileTextIcon className="w-4 h-4" />PDF</Button>
-                  <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleExportCSV}><Download className="w-4 h-4" />CSV</Button>
-                </div>
+                {canExport && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleExportPDF}><FileTextIcon className="w-4 h-4" />PDF</Button>
+                    <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleExportCSV}><Download className="w-4 h-4" />CSV</Button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1015,7 +1026,7 @@ function GenericExpensesPageInner() {
                   <DollarSign className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No expenses found</h3>
                   <p className="text-slate-600 mb-6">{activeFilterCount > 0 ? "No expenses match your search criteria." : "Start tracking your business expenses."}</p>
-                  <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}><Plus className="w-4 h-4" />Add First Expense</Button>
+                  {canCreate && <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}><Plus className="w-4 h-4" />Add First Expense</Button>}
                 </CardContent>
               </Card>
             ) : (

@@ -31,6 +31,7 @@ import { adjustCashAccount, recalculateCashBalances } from "@/lib/api/generic"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
 import {
   getCashAccounts, getCashAccountDetails, getCashTransfers,
@@ -72,6 +73,11 @@ export default function GenericCashPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
   const { toast } = useToast()
+  const permissions = usePermissions()
+  const canCreate = permissions.can("generic.cash.create" as any)
+  const canEdit = permissions.can("generic.cash.edit" as any)
+  const canDelete = permissions.can("generic.cash.delete" as any)
+  const canExport = permissions.can("generic.cash.export" as any)
 
   const [accounts, setAccounts] = useState<GenericCashAccount[]>([])
   const [transfers, setTransfers] = useState<GenericCashTransfer[]>([])
@@ -250,7 +256,7 @@ export default function GenericCashPage() {
             </h1>
             {/* Poultry's task bar (components/setup-views/poultry-cash-accounts.tsx). */}
             <SetupTaskBar tasks={[
-              { id: "new", label: "New account", icon: Plus, primary: true, onClick: openNew },
+              ...(canCreate ? [{ id: "new", label: "New account", icon: Plus, primary: true, onClick: openNew }] : []),
               { id: "transfer", label: "Transfer", icon: ArrowLeftRight, onClick: () => setXferDlg(true), group: "money" },
               { id: "adjust", label: "Record Cash Adjustment", icon: Scale, onClick: () => setAdjustDlg(true), group: "money" },
               { id: "reconcile", label: "Reconcile", icon: Scale, href: "/generic-cash-reconciliation", group: "check" },
@@ -316,8 +322,8 @@ export default function GenericCashPage() {
                       <Button size="sm" variant="outline" className="flex-1 h-10 bg-white" onClick={() => viewDetails(a)}>
                         <Eye className="h-4 w-4 mr-1" /> View details
                       </Button>
-                      <Button size="sm" variant="outline" className="flex-1 h-10 bg-white" onClick={() => openEdit(a)}>Edit</Button>
-                      <Button size="sm" variant="outline" className="flex-1 h-10 bg-white text-red-600 border-red-200" onClick={() => setDeleteTarget(a)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
+                      {canEdit && <Button size="sm" variant="outline" className="flex-1 h-10 bg-white" onClick={() => openEdit(a)}>Edit</Button>}
+                      {canDelete && <Button size="sm" variant="outline" className="flex-1 h-10 bg-white text-red-600 border-red-200" onClick={() => setDeleteTarget(a)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>}
                     </>
                   )}
                   desktopTable={
@@ -360,8 +366,8 @@ export default function GenericCashPage() {
                                 <Button size="sm" variant="ghost" onClick={() => viewDetails(a)} title="View details"><Eye className="h-4 w-4" /></Button>
                                 <Button size="sm" variant="ghost" onClick={() => viewTransactions(a)} title="Quick transactions">Txns</Button>
                                 <Button size="sm" variant="ghost" onClick={() => router.push(`/generic-cash-reconciliation?accountId=${a.genericCashAccountId}`)} title="Reconcile this account">Reconcile</Button>
-                                <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>Edit</Button>
-                                <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(a)} title="Delete account"><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                                {canEdit && <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>Edit</Button>}
+                                {canDelete && <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(a)} title="Delete account"><Trash2 className="h-4 w-4 text-red-500" /></Button>}
                               </TableCell>
                             </TableRow>
                           )

@@ -18,6 +18,7 @@ import { Check, Loader2, Package, Pencil, Plus, ArrowLeft } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
 import { approvePurchase, getPurchases, type GenericPurchase } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
@@ -55,6 +56,9 @@ function GenericPurchasesPageInner() {
   const logout = useLogout()
   const fmt = useFmt()
   const { toast } = useToast()
+  const permissions = usePermissions()
+  const canCreate = permissions.can("generic.purchases.create" as any)
+  const canApprove = permissions.can("generic.purchases.approve" as any)
   const [rows, setRows] = useState<GenericPurchase[]>([])
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
@@ -123,7 +127,7 @@ function GenericPurchasesPageInner() {
               </h1>
               <p className="text-sm text-slate-500">{rows.length} purchase(s)</p>
             </div>
-            <Button asChild className="w-full sm:w-auto h-11 sm:h-10"><Link href="/generic-purchases/new"><Plus className="h-4 w-4 mr-1" />New purchase</Link></Button>
+            {canCreate && <Button asChild className="w-full sm:w-auto h-11 sm:h-10"><Link href="/generic-purchases/new"><Plus className="h-4 w-4 mr-1" />New purchase</Link></Button>}
           </div>
 
           <ListFilters
@@ -187,7 +191,7 @@ function GenericPurchasesPageInner() {
                           <Link href={`/generic-purchases/new?edit=${p.genericPurchaseId}`}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
                         </Button>
                       )}
-                      {p.status === "Draft" && (
+                      {canApprove && p.status === "Draft" && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200">
@@ -245,7 +249,7 @@ function GenericPurchasesPageInner() {
                                   <Link href={`/generic-purchases/new?edit=${p.genericPurchaseId}`}><Pencil className="h-3 w-3 mr-1" />Edit</Link>
                                 </Button>
                               )}
-                              {p.status === "Draft" && (
+                              {canApprove && p.status === "Draft" && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button size="sm" variant="default" className="bg-emerald-600 hover:bg-emerald-700"><Check className="h-3 w-3 mr-1" />Approve</Button>
