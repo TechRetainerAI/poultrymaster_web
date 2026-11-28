@@ -280,14 +280,23 @@ export function PageAccessEditor({
     const grants: IamGrant[] = eff?.grants ?? []
     const keys = new Set(grants.map((g) => g.permissionKey))
     setSources(new Map(grants.map((g) => [g.permissionKey, g.source])))
-    setIsOwner(grants.some((g) => g.source === "owner"))
+    const owner = grants.some((g) => g.source === "owner")
+    setIsOwner(owner)
     setInitial(keys)
-    setDraft(new Set(keys))
+    // 513: When a company is first assigned and the employee has zero grants,
+    // pre-populate the draft with the default profile (all non-sensitive pages
+    // with create + edit). The owner still needs to Save to persist it.
+    if (keys.size === 0 && !owner) {
+      const companyType = companies.find((c) => c.farmId === fid)?.type
+      setDraft(defaultProfile(pagesForCompanyType(companyType)))
+    } else {
+      setDraft(new Set(keys))
+    }
     setStatus(memberships?.find((m) => m.farmId === fid)?.status ?? "active")
     setReason("")
     setHistory(null)
     setLoading(false)
-  }, [employeeId])
+  }, [employeeId, companies])
 
   useEffect(() => { if (farmId) void load(farmId) }, [farmId, load])
 
@@ -394,6 +403,9 @@ export function PageAccessEditor({
             <Button type="button" variant="outline" size="sm" onClick={() => void openHistory()}><History className="mr-1.5 h-4 w-4" />Permission history</Button>
             <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => setDraft(defaultProfile(pages, draft))}>
               <RotateCcw className="mr-1.5 h-4 w-4" />Reset to default profile
+            </Button>
+            <Button type="button" variant="outline" size="sm" disabled={disabled} className="text-rose-600 border-rose-200 hover:bg-rose-50" onClick={() => setDraft(new Set())}>
+              <ShieldAlert className="mr-1.5 h-4 w-4" />Unassign all
             </Button>
           </div>
 

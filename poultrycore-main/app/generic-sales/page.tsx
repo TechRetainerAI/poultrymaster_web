@@ -27,6 +27,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { usePagination } from "@/hooks/use-pagination"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { usePermissions } from "@/hooks/use-permissions"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectLabels } from "@/hooks/use-project-labels"
 import { ProjectCell, ProjectHead, ProjectLabels, PROJECT_COLUMN_TITLE } from "@/components/generic/projects/project-column"
@@ -78,6 +79,10 @@ function GenericSalesPageInner() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
   const { toast } = useToast()
+  const permissions = usePermissions()
+  const canCreate = permissions.can("generic.sales.create" as any)
+  const canReverse = permissions.can("generic.sales.reverse" as any)
+  const canExport = permissions.can("generic.sales.export" as any)
   const [rows, setRows] = useState<GenericSale[]>([])
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
