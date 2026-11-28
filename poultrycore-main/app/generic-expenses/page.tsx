@@ -241,6 +241,7 @@ function GenericExpensesPageInner() {
   const [rejectReason, setRejectReason] = useState("")
   const [payFor, setPayFor] = useState<Row | null>(null)
   const [historyFor, setHistoryFor] = useState<Row | null>(null)
+  const [viewFor, setViewFor] = useState<Row | null>(null)
 
   const loadExpenses = async () => {
     setLoading(true)
@@ -575,17 +576,21 @@ function GenericExpensesPageInner() {
     // 504: an approved expense is final -- no Edit or Delete; it is reversed.
     const editable = own && (draft || e.status === "Rejected")
     const btn = mobile ? "flex-1 h-10" : "h-8 w-8 p-0"
-    // Purchase-originated expenses are read-only — managed from Purchases page.
+    // Purchase-originated expenses: view details only, no edit/reverse/delete.
     if (fromPurchase) {
       return (
         <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-blue-600")}
-          title="View source purchase" onClick={() => router.push("/generic-purchases")}>
-          <Eye className="w-4 h-4" />{mobile && <span className="ml-2">View purchase</span>}
+          title="View expense details" onClick={() => setViewFor(e)}>
+          <Eye className="w-4 h-4" />{mobile && <span className="ml-2">View details</span>}
         </Button>
       )
     }
     return (
       <>
+        <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-blue-600")}
+          title="View expense details" onClick={() => setViewFor(e)}>
+          <Eye className="w-4 h-4" />{mobile && <span className="ml-2">View</span>}
+        </Button>
         {canApprove && draft && (
           <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-emerald-700 hover:bg-emerald-50")}
             title="Approve: take the money from the cash account and put any unpaid part on the supplier" onClick={() => onApprove(e)}>
@@ -1306,6 +1311,45 @@ function GenericExpensesPageInner() {
           await loadExpenses()
         }}
       />
+
+      {/* View expense details */}
+      <Sheet open={!!viewFor} onOpenChange={(o) => { if (!o) setViewFor(null) }}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          {viewFor && (
+            <div className="space-y-4 pt-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Expense #{viewFor.genericExpenseId}</h3>
+                <p className="text-sm text-slate-500">{viewFor.sourceType ? `Source: ${viewFor.sourceType}` : "Manual expense"}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-slate-500">Date</span><p className="font-medium">{fmtDateTime(viewFor.expenseDate, viewFor)}</p></div>
+                <div><span className="text-slate-500">Status</span><p><Badge variant="outline">{viewFor.status}</Badge></p></div>
+                <div><span className="text-slate-500">Category</span><p className="font-medium">{viewFor.categoryName ?? "—"}</p></div>
+                <div><span className="text-slate-500">Payment Method</span><p className="font-medium">{viewFor.paymentMethod ?? "—"}</p></div>
+                <div><span className="text-slate-500">Amount</span><p className="font-semibold text-base">{formatCurrency(Number(viewFor.amount))}</p></div>
+                <div><span className="text-slate-500">Paid</span><p className="font-medium">{formatCurrency(viewFor.amountPaidN)}</p></div>
+                <div><span className="text-slate-500">Balance</span><p className={cn("font-medium", viewFor.balance > 0 ? "text-amber-700" : "text-slate-500")}>{formatCurrency(viewFor.balance)}</p></div>
+                <div><span className="text-slate-500">Payment Status</span><p className="font-medium">{viewFor.paymentStatus ?? "—"}</p></div>
+              </div>
+              <hr />
+              <div className="space-y-2 text-sm">
+                <div><span className="text-slate-500">Description</span><p className="font-medium">{viewFor.description || "—"}</p></div>
+                <div><span className="text-slate-500">Supplier / Paid To</span><p className="font-medium">{viewFor.supplierName || viewFor.paidTo || "—"}</p></div>
+                <div><span className="text-slate-500">Cash Account</span><p className="font-medium">{viewFor.cashAccountName || "—"}</p></div>
+                {viewFor.dueDate && <div><span className="text-slate-500">Due Date</span><p className="font-medium">{fmtDateTime(viewFor.dueDate, viewFor)}</p></div>}
+                {viewFor.notes && <div><span className="text-slate-500">Notes</span><p className="text-slate-700 whitespace-pre-wrap">{viewFor.notes}</p></div>}
+              </div>
+              <hr />
+              <div className="space-y-2 text-sm text-slate-500">
+                <div>Created: {fmtDateTime(viewFor.createdAt, viewFor)}</div>
+                {viewFor.approvedBy && <div>Approved by: {viewFor.approvedBy} · {viewFor.approvedAt ? fmtDateTime(viewFor.approvedAt, viewFor) : ""}</div>}
+                {viewFor.rejectionReason && <div>Rejection reason: {viewFor.rejectionReason}</div>}
+                {viewFor.expenseReversalId && <div>Reversed (#{viewFor.reversalNumber})</div>}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
