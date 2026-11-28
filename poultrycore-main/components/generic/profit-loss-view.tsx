@@ -828,16 +828,19 @@ function SectionCard({ title, lines, totalLabel, totalAmount, onOpen, gh, negati
         <span className="ml-auto text-sm font-semibold tabular-nums text-slate-900">{money(totalAmount)}</span>
       </div>
       {refLine && refLine.amount !== 0 && (
-        <div className="shrink-0 border-t border-dashed px-3 py-2">
+        <div className="shrink-0 border-t-2 border-dashed border-slate-300 bg-slate-50 px-3 py-2">
           <button type="button" onClick={() => onOpen(refLine)}
-                  className="flex w-full items-center gap-1 text-left text-slate-500 transition-colors hover:text-slate-700">
-            <span className="inline-flex min-w-0 items-center gap-1 text-xs">
+                  className="flex w-full items-center gap-1.5 text-left transition-colors hover:bg-slate-100">
+            <span className="inline-flex min-w-0 items-center gap-1 text-sm text-slate-700">
               <span>{refLine.lineLabel}</span>
-              <ChevronRight className="h-3 w-3 shrink-0 text-slate-400" />
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
             </span>
-            <span className="ml-auto text-xs tabular-nums">{gh(refLine.amount)}</span>
+            <span className="shrink-0 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600">
+              Reference
+            </span>
+            <span className="ml-auto shrink-0 text-sm tabular-nums text-slate-700">{gh(refLine.amount)}</span>
           </button>
-          {refNote && <p className="mt-0.5 text-[10px] leading-snug text-slate-400">{refNote}</p>}
+          {refNote && <p className="mt-1 text-[11px] leading-snug text-slate-500">{refNote}</p>}
         </div>
       )}
     </div>
