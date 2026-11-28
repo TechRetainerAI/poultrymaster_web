@@ -352,11 +352,13 @@ export default function GenericStaffPaymentsPage() {
                       },
                     ]}
                     actions={(r) =>
-                      r.status !== "Reversed" ? (
+                      r.status !== "Reversed" && r.genericStaffPaymentId > 0 ? (
                         <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200"
                           onClick={() => { setReversing(r); setReason("") }}>
                           <Undo2 className="h-4 w-4 mr-1" /> Reverse
                         </Button>
+                      ) : r.genericStaffPaymentId < 0 ? (
+                        <span className="text-xs text-slate-400">From payroll</span>
                       ) : null
                     }
                     pagination={pg.paginationProps}
@@ -396,12 +398,13 @@ export default function GenericStaffPaymentsPage() {
                                     : <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Posted</Badge>}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  {r.status !== "Reversed" && (
+                                  {r.status !== "Reversed" && r.genericStaffPaymentId > 0 && (
                                     <Button size="sm" variant="outline" className="text-red-600 border-red-200"
                                       onClick={() => { setReversing(r); setReason("") }}>
                                       <Undo2 className="h-4 w-4 mr-1" /> Reverse
                                     </Button>
                                   )}
+                                  {r.genericStaffPaymentId < 0 && <span className="text-xs text-slate-400">From payroll</span>}
                                 </TableCell>
                               </TableRow>
                             ))}

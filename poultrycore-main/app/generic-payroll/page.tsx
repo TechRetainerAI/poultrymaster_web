@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -107,7 +108,11 @@ export default function GenericPayrollPage() {
 
   // Client-side paging: the whole list is already in memory, so this is a
   // slice. Feed the SAME slice to the cards and the desktop table.
-  const pg = usePagination(visible)
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<SortDirection>(null)
+  const handleSort = (key: string) => { const n = toggleSort(key, sortKey, sortDir); setSortKey(n.key); setSortDir(n.direction) }
+  const sorted = useMemo(() => sortData(visible as any[], sortKey, sortDir) as typeof visible, [visible, sortKey, sortDir])
+  const pg = usePagination(sorted)
 
   // create run
   const [open, setOpen] = useState(false)
@@ -577,9 +582,9 @@ export default function GenericPayrollPage() {
                   ]}
                   details={(r) => [
                     { label: "Period", value: `${fmtDateTime(r.periodStart, r)} → ${fmtDateTime(r.periodEnd, r)}` },
+                    { label: "Pay date", value: r.payDate ? fmtDateTime(r.payDate, r) : "—" },
                     { label: "Gross", value: gh(r.totalGrossPay) },
                     { label: "Cash account", value: r.cashAccountName ?? "—" },
-                    { label: "Pay date", value: r.payDate ? fmtDateTime(r.payDate, r) : "—" },
                     { label: "Status", value: r.status },
                     ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectLabels.labelsOf(r.genericPayrollRunId)} /> }] : []),
                   ]}
@@ -589,14 +594,14 @@ export default function GenericPayrollPage() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Period</TableHead>
+                            <SortableHeader label="Period" sortKey="periodStart" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                            <SortableHeader label="Pay date" sortKey="payDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                             {projectLabels.enabled && <ProjectHead />}
-                            <TableHead className="text-right">Gross</TableHead>
-                            <TableHead className="text-right">Deductions</TableHead>
-                            <TableHead className="text-right">Net</TableHead>
-                            <TableHead>Cash account</TableHead>
-                            <TableHead>Pay date</TableHead>
-                            <TableHead>Status</TableHead>
+                            <SortableHeader label="Gross" sortKey="totalGrossPay" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />
+                            <SortableHeader label="Deductions" sortKey="totalDeductions" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />
+                            <SortableHeader label="Net" sortKey="totalNetPay" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />
+                            <SortableHeader label="Cash account" sortKey="cashAccountName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                            <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -604,12 +609,12 @@ export default function GenericPayrollPage() {
                           {pg.pageItems.map((r) => (
                             <TableRow key={r.genericPayrollRunId}>
                               <TableCell className="whitespace-nowrap font-medium">{fmtDateTime(r.periodStart, r)} → {fmtDateTime(r.periodEnd, r)}</TableCell>
+                              <TableCell className="whitespace-nowrap">{r.payDate ? fmtDateTime(r.payDate, r) : "—"}</TableCell>
                               {projectLabels.enabled && <ProjectCell labels={projectLabels.labelsOf(r.genericPayrollRunId)} />}
                               <TableCell className="text-right tabular-nums">{gh(r.totalGrossPay)}</TableCell>
                               <TableCell className="text-right tabular-nums">{gh(r.totalDeductions)}</TableCell>
                               <TableCell className="text-right tabular-nums font-semibold">{gh(r.totalNetPay)}</TableCell>
                               <TableCell>{r.cashAccountName ?? "—"}</TableCell>
-                              <TableCell className="whitespace-nowrap">{r.payDate ? fmtDateTime(r.payDate, r) : "—"}</TableCell>
                               <TableCell><Badge className={STATUS_STYLE[r.status] ?? ""}>{r.status}</Badge></TableCell>
                               <TableCell className="text-right whitespace-nowrap">{renderActions(r, false)}</TableCell>
                             </TableRow>
