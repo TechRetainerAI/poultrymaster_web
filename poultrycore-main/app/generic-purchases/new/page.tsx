@@ -21,11 +21,13 @@ import type { ProjectSplit } from "@/lib/api/generic-projects"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import {
   approvePurchase, createPurchase, getCashAccounts, getProducts, getPurchase, getSuppliers, getUnitsOfMeasure, getUomConversions, updatePurchase,
   type GenericCashAccount, type GenericProduct, type GenericSupplier, type GenericUomConversion,
 } from "@/lib/api/generic"
 import { DEFAULT_UNITS } from "@/lib/generic/default-units"
+import { getPurchaseBatches, setPurchaseBatches } from "@/lib/api/generic-pharmacy"
 
 const PAY_METHODS = ["Cash", "MoMo", "Bank", "Card", "Credit", "Mixed"]
 
@@ -45,9 +47,12 @@ type Row = {
   unitFactor: number
   /** 483: this line's own project split; null = follows "Related project". */
   projects?: ProjectSplit[] | null
+  /** 511: batch number and expiry of what arrived on this line (products that track expiry). */
+  batchNumber: string
+  expiryDate: string
 }
 
-const blankRow = (): Row => ({ genericProductId: undefined, description: "", quantity: 1, unitCost: 0, discountAmount: 0, purchaseUnit: "", unitFactor: 1 })
+const blankRow = (): Row => ({ genericProductId: undefined, description: "", quantity: 1, unitCost: 0, discountAmount: 0, purchaseUnit: "", unitFactor: 1, batchNumber: "", expiryDate: "" })
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 const fmtQty = (n: number) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(n)
@@ -95,6 +100,7 @@ export default function NewGenericPurchasePage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
   const { toast } = useToast()
+  const isPharmacy = useGenericModules().industry === "Pharmacy"
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -181,7 +187,13 @@ export default function NewGenericPurchasePage() {
             discountAmount: Number(i.discountAmount) || 0,
             purchaseUnit: i.purchaseUnit ?? "",
             unitFactor: Number(i.unitFactor) || 1,
+            batchNumber: "",
+            expiryDate: "",
           })))
+          // 511: batch details saved on the Draft's lines (same order).
+          getPurchaseBatches(editParam)
+            .then((bs) => { if (!cancelled) setRows((rs) => rs.map((r, k) => ({ ...r, batchNumber: bs[k]?.batchNumber ?? "", expiryDate: bs[k]?.expiryDate ? String(bs[k].expiryDate).slice(0, 10) : "" }))) })
+            .catch(() => {})
           // The saved project split, line by line.
           const lineIds = (existing.items ?? []).map((i) => i.genericPurchaseItemId).filter((x): x is number => !!x)
           if (lineIds.length === (existing.items ?? []).length) {
@@ -310,6 +322,20 @@ export default function NewGenericPurchasePage() {
     )
   }
 
+  /** 511: batch no. + expiry under a line, for products that track expiry (medicines). */
+  const batchCell = (r: Row, idx: number) => {
+    const p = productOf(r)
+    if (!p || !p.trackExpiry) return null
+    return (
+      <div className="mt-1 grid grid-cols-2 gap-2">
+        <Input className="h-8 text-xs" placeholder="Batch no." maxLength={80} value={r.batchNumber}
+          onChange={(e) => updateRow(idx, { batchNumber: e.target.value })} />
+        <Input className="h-8 text-xs" type="date" title="Expiry date" value={r.expiryDate}
+          onChange={(e) => updateRow(idx, { expiryDate: e.target.value })} />
+      </div>
+    )
+  }
+
   // Opened from a project's "Record purchase": go back to that project.
   const afterSave = () => {
     const from = typeof window !== "undefined" ? projectIdFromQuery(window.location.search) : null
@@ -335,6 +361,12 @@ export default function NewGenericPurchasePage() {
     const badUnit = rows.find((r) => r.genericProductId && r.quantity > 0 && !(r.unitFactor > 0))
     if (badUnit) {
       toast({ title: "Say how many base units one purchase unit holds", description: `${badUnit.description}: fill in "1 ${badUnit.purchaseUnit} = ..." under the unit.`, variant: "destructive" })
+      return
+    }
+    // 511: a medicine's stock is only safe to sell with its expiry known.
+    const noExpiry = isPharmacy ? keptRows.find((r) => productOf(r)?.trackExpiry && !r.expiryDate) : undefined
+    if (noExpiry) {
+      toast({ title: "Enter the expiry date", description: `${noExpiry.description || "A line"}: type the expiry date printed on the pack, under the item.`, variant: "destructive" })
       return
     }
     if (totals.balance > 0 && !header.genericSupplierId) {
@@ -365,6 +397,26 @@ export default function NewGenericPurchasePage() {
       } else {
         const created = await createPurchase(input)
         savedId = created?.genericPurchaseId ?? null
+      }
+      // 511: batch no. / expiry per line, saved on the Draft before it is approved
+      // (approving turns them into batches). Lines go in the same order as `items`.
+      if (savedId && (editId || keptRows.some((r) => r.batchNumber.trim() || r.expiryDate))) {
+        try {
+          await setPurchaseBatches(savedId, keptRows.map((r) => ({
+            genericProductId: r.genericProductId!,
+            batchNumber: r.batchNumber.trim() || null,
+            expiryDate: r.expiryDate || null,
+          })))
+        } catch (e: any) {
+          // The purchase itself is saved; stop before approving so the batches are not lost.
+          toast({ title: `Purchase #${savedId} saved as Draft, but its batch details were not`, description: e?.message ?? String(e), variant: "destructive" })
+          setSaving(false)
+          if (!editId) {
+            setEditId(savedId)
+            window.history.replaceState(null, "", `/generic-purchases/new?edit=${savedId}`)
+          }
+          return
+        }
       }
     } catch (e: any) {
       toast({ title: editId ? "Could not save purchase" : "Could not create purchase", description: e?.message ?? String(e), variant: "destructive" })
@@ -505,6 +557,7 @@ export default function NewGenericPurchasePage() {
                                   </SelectContent>
                                 </Select>
                                 {lineHint(r)}
+                                {batchCell(r, idx)}
                                 <LineProjectButton splits={r.projects} onChange={(p) => updateRow(idx, { projects: p })}
                                   headerProjectId={projectId} description={r.description || productOf(r)?.productName || ""}
                                   wholeQuantity={r.quantity} wholeAmount={r.quantity * r.unitCost - r.discountAmount}
@@ -541,6 +594,7 @@ export default function NewGenericPurchasePage() {
                                 </SelectContent>
                               </Select>
                               {lineHint(r)}
+                              {batchCell(r, idx)}
                               <LineProjectButton splits={r.projects} onChange={(p) => updateRow(idx, { projects: p })}
                                 headerProjectId={projectId} description={r.description || productOf(r)?.productName || ""}
                                 wholeQuantity={r.quantity} wholeAmount={r.quantity * r.unitCost - r.discountAmount}

@@ -45,6 +45,12 @@ import { RAW_MATERIAL_UNITS, unitOptions } from "@/lib/units"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { filterByDateAndSearch } from "@/components/ui/list-filters"
 import { GenericServicesTab } from "@/components/generic/services-tab"
+import { useGenericModules } from "@/hooks/use-generic-modules"
+import { addBatch, getMedicines, getPharmacySettings, saveMedicine, type PharmacyShopType } from "@/lib/api/generic-pharmacy"
+import {
+  EMPTY_MEDICINE_FORM, PHARMACY_CATEGORIES, PHARMACY_UNITS, PharmacyProductFields,
+  medicineFormFrom, medicineFormProblems, medicineInputFrom, type MedicineForm,
+} from "@/components/generic/pharmacy/product-fields"
 
 // =============================================================================
 // Helpers
@@ -194,6 +200,16 @@ export default function GenericProductsPage() {
   // Category filter
   const [filterCategory, setFilterCategory] = useState<string>("")
 
+  // 511 Pharmacy: a pharmacy's form adds medicine details, packs and the opening batch.
+  const { industry } = useGenericModules()
+  const isPharmacy = industry === "Pharmacy"
+  const [medForm, setMedForm] = useState<MedicineForm>(EMPTY_MEDICINE_FORM)
+  const [shopType, setShopType] = useState<PharmacyShopType>("Pharmacy")
+  useEffect(() => {
+    if (isPharmacy) getPharmacySettings().then((s) => setShopType(s.shopType)).catch(() => {})
+  }, [isPharmacy])
+  const categoryDefaults = isPharmacy ? PHARMACY_CATEGORIES : DEFAULT_PRODUCT_CATEGORIES
+
   // Save a sales unit to the company's unit list (if not already there) so it is offered next time.
   const addSalesUnitToList = async (name: string) => {
     if (!name || units.some((u) => u.unitName.trim().toLowerCase() === name.toLowerCase())) return
@@ -205,7 +221,9 @@ export default function GenericProductsPage() {
 
   const openNew = () => {
     setEditingId(null)
-    setForm(EMPTY_FORM)
+    // A pharmacy sells by the tablet and every medicine tracks expiry.
+    setForm(isPharmacy ? { ...EMPTY_FORM, unitOfMeasure: "tablet", trackExpiry: true } : EMPTY_FORM)
+    setMedForm(EMPTY_MEDICINE_FORM)
     setConversions([])
     setShowAdvanced(false)
     setFormTab("details")
@@ -242,6 +260,12 @@ export default function GenericProductsPage() {
     setShowAdvanced(false)
     setFormTab("details")
     getUomConversions(p.genericProductId).then(setConversions).catch(() => setConversions([]))
+    setMedForm(EMPTY_MEDICINE_FORM)
+    if (isPharmacy) {
+      getMedicines()
+        .then((ms) => setMedForm(medicineFormFrom(ms.find((m) => m.genericProductId === p.genericProductId && m.isMedicine))))
+        .catch(() => {})
+    }
     setOpen(true)
   }
 
@@ -357,6 +381,16 @@ export default function GenericProductsPage() {
     const opt = (s: string) => s.trim() === "" ? null : Number(s)
     const optStr = (s: string) => s.trim() === "" ? null : s.trim()
 
+    // 511 Pharmacy: packs must make sense before anything is saved.
+    const isMedicine = isPharmacy && form.canSell
+    if (isMedicine) {
+      const problems = medicineFormProblems(medForm, form.unitOfMeasure)
+      if (problems.length) return toast({ title: "Check the packs", description: problems.join(" "), variant: "destructive" })
+      if (editingId == null && (medForm.openingBatchNumber.trim() || medForm.openingExpiryDate) && !(Number(form.openingStock) > 0)) {
+        return toast({ title: "Enter the opening stock", description: "The batch no. and expiry date are for the opening stock.", variant: "destructive" })
+      }
+    }
+
     // Determine itemType from purposes for backward compatibility
     const itemType: "Product" | "SupplyItem" = form.canSell ? "Product" : "SupplyItem"
 
@@ -378,8 +412,10 @@ export default function GenericProductsPage() {
         openingStock: Number(form.openingStock) || 0,
         minimumStockAlert: Number(form.minimumStockAlert) || 0,
         trackInventory: form.trackInventory,
-        trackExpiry: form.trackExpiry,
-        expiryDate: form.expiryDate || null,
+        trackExpiry: isMedicine ? true : form.trackExpiry,
+        // A medicine's expiry lives on its batches; the product keeps the opening batch's date
+        // so the Inventory page's expiry badge still works.
+        expiryDate: (isMedicine && editingId == null ? medForm.openingExpiryDate : form.expiryDate) || null,
         isActive: form.isActive,
         notes: optStr(form.notes),
         genericProductCategoryId: form.categoryId ? Number(form.categoryId) : null,
@@ -388,12 +424,30 @@ export default function GenericProductsPage() {
         canUseInternally: form.canUseInternally,
         imageUrl: form.imageUrl || null,
       }
+      let productId: number | null = editingId
       if (editingId != null) {
         await updateGenericProduct(editingId, input)
         toast({ title: `Item updated.` })
       } else {
         const created = await createGenericProduct(input)
+        productId = created?.genericProductId ?? null
         if (created) toast({ title: `"${created.productName}" created.` })
+      }
+      // 511 Pharmacy: medicine details + packs, then the opening stock's batch.
+      if (isMedicine && productId != null) {
+        try {
+          await saveMedicine(productId, medicineInputFrom(medForm))
+          const qty = Number(form.openingStock) || 0
+          if (editingId == null && qty > 0 && (medForm.openingBatchNumber.trim() || medForm.openingExpiryDate)) {
+            await addBatch({
+              genericProductId: productId, quantity: qty, unitCost: cost || null,
+              batchNumber: medForm.openingBatchNumber.trim() || null, expiryDate: medForm.openingExpiryDate || null,
+              notes: "Opening stock",
+            })
+          }
+        } catch (e: any) {
+          toast({ title: "Item saved, but its medicine details were not", description: `${e?.message ?? e}. Open it again, or use Pharmacy → Medicines.`, variant: "destructive" })
+        }
       }
       setOpen(false)
       setForm(EMPTY_FORM)
@@ -428,7 +482,7 @@ export default function GenericProductsPage() {
                 can be added without switching to Services first. */}
             <div className="flex w-full gap-2 sm:w-auto">
               <Button onClick={() => { setTopTab("physical"); openNew() }} className="flex-1 sm:flex-none h-11 sm:h-10">
-                <Plus className="h-4 w-4 mr-1" /> New item
+                <Plus className="h-4 w-4 mr-1" /> {isPharmacy ? "New medicine / product" : "New item"}
               </Button>
               <Button variant="outline" onClick={() => { setTopTab("services"); setServiceRequest((n) => n + 1) }}
                 className="flex-1 sm:flex-none h-11 sm:h-10">
@@ -528,7 +582,7 @@ export default function GenericProductsPage() {
               <Package className="h-12 w-12 mx-auto text-slate-300 mb-3" />
               <p className="font-medium text-slate-700">No items yet</p>
               <p className="text-sm mt-1">Create your first product, raw material, or supply item.</p>
-              <Button onClick={openNew} className="mt-4"><Plus className="h-4 w-4 mr-1" /> New item</Button>
+              <Button onClick={openNew} className="mt-4"><Plus className="h-4 w-4 mr-1" /> {isPharmacy ? "New medicine / product" : "New item"}</Button>
             </CardContent></Card>
           ) : visibleRows.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-slate-500">
@@ -640,13 +694,15 @@ export default function GenericProductsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {editingId != null
-                ? <><Pencil className="w-5 h-5 text-blue-600" /> Edit item</>
-                : <><Package className="w-5 h-5 text-blue-600" /> New item</>}
+                ? <><Pencil className="w-5 h-5 text-blue-600" /> {isPharmacy ? "Edit medicine / product" : "Edit item"}</>
+                : <><Package className="w-5 h-5 text-blue-600" /> {isPharmacy ? "New medicine / product" : "New item"}</>}
             </DialogTitle>
             <DialogDescription>
-              {editingId != null
-                ? "Update item details and purposes."
-                : "Create a product, raw material, or supply item. Select what it will be used for."}
+              {isPharmacy
+                ? "Name it as it appears on the pack, set the price of one tablet (or bottle, tube…), its class and packs, and the batch and expiry of the stock you have."
+                : editingId != null
+                  ? "Update item details and purposes."
+                  : "Create a product, raw material, or supply item. Select what it will be used for."}
             </DialogDescription>
           </DialogHeader>
 
@@ -739,17 +795,23 @@ export default function GenericProductsPage() {
 
             {/* Basic Details */}
             <FormSection title="Basic Details" color="indigo">
-              <FormField label="Item name *" full>
-                <Input value={form.productName} onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))} maxLength={200} placeholder="e.g. Maize, Packaging Bags, Rice" />
+              <FormField label={isPharmacy ? "Medicine / product name (as on the pack) *" : "Item name *"} full={true}
+                hint={isPharmacy ? "Brand name and strength, so staff pick the right one at the till" : undefined}>
+                <Input value={form.productName} onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))} maxLength={200}
+                  placeholder={isPharmacy ? "e.g. Panadol Extra 500mg Tablets, Amoksiklav 625mg, Coartem 20/120mg" : "e.g. Maize, Packaging Bags, Rice"} />
               </FormField>
-              <FormField label="SKU / Item code">
-                <Input value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} maxLength={60} />
+              <FormField label={isPharmacy ? "Item code (your own shelf code)" : "SKU / Item code"}
+                hint={isPharmacy ? "Optional short code you use in the shop, e.g. PAN-500" : "Your own code for this item (optional)"}>
+                <Input value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} maxLength={60}
+                  placeholder={isPharmacy ? "e.g. PAN-500" : undefined} />
               </FormField>
-              <FormField label="Barcode">
-                <Input value={form.barcode} onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))} maxLength={60} />
+              <FormField label="Barcode" hint={isPharmacy ? "Scan the barcode on the pack; the till finds the medicine by it" : undefined}>
+                <Input value={form.barcode} onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))} maxLength={60}
+                  placeholder={isPharmacy ? "Scan or type the pack barcode" : undefined} />
               </FormField>
-              <FormField label="Description" full>
-                <Textarea rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Describe this item (optional)" />
+              <FormField label={isPharmacy ? "What it is for / notes for staff" : "Description"} full>
+                <Textarea rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder={isPharmacy ? "e.g. For pain and fever. Adults: 2 tablets every 6 hours. Not for children under 12." : "Describe this item (optional)"} />
               </FormField>
               <FormField label="Category">
                 <Select value={form.categoryId || "__none__"} onValueChange={async (v) => {
@@ -773,7 +835,7 @@ export default function GenericProductsPage() {
                     {categories.filter((c) => c.isActive).map((c) => (
                       <SelectItem key={c.genericProductCategoryId} value={String(c.genericProductCategoryId)}>{c.name}</SelectItem>
                     ))}
-                    {DEFAULT_PRODUCT_CATEGORIES
+                    {categoryDefaults
                       .filter((name) => !categories.some((c) => c.name.trim().toLowerCase() === name.toLowerCase()))
                       .map((name) => (
                         <SelectItem key={`default-${name}`} value={`${DEFAULT_OPTION_PREFIX}${name}`}>{name}</SelectItem>
@@ -797,13 +859,17 @@ export default function GenericProductsPage() {
                   </Button>
                 </div>
               </FormField>
-              <FormField label="Base stock unit" hint="Pick from the list or type a custom unit below">
+              <FormField label={isPharmacy ? "Smallest unit you sell *" : "Base stock unit"}
+                hint={isPharmacy ? "Tablet, capsule, bottle, tube, sachet… Stock is counted in this unit" : "Pick from the list or type a custom unit below"}>
                 <Select value={form.unitOfMeasure || "__none__"} onValueChange={(v) => { setForm((f) => ({ ...f, unitOfMeasure: v === "__none__" ? "" : v })); setUnitSearch("") }}>
-                  <SelectTrigger><SelectValue placeholder="e.g. kg, piece, litre" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={isPharmacy ? "e.g. tablet" : "e.g. kg, piece, litre"} /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— None —</SelectItem>
-                    {/* The same unit list as the poultry side (lib/units.ts). */}
-                    {unitOptions(form.unitOfMeasure).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    {/* The same unit list as the poultry side (lib/units.ts); a pharmacy's units first. */}
+                    {(isPharmacy
+                      ? [...PHARMACY_UNITS, ...unitOptions(form.unitOfMeasure).filter((u) => !PHARMACY_UNITS.includes(u.toLowerCase()))]
+                      : unitOptions(form.unitOfMeasure)
+                    ).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <div className="flex gap-2 mt-1.5">
@@ -833,7 +899,7 @@ export default function GenericProductsPage() {
             {/* Dynamic: Sale settings */}
             {form.canSell && (
               <FormSection title="Sale Settings" color="blue">
-                <FormField label="Selling price *">
+                <FormField label={isPharmacy ? `Price of one ${form.unitOfMeasure || "unit"} *` : "Selling price *"}>
                   <NumberInput step="0.01" min="0" value={form.sellingPrice} onChange={(e) => setForm((f) => ({ ...f, sellingPrice: e.target.value }))} />
                 </FormField>
                 <FormField label="Sales unit" hint="Unit used when selling (optional, defaults to base unit)">
@@ -909,6 +975,19 @@ export default function GenericProductsPage() {
                 <NumberInput step="0.01" min="0" value={form.minimumStockAlert} onChange={(e) => setForm((f) => ({ ...f, minimumStockAlert: e.target.value }))} />
               </FormField>
             </FormSection>
+
+            {/* 511 Pharmacy: medicine details, packs and the opening stock's batch + expiry */}
+            {isPharmacy && form.canSell && (
+              <PharmacyProductFields
+                value={medForm}
+                onChange={(patch) => setMedForm((m) => ({ ...m, ...patch }))}
+                baseUnit={form.unitOfMeasure}
+                isNew={editingId == null}
+                productId={editingId}
+                openingStock={Number(form.openingStock) || 0}
+                shopType={shopType}
+              />
+            )}
 
             {/* Advanced (collapsible) */}
             <div>
