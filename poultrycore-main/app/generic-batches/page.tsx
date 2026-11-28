@@ -1,6 +1,6 @@
 "use client"
 
-// Pharmacy -> Batches & expiry (migration 511).
+// Pharmacy -> Batches & expiry (migration 515).
 // Every batch of every medicine: batch number, expiry date, how much came in and how much
 // is left. Batches are created by approving a purchase whose lines carry a batch number /
 // expiry date, or here ("Label stock on the shelf") for stock that is already counted.

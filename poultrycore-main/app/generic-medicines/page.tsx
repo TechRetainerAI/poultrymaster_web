@@ -1,6 +1,6 @@
 "use client"
 
-// Pharmacy -> Medicines (migration 511).
+// Pharmacy -> Medicines (migration 515).
 // A medicine is a Generic product (name, base unit such as "tablet", price per tablet, cost)
 // plus medicine details (generic name, strength, form, class A/B/C, FDA Ghana reg. no.)
 // and the packs it is sold in (Strip = 10 tablets, Box = 100 tablets) with a price each.

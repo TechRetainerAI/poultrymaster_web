@@ -92,7 +92,7 @@ function buildGenericNavConfigUnfiltered(modules: GenericModulesResult, permissi
   // Split into two groups so the mega-menu renders as two columns with headers,
   // matching the poultry Operations panel pattern.
   const catalog: MegaMenuGroup[] = []
-  // ---- Pharmacy (511) ----
+  // ---- Pharmacy (515) ----
   // Only for a business whose industry template is Pharmacy, first in Operations.
   if (industry === "Pharmacy") {
     catalog.push({

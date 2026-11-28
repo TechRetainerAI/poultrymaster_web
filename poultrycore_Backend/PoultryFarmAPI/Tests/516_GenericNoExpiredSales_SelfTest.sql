@@ -1,4 +1,4 @@
--- Self-test for migration 514 (no sale of expired stock). ROLLS BACK: ends with 'RESULT (rolled back): ...'.
+-- Self-test for migration 516 (no sale of expired stock). ROLLS BACK: ends with 'RESULT (rolled back): ...'.
 --   cd poultrycore_Backend/Tools/RunMigration; dotnet run -- ../../PoultryFarmAPI/Tests/514_GenericNoExpiredSales_SelfTest.sql
 -- Setup: 150 tablets = GOOD 100 (in date) + OLD 50 (expired yesterday).
 -- Expected: sell 120 refused | sell 100 ok, GOOD=0 OLD=50 | sell 1 more refused | write-off OLD ok, stock=0.
@@ -28,7 +28,7 @@ BEGIN
 
     BEGIN
         INSERT INTO genericstockmovements (farmid, genericproductid, movementdate, movementtype, quantity, referencetype, referenceid, reason, createdby)
-        VALUES (v_farm, v_pid, now(), 'SaleOut', -120, 'Sale', -514, 'test', 'test');
+        VALUES (v_farm, v_pid, now(), 'SaleOut', -120, 'Sale', -516, 'test', 'test');
         v_out := v_out || ' | sell 120 NOT refused';
     EXCEPTION WHEN OTHERS THEN v_out := v_out || ' | sell 120 refused: ' || SQLERRM;
     END;

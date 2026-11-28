@@ -1,6 +1,6 @@
 "use client"
 
-// Pharmacy -> Pharmacy till (migration 511).
+// Pharmacy -> Pharmacy till (migration 515).
 // A point of sale for medicines. It sells through the normal Generic sale (createSale +
 // approveSale), so the sale shows on Sales, Cash, Daily closing and P&L like any other.
 // What it adds for a pharmacy:

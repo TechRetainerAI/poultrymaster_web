@@ -485,7 +485,7 @@ builder.Services.AddScoped<IGenericMoneyOutService>(sp => new GenericMoneyOutSer
 builder.Services.AddScoped<IGenericSubscriptionReportService>(sp => new GenericSubscriptionReportService(connectionString));
 // Phase C: school-specific classes and academic terms (migration 366).
 builder.Services.AddScoped<IGenericSchoolService>(sp => new GenericSchoolService(connectionString));
-builder.Services.AddScoped<IGenericPharmacyService>(sp => new GenericPharmacyService(connectionString));   // 511
+builder.Services.AddScoped<IGenericPharmacyService>(sp => new GenericPharmacyService(connectionString));   // 515
 
 // Phase 4: Suppliers + Purchases + Expenses + Cash Transfers (the money-out
 // side). Purchase_Approve mirrors Sale_Approve; Expense_Approve branches on

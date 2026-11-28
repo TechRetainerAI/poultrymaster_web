@@ -1,4 +1,4 @@
-// Pharmacy rules shared by the pharmacy pages (migration 511). Pure functions, unit-tested
+// Pharmacy rules shared by the pharmacy pages (migration 515). Pure functions, unit-tested
 // in pharmacy.test.ts.
 //
 // Ghana's classes of medicine:

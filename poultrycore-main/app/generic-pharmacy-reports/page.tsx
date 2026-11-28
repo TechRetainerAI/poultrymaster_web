@@ -1,6 +1,6 @@
 "use client"
 
-// Pharmacy -> Pharmacy reports (migration 511). One report, four views, from
+// Pharmacy -> Pharmacy reports (migration 515). One report, four views, from
 // spgenericpharmacy_report:
 //   Sales & profit   - what each medicine sold in the period, revenue, cost and profit
 //   Slow-moving      - stock that has not sold in the period (money tied up on the shelf)

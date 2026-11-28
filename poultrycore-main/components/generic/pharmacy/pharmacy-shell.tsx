@@ -1,6 +1,6 @@
 "use client"
 
-// The frame every Pharmacy page shares (migration 511): sidebar, header, the page title,
+// The frame every Pharmacy page shares (migration 515): sidebar, header, the page title,
 // and one tab row that links the five pharmacy pages together, so a user can move
 // Medicines -> Batches -> Till -> Prescriptions -> Reports without the menu.
 

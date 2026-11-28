@@ -1,6 +1,6 @@
 "use client"
 
-// The pharmacy part of the Products & Services form (migration 511). Shown only when the
+// The pharmacy part of the Products & Services form (migration 515). Shown only when the
 // business's industry template is "Pharmacy": medicine details, the packs a medicine is sold
 // in with a price each, and the batch number + expiry date of the opening stock.
 // Saved with the product: products page -> saveMedicine (+ addBatch for opening stock).

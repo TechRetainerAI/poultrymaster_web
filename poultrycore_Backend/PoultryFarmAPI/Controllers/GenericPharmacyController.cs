@@ -1,4 +1,4 @@
-// Generic Pharmacy (migration 511): medicines, pack sizes, batches and expiry, batch
+// Generic Pharmacy (migration 515): medicines, pack sizes, batches and expiry, batch
 // write-offs, batch details on purchases, prescriptions and the pharmacy report.
 // Used by Generic companies whose industry template is "Pharmacy"; the web only shows
 // the pages to those companies. Settings and medicine setup are owner/admin writes

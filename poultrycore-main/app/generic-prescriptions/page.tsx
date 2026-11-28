@@ -1,6 +1,6 @@
 "use client"
 
-// Pharmacy -> Prescriptions (migration 511): every prescription a Class A (prescription-only)
+// Pharmacy -> Prescriptions (migration 515): every prescription a Class A (prescription-only)
 // sale was dispensed against, recorded at the Pharmacy till with the sale.
 
 import { useEffect, useMemo, useState } from "react"

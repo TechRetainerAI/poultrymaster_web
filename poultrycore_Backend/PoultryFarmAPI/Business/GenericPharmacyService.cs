@@ -1,4 +1,4 @@
-// Generic Pharmacy (migration 511). Thin: every rule (class A/B/C, pack sizes, batch
+// Generic Pharmacy (migration 515). Thin: every rule (class A/B/C, pack sizes, batch
 // quantities, first-expiry-first-out, write-off limits, prescription checks) is in the
 // SQL functions. The list functions return JSON built in SQL, which is passed straight
 // through, so the C# layer has no row mapping to keep in step with the SQL.

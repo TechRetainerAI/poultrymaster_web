@@ -200,7 +200,7 @@ export default function GenericProductsPage() {
   // Category filter
   const [filterCategory, setFilterCategory] = useState<string>("")
 
-  // 511 Pharmacy: a pharmacy's form adds medicine details, packs and the opening batch.
+  // 515 Pharmacy: a pharmacy's form adds medicine details, packs and the opening batch.
   const { industry } = useGenericModules()
   const isPharmacy = industry === "Pharmacy"
   const [medForm, setMedForm] = useState<MedicineForm>(EMPTY_MEDICINE_FORM)
@@ -381,7 +381,7 @@ export default function GenericProductsPage() {
     const opt = (s: string) => s.trim() === "" ? null : Number(s)
     const optStr = (s: string) => s.trim() === "" ? null : s.trim()
 
-    // 511 Pharmacy: packs must make sense before anything is saved.
+    // 515 Pharmacy: packs must make sense before anything is saved.
     const isMedicine = isPharmacy && form.canSell
     if (isMedicine) {
       const problems = medicineFormProblems(medForm, form.unitOfMeasure)
@@ -433,7 +433,7 @@ export default function GenericProductsPage() {
         productId = created?.genericProductId ?? null
         if (created) toast({ title: `"${created.productName}" created.` })
       }
-      // 511 Pharmacy: medicine details + packs, then the opening stock's batch.
+      // 515 Pharmacy: medicine details + packs, then the opening stock's batch.
       if (isMedicine && productId != null) {
         try {
           await saveMedicine(productId, medicineInputFrom(medForm))
@@ -976,7 +976,7 @@ export default function GenericProductsPage() {
               </FormField>
             </FormSection>
 
-            {/* 511 Pharmacy: medicine details, packs and the opening stock's batch + expiry */}
+            {/* 515 Pharmacy: medicine details, packs and the opening stock's batch + expiry */}
             {isPharmacy && form.canSell && (
               <PharmacyProductFields
                 value={medForm}

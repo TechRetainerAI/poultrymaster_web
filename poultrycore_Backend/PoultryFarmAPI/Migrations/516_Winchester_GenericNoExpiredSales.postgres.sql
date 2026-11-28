@@ -1,6 +1,6 @@
--- 514 (Winchester): an expired product can never be sold, from any screen.
+-- 516 (Winchester): an expired product can never be sold, from any screen.
 --
--- 511 made the Pharmacy till sell only in-date stock, but the batch trigger itself still let a
+-- 515 made the Pharmacy till sell only in-date stock, but the batch trigger itself still let a
 -- sale from another screen (general Sales, general POS) take stock from an expired batch. Selling
 -- an expired medicine is illegal, so the database now refuses it:
 -- a 'SaleOut' stock movement may only use stock that is not expired, i.e.
@@ -8,7 +8,7 @@
 -- Stock with no batch recorded (no expiry known) is still sellable, as before.
 -- Expired stock leaves the shelf only through a write-off (Batches & expiry -> Write off).
 --
--- Changes only 511's own trigger function fngenericstockmovement_batches_trg (same body, plus
+-- Changes only 515's own trigger function fngenericstockmovement_batches_trg (same body, plus
 -- the guard). Nothing of another developer's is touched. Safe to re-run.
 
 CREATE OR REPLACE FUNCTION fngenericstockmovement_batches_trg()
@@ -40,7 +40,7 @@ BEGIN
       AND m.genericstockmovementid < NEW.genericstockmovementid
       AND m.movementtype = NEW.movementtype;
 
-    -- 514: a sale may not reach expired stock.
+    -- 516: a sale may not reach expired stock.
     IF NEW.movementtype = 'SaleOut' THEN
         SELECT COALESCE(SUM(b.quantityremaining), 0), MIN(b.expirydate) INTO v_expired, v_date
         FROM genericproductbatches b

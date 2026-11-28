@@ -47,7 +47,7 @@ type Row = {
   unitFactor: number
   /** 483: this line's own project split; null = follows "Related project". */
   projects?: ProjectSplit[] | null
-  /** 511: batch number and expiry of what arrived on this line (products that track expiry). */
+  /** 515: batch number and expiry of what arrived on this line (products that track expiry). */
   batchNumber: string
   expiryDate: string
 }
@@ -190,7 +190,7 @@ export default function NewGenericPurchasePage() {
             batchNumber: "",
             expiryDate: "",
           })))
-          // 511: batch details saved on the Draft's lines (same order).
+          // 515: batch details saved on the Draft's lines (same order).
           getPurchaseBatches(editParam)
             .then((bs) => { if (!cancelled) setRows((rs) => rs.map((r, k) => ({ ...r, batchNumber: bs[k]?.batchNumber ?? "", expiryDate: bs[k]?.expiryDate ? String(bs[k].expiryDate).slice(0, 10) : "" }))) })
             .catch(() => {})
@@ -322,7 +322,7 @@ export default function NewGenericPurchasePage() {
     )
   }
 
-  /** 511: batch no. + expiry under a line, for products that track expiry (medicines). */
+  /** 515: batch no. + expiry under a line, for products that track expiry (medicines). */
   const batchCell = (r: Row, idx: number) => {
     const p = productOf(r)
     if (!p || !p.trackExpiry) return null
@@ -363,7 +363,7 @@ export default function NewGenericPurchasePage() {
       toast({ title: "Say how many base units one purchase unit holds", description: `${badUnit.description}: fill in "1 ${badUnit.purchaseUnit} = ..." under the unit.`, variant: "destructive" })
       return
     }
-    // 511: a medicine's stock is only safe to sell with its expiry known.
+    // 515: a medicine's stock is only safe to sell with its expiry known.
     const noExpiry = isPharmacy ? keptRows.find((r) => productOf(r)?.trackExpiry && !r.expiryDate) : undefined
     if (noExpiry) {
       toast({ title: "Enter the expiry date", description: `${noExpiry.description || "A line"}: type the expiry date printed on the pack, under the item.`, variant: "destructive" })
@@ -398,7 +398,7 @@ export default function NewGenericPurchasePage() {
         const created = await createPurchase(input)
         savedId = created?.genericPurchaseId ?? null
       }
-      // 511: batch no. / expiry per line, saved on the Draft before it is approved
+      // 515: batch no. / expiry per line, saved on the Draft before it is approved
       // (approving turns them into batches). Lines go in the same order as `items`.
       if (savedId && (editId || keptRows.some((r) => r.batchNumber.trim() || r.expiryDate))) {
         try {

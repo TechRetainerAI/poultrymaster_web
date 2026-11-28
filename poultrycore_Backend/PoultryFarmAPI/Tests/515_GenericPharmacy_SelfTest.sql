@@ -1,4 +1,4 @@
--- Self-test for migration 511 (Generic Pharmacy). Runs a full scenario on the dev DB and ROLLS BACK:
+-- Self-test for migration 515 (Generic Pharmacy). Runs a full scenario on the dev DB and ROLLS BACK:
 -- the last statement raises 'RESULT (rolled back): ...' with the figures. Run with
 --   cd poultrycore_Backend/Tools/RunMigration; dotnet run -- ../../PoultryFarmAPI/Tests/511_GenericPharmacy_SelfTest.sql
 -- Expected: packs=2 conv=2 | 300 A=200 B=100 | reverse C -> 300, C gone | manual add refused | out 50 -> B=50 |
