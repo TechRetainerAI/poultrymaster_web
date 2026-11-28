@@ -152,7 +152,7 @@ function GenericPurchasesPageInner() {
                 </SelectContent>
               </Select>
             </>}
-            extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} />}
+            extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} showWhenDisabled />}
           />
 
           {loading ? (
