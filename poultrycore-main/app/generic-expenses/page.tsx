@@ -54,7 +54,7 @@ import { PaymentHistoryDialog } from "@/components/balances/payment-history-dial
 import type { OpenDocumentRow } from "@/lib/api/balances"
 import {
   Banknote, Calendar, Check, ChevronDown, ChevronUp, DollarSign, Download, Eye, FileText as FileTextIcon, Filter,
-  History, Loader2, Pencil, Plus, Search, Trash2, Truck, Undo2, X,
+  History, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Truck, Undo2, X,
 } from "lucide-react"
 import { ReversePurchaseDialog } from "@/components/purchases/reverse-purchase-dialog"
 import { getSelectedCurrency } from "@/lib/utils/currency"
@@ -229,6 +229,8 @@ function GenericExpensesPageInner() {
   // dialogs
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Row | null>(null)
+  // 520: Edit & repost -- the reversed expense the Add Expense form is replacing.
+  const [correcting, setCorrecting] = useState<Row | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
   // 483: Projects & Contracts on the expense dialog.
   const { enabled: projectsEnabled } = useProjectsEnabled()
@@ -404,7 +406,7 @@ function GenericExpensesPageInner() {
         category: new Set(activeCategories.map((c) => String(c.genericExpenseCategoryId))),
       },
     })
-    setEditing(null); setFormError(null); setReceiptFile(null); setReceiptRemoved(false)
+    setEditing(null); setCorrecting(null); setFormError(null); setReceiptFile(null); setReceiptRemoved(false)
     setForm({ ...emptyForm(), expenseDate: today, genericCashAccountId: includeAmount ? "" : defaultAccountId(),
       ...(p.values as Partial<FormState>) })
     setPrefill(p); setPrefillConfirmed(false)
@@ -412,14 +414,20 @@ function GenericExpensesPageInner() {
   }
 
   const openCreateDialog = () => {
-    setEditing(null); setFormError(null); setPrefill(null); setPrefillConfirmed(false)
+    setEditing(null); setCorrecting(null); setFormError(null); setPrefill(null); setPrefillConfirmed(false)
     setReceiptFile(null); setReceiptRemoved(false)
     setForm({ ...emptyForm(), genericCashAccountId: defaultAccountId() })
     setProject(EMPTY_SINGLE_PROJECT)
     setFormOpen(true)
   }
+  /** 520: Edit & repost -- a NEW expense filled in from the reversed one, linked to it on save. */
+  const openRepostDialog = (e: Row) => {
+    openEditDialog(e)
+    setEditing(null)
+    setCorrecting(e)
+  }
   const openEditDialog = (e: Row) => {
-    setEditing(e); setFormError(null); setPrefill(null); setReceiptFile(null); setReceiptRemoved(false)
+    setEditing(e); setCorrecting(null); setFormError(null); setPrefill(null); setReceiptFile(null); setReceiptRemoved(false)
     const status: PayStatus = e.paymentMethod === "Credit" && e.amountPaidN <= 0 ? "Unpaid"
       : e.balance > 0 ? "PartiallyPaid" : "Paid"
     setForm({
@@ -470,7 +478,8 @@ function GenericExpensesPageInner() {
     const problem = validate()
     if (problem) { setFormError(problem); return }
     setSaving(true); setFormError(null)
-    let receiptUrl: string | null = editing && !receiptRemoved ? (editing as any).receiptUrl ?? null : null
+    const source = editing ?? correcting
+    let receiptUrl: string | null = source && !receiptRemoved ? (source as any).receiptUrl ?? null : null
     if (receiptFile) {
       const up = await uploadExpenseReceipt(receiptFile, getUserContext().farmId ?? "")
       if (!up.success || !up.path) { setSaving(false); setFormError(up.message ?? "Could not upload the receipt."); return }
@@ -482,10 +491,10 @@ function GenericExpensesPageInner() {
       genericSupplierId: form.genericSupplierId ? Number(form.genericSupplierId) : null,
       description: form.description.trim(),
       amount: amountNum,
-      paidTo: form.genericSupplierId ? null : (editing?.paidTo ?? null),
+      paidTo: form.genericSupplierId ? null : (source?.paidTo ?? null),
       paymentMethod: unpaid ? "Credit" : form.paymentMethod,
       genericCashAccountId: unpaid ? null : Number(form.genericCashAccountId),
-      notes: editing?.notes ?? null,
+      notes: source?.notes ?? null,
       receiptUrl,
       amountPaid: form.paymentStatus === "Paid" ? null : amountPaidNow,
       dueDate: form.paymentStatus === "Paid" ? null : (form.dueDate || null),
@@ -496,13 +505,14 @@ function GenericExpensesPageInner() {
         await updateExpense(editing.genericExpenseId, input)
         toast({ title: "Expense updated", description: editing.status === "Approved" ? "Cash and supplier balances follow the change." : undefined })
       } else {
-        const created = await createExpense(input)
+        const created = await createExpense({ ...input, correctsExpenseId: correcting?.genericExpenseId ?? null })
         toast({
-          title: `Expense #${created?.genericExpenseId ?? ""} created as Draft`,
+          title: `Expense #${created?.genericExpenseId ?? ""} created as Draft${correcting ? ` (reposts #${correcting.genericExpenseId})` : ""}`,
           description: "Approve it to take the money from the cash account and put any unpaid part on the supplier.",
         })
       }
       setFormOpen(false)
+      setCorrecting(null)
       await loadExpenses()
     } catch (e: any) {
       setFormError(e?.message ?? String(e))
@@ -630,6 +640,12 @@ function GenericExpensesPageInner() {
           <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-red-600 hover:text-red-700 hover:bg-red-50")}
             title="Reverse: undo this approved expense (with a reason)" onClick={() => setReverseFor(e)}>
             <Undo2 className="w-4 h-4" />{mobile && <span className="ml-2">Reverse</span>}
+          </Button>
+        )}
+        {canCreate && own && !!e.expenseReversalId && !e.correctedByExpenseId && (
+          <Button variant="outline" size="sm" className={mobile ? "flex-1 h-10" : "h-8 ml-1"}
+            title="Enter this expense again, corrected" onClick={() => openRepostDialog(e)}>
+            <RotateCcw className="w-4 h-4 mr-1" />Edit &amp; repost
           </Button>
         )}
         {canDelete && editable && (
@@ -784,7 +800,7 @@ function GenericExpensesPageInner() {
               placeholder="Enter expense description..." rows={3} required disabled={saving} />
           )}
           <ExpenseReceiptField
-            existingPath={editing && !receiptRemoved ? ((editing as any).receiptUrl ?? null) : null}
+            existingPath={(editing ?? correcting) && !receiptRemoved ? (((editing ?? correcting) as any).receiptUrl ?? null) : null}
             resolveReceiptFarmId={getUserContext().farmId ?? ""}
             pendingFile={receiptFile}
             onPendingFileChange={setReceiptFile}
@@ -1182,13 +1198,24 @@ function GenericExpensesPageInner() {
         <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              {editing ? <><Pencil className="w-5 h-5 text-blue-600" /> Edit Expense</> : <><DollarSign className="w-5 h-5 text-green-600" /> Add Expense</>}
+              {editing ? <><Pencil className="w-5 h-5 text-blue-600" /> Edit Expense</>
+                : correcting ? <><RotateCcw className="w-5 h-5 text-blue-600" /> Edit &amp; repost expense #{correcting.genericExpenseId}</>
+                : <><DollarSign className="w-5 h-5 text-green-600" /> Add Expense</>}
             </DialogTitle>
             <DialogDescription>
               {editing ? "Update expense information" : "Record a new business expense. It is saved as a Draft; approving it moves the money."}
             </DialogDescription>
           </DialogHeader>
           {formError && <Alert variant="destructive" className="shrink-0"><AlertDescription>{formError}</AlertDescription></Alert>}
+          {correcting && (
+            <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+              <span>
+                Expense #{correcting.genericExpenseId}{correcting.reversalNumber ? ` (${correcting.reversalNumber})` : ""} was reversed.
+                Fix what was wrong and save: the new expense is a Draft linked to it, and approving it moves the money.
+              </span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setCorrecting(null)}>Save as an unlinked expense</Button>
+            </div>
+          )}
           {prefill && !editing && (
             <div className="shrink-0">
               <PrefilledBanner prefill={prefill} fieldLabels={FIELD_LABELS.genericExpense}
@@ -1345,6 +1372,8 @@ function GenericExpensesPageInner() {
                 {viewFor.approvedBy && <div>Approved by: {viewFor.approvedBy} · {viewFor.approvedAt ? fmtDateTime(viewFor.approvedAt, viewFor) : ""}</div>}
                 {viewFor.rejectionReason && <div>Rejection reason: {viewFor.rejectionReason}</div>}
                 {viewFor.expenseReversalId && <div>Reversed (#{viewFor.reversalNumber})</div>}
+                {viewFor.correctedByExpenseId && <div>Reposted as expense #{viewFor.correctedByExpenseId}</div>}
+                {viewFor.correctsExpenseId && <div>Reposts reversed expense #{viewFor.correctsExpenseId}</div>}
               </div>
             </div>
           </>)}

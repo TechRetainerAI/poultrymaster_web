@@ -299,6 +299,10 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>500: set when the purchase was reversed (status is then Cancelled). List only.</summary>
         public int? PurchaseReversalId { get; set; }
         public string? ReversalNumber { get; set; }
+        /// <summary>520: Edit &amp; repost -- the reversed purchase this one replaces. List only.</summary>
+        public int? CorrectsPurchaseId { get; set; }
+        /// <summary>520: on a reversed purchase, the live purchase that reposts it (null = it can still be reposted). List only.</summary>
+        public int? CorrectedByPurchaseId { get; set; }
 
         public List<GenericPurchaseItemModel> Items { get; set; } = new();
     }
@@ -345,6 +349,9 @@ namespace PoultryFarmAPIWeb.Models
 
         [MinLength(1, ErrorMessage = "Purchase must have at least one item.")]
         public List<GenericPurchaseItemModel> Items { get; set; } = new();
+
+        /// <summary>520: Edit &amp; repost -- the reversed purchase this new one replaces (linked in the same transaction).</summary>
+        public int? CorrectsPurchaseId { get; set; }
     }
 
     public class GenericPurchaseCancelRequest
@@ -442,6 +449,10 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>505: set when the expense was reversed (504; status is then Cancelled). List only.</summary>
         public int? ExpenseReversalId { get; set; }
         public string? ReversalNumber { get; set; }
+        /// <summary>520: Edit &amp; repost -- the reversed expense this one replaces. Write: linked in the same transaction.</summary>
+        public int? CorrectsExpenseId { get; set; }
+        /// <summary>520: on a reversed expense, the live expense that reposts it (null = it can still be reposted). Read only.</summary>
+        public int? CorrectedByExpenseId { get; set; }
     }
 
     public class GenericExpenseDeleteRequest

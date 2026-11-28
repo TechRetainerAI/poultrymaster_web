@@ -207,7 +207,9 @@ namespace PoultryFarmAPIWeb.Controllers
             if (req.Items is null || req.Items.Count == 0)
                 return BadRequest("Purchase must have at least one item.");
 
-            var newId = await _purchases.InsertAsync(farmId, req, createdBy);
+            int newId;
+            try { newId = await _purchases.InsertAsync(farmId, req, createdBy); }
+            catch (SaleRuleException ex) { return BadRequest(new { message = ex.Message }); }   // 520: repost link refused
             var created = await _purchases.GetByIdAsync(newId, farmId);
             return CreatedAtAction(nameof(GetById), new { farmId, id = newId }, created);
         }
@@ -353,7 +355,9 @@ namespace PoultryFarmAPIWeb.Controllers
             if (guard is not null) return guard;
 
             m.FarmId = farmId;
-            var newId = await _expenses.InsertAsync(m);
+            int newId;
+            try { newId = await _expenses.InsertAsync(m); }
+            catch (SaleRuleException ex) { return BadRequest(new { message = ex.Message }); }   // 520: repost link refused
             var created = await _expenses.GetByIdAsync(newId, farmId);
             return CreatedAtAction(nameof(GetById), new { farmId, id = newId }, created);
         }

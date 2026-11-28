@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { Check, Loader2, Package, Pencil, Plus, ArrowLeft } from "lucide-react"
+import { Check, Loader2, Package, Pencil, Plus, ArrowLeft, RotateCcw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -186,6 +186,11 @@ function GenericPurchasesPageInner() {
                   ]}
                   actions={(p) => (
                     <>
+                      {canCreate && !!p.purchaseReversalId && !p.correctedByPurchaseId && (
+                        <Button asChild size="sm" variant="outline" className="flex-1 h-10">
+                          <Link href={`/generic-purchases/new?corrects=${p.genericPurchaseId}`}><RotateCcw className="h-4 w-4 mr-1" /> Edit &amp; repost</Link>
+                        </Button>
+                      )}
                       {p.status === "Draft" && (
                         <Button asChild size="sm" variant="outline" className="flex-1 h-10">
                           <Link href={`/generic-purchases/new?edit=${p.genericPurchaseId}`}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
@@ -244,6 +249,11 @@ function GenericPurchasesPageInner() {
                             <TableCell className={`text-right ${p.balance > 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(p.balance)}</TableCell>
                             <TableCell><StatusBadge p={p} /></TableCell>
                             <TableCell>
+                              {canCreate && !!p.purchaseReversalId && !p.correctedByPurchaseId && (
+                                <Button asChild size="sm" variant="outline" className="mr-1.5" title="Enter this purchase again, corrected">
+                                  <Link href={`/generic-purchases/new?corrects=${p.genericPurchaseId}`}><RotateCcw className="h-3 w-3 mr-1" />Edit &amp; repost</Link>
+                                </Button>
+                              )}
                               {p.status === "Draft" && (
                                 <Button asChild size="sm" variant="outline" className="mr-1.5">
                                   <Link href={`/generic-purchases/new?edit=${p.genericPurchaseId}`}><Pencil className="h-3 w-3 mr-1" />Edit</Link>

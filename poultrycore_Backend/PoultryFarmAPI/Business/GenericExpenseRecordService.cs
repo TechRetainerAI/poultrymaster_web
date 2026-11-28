@@ -64,7 +64,30 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@DueDate", m.DueDate.HasValue ? m.DueDate.Value.Date : (object)DBNull.Value);
 
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // 520: a reposted expense is saved and linked to the reversed one in ONE
+            // transaction -- a refused link leaves no orphan draft behind.
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            if (m.CorrectsExpenseId is int corrects && corrects > 0)
+            {
+                try
+                {
+                    await using var link = new NpgsqlCommand(
+                        "SELECT spgenericexpense_linkcorrection(p_farmid => @FarmId::text, p_newexpenseid => @New::int, p_correctsexpenseid => @Old::int, p_by => @By::text)", conn, tx);
+                    link.Parameters.AddWithValue("@FarmId", m.FarmId);
+                    link.Parameters.AddWithValue("@New", newId);
+                    link.Parameters.AddWithValue("@Old", corrects);
+                    link.Parameters.AddWithValue("@By", (object?)m.CreatedBy ?? DBNull.Value);
+                    await link.ExecuteNonQueryAsync();
+                }
+                catch (PostgresException ex) when (ex.SqlState == "P0001")
+                {
+                    throw new SaleRuleException(ex.MessageText, ex);
+                }
+            }
+            await tx.CommitAsync();
+            return newId;
         }
 
         // 448: edit. Draft / Rejected: everything (Rejected goes back to Draft).
@@ -170,6 +193,9 @@ namespace PoultryFarmAPIWeb.Business
             // 505: list only, read when present.
             ExpenseReversalId        = Optional(r, "ExpenseReversalId") is int rid ? rid : null,
             ReversalNumber           = Optional(r, "ReversalNumber") as string,
+            // 520
+            CorrectsExpenseId        = Optional(r, "CorrectsExpenseId") is int cid ? cid : null,
+            CorrectedByExpenseId     = Optional(r, "CorrectedByExpenseId") is int bid ? bid : null,
         };
 
         private static object? Optional(NpgsqlDataReader r, string name)

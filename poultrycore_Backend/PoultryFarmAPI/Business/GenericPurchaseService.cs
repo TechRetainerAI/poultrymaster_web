@@ -82,7 +82,30 @@ namespace PoultryFarmAPIWeb.Business
             });
 
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // 520: a reposted purchase is saved and linked to the reversed one in ONE
+            // transaction -- a refused link leaves no orphan draft behind.
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            if (req.CorrectsPurchaseId is int corrects && corrects > 0)
+            {
+                try
+                {
+                    await using var link = new NpgsqlCommand(
+                        "SELECT spgenericpurchase_linkcorrection(p_farmid => @FarmId::text, p_newpurchaseid => @New::int, p_correctspurchaseid => @Old::int, p_by => @By::text)", conn, tx);
+                    link.Parameters.AddWithValue("@FarmId", farmId);
+                    link.Parameters.AddWithValue("@New", newId);
+                    link.Parameters.AddWithValue("@Old", corrects);
+                    link.Parameters.AddWithValue("@By", (object?)createdBy ?? DBNull.Value);
+                    await link.ExecuteNonQueryAsync();
+                }
+                catch (PostgresException ex) when (ex.SqlState == "P0001")
+                {
+                    throw new SaleRuleException(ex.MessageText, ex);
+                }
+            }
+            await tx.CommitAsync();
+            return newId;
         }
 
         // Keys must match the jsonb_to_recordset column list in spgenericpurchase_insert.
@@ -187,6 +210,9 @@ namespace PoultryFarmAPIWeb.Business
             // 500: only the list returns these, so read them only when the column is there.
             PurchaseReversalId     = Optional(r, "PurchaseReversalId") is int rid ? rid : null,
             ReversalNumber         = Optional(r, "ReversalNumber") as string,
+            // 520
+            CorrectsPurchaseId     = Optional(r, "CorrectsPurchaseId") is int cid ? cid : null,
+            CorrectedByPurchaseId  = Optional(r, "CorrectedByPurchaseId") is int bid ? bid : null,
         };
 
         private static object? Optional(NpgsqlDataReader r, string name)
