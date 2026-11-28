@@ -53,7 +53,7 @@ import { RecordPaymentDialog, type CashAccountOption } from "@/components/balanc
 import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
 import type { OpenDocumentRow } from "@/lib/api/balances"
 import {
-  Banknote, Calendar, Check, ChevronDown, ChevronUp, DollarSign, Download, FileText as FileTextIcon, Filter,
+  Banknote, Calendar, Check, ChevronDown, ChevronUp, DollarSign, Download, Eye, FileText as FileTextIcon, Filter,
   History, Loader2, Pencil, Plus, Search, Trash2, Truck, Undo2, X,
 } from "lucide-react"
 import { ReversePurchaseDialog } from "@/components/purchases/reverse-purchase-dialog"
@@ -578,9 +578,10 @@ function GenericExpensesPageInner() {
     // Purchase-originated expenses are read-only — managed from Purchases page.
     if (fromPurchase) {
       return (
-        <span className={cn("text-xs text-slate-400 italic", mobile && "flex-1 text-center")}>
-          From purchase — view in Purchases
-        </span>
+        <Button variant={mobile ? "outline" : "ghost"} size="sm" className={cn(btn, "text-blue-600")}
+          title="View source purchase" onClick={() => router.push("/generic-purchases")}>
+          <Eye className="w-4 h-4" />{mobile && <span className="ml-2">View purchase</span>}
+        </Button>
       )
     }
     return (
