@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/ui/data-pagination"
 import { ArrowLeft, Loader2, TrendingDown, TrendingUp, Wallet } from "lucide-react"
 import { ReportExportButtons } from "@/components/reports/report-export-buttons"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -198,6 +199,7 @@ export default function CashMovementReportPage() {
                       </TableBody>
                     </Table>
                   </div>
+                  <DataPagination {...pg.paginationProps} className="px-4 pb-3" />
                 </CardContent>
               </Card>
             )}

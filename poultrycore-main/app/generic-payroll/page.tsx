@@ -576,6 +576,7 @@ export default function GenericPayrollPage() {
                     { label: "Period", value: `${fmtDateTime(r.periodStart, r)} → ${fmtDateTime(r.periodEnd, r)}` },
                     { label: "Gross", value: gh(r.totalGrossPay) },
                     { label: "Cash account", value: r.cashAccountName ?? "—" },
+                    { label: "Pay date", value: r.payDate ? fmtDateTime(r.payDate, r) : "—" },
                     { label: "Status", value: r.status },
                     ...(projectLabels.enabled ? [{ label: PROJECT_COLUMN_TITLE, value: <ProjectLabels labels={projectLabels.labelsOf(r.genericPayrollRunId)} /> }] : []),
                   ]}
@@ -591,6 +592,7 @@ export default function GenericPayrollPage() {
                             <TableHead className="text-right">Deductions</TableHead>
                             <TableHead className="text-right">Net</TableHead>
                             <TableHead>Cash account</TableHead>
+                            <TableHead>Pay date</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
@@ -604,6 +606,7 @@ export default function GenericPayrollPage() {
                               <TableCell className="text-right tabular-nums">{gh(r.totalDeductions)}</TableCell>
                               <TableCell className="text-right tabular-nums font-semibold">{gh(r.totalNetPay)}</TableCell>
                               <TableCell>{r.cashAccountName ?? "—"}</TableCell>
+                              <TableCell className="whitespace-nowrap">{r.payDate ? fmtDateTime(r.payDate, r) : "—"}</TableCell>
                               <TableCell><Badge className={STATUS_STYLE[r.status] ?? ""}>{r.status}</Badge></TableCell>
                               <TableCell className="text-right whitespace-nowrap">{renderActions(r, false)}</TableCell>
                             </TableRow>

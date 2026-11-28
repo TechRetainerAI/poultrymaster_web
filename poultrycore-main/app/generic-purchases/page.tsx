@@ -21,6 +21,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { approvePurchase, getPurchases, type GenericPurchase } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { usePagination } from "@/hooks/use-pagination"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { ProjectFilter } from "@/components/generic/projects/project-filter"
 import { useProjectLabels } from "@/hooks/use-project-labels"
@@ -89,6 +91,11 @@ function GenericPurchasesPageInner() {
       .filter((p) => payFilter === "all" || (payFilter === "unpaid" ? isUnpaid(p) : !isUnpaid(p))),
     [rows, search, dateFrom, dateTo, projectLabels, projectFilter, payFilter],
   )
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<SortDirection>(null)
+  const handleSort = (key: string) => { const n = toggleSort(key, sortKey, sortDir); setSortKey(n.key); setSortDir(n.direction) }
+  const sortedRows = useMemo(() => sortData(visibleRows as any[], sortKey, sortDir) as typeof visibleRows, [visibleRows, sortKey, sortDir])
+  const pg = usePagination(sortedRows, 25)
 
   const unpaidCount = useMemo(() => rows.filter(isUnpaid).length, [rows])
 
@@ -153,7 +160,8 @@ function GenericPurchasesPageInner() {
             <Card>
               <CardContent className="p-0">
                 <MobileCardList
-                  items={visibleRows}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(p) => p.genericPurchaseId}
                   primary={(p) => `#${p.genericPurchaseId} · ${p.supplierName ?? "–"}`}
                   secondary={(p) => (
@@ -205,20 +213,20 @@ function GenericPurchasesPageInner() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>#</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Supplier</TableHead>
+                          <SortableHeader label="#" sortKey="genericPurchaseId" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Date" sortKey="purchaseDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Supplier" sortKey="supplierName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                           {projectLabels.enabled && <ProjectHead />}
-                          <TableHead>Invoice</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                          <TableHead className="text-right">Paid</TableHead>
-                          <TableHead className="text-right">Balance</TableHead>
-                          <TableHead>Status</TableHead>
+                          <SortableHeader label="Invoice" sortKey="invoiceNumber" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Total" sortKey="totalAmount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />
+                          <SortableHeader label="Paid" sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />
+                          <SortableHeader label="Balance" sortKey="balance" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />
+                          <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                           <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleRows.map((p) => (
+                        {pg.pageItems.map((p) => (
                           <TableRow key={p.genericPurchaseId}>
                             <TableCell>
                               <Link href={`/generic-purchases/${p.genericPurchaseId}`} className="text-emerald-700 underline">#{p.genericPurchaseId}</Link>

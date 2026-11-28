@@ -32,7 +32,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -43,6 +43,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { DataPagination } from "@/components/ui/data-pagination"
+import { PERIOD_GROUPS, periodToRange, rangeToPeriod } from "@/lib/date-ranges"
 import { DateTimeCell } from "@/components/ui/date-time-cell"
 import {
   MOBILE_FILTER_SHEET_CONTENT_CLASS, MOBILE_FILTER_SELECT_CONTENT_CLASS, MOBILE_FILTERS_TOOLBAR_ROW_CLASS,
@@ -935,6 +936,20 @@ function GenericExpensesPageInner() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
                 </div>
+                <Select
+                  value={fromDate && toDate ? rangeToPeriod(fromDate, toDate) : "custom"}
+                  onValueChange={(v) => { const r = periodToRange(v as never); if (r) { setFromDate(r.from); setToDate(r.to) } }}
+                >
+                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="Period" /></SelectTrigger>
+                  <SelectContent>
+                    {PERIOD_GROUPS.map((g, gi) => (
+                      <SelectGroup key={g.label}>
+                        {gi > 0 && <SelectSeparator />}
+                        {g.options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <div className="relative w-full sm:w-[140px]">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input type="date" placeholder="From" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="pl-9" />

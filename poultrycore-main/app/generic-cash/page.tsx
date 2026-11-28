@@ -22,6 +22,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Loader2, Wallet, ArrowLeftRight, Eye, Plus, Pencil, Trash2, RefreshCw, Scale, FileText } from "lucide-react"
 import { SetupTaskBar } from "@/components/setup/setup-embed"
 import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
@@ -78,11 +79,16 @@ export default function GenericCashPage() {
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
 
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<SortDirection>(null)
+  const handleSort = (key: string) => { const n = toggleSort(key, sortKey, sortDir); setSortKey(n.key); setSortDir(n.direction) }
+
   const visibleAccounts = useMemo(
     () => filterByDateAndSearch(accounts, { search, searchKeys: ["accountName", "accountType"] }),
     [accounts, search],
   )
-  const pg = usePagination(visibleAccounts)
+  const sortedAccounts = useMemo(() => sortData(visibleAccounts as any[], sortKey, sortDir) as typeof visibleAccounts, [visibleAccounts, sortKey, sortDir])
+  const pg = usePagination(sortedAccounts)
 
   // Create/edit account dialog
   const [open, setOpen] = useState(false)
@@ -319,13 +325,13 @@ export default function GenericCashPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead className="text-right">Opening</TableHead>
-                          <TableHead className="text-right">Current</TableHead>
+                          <SortableHeader label="Name" sortKey="accountName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Type" sortKey="accountType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Opening" sortKey="openingBalance" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />
+                          <SortableHeader label="Current" sortKey="currentBalance" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" />
                           <TableHead className="text-right">Calculated</TableHead>
-                          <TableHead>Allows negative</TableHead>
-                          <TableHead>Status</TableHead>
+                          <SortableHeader label="Allows negative" sortKey="allowNegativeBalance" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Status" sortKey="isActive" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
