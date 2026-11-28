@@ -14,7 +14,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
@@ -243,6 +243,7 @@ function GenericInventoryPageInner() {
   // ---- Dialogs ----
   const [deleteTarget, setDeleteTarget] = useState<GenericProduct | null>(null)
   const [reverseTarget, setReverseTarget] = useState<GenericPurchase | null>(null)
+  const [viewPurchase, setViewPurchase] = useState<GenericPurchase | null>(null)
 
   // Adjustment dialog
   const [adjOpen, setAdjOpen] = useState(false)
@@ -733,7 +734,7 @@ function GenericInventoryPageInner() {
                             <TableCell><PaymentStatusBadge status={p.paymentStatus} /></TableCell>
                             <TableCell><PurchaseStatusBadge status={p.status} reversed={!!p.purchaseReversalId} /></TableCell>
                             <TableCell className="whitespace-nowrap text-right">
-                              <IconAction label="View purchase details" href={`/generic-purchases/${p.genericPurchaseId}`}>
+                              <IconAction label="View purchase details" onClick={() => setViewPurchase(p)}>
                                 <Eye className="h-4 w-4" />
                               </IconAction>
                               {p.status === "Draft" && (
@@ -792,8 +793,8 @@ function GenericInventoryPageInner() {
                               ["Payment", p.paymentStatus],
                             ]}
                             actions={<>
-                              <Button asChild size="sm" variant="outline">
-                                <Link href={`/generic-purchases/${p.genericPurchaseId}`}><Eye className="h-4 w-4 mr-1" /> View</Link>
+                              <Button size="sm" variant="outline" onClick={() => setViewPurchase(p)}>
+                                <Eye className="h-4 w-4 mr-1" /> View
                               </Button>
                               {p.status === "Draft" && (
                                 <>
@@ -1014,6 +1015,39 @@ function GenericInventoryPageInner() {
         confirmLabel="Reject"
         onSubmit={(reason) => rejectTarget !== null && onRejectAdj(rejectTarget, reason)}
       />
+
+      {/* View purchase details popup */}
+      <Dialog open={!!viewPurchase} onOpenChange={(o) => { if (!o) setViewPurchase(null) }}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          {viewPurchase && (<>
+            <DialogHeader>
+              <DialogTitle>Purchase #{viewPurchase.genericPurchaseId}</DialogTitle>
+              <DialogDescription>{viewPurchase.invoiceNumber ?? "No invoice number"}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-slate-500 text-xs">Date</span><p className="font-medium">{fmtDateTime(viewPurchase.purchaseDate, viewPurchase)}</p></div>
+                <div><span className="text-slate-500 text-xs">Status</span><p><PurchaseStatusBadge status={viewPurchase.status} reversed={!!viewPurchase.purchaseReversalId} /></p></div>
+                <div><span className="text-slate-500 text-xs">Supplier</span><p className="font-medium">{displaySupplier(viewPurchase)}</p></div>
+                <div><span className="text-slate-500 text-xs">Invoice</span><p className="font-medium">{viewPurchase.invoiceNumber ?? "—"}</p></div>
+                <div><span className="text-slate-500 text-xs">Total</span><p className="font-semibold text-base">{gh(viewPurchase.totalAmount)}</p></div>
+                <div><span className="text-slate-500 text-xs">Paid</span><p className="font-medium">{gh(viewPurchase.amountPaid)}</p></div>
+                <div><span className="text-slate-500 text-xs">Balance</span><p className={cn("font-medium", viewPurchase.balance > 0 ? "text-red-600" : "text-slate-500")}>{gh(viewPurchase.balance)}</p></div>
+                <div><span className="text-slate-500 text-xs">Payment</span><p className="font-medium"><PaymentStatusBadge status={viewPurchase.paymentStatus} /></p></div>
+                <div><span className="text-slate-500 text-xs">Payment Method</span><p className="font-medium">{viewPurchase.paymentMethod ?? "—"}</p></div>
+              </div>
+              {viewPurchase.notes && (<>
+                <hr />
+                <div className="text-sm"><span className="text-slate-500 text-xs">Notes</span><p className="text-slate-700 whitespace-pre-wrap">{viewPurchase.notes}</p></div>
+              </>)}
+              <hr />
+              <div className="space-y-1 text-xs text-slate-400">
+                <div>Created: {fmtDateTime(viewPurchase.createdAt, viewPurchase)}</div>
+              </div>
+            </div>
+          </>)}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

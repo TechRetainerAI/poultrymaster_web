@@ -1312,44 +1312,44 @@ function GenericExpensesPageInner() {
         }}
       />
 
-      {/* View expense details */}
-      <Sheet open={!!viewFor} onOpenChange={(o) => { if (!o) setViewFor(null) }}>
-        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
-          {viewFor && (
-            <div className="space-y-4 pt-4">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Expense #{viewFor.genericExpenseId}</h3>
-                <p className="text-sm text-slate-500">{viewFor.sourceType ? `Source: ${viewFor.sourceType}` : "Manual expense"}</p>
-              </div>
+      {/* View expense details popup */}
+      <Dialog open={!!viewFor} onOpenChange={(o) => { if (!o) setViewFor(null) }}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          {viewFor && (<>
+            <DialogHeader>
+              <DialogTitle>Expense #{viewFor.genericExpenseId}</DialogTitle>
+              <DialogDescription>{viewFor.sourceType ? `Source: ${viewFor.sourceType}` : "Manual expense"}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-slate-500">Date</span><p className="font-medium">{fmtDateTime(viewFor.expenseDate, viewFor)}</p></div>
-                <div><span className="text-slate-500">Status</span><p><Badge variant="outline">{viewFor.status}</Badge></p></div>
-                <div><span className="text-slate-500">Category</span><p className="font-medium">{viewFor.categoryName ?? "—"}</p></div>
-                <div><span className="text-slate-500">Payment Method</span><p className="font-medium">{viewFor.paymentMethod ?? "—"}</p></div>
-                <div><span className="text-slate-500">Amount</span><p className="font-semibold text-base">{formatCurrency(Number(viewFor.amount))}</p></div>
-                <div><span className="text-slate-500">Paid</span><p className="font-medium">{formatCurrency(viewFor.amountPaidN)}</p></div>
-                <div><span className="text-slate-500">Balance</span><p className={cn("font-medium", viewFor.balance > 0 ? "text-amber-700" : "text-slate-500")}>{formatCurrency(viewFor.balance)}</p></div>
-                <div><span className="text-slate-500">Payment Status</span><p className="font-medium">{viewFor.paymentStatus ?? "—"}</p></div>
+                <div><span className="text-slate-500 text-xs">Date</span><p className="font-medium">{fmtDateTime(viewFor.expenseDate, viewFor)}</p></div>
+                <div><span className="text-slate-500 text-xs">Status</span><p><Badge variant="outline">{viewFor.status}</Badge></p></div>
+                <div><span className="text-slate-500 text-xs">Category</span><p className="font-medium">{viewFor.categoryName ?? "—"}</p></div>
+                <div><span className="text-slate-500 text-xs">Payment Method</span><p className="font-medium">{viewFor.paymentMethod ?? "—"}</p></div>
+                <div><span className="text-slate-500 text-xs">Amount</span><p className="font-semibold text-base">{formatCurrency(Number(viewFor.amount))}</p></div>
+                <div><span className="text-slate-500 text-xs">Paid</span><p className="font-medium">{formatCurrency(viewFor.amountPaidN)}</p></div>
+                <div><span className="text-slate-500 text-xs">Balance</span><p className={cn("font-medium", viewFor.balance > 0 ? "text-amber-700" : "text-slate-500")}>{formatCurrency(viewFor.balance)}</p></div>
+                <div><span className="text-slate-500 text-xs">Payment Status</span><p className="font-medium">{viewFor.paymentStatus ?? "—"}</p></div>
               </div>
               <hr />
               <div className="space-y-2 text-sm">
-                <div><span className="text-slate-500">Description</span><p className="font-medium">{viewFor.description || "—"}</p></div>
-                <div><span className="text-slate-500">Supplier / Paid To</span><p className="font-medium">{viewFor.supplierName || viewFor.paidTo || "—"}</p></div>
-                <div><span className="text-slate-500">Cash Account</span><p className="font-medium">{viewFor.cashAccountName || "—"}</p></div>
-                {viewFor.dueDate && <div><span className="text-slate-500">Due Date</span><p className="font-medium">{fmtDateTime(viewFor.dueDate, viewFor)}</p></div>}
-                {viewFor.notes && <div><span className="text-slate-500">Notes</span><p className="text-slate-700 whitespace-pre-wrap">{viewFor.notes}</p></div>}
+                <div><span className="text-slate-500 text-xs">Description</span><p className="font-medium">{viewFor.description || "—"}</p></div>
+                <div><span className="text-slate-500 text-xs">Supplier / Paid To</span><p className="font-medium">{viewFor.supplierName || viewFor.paidTo || "—"}</p></div>
+                <div><span className="text-slate-500 text-xs">Cash Account</span><p className="font-medium">{viewFor.cashAccountName || "—"}</p></div>
+                {viewFor.dueDate && <div><span className="text-slate-500 text-xs">Due Date</span><p className="font-medium">{fmtDateTime(viewFor.dueDate, viewFor)}</p></div>}
+                {viewFor.notes && <div><span className="text-slate-500 text-xs">Notes</span><p className="text-slate-700 whitespace-pre-wrap">{viewFor.notes}</p></div>}
               </div>
               <hr />
-              <div className="space-y-2 text-sm text-slate-500">
+              <div className="space-y-1 text-xs text-slate-400">
                 <div>Created: {fmtDateTime(viewFor.createdAt, viewFor)}</div>
                 {viewFor.approvedBy && <div>Approved by: {viewFor.approvedBy} · {viewFor.approvedAt ? fmtDateTime(viewFor.approvedAt, viewFor) : ""}</div>}
                 {viewFor.rejectionReason && <div>Rejection reason: {viewFor.rejectionReason}</div>}
                 {viewFor.expenseReversalId && <div>Reversed (#{viewFor.reversalNumber})</div>}
               </div>
             </div>
-          )}
-        </SheetContent>
-      </Sheet>
+          </>)}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
