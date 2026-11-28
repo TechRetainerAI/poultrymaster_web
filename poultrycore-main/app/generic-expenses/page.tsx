@@ -571,9 +571,18 @@ function GenericExpensesPageInner() {
   const rowActions = (e: Row, mobile = false) => {
     const draft = e.status === "Draft" || e.status === "Submitted"
     const own = ownExpense(e)
+    const fromPurchase = e.sourceType === "Purchase"
     // 504: an approved expense is final -- no Edit or Delete; it is reversed.
     const editable = own && (draft || e.status === "Rejected")
     const btn = mobile ? "flex-1 h-10" : "h-8 w-8 p-0"
+    // Purchase-originated expenses are read-only — managed from Purchases page.
+    if (fromPurchase) {
+      return (
+        <span className={cn("text-xs text-slate-400 italic", mobile && "flex-1 text-center")}>
+          From purchase — view in Purchases
+        </span>
+      )
+    }
     return (
       <>
         {canApprove && draft && (
