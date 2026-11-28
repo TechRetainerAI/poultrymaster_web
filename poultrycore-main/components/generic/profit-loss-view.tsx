@@ -246,8 +246,10 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
   const totalCapitalInvestments = totalOf("capital")
   // Reference only: cost of stock sold. EXCLUDED from every profit figure (no
   // profit total reads "cogsmemo"); on cash-basis the cost is already charged
-  // through Inventory purchases, so COGS is shown here just to see the number.
+  // through Inventory purchases, so COGS is shown under Direct Production Costs
+  // as a reference line that is NOT added to that total.
   const totalCogsMemo = totalOf("cogsmemo")
+  const cogsRefLine = bySection("cogsmemo")[0]
   const subscriptionIncome = bySection("revenue").find((l) => l.lineKey === "Subscription income")?.amount ?? 0
 
   // -------------------------------------------------------------- drilldown --
@@ -490,7 +492,9 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
                     <SectionCard className="h-full" tone="emerald" title="Revenue" lines={bySection("revenue")}
                       totalLabel="Total Revenue" totalAmount={totalRevenue} onOpen={openDrill} gh={gh} />
                     <SectionCard className="h-full" tone="rose" negative title="Direct Production Costs" lines={bySection("direct")}
-                      totalLabel="Total Direct Production Costs" totalAmount={totalDirectCosts} onOpen={openDrill} gh={gh} />
+                      totalLabel="Total Direct Production Costs" totalAmount={totalDirectCosts} onOpen={openDrill} gh={gh}
+                      refLine={cogsRefLine}
+                      refNote="Cost of goods sold — reference only, not added above (the stock's cost is already in Inventory purchases)." />
                     <SectionCard className="h-full" tone="amber" negative title="Operating Expenses" lines={bySection("operating")}
                       totalLabel="Total Operating Expenses" totalAmount={totalOperatingExpenses} onOpen={openDrill} gh={gh} />
                     <SectionCard className="h-full" tone="violet" negative title="Depreciation & Financing Costs" lines={bySection("other")}
@@ -536,20 +540,6 @@ export function GenericProfitLossView({ report = false }: { report?: boolean }) 
                       gh={gh}
                       footer={<div className="text-xs text-slate-600">Total capital investments <strong>{gh(totalCapitalInvestments)}</strong></div>}
                       links={[{ href: "/generic-assets", label: "View Capital Investments/Assets" }]}
-                    />
-                    <InfoSection
-                      icon={<Info className="w-4 h-4" />}
-                      title="Cost of Goods Sold"
-                      subtitle="Reference only — not in profit"
-                      note="The recorded cost of the stock you SOLD this period. It is shown for reference and is NOT deducted from profit: this P&L is cash-basis, so the cost of stock is already charged under Inventory purchases when you buy it. Deducting COGS as well would count the same stock twice."
-                      lines={bySection("cogsmemo")}
-                      onOpen={openDrill}
-                      gh={gh}
-                      footer={<div className="text-xs text-slate-600">Cost of goods sold this period <strong>{gh(totalCogsMemo)}</strong></div>}
-                      links={[
-                        { href: "/generic-sales", label: "View Sales" },
-                        { href: "/generic-inventory", label: "View Inventory" },
-                      ]}
                     />
                   </div>
 
@@ -789,7 +779,7 @@ const SECTION_TONES = {
   violet: { head: "bg-violet-50 text-violet-800", total: "bg-violet-50/60", border: "border-violet-200" },
 } as const
 
-function SectionCard({ title, lines, totalLabel, totalAmount, onOpen, gh, negative, tone, className }: {
+function SectionCard({ title, lines, totalLabel, totalAmount, onOpen, gh, negative, tone, className, refLine, refNote }: {
   title: string
   lines: Line[]
   totalLabel: string
@@ -799,6 +789,9 @@ function SectionCard({ title, lines, totalLabel, totalAmount, onOpen, gh, negati
   negative?: boolean
   tone: keyof typeof SECTION_TONES
   className?: string
+  /** A line shown below the total for reference only — NOT added to the total. */
+  refLine?: Line
+  refNote?: string
 }) {
   const t = SECTION_TONES[tone]
   const money = (n: number) => (negative ? `(${gh(n)})` : gh(n))
@@ -834,6 +827,19 @@ function SectionCard({ title, lines, totalLabel, totalAmount, onOpen, gh, negati
         <span className="text-sm font-semibold text-slate-900">{totalLabel}</span>
         <span className="ml-auto text-sm font-semibold tabular-nums text-slate-900">{money(totalAmount)}</span>
       </div>
+      {refLine && refLine.amount !== 0 && (
+        <div className="shrink-0 border-t border-dashed px-3 py-2">
+          <button type="button" onClick={() => onOpen(refLine)}
+                  className="flex w-full items-center gap-1 text-left text-slate-500 transition-colors hover:text-slate-700">
+            <span className="inline-flex min-w-0 items-center gap-1 text-xs">
+              <span>{refLine.lineLabel}</span>
+              <ChevronRight className="h-3 w-3 shrink-0 text-slate-400" />
+            </span>
+            <span className="ml-auto text-xs tabular-nums">{gh(refLine.amount)}</span>
+          </button>
+          {refNote && <p className="mt-0.5 text-[10px] leading-snug text-slate-400">{refNote}</p>}
+        </div>
+      )}
     </div>
   )
 }
