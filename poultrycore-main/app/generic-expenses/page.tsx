@@ -1093,7 +1093,7 @@ function GenericExpensesPageInner() {
                       )}
                       {/* Date 100 + Category 150 + Supplier 140 + Total 110 + Paid 110 + Balance 110
                           + Status 120 + Method 120 + Approval 110 + Actions 180 = 1250, + 250 Description = 1500. */}
-                      <Table className={cn("table-fixed w-full", projectLabels.enabled ? "min-w-[1660px]" : "min-w-[1500px]")}>
+                      <Table className={cn("table-fixed w-full text-xs", projectLabels.enabled ? "min-w-[1660px]" : "min-w-[1500px]")}>
                         <TableHeader>
                           <TableRow>
                             <SortableHeader label="Date" sortKey="expenseDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[100px]" />

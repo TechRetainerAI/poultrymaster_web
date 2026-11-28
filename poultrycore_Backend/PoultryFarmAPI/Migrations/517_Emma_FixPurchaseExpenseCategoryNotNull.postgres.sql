@@ -203,7 +203,7 @@ BEGIN
         CASE WHEN v_amountpaid > 0 THEN 'Cash' ELSE 'Credit' END,
         v_cashaccountid, v_supplierid,
         CASE WHEN v_amountpaid > 0 THEN v_amountpaid ELSE NULL END,
-        'Draft',
+        'Approved',
         p_approvedby,
         (now() at time zone 'utc'), (now() at time zone 'utc')
     )
@@ -228,7 +228,7 @@ BEGIN
             'Cash', v_cashaccountid,
             v_invoicenumber,
             'Auto-created from purchase #' || p_genericpurchaseid::text,
-            'Draft',
+            'Approved',
             p_genericpurchaseid, v_expenseid,
             p_approvedby,
             (now() at time zone 'utc'), (now() at time zone 'utc')
