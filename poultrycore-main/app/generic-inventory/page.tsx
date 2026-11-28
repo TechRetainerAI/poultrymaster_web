@@ -31,7 +31,7 @@ import { ReasonSelect } from "@/components/ui/reason-select"
 import {
   Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle,
   History, Check, Package, ArrowUpCircle, ArrowDownCircle,
-  Boxes, ExternalLink, ArrowLeft, Undo2,
+  Boxes, ExternalLink, ArrowLeft, Undo2, Eye,
 } from "lucide-react"
 import { ReversePurchaseDialog } from "@/components/purchases/reverse-purchase-dialog"
 import { getUserContext } from "@/lib/api/config"
@@ -370,8 +370,9 @@ function GenericInventoryPageInner() {
     if (purchaseStatusFilter !== "all") rows = rows.filter((p) => p.status === purchaseStatusFilter)
     if (payFilter === "unpaid") rows = rows.filter((p) => p.status !== "Cancelled" && (p.balance ?? 0) > 0)
     if (payFilter === "paid") rows = rows.filter((p) => (p.balance ?? 0) <= 0)
+    rows = rows.filter((p) => purchaseProjects.matches(p.genericPurchaseId, projectFilter))
     return rows
-  }, [purchases, search, dateFrom, dateTo, purchaseStatusFilter, payFilter])
+  }, [purchases, search, dateFrom, dateTo, purchaseStatusFilter, payFilter, purchaseProjects, projectFilter])
 
   const unpaidCount = useMemo(() => purchases.filter((p) => p.status !== "Cancelled" && (p.balance ?? 0) > 0).length, [purchases])
 
@@ -693,7 +694,9 @@ function GenericInventoryPageInner() {
                             <SelectItem value="Cancelled">Cancelled</SelectItem>
                           </SelectContent>
                         </Select>
-                      </>} />
+                      </>}
+                      extras={<ProjectFilter value={projectFilter} onChange={setProjectFilter} showWhenDisabled />}
+                    />
 
                     {/* Desktop table */}
                     <div className="hidden md:block overflow-x-auto"><Table>
@@ -730,6 +733,9 @@ function GenericInventoryPageInner() {
                             <TableCell><PaymentStatusBadge status={p.paymentStatus} /></TableCell>
                             <TableCell><PurchaseStatusBadge status={p.status} reversed={!!p.purchaseReversalId} /></TableCell>
                             <TableCell className="whitespace-nowrap text-right">
+                              <IconAction label="View purchase details" href={`/generic-purchases/${p.genericPurchaseId}`}>
+                                <Eye className="h-4 w-4" />
+                              </IconAction>
                               {p.status === "Draft" && (
                                 <>
                                   <IconAction label="Edit draft purchase" href={`/generic-purchases/new?edit=${p.genericPurchaseId}`}>
@@ -785,23 +791,29 @@ function GenericInventoryPageInner() {
                               ["Balance", p.balance > 0 ? gh(p.balance) : "—"],
                               ["Payment", p.paymentStatus],
                             ]}
-                            actions={p.status === "Draft" ? (
-                              <>
-                                <Button asChild size="sm" variant="outline">
-                                  <Link href={`/generic-purchases/new?edit=${p.genericPurchaseId}`}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
-                                </Button>
-                                <Button size="sm" variant="outline" className="text-emerald-700" onClick={() => onApprove(p.genericPurchaseId)}>
-                                  <Check className="h-4 w-4 mr-1" /> Approve
-                                </Button>
-                                <Button size="sm" variant="outline" className="text-red-600" onClick={() => onCancel(p.genericPurchaseId)}>
-                                  Cancel
-                                </Button>
-                              </>
-                            ) : p.status === "Approved" ? (
-                              <Button size="sm" variant="outline" className="text-red-600" onClick={() => setReverseTarget(p)}>
-                                <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                            actions={<>
+                              <Button asChild size="sm" variant="outline">
+                                <Link href={`/generic-purchases/${p.genericPurchaseId}`}><Eye className="h-4 w-4 mr-1" /> View</Link>
                               </Button>
-                            ) : undefined}
+                              {p.status === "Draft" && (
+                                <>
+                                  <Button asChild size="sm" variant="outline">
+                                    <Link href={`/generic-purchases/new?edit=${p.genericPurchaseId}`}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-emerald-700" onClick={() => onApprove(p.genericPurchaseId)}>
+                                    <Check className="h-4 w-4 mr-1" /> Approve
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-red-600" onClick={() => onCancel(p.genericPurchaseId)}>
+                                    Cancel
+                                  </Button>
+                                </>
+                              )}
+                              {p.status === "Approved" && (
+                                <Button size="sm" variant="outline" className="text-red-600" onClick={() => setReverseTarget(p)}>
+                                  <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                                </Button>
+                              )}
+                            </>}
                           />
                         ))}
                     </div>
